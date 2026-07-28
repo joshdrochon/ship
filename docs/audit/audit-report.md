@@ -467,6 +467,25 @@ Critical-flow mapping (p.6 names document CRUD, real-time sync, auth, sprint man
 Remaining 514 tests span 44 unmapped specs (bulk-selection 85, accessibility-remediation 57,
 features-real 24, drag-handle 19, …).
 
+**What is *not* covered.** p.5's bullet asks to catalog covered flows *and which are not*, so
+the inverse was derived too. Every one of the 37 declared routes has either a matching spec or
+an in-test reference, so there is no wholly untested route. Checking feature areas against test
+*content* rather than filenames — filenames mislead, `Login` is covered by `auth.spec.ts` —
+four have **zero mentions anywhere in the 71 spec files**:
+
+| Area | E2E references |
+|---|---:|
+| API tokens (`api/src/routes/api-tokens.ts`) | **0** |
+| Claude / AI endpoints (`api/src/routes/claude.ts`) | **0** |
+| Dashboard route (`/dashboard`) | **0** |
+| Org chart (`OrgChartPage`) | **0** |
+
+Thinly covered, single-digit references: person editor (1), setup wizard (1), public feedback
+(5), iterations (5), associations (7).
+
+API tokens is the notable one — it mints long-lived credentials and F16 records
+`isApiToken` as an auth path, so an authentication surface has no end-to-end test at all.
+
 ### Weaknesses
 
 **W5-1 · The most dangerous subsystem is the least tested.** `src/collaboration` sits at

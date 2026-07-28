@@ -197,7 +197,7 @@ Re-baselined; supersedes F5. Canonical command: `docs/audit/scripts/count-type-v
 ### Measure
 
 - [x] Run the full test suite: `pnpm test`. Record pass/fail counts and total runtime
-- [x] Read the test files. Catalog what user flows are covered and which are not
+- [x] Read the test files. Catalog what user flows are covered and which are not — 4 flows mapped; **4 areas with zero E2E references** (api-tokens, claude/AI, /dashboard, org chart)
 - [x] Identify flaky tests: run the suite 3 times and note any tests that pass sometimes and fail others
 - [x] Map critical user flows (document CRUD, real-time sync, auth, sprint management) against existing test coverage
 - [x] If code coverage tooling is not configured, configure it and report line/branch coverage per package
