@@ -1,0 +1,40 @@
+dist/assets/sentiment_satisfied_alt-BbUZ6exx.js          0.65 kB │ gzip:   0.36 kB
+dist/assets/wash-DHJBnn0x.js                             0.66 kB │ gzip:   0.38 kB
+dist/assets/linkedin-BPsPDDse.js                         0.67 kB │ gzip:   0.41 kB
+dist/assets/directions_bike-Co0c_2F2.js                  0.68 kB │ gzip:   0.37 kB
+dist/assets/insights-O5wi3ghY.js                         0.69 kB │ gzip:   0.42 kB
+dist/assets/github-CGf-Xc4s.js                           0.69 kB │ gzip:   0.43 kB
+dist/assets/visibility_off-BKhtJZGz.js                   0.69 kB │ gzip:   0.45 kB
+dist/assets/hearing-AKvQ8c7c.js                          0.69 kB │ gzip:   0.45 kB
+dist/assets/groups-Bnu-6EBM.js                           0.70 kB │ gzip:   0.43 kB
+dist/assets/twitter-C3L-ApVA.js                          0.72 kB │ gzip:   0.45 kB
+dist/assets/snow-C7n2tUDm.js                             0.74 kB │ gzip:   0.42 kB
+dist/assets/pets-B9vBY1ze.js                             0.76 kB │ gzip:   0.41 kB
+dist/assets/do_not_touch-CvpB5HoY.js                     0.81 kB │ gzip:   0.42 kB
+dist/assets/flooding-C7huXCTi.js                         0.81 kB │ gzip:   0.41 kB
+dist/assets/masks-HmhP3t8r.js                            0.82 kB │ gzip:   0.51 kB
+dist/assets/soap-BHt5W93Q.js                             0.83 kB │ gzip:   0.46 kB
+dist/assets/settings-CmmeQHes.js                         0.89 kB │ gzip:   0.50 kB
+dist/assets/reduce_capacity-P---9WKJ.js                  0.94 kB │ gzip:   0.44 kB
+dist/assets/language-xZHcYWXG.js                         0.94 kB │ gzip:   0.55 kB
+dist/assets/WeekIssuesTab-D4BLXISm.js                    1.32 kB │ gzip:   0.74 kB
+dist/assets/coronavirus-CzmE_Rfs.js                      1.62 kB │ gzip:   0.65 kB
+dist/assets/instagram-CkSGsMT0.js                        1.67 kB │ gzip:   0.78 kB
+dist/assets/ProgramOverviewTab-CysaNSnp.js               1.74 kB │ gzip:   0.83 kB
+dist/assets/fingerprint-DETfo2gZ.js                      1.80 kB │ gzip:   0.95 kB
+dist/assets/WeekOverviewTab-BkUUf8Qc.js                  1.89 kB │ gzip:   0.91 kB
+dist/assets/WeekPlanningTab-DWsXI-LK.js                  2.99 kB │ gzip:   1.48 kB
+dist/assets/ProjectDetailsTab-gSyN3jFM.js                3.60 kB │ gzip:   1.47 kB
+dist/assets/ProgramProjectsTab-eNNvrO8g.js               4.40 kB │ gzip:   1.54 kB
+dist/assets/ProjectWeeksTab-oE3MioHn.js                  6.65 kB │ gzip:   2.30 kB
+dist/assets/ProjectRetroTab-BV2rvgoM.js                  9.04 kB │ gzip:   2.40 kB
+dist/assets/StandupFeed-BjJLDai5.js                      9.65 kB │ gzip:   2.88 kB
+dist/assets/WeekReviewTab-DmxN07T1.js                   12.64 kB │ gzip:   3.67 kB
+dist/assets/ProgramWeeksTab-BzbUWlt4.js                 16.76 kB │ gzip:   5.52 kB
+dist/assets/index-C2vAyoQ1.js                        2,073.70 kB │ gzip: 587.59 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 3.57s

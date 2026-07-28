@@ -1,0 +1,195 @@
+{
+  "flows": {
+    "load_main_page": {
+      "total_queries": 128,
+      "distinct_shapes": 13,
+      "slowest_ms": 0.674,
+      "slowest_sql": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,",
+      "total_ms": 15.74,
+      "repeated_shapes": [
+        {
+          "count": 32,
+          "total_ms": 2.85,
+          "shape": "UPDATE sessions SET last_activity = $? WHERE id = $?"
+        },
+        {
+          "count": 24,
+          "total_ms": 4.66,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 16,
+          "total_ms": 1.62,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 8,
+          "total_ms": 0.79,
+          "shape": "SELECT id, email, name, is_super_admin FROM users WHERE id = $?"
+        },
+        {
+          "count": 8,
+          "total_ms": 1.49,
+          "shape": "SELECT user_id, workspace_id, last_activity, created_at"
+        },
+        {
+          "count": 8,
+          "total_ms": 0.32,
+          "shape": "SELECT id, created_at, expires_at, last_activity FROM sessions WHERE id = $?"
+        }
+      ]
+    },
+    "view_a_document": {
+      "total_queries": 200,
+      "distinct_shapes": 17,
+      "slowest_ms": 3.669,
+      "slowest_sql": "SELECT user_id, workspace_id, last_activity, created_at",
+      "total_ms": 34.17,
+      "repeated_shapes": [
+        {
+          "count": 52,
+          "total_ms": 3.6,
+          "shape": "UPDATE sessions SET last_activity = $? WHERE id = $?"
+        },
+        {
+          "count": 40,
+          "total_ms": 10.76,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 16,
+          "total_ms": 1.51,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 16,
+          "total_ms": 0.94,
+          "shape": "SELECT role FROM workspace_memberships WHERE workspace_id = $? AND user_id = $?"
+        },
+        {
+          "count": 12,
+          "total_ms": 6.78,
+          "shape": "SELECT user_id, workspace_id, last_activity, created_at"
+        },
+        {
+          "count": 8,
+          "total_ms": 0.61,
+          "shape": "SELECT id, email, name, is_super_admin FROM users WHERE id = $?"
+        }
+      ]
+    },
+    "list_issues": {
+      "total_queries": 92,
+      "distinct_shapes": 7,
+      "slowest_ms": 1.408,
+      "slowest_sql": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,",
+      "total_ms": 13.6,
+      "repeated_shapes": [
+        {
+          "count": 28,
+          "total_ms": 2.13,
+          "shape": "UPDATE sessions SET last_activity = $? WHERE id = $?"
+        },
+        {
+          "count": 20,
+          "total_ms": 7.5,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 16,
+          "total_ms": 1.45,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 8,
+          "total_ms": 0.67,
+          "shape": "SELECT id, email, name, is_super_admin FROM users WHERE id = $?"
+        },
+        {
+          "count": 8,
+          "total_ms": 1.31,
+          "shape": "SELECT user_id, workspace_id, last_activity, created_at"
+        },
+        {
+          "count": 8,
+          "total_ms": 0.33,
+          "shape": "SELECT id, created_at, expires_at, last_activity FROM sessions WHERE id = $?"
+        }
+      ]
+    },
+    "load_sprint_board": {
+      "total_queries": 56,
+      "distinct_shapes": 5,
+      "slowest_ms": 0.741,
+      "slowest_sql": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,",
+      "total_ms": 8.91,
+      "repeated_shapes": [
+        {
+          "count": 16,
+          "total_ms": 2.03,
+          "shape": "UPDATE sessions SET last_activity = $? WHERE id = $?"
+        },
+        {
+          "count": 16,
+          "total_ms": 1.48,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 8,
+          "total_ms": 3.52,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 8,
+          "total_ms": 0.74,
+          "shape": "SELECT id, email, name, is_super_admin FROM users WHERE id = $?"
+        },
+        {
+          "count": 8,
+          "total_ms": 1.14,
+          "shape": "SELECT user_id, workspace_id, last_activity, created_at"
+        }
+      ]
+    },
+    "search_content": {
+      "total_queries": 64,
+      "distinct_shapes": 7,
+      "slowest_ms": 0.788,
+      "slowest_sql": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,",
+      "total_ms": 7.73,
+      "repeated_shapes": [
+        {
+          "count": 20,
+          "total_ms": 0.92,
+          "shape": "UPDATE sessions SET last_activity = $? WHERE id = $?"
+        },
+        {
+          "count": 16,
+          "total_ms": 4.33,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 8,
+          "total_ms": 0.63,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 8,
+          "total_ms": 0.38,
+          "shape": "SELECT id, created_at, expires_at, last_activity FROM sessions WHERE id = $?"
+        },
+        {
+          "count": 4,
+          "total_ms": 0.26,
+          "shape": "SELECT id, email, name, is_super_admin FROM users WHERE id = $?"
+        },
+        {
+          "count": 4,
+          "total_ms": 0.6,
+          "shape": "SELECT user_id, workspace_id, last_activity, created_at"
+        }
+      ]
+    }
+  },
+  "generated": "2026-07-28T22:05:09.909Z"
+}

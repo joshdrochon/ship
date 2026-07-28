@@ -1,0 +1,64 @@
+[136/869] [chromium] › e2e/autosave-race-conditions.spec.ts:229:7 › Auto-Save Race Conditions - Error Recovery › failed save is retried silently
+[error] WebSocket connection to 'ws://localhost:10301/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+[error] WebSocket connection to 'ws://localhost:10301/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+[error] WebSocket connection to 'ws://localhost:10301/collaboration/wiki:8d3b8b2a-e083-4dd0-9119-003504a8d912' failed: Error during WebSocket handshake: Unexpected response code: 429
+[error] WebSocket connection to 'ws://localhost:10301/collaboration/wiki:8d3b8b2a-e083-4dd0-9119-003504a8d912' failed: Error during WebSocket handshake: Unexpected response code: 429
+[error] WebSocket connection to 'ws://localhost:10301/collaboration/wiki:8d3b8b2a-e083-4dd0-9119-003504a8d912' failed: Error during WebSocket handshake: Unexpected response code: 429
+[error] WebSocket connection to 'ws://localhost:10301/collaboration/wiki:8d3b8b2a-e083-4dd0-9119-003504a8d912' failed: Error during WebSocket handshake: Unexpected response code: 429
+[error] WebSocket connection to 'ws://localhost:10301/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+  1) [chromium] › e2e/edge-cases.spec.ts:320:7 › Edge Cases › handles Unicode content (emoji, CJK characters) 
+    Error: expect(locator).toBeVisible() failed
+    test-results/edge-cases-Edge-Cases-hand-351af-ntent-emoji-CJK-characters--chromium/test-failed-1.png
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10301/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:1508e6ca-d4b6-449c-b1ba-79d6cf87435f' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:1508e6ca-d4b6-449c-b1ba-79d6cf87435f' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:1508e6ca-d4b6-449c-b1ba-79d6cf87435f' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:1508e6ca-d4b6-449c-b1ba-79d6cf87435f' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:d282bf6b-2c6b-4c64-b93f-0619efe0231f' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:d282bf6b-2c6b-4c64-b93f-0619efe0231f' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:d282bf6b-2c6b-4c64-b93f-0619efe0231f' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:d282bf6b-2c6b-4c64-b93f-0619efe0231f' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10201/collaboration/wiki:045bcdb4-bd32-4f75-b680-f53cceca56a5' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:de3dca80-24ea-431c-8340-176e154e648e' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:de3dca80-24ea-431c-8340-176e154e648e' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:de3dca80-24ea-431c-8340-176e154e648e' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:de3dca80-24ea-431c-8340-176e154e648e' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10201/collaboration/wiki:c6532df2-2007-44b7-b895-a3a26ba123c6' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10201/collaboration/wiki:c6532df2-2007-44b7-b895-a3a26ba123c6' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10201/collaboration/wiki:c6532df2-2007-44b7-b895-a3a26ba123c6' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:d9d2928f-6aa5-47e4-b55a-d5b4e404d6d9' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:d9d2928f-6aa5-47e4-b55a-d5b4e404d6d9' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:d9d2928f-6aa5-47e4-b55a-d5b4e404d6d9' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:d9d2928f-6aa5-47e4-b55a-d5b4e404d6d9' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10301/collaboration/wiki:5d666478-a5d1-49f0-8b67-1d70f15de515' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10301/collaboration/wiki:5d666478-a5d1-49f0-8b67-1d70f15de515' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10301/events' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: Image upload failed: TypeError: Failed to fetch
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:22e792e5-0513-4c35-8b8e-53ed9029e5ae' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:22e792e5-0513-4c35-8b8e-53ed9029e5ae' failed: Error during WebSocket handshake: Unexpected response code: 429
+CONSOLE ERROR: WebSocket connection to 'ws://localhost:10401/collaboration/wiki:22e792e5-0513-4c35-8b8e-53ed9029e5ae' failed: Error during WebSocket handshake: Unexpected response code: 429
+  "error: WebSocket connection to 'ws://localhost:10101/events' failed: Error during WebSocket handshake: Unexpected response code: 429",
+  "error: WebSocket connection to 'ws://localhost:10101/collaboration/wiki:c486f005-67d0-4509-9556-cbe2b55ea5b0' failed: Error during WebSocket handshake: Unexpected response code: 429",
+  "error: WebSocket connection to 'ws://localhost:10101/collaboration/wiki:c486f005-67d0-4509-9556-cbe2b55ea5b0' failed: Error during WebSocket handshake: Unexpected response code: 429",
+  "error: WebSocket connection to 'ws://localhost:10101/collaboration/wiki:c486f005-67d0-4509-9556-cbe2b55ea5b0' failed: Error during WebSocket handshake: Unexpected response code: 429",
+  "error: WebSocket connection to 'ws://localhost:10101/collaboration/wiki:c486f005-67d0-4509-9556-cbe2b55ea5b0' failed: Error during WebSocket handshake: Unexpected response code: 429"
+  2) [chromium] › e2e/programs.spec.ts:212:7 › Programs › program cards show emoji or initial badges 
+    Error: expect(locator).toBeVisible() failed
+    test-results/programs-Programs-program-cards-show-emoji-or-initial-badges-chromium/test-failed-1.png
+  3) [chromium] › e2e/project-weeks.spec.ts:178:7 › Project Weeks Tab › project link in Properties sidebar navigates back to project 
+    Error: expect(locator).toBeVisible() failed
+    test-results/project-weeks-Project-Week-19228-r-navigates-back-to-project-chromium/test-failed-1.png
+  4) [chromium] › e2e/my-week-stale-data.spec.ts:63:7 › My Week - stale data after editing plan/retro › retro edits are visible on /my-week after navigating back 
+    test-results/my-week-stale-data-My-Week-7315d--week-after-navigating-back-chromium/test-failed-1.png
+  5) [chromium] › e2e/status-overview-heatmap.spec.ts:88:7 › Status Overview Heatmap › clicking plan cell navigates to weekly plan document 
+    test-results/status-overview-heatmap-St-9070e-tes-to-weekly-plan-document-chromium/test-failed-1.png
+  5 flaky
+  864 passed (9.6m)

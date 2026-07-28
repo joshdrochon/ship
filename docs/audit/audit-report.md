@@ -12,6 +12,11 @@ diagnosis only.
 Findings carry `F#` identifiers from the register in
 [`orientation-notes.md`](./orientation-notes.md).
 
+p.10 asks this report to include *"methodology, tools used, and raw data."* Methodology is in
+each category's **How it was measured** section; tools are the single-command scripts in
+[`scripts/`](./scripts/); raw tool output is in [`raw/`](./raw/), indexed by category with a
+note on what could not be captured and why.
+
 ## Status
 
 | Cat | Name | Baseline | Canonical measurement |
