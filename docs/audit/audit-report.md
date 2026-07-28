@@ -674,7 +674,7 @@ Escape was tested against the auto-opening dialog. Not covered, and needing a hu
 | Total Critical/Serious violations | **99 nodes / 23 rule-instances** across 18 page scans, from **7 distinct rules** (4 critical, 3 serious). Zero moderate, zero minor under the WCAG 2.1 AA + Section 508 tag set. |
 | Keyboard navigation completeness | **Partial** — all four keys p.7 names now tested. Tab: 269 elements never focusable (all `li[role="treeitem"]`), zero positive `tabindex`, focus wraps on all 17 pages. Escape: closes the auto-dialog on all 15 pages it appears. Enter/Space: activate correctly, 6/6. **Arrow keys: focus never moves in any composite widget, 0/4.** |
 | Color contrast failures | **61 nodes**, from **16 distinct foreground/background pairs**, worst **1.84:1** against the 4.5:1 AA threshold. Plus 38 nodes axe could not resolve. |
-| Missing ARIA labels or roles | **7 locations**, listed below |
+| Missing ARIA labels or roles | **7 locations** by axe, listed below. Independently confirmed by accessibility-tree inspection: **25 interactive nodes with no accessible name** — 24 comboboxes on `/settings`, 1 button on `/admin`. |
 
 #### Lighthouse accessibility score per page
 
@@ -772,6 +772,47 @@ and focused and compared across `outline-style`, `outline-width`, `box-shadow`,
 `background-color` and `border-color`. Every element changed on focus. This does not retract
 W7-7 — the repo's own focus test is still tautological and cannot fail — but the practical
 gap is smaller than the 22 unreplaced `focus:outline-none` occurrences suggest.
+
+#### Screen reader — accessibility tree inspection
+
+`docs/audit/scripts/measure-a11y-tree.mjs`, via Playwright's `ariaSnapshot()`. **This is not
+a screen reader.** It dumps the accessibility tree a screen reader *consumes* — the role and
+accessible name of every exposed node — which answers p.7's two questions objectively:
+*"can you understand the page structure"* and *"can you interact with all controls."* What it
+cannot establish is whether the resulting speech is comprehensible in practice. That
+limitation is why the measure bullet is still marked incomplete.
+
+| Page | Interactive nodes | **Unnamed** | Headings | `main` | `navigation` |
+|---|---:|---:|---:|---|---|
+| `/login` | 158 | 0 | 2 | yes | yes |
+| `/docs` | 158 | 0 | 2 | yes | yes |
+| `/my-week` | 21 | 0 | 6 | yes | yes |
+| `/issues` | 405 | 0 | **2** | yes | yes |
+| `/settings` | 117 | **24** | **1** | yes | yes |
+| `/admin` | 9 | **1** | 1 | yes | yes |
+| `/team/directory` | 19 | 0 | 2 | yes | yes |
+
+**Can you interact with all controls? No — 25 controls have no accessible name.**
+
+- **`/settings`: 24 `combobox` nodes with an empty name.** This is the same defect axe reports
+  as `select-name`, reached by a completely independent method, which raises confidence that
+  it is real rather than a scanner artifact. A screen reader announces each as an unnamed pop
+  up button, so a user cannot tell *which member's role* a given dropdown controls. These are
+  the controls that grant workspace admin (W7-4).
+- **`/admin`: 1 unnamed `button`**, matching axe's `button-name` failure.
+- Every other page measured: **zero** unnamed interactive nodes.
+
+**Can you understand the page structure? Partly.** Landmarks are in good shape — every one of
+the seven pages exposes both `main` and `navigation`, so landmark navigation works. Heading
+structure is the weak half:
+
+- **`/issues` exposes 2,257 accessibility nodes behind 2 headings.**
+- **`/settings` has 1 heading** ("Settings") for 295 nodes and 117 interactive controls.
+
+Heading navigation is the primary way screen reader users skip through a page. At that
+density it does not function — a user must traverse linearly through hundreds of nodes
+because there are no waypoints. That is a structural finding the Lighthouse scores do not
+capture: `/issues` scores **100**.
 
 #### Missing ARIA labels or roles — locations
 
@@ -996,6 +1037,18 @@ never went through those primitives: raw `<select>`, hand-built trees, a hand-bu
 508 claim is a procurement and legal exposure, not just a bug. Recorded separately from
 the technical findings because the fix is partly editorial: either the claim comes down
 or the violations go.
+
+**W7-11 · Heading structure does not support screen reader navigation.** `/issues` exposes
+**2,257 accessibility nodes behind 2 headings**; `/settings` has **1 heading for 117
+interactive controls**. Headings are how screen reader users skip through a page — the rotor
+lists them and jumps between them. At this density there is nothing to jump to, so navigation
+degrades to linear traversal of hundreds of nodes.
+
+This is invisible to the automated scores: `/issues` scores **100** in Lighthouse and has
+**zero** unnamed controls. Both tools check that headings are correctly *formed*, not that
+enough of them exist to be useful. **Severity: medium** — no violation is technically
+occurring, but the page is impractical to navigate non-visually, which is the actual claim
+Section 508 and WCAG 2.1 AA make.
 
 ### What this means for the improvement target
 
