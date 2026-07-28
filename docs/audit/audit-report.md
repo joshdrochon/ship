@@ -674,7 +674,7 @@ Escape was tested against the auto-opening dialog. Not covered, and needing a hu
 | Total Critical/Serious violations | **99 nodes / 23 rule-instances** across 18 page scans, from **7 distinct rules** (4 critical, 3 serious). Zero moderate, zero minor under the WCAG 2.1 AA + Section 508 tag set. |
 | Keyboard navigation completeness | **Partial** — all four keys p.7 names now tested. Tab: 269 elements never focusable (all `li[role="treeitem"]`), zero positive `tabindex`, focus wraps on all 17 pages. Escape: closes the auto-dialog on all 15 pages it appears. Enter/Space: activate correctly, 6/6. **Arrow keys: focus never moves in any composite widget, 0/4.** |
 | Color contrast failures | **61 nodes**, from **16 distinct foreground/background pairs**, worst **1.84:1** against the 4.5:1 AA threshold. Plus 38 nodes axe could not resolve. |
-| Missing ARIA labels or roles | **7 locations** by axe, listed below. Independently confirmed by accessibility-tree inspection: **25 interactive nodes with no accessible name** — 24 comboboxes on `/settings`, 1 button on `/admin`. |
+| Missing ARIA labels or roles | **7 distinct locations**, each with file:line below. These affect **25 interactive nodes** — location 1 alone is 24 `<select>` instances on one page, location 3 is 1 button — independently confirmed by accessibility-tree inspection, which found exactly those 25 nodes with an empty accessible name. |
 
 #### Lighthouse accessibility score per page
 
@@ -815,6 +815,10 @@ because there are no waypoints. That is a structural finding the Lighthouse scor
 capture: `/issues` scores **100**.
 
 #### Missing ARIA labels or roles — locations
+
+**7 distinct locations, 25 affected nodes.** The two counts differ because location 1 repeats
+24 times on a single page. Locations are the unit of *fix*; nodes are the unit of *impact*.
+
 
 | # | Location | Rule | Impact |
 |---|---|---|---|
