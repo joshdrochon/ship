@@ -672,7 +672,7 @@ Escape was tested against the auto-opening dialog. Not covered, and needing a hu
 |---|---|
 | Lighthouse accessibility score (per page) | **88–100** across 17 pages, desktop; median 96. Full table below. Lowest: `/admin` **88**. Caveat above: these scores are unreliable for this app. |
 | Total Critical/Serious violations | **99 nodes / 23 rule-instances** across 18 page scans, from **7 distinct rules** (4 critical, 3 serious). Zero moderate, zero minor under the WCAG 2.1 AA + Section 508 tag set. |
-| Keyboard navigation completeness | **Partial** — 269 elements never focusable (all `li[role="treeitem"]`), zero positive `tabindex`, focus wraps on all 17 pages. **Rating basis: Tab + Escape traversal only.** Enter, Space and arrow keys were not exercised, so this is a floor — the true rating can only be worse, not better. |
+| Keyboard navigation completeness | **Partial** — all four keys p.7 names now tested. Tab: 269 elements never focusable (all `li[role="treeitem"]`), zero positive `tabindex`, focus wraps on all 17 pages. Escape: closes the auto-dialog on all 15 pages it appears. Enter/Space: activate correctly, 6/6. **Arrow keys: focus never moves in any composite widget, 0/4.** |
 | Color contrast failures | **61 nodes**, from **16 distinct foreground/background pairs**, worst **1.84:1** against the 4.5:1 AA threshold. Plus 38 nodes axe could not resolve. |
 | Missing ARIA labels or roles | **7 locations**, listed below |
 
@@ -746,6 +746,33 @@ WCAG 2.1 AA failures and are ranked lower accordingly.
 24 of the 61 are the `accent` token; 33 are opacity-modified `muted`; the remaining 4
 are `muted` on a raised surface (3) and one un-migrated literal.
 
+#### Enter, Space and arrow keys
+
+`docs/audit/scripts/measure-keyboard.mjs`. Tab reachability and Escape are covered above;
+these are the remaining keys named in p.7's bullet.
+
+**Arrow keys — focus does not move in any composite widget. 0 of 4.**
+
+| Page | Widget role | Member role | Focus moved after ↓ ↑ → ← |
+|---|---|---|---|
+| `/docs` | `tree` | `treeitem` | **no** |
+| `/docs` | `tablist` | `tab` | **no** |
+| `/issues` | `tablist` | `tab` | **no** |
+| `/issues` | `grid` | `gridcell` | **no** |
+
+Each widget was tested by focusing a member element, pressing all four arrow keys, and
+comparing `document.activeElement` before and after. It never changed.
+
+**Enter and Space — both activate correctly, 6 of 6.** Tested on `/docs`, `/issues` and
+`/my-week`: tab to the first button, press the key, confirm the URL or DOM changed.
+
+**Focus visibility — 80 elements sampled, 0 without an indicator.** For each of the first 40
+visible focusable elements on `/docs` and `/issues`, computed style was captured unfocused
+and focused and compared across `outline-style`, `outline-width`, `box-shadow`,
+`background-color` and `border-color`. Every element changed on focus. This does not retract
+W7-7 — the repo's own focus test is still tautological and cannot fail — but the practical
+gap is smaller than the 22 unreplaced `focus:outline-none` occurrences suggest.
+
 #### Missing ARIA labels or roles — locations
 
 | # | Location | Rule | Impact |
@@ -780,19 +807,8 @@ are `muted` on a raised surface (3) and one un-migrated literal.
 | weekly plan document | 204 | 201 | 63 | yes |
 | wiki document | 46 | 47 | 12 | yes |
 
-**What this table does and does not license.** It measures *reachability by Tab*, plus
-Escape on the one dialog that auto-opens. p.7's bullet names four keys — Tab, Enter,
-Escape, and arrow keys — and two of them were never pressed. So the `Partial` rating in the
-deliverable table is a **floor derived from Tab traversal**, not a full keyboard assessment.
-Two distinct things that must not be read as one:
-
-| | |
-|---|---|
-| *The app's* keyboard navigation | **Partial** — 269 unreachable elements is a measured defect |
-| *This audit's* keyboard testing | **Incomplete** — Enter/Space/arrow untested; see the gap table |
-
-Untested keys can only surface additional failures. Nothing below should be read as evidence
-that Enter, Space or arrow-key interaction works.
+This table measures *reachability by Tab*. The other three keys p.7 names are measured
+separately below, so the `Partial` rating covers all four.
 
 Reading this table honestly:
 
@@ -859,6 +875,12 @@ cannot see the missing interaction model at all.
 
 Related, same components: both trees carry `aria-live="polite"` on the entire `<ul>`
 (`App.tsx:637`, `:670`), so every re-render of the sidebar is announced.
+**Now measured directly, not inferred.** `measure-keyboard.mjs` focused a member of each
+composite widget and pressed all four arrow keys: `document.activeElement` never changed, on
+**0 of 4** widgets — the `tree` and `tablist` on `/docs`, the `tablist` on `/issues`, and the
+`grid` on `/issues`. So the missing roving focus is not confined to the tree; every composite
+role in the app declares ARIA semantics it does not implement.
+
 **Severity: Critical** (axe, for the container rule) / **high overall** — this is the
 single largest gap between what the app claims to AT and what it does, and it is
 precisely the gap the un-run screen-reader test would have caught.
