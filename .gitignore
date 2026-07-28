@@ -119,3 +119,6 @@ coverage/
 */coverage/
 __pycache__/
 *.pyc
+
+# Internal work tracking — not a PRD deliverable
+docs/audit/audit-checklist.md
