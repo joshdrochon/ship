@@ -1743,12 +1743,22 @@ was modified, no `terraform apply` was run against AWS, and nothing was committe
 
 ### How it was measured
 
-`docs/audit/scripts/measure-runtime-errors.mjs` — a headless Chromium harness driving the
-running app (web :5173, api :3000) through all six of p.6's bullets, plus a static sweep for
-error boundaries and a read of the dev server log.
+Two harnesses, both driving the running app (web :5173, api :3000) in a real browser.
+
+`docs/audit/scripts/measure-runtime-errors.mjs` covers five of p.6's six bullets — console
+monitoring, network failure, malformed input, 3G throttling and the server log — plus a static
+sweep for error boundaries.
 
 ```bash
 node docs/audit/scripts/measure-runtime-errors.mjs --out /tmp/cat6-raw.json
+```
+
+`docs/audit/scripts/measure-concurrent-edit.mjs` covers the sixth: *"Test concurrent edge
+cases: two users editing the same document field simultaneously."* It needs two genuinely
+different sessions, which the first harness has no way to produce, so it is a separate script.
+
+```bash
+node docs/audit/scripts/measure-concurrent-edit.mjs --out /tmp/cat6-concurrent.json
 ```
 
 > **Corrected mid-measurement, recorded because it changed the headline number by 11x.**
@@ -1772,7 +1782,8 @@ it first — see W6-6.
 | Unhandled promise rejections (server) | **19** stack frames at `processTicksAndRejections`; 15 from one recurring cause |
 | Network disconnect recovery | **Partial** — data survives, UI does not recover |
 | Missing error boundaries | **6 top-level routes** (see W6-1) |
-| Silent failures identified | **3** (W6-2, W6-3, W6-5) |
+| Silent failures identified | **5** (W6-2, W6-3, W6-5, W6-9, W6-10) |
+| Concurrent edit — same field, two users | **Title: data loss in 13 of 13 runs. Body: converges when the socket holds, loses everything when it does not — 7 of 12 runs.** |
 
 All 45 client-side console entries came from the edge-case tests. Navigating the app normally
 produced **zero**:
@@ -1812,6 +1823,66 @@ Malformed input against the document title:
 | `/issues` | 13,267 ms | 15,191 ms | **no** |
 
 ### Weaknesses
+
+**W6-9 · Two users editing the same title: one edit is silently destroyed, every time.**
+Ship stores a document's two editable fields two different ways. The body is TipTap bound to
+a Yjs CRDT over the collaboration WebSocket. The title is plain React state saved by a
+debounced PATCH — `web/src/components/Editor.tsx:187`:
+
+```ts
+const [title, setTitle] = useState(initialTitle === 'Untitled' ? '' : initialTitle);
+```
+
+Nothing reconciles two concurrent writers of that field. The last debounced PATCH to land
+overwrites the whole column.
+
+Measured across **13 runs** in which the pre-test reset verifiably held:
+
+| | Result |
+|---|---:|
+| Runs where exactly one user's edit was destroyed | **13 of 13** |
+| Runs where both users' text survived | **0 of 13** |
+| Runs showing any conflict, merge or overwrite warning | **0 of 13** |
+
+Which user loses is not deterministic — user A lost in 9 runs, user B in 4, on identical
+inputs. Both clients then converge on the winner's value, so the loser watches their own
+typing disappear from their own screen with no explanation.
+
+Reproduction: open the same document as two users, type into the title in both, wait five
+seconds. The body, by contrast, behaves correctly — the CRDT interleaves both streams and
+every character survives, which is what makes the title's behaviour a defect rather than a
+design limit. The mechanism for doing this right is already in the codebase; the title field
+simply does not use it.
+
+**Severity: critical.** Silent, unrecoverable, user-facing data loss on the most visible field
+of a document, in an application whose stated purpose is real-time collaboration.
+
+**W6-10 · Collaboration stops working after the first session and the UI still reports
+"Saved".** Repeating the same two-client test against the same running API degrades:
+
+| Session since API start | Sockets opened / closed (user A) | Body edits reaching the server |
+|---|---|---|
+| 1st | 7 / 6 — one held open | **A +8, B +8, clients converged** |
+| 2nd | 14 / 14 — none held | **A +0, B +0, clients diverged** |
+| 3rd | 18 / 18 — none held | **A +0, B +0, clients diverged** |
+
+The collaboration WebSocket reconnect-loops and never holds. Meanwhile the editor keeps
+accepting keystrokes, each client accumulates its own divergent copy, no peer receives
+anything, nothing is persisted — and the status indicator reads **"Saved"** the entire time.
+
+Three controls establish this is process-level state, not the document or the database:
+a brand-new document fails the same way on the second session; the failure follows the API
+process rather than the document; and restarting the API makes the *same document that just
+failed twice* work immediately (`raw/cat6-concurrent-raw.json`, run `after-restart`).
+
+This is the same module-level-`Map` state described in the architecture section, observed
+failing. It also compounds W6-5: that finding recorded the UI failing to recover after a
+*deliberate* disconnect, where data at least survived. Here the disconnect is spontaneous and
+the data does not survive.
+
+**Severity: critical.** In deployment this is worse than measured — the audit's scaling
+finding notes the collaboration state cannot be shared across processes, so a second instance
+cannot repair a session the first one has lost.
 
 **W6-1 · Six top-level routes have no error boundary.** The only boundaries are
 `web/src/pages/App.tsx:541`, wrapping `<Outlet />`, and `web/src/components/Editor.tsx:980`.
@@ -1884,10 +1955,18 @@ p.7 sets the bar at *"Fix 3 error handling gaps. At least one must involve a rea
 data loss or confusion scenario (not just a missing loading spinner). Each fix requires
 reproduction steps, before/after behavior, and a screenshot or recording."*
 
-W6-2 satisfies the "real data loss or confusion" requirement directly and is trivially
-reproducible: open a document, clear the title, reload, watch the old title return. W6-1 and
-W6-5 are the natural companions — one prevents a white screen on the login and public feedback
-routes, the other stops the UI lying about connection state after recovery.
+**W6-9 is now the strongest candidate** for the "real data loss" requirement, and it displaces
+W6-2. Both are data loss; W6-9 is worse on every axis that matters. It destroys text the user
+typed rather than reverting to a previous value, it happened in 13 of 13 runs, it gives no
+warning, and it strikes the feature the product is built around. Reproduction is two browsers
+and five seconds, and before/after is directly measurable by re-running
+`measure-concurrent-edit.mjs` — the fix should take the title's `both_survived` count from
+0 of 13 to 13 of 13.
+
+W6-1 and W6-5 remain the natural companions — one prevents a white screen on the login and
+public feedback routes, the other stops the UI lying about connection state after recovery.
+W6-10 is the more serious defect of the two collaboration findings but is also the larger
+change; it is called out here so the choice to defer it is deliberate rather than accidental.
 
 W6-7 is deliberately *not* proposed as one of the three: p.7 explicitly excludes
 *"just a missing loading spinner."*

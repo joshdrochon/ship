@@ -1,0 +1,3268 @@
+{
+  "note": "Category 6, p.6 concurrent-edit bullet. Each entry is one full run of docs/audit/scripts/measure-concurrent-edit.mjs against two logged-in users in separate browser contexts. after-restart was run immediately following an API process restart.",
+  "runs": [
+    {
+      "run": "fresh-1",
+      "doc": "75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+      "users": [
+        "dev@ship.local",
+        "alice.chen@ship.local"
+      ],
+      "tests": [
+        {
+          "field": "title",
+          "mechanism": "React useState + debounced PATCH (Editor.tsx:187)",
+          "typedA": "TitleFromA",
+          "typedB": "TitleFromB",
+          "baseline": "Concurrent Edit Test",
+          "baselineHeld": true,
+          "A_sees": "Concurrent Edit TestTitleFromA",
+          "B_sees": "Concurrent Edit TestTitleFromA",
+          "server": "Concurrent Edit TestTitleFromA",
+          "clients_converged": true,
+          "server_has_A": true,
+          "server_has_B": false,
+          "both_survived": false,
+          "lost_edit_of": [
+            "B"
+          ],
+          "conflict_indicator_shown": false
+        },
+        {
+          "field": "body",
+          "mechanism": "TipTap + Yjs over WebSocket",
+          "typedA": "AAAAAAAA",
+          "typedB": "BBBBBBBB",
+          "A_chars_typed": 8,
+          "A_chars_gained_on_server": 8,
+          "B_chars_typed": 8,
+          "B_chars_gained_on_server": 8,
+          "no_data_loss": true,
+          "clients_converged": true,
+          "client_matches_server": true,
+          "interleaved": true,
+          "sampleA": "Baseline paragraph.BABABABABABABABA",
+          "sampleB": "Baseline paragraph.BABABABABABABABA",
+          "sampleServer": "Baseline paragraph.BABABABABABABABA"
+        }
+      ],
+      "notes": [],
+      "loggedIn": {
+        "A": true,
+        "B": true
+      },
+      "resetStatus": {
+        "title": 200
+      },
+      "before": {
+        "server": {
+          "title": "Concurrent Edit Test",
+          "bodyText": "Baseline paragraph."
+        }
+      },
+      "resetHeld": true,
+      "awareness": {
+        "A_sees": [
+          "Dev User",
+          "Alice Chen"
+        ],
+        "B_sees": [
+          "Alice Chen",
+          "Dev User"
+        ]
+      },
+      "afterReload": {
+        "A": {
+          "title": "Concurrent Edit TestTitleFromA",
+          "body": "Baseline paragraph.BABABABABABABABA\nDev User\n\n"
+        },
+        "B": {
+          "title": "Concurrent Edit TestTitleFromA",
+          "body": "Baseline paragraph.BABABABABABABABA\nDev User\n\n"
+        },
+        "server": {
+          "title": "Concurrent Edit TestTitleFromA",
+          "bodyText": "Baseline paragraph.BABABABABABABABA"
+        }
+      }
+    },
+    {
+      "run": "fresh-2",
+      "doc": "75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+      "users": [
+        "dev@ship.local",
+        "alice.chen@ship.local"
+      ],
+      "tests": [
+        {
+          "field": "title",
+          "mechanism": "React useState + debounced PATCH (Editor.tsx:187)",
+          "typedA": "TitleFromA",
+          "typedB": "TitleFromB",
+          "baseline": "Concurrent Edit Test",
+          "baselineHeld": true,
+          "A_sees": "Concurrent Edit TestTitleFromB",
+          "B_sees": "Concurrent Edit TestTitleFromB",
+          "server": "Concurrent Edit TestTitleFromB",
+          "clients_converged": true,
+          "server_has_A": false,
+          "server_has_B": true,
+          "both_survived": false,
+          "lost_edit_of": [
+            "A"
+          ],
+          "conflict_indicator_shown": false
+        },
+        {
+          "field": "body",
+          "mechanism": "TipTap + Yjs over WebSocket",
+          "typedA": "AAAAAAAA",
+          "typedB": "BBBBBBBB",
+          "A_chars_typed": 8,
+          "A_chars_gained_on_server": 0,
+          "B_chars_typed": 8,
+          "B_chars_gained_on_server": 0,
+          "no_data_loss": false,
+          "clients_converged": false,
+          "client_matches_server": false,
+          "interleaved": true,
+          "sampleA": "Baseline paragraph.BABABABABABABABAAAAAAAAA",
+          "sampleB": "Baseline paragraph.BABABABABABABABABBBBBBBB",
+          "sampleServer": "Baseline paragraph.BABABABABABABABA"
+        }
+      ],
+      "notes": [],
+      "loggedIn": {
+        "A": true,
+        "B": true
+      },
+      "resetStatus": {
+        "title": 200
+      },
+      "before": {
+        "server": {
+          "title": "Concurrent Edit Test",
+          "bodyText": "Baseline paragraph.BABABABABABABABA"
+        }
+      },
+      "resetHeld": true,
+      "awareness": {
+        "A_sees": [
+          "Dev User",
+          "Alice Chen"
+        ],
+        "B_sees": [
+          "Alice Chen",
+          "Dev User"
+        ]
+      },
+      "afterReload": {
+        "A": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.BABABABABABABABAAAAAAAAA"
+        },
+        "B": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.BABABABABABABABABBBBBBBB"
+        },
+        "server": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "bodyText": "Baseline paragraph.BABABABABABABABA"
+        }
+      }
+    },
+    {
+      "run": "fresh-3",
+      "doc": "75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+      "users": [
+        "dev@ship.local",
+        "alice.chen@ship.local"
+      ],
+      "tests": [
+        {
+          "field": "title",
+          "mechanism": "React useState + debounced PATCH (Editor.tsx:187)",
+          "typedA": "TitleFromA",
+          "typedB": "TitleFromB",
+          "baseline": "Concurrent Edit Test",
+          "baselineHeld": true,
+          "A_sees": "Concurrent Edit TestTitleFromB",
+          "B_sees": "Concurrent Edit TestTitleFromB",
+          "server": "Concurrent Edit TestTitleFromB",
+          "clients_converged": true,
+          "server_has_A": false,
+          "server_has_B": true,
+          "both_survived": false,
+          "lost_edit_of": [
+            "A"
+          ],
+          "conflict_indicator_shown": false
+        },
+        {
+          "field": "body",
+          "mechanism": "TipTap + Yjs over WebSocket",
+          "typedA": "AAAAAAAA",
+          "typedB": "BBBBBBBB",
+          "A_chars_typed": 8,
+          "A_chars_gained_on_server": 0,
+          "B_chars_typed": 8,
+          "B_chars_gained_on_server": 0,
+          "no_data_loss": false,
+          "clients_converged": false,
+          "client_matches_server": false,
+          "interleaved": true,
+          "sampleA": "AAAAAAAA",
+          "sampleB": "BBBBBBBB",
+          "sampleServer": "Baseline paragraph.BABABABABABABABA"
+        }
+      ],
+      "notes": [],
+      "loggedIn": {
+        "A": true,
+        "B": true
+      },
+      "resetStatus": {
+        "title": 200
+      },
+      "before": {
+        "server": {
+          "title": "Concurrent Edit Test",
+          "bodyText": "Baseline paragraph.BABABABABABABABA"
+        }
+      },
+      "resetHeld": true,
+      "awareness": {
+        "A_sees": [
+          "Dev User"
+        ],
+        "B_sees": [
+          "Alice Chen"
+        ]
+      },
+      "afterReload": {
+        "A": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "AAAAAAAA"
+        },
+        "B": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "BBBBBBBB"
+        },
+        "server": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "bodyText": "Baseline paragraph.BABABABABABABABA"
+        }
+      }
+    },
+    {
+      "run": "nd-1",
+      "doc": "ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+      "users": [
+        "dev@ship.local",
+        "alice.chen@ship.local"
+      ],
+      "tests": [
+        {
+          "field": "title",
+          "mechanism": "React useState + debounced PATCH (Editor.tsx:187)",
+          "typedA": "TitleFromA",
+          "typedB": "TitleFromB",
+          "baseline": "Concurrent Edit Test",
+          "baselineHeld": true,
+          "A_sees": "Concurrent Edit TestTitleFromB",
+          "B_sees": "Concurrent Edit TestTitleFromB",
+          "server": "Concurrent Edit TestTitleFromB",
+          "clients_converged": true,
+          "server_has_A": false,
+          "server_has_B": true,
+          "both_survived": false,
+          "lost_edit_of": [
+            "A"
+          ],
+          "conflict_indicator_shown": false
+        },
+        {
+          "field": "body",
+          "mechanism": "TipTap + Yjs over WebSocket",
+          "typedA": "AAAAAAAA",
+          "typedB": "BBBBBBBB",
+          "A_chars_typed": 8,
+          "A_chars_gained_on_server": 8,
+          "B_chars_typed": 8,
+          "B_chars_gained_on_server": 8,
+          "no_data_loss": true,
+          "clients_converged": true,
+          "client_matches_server": true,
+          "interleaved": true,
+          "sampleA": "Baseline paragraph.BABABABABABABABA",
+          "sampleB": "Baseline paragraph.BABABABABABABABA",
+          "sampleServer": "Baseline paragraph.BABABABABABABABA",
+          "wsOpenA": 7,
+          "wsCloseA": 6,
+          "wsOpenB": 6,
+          "wsCloseB": 5,
+          "statusA": "docs\nConcurrent Edit TestTitleFromB\nSaved\nD\nA",
+          "statusB": "docs\nConcurrent Edit TestTitleFromB\nSaved\nA\nD"
+        }
+      ],
+      "notes": [],
+      "ws": [
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339276692
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339276692
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280008
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280008
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280018
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280018
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280048
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280049
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280058
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280063
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280592
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280592
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280611
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280614
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280632
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280632
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280641
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339280642
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339281089
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339281107
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339281114
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339281122
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339281124
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339281132
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339288573
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339288574
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339288815
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:ca1e071c-c954-4d61-a2c7-64c3a7ff16ea",
+          "t": 1785339288816
+        }
+      ],
+      "loggedIn": {
+        "A": true,
+        "B": true
+      },
+      "resetStatus": {
+        "title": 200
+      },
+      "before": {
+        "server": {
+          "title": "Concurrent Edit Test",
+          "bodyText": "Baseline paragraph."
+        }
+      },
+      "resetHeld": true,
+      "awareness": {
+        "A_sees": [
+          "Dev User",
+          "Alice Chen"
+        ],
+        "B_sees": [
+          "Alice Chen",
+          "Dev User"
+        ]
+      },
+      "afterReload": {
+        "A": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.BABABABABABABABA\nDev User\n\n"
+        },
+        "B": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.BABABABABABABABA\nDev User\n\n"
+        },
+        "server": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "bodyText": "Baseline paragraph.BABABABABABABABA"
+        }
+      }
+    },
+    {
+      "run": "nd-2",
+      "doc": "5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+      "users": [
+        "dev@ship.local",
+        "alice.chen@ship.local"
+      ],
+      "tests": [
+        {
+          "field": "title",
+          "mechanism": "React useState + debounced PATCH (Editor.tsx:187)",
+          "typedA": "TitleFromA",
+          "typedB": "TitleFromB",
+          "baseline": "Concurrent Edit Test",
+          "baselineHeld": true,
+          "A_sees": "Concurrent Edit TestTitleFromB",
+          "B_sees": "Concurrent Edit TestTitleFromB",
+          "server": "Concurrent Edit TestTitleFromB",
+          "clients_converged": true,
+          "server_has_A": false,
+          "server_has_B": true,
+          "both_survived": false,
+          "lost_edit_of": [
+            "A"
+          ],
+          "conflict_indicator_shown": false
+        },
+        {
+          "field": "body",
+          "mechanism": "TipTap + Yjs over WebSocket",
+          "typedA": "AAAAAAAA",
+          "typedB": "BBBBBBBB",
+          "A_chars_typed": 8,
+          "A_chars_gained_on_server": 0,
+          "B_chars_typed": 8,
+          "B_chars_gained_on_server": 0,
+          "no_data_loss": false,
+          "clients_converged": false,
+          "client_matches_server": false,
+          "interleaved": false,
+          "sampleA": "Baseline paragraph.AAAAAAAA",
+          "sampleB": "Baseline paragraph.BBBBBBBB",
+          "sampleServer": "Baseline paragraph.",
+          "wsOpenA": 14,
+          "wsCloseA": 14,
+          "wsOpenB": 12,
+          "wsCloseB": 12,
+          "statusA": "docs\nConcurrent Edit TestTitleFromB\nSaved\nD",
+          "statusB": "docs\nConcurrent Edit TestTitleFromB\nSaved\nA"
+        }
+      ],
+      "notes": [],
+      "ws": [
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339296515
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339296516
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339299832
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339299832
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339299843
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339299843
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339299876
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339299876
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339299892
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339299892
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339299895
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339299895
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300096
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300096
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300096
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300416
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300425
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300426
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300429
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300429
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300438
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300438
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300462
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300464
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300466
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300467
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300468
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300468
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300668
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300668
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300668
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300670
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300670
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300670
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300935
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300940
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300943
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300951
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300954
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300954
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300963
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339300965
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339300966
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339301156
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339301156
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339301156
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339301167
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339301168
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339301168
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339301562
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339301563
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339301563
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339301570
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339301570
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339301570
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339302366
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339302367
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339302367
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339302373
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339302373
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339302373
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339303969
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339303969
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339303969
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339303975
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339303976
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339303976
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339306472
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339306472
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339306472
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339306480
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339306480
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339306480
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339308620
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339308621
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339308623
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339308623
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339308623
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339308623
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339308825
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339308825
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339308825
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339308825
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339308825
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339308825
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339309228
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339309228
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339309228
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339309228
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339309228
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339309228
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339310029
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339310030
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339310030
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339310030
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339310030
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:5f75408e-ae11-4ef8-8522-5eb8125d7d01",
+          "t": 1785339310030
+        }
+      ],
+      "loggedIn": {
+        "A": true,
+        "B": true
+      },
+      "resetStatus": {
+        "title": 200
+      },
+      "before": {
+        "server": {
+          "title": "Concurrent Edit Test",
+          "bodyText": "Baseline paragraph."
+        }
+      },
+      "resetHeld": true,
+      "awareness": {
+        "A_sees": [
+          "Dev User",
+          "Alice Chen"
+        ],
+        "B_sees": [
+          "Alice Chen",
+          "Dev User"
+        ]
+      },
+      "afterReload": {
+        "A": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.AAAAAAAA"
+        },
+        "B": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.BBBBBBBB"
+        },
+        "server": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "bodyText": "Baseline paragraph."
+        }
+      }
+    },
+    {
+      "run": "nd-3",
+      "doc": "4a907275-47ea-4748-b93b-e62bf6431745",
+      "users": [
+        "dev@ship.local",
+        "alice.chen@ship.local"
+      ],
+      "tests": [
+        {
+          "field": "title",
+          "mechanism": "React useState + debounced PATCH (Editor.tsx:187)",
+          "typedA": "TitleFromA",
+          "typedB": "TitleFromB",
+          "baseline": "Concurrent Edit Test",
+          "baselineHeld": true,
+          "A_sees": "Concurrent Edit TestTitleFromB",
+          "B_sees": "Concurrent Edit TestTitleFromB",
+          "server": "Concurrent Edit TestTitleFromB",
+          "clients_converged": true,
+          "server_has_A": false,
+          "server_has_B": true,
+          "both_survived": false,
+          "lost_edit_of": [
+            "A"
+          ],
+          "conflict_indicator_shown": false
+        },
+        {
+          "field": "body",
+          "mechanism": "TipTap + Yjs over WebSocket",
+          "typedA": "AAAAAAAA",
+          "typedB": "BBBBBBBB",
+          "A_chars_typed": 8,
+          "A_chars_gained_on_server": 0,
+          "B_chars_typed": 8,
+          "B_chars_gained_on_server": 0,
+          "no_data_loss": false,
+          "clients_converged": false,
+          "client_matches_server": false,
+          "interleaved": false,
+          "sampleA": "AAAAAAAA",
+          "sampleB": "BBBBBBBB",
+          "sampleServer": "Baseline paragraph.",
+          "wsOpenA": 18,
+          "wsCloseA": 18,
+          "wsOpenB": 17,
+          "wsCloseB": 17,
+          "statusA": "docs\nConcurrent Edit TestTitleFromB\nCached\nD",
+          "statusB": "docs\nConcurrent Edit TestTitleFromB\nCached\nA"
+        }
+      ],
+      "notes": [],
+      "ws": [
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316285
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339316288
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316288
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316288
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339316293
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316293
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316490
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339316490
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316490
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316494
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339316494
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316494
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316892
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339316892
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316892
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316897
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339316897
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339316897
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339317694
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339317694
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339317694
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339317700
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339317700
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339317700
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319296
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339319296
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319296
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319302
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339319302
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319302
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319593
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319594
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339319596
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319596
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339319598
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319598
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319650
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339319653
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319653
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319654
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339319657
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319658
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319855
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339319855
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319855
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319860
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339319860
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339319860
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320185
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320185
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "WebSocket is closed before the connection is established.",
+          "t": 1785339320194
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "WebSocket is closed before the connection is established.",
+          "t": 1785339320194
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320196
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320197
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320204
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320204
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320213
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320213
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320215
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320215
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320216
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320216
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320418
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320418
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320418
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320419
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320419
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320419
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320680
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320684
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320688
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320698
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320700
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320700
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320709
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320710
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320710
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320906
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320906
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320906
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320915
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339320915
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339320915
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339321319
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339321319
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339321319
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339321324
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339321324
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339321324
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339322125
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339322126
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339322126
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339322134
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339322135
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339322135
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339323740
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339323740
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339323740
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339323753
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339323753
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339323753
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339326246
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339326247
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339326247
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339326273
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339326273
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339326273
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328371
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339328374
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328374
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328387
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339328387
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328388
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328579
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339328580
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328580
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328593
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339328593
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328593
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328992
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339328992
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339328992
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339329003
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339329003
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339329003
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339329808
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339329808
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339329808
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339329819
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339329819
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339329819
+        }
+      ],
+      "loggedIn": {
+        "A": true,
+        "B": true
+      },
+      "resetStatus": {
+        "title": 200
+      },
+      "before": {
+        "server": {
+          "title": "Concurrent Edit Test",
+          "bodyText": "Baseline paragraph."
+        }
+      },
+      "resetHeld": true,
+      "awareness": {
+        "A_sees": [
+          "Dev User"
+        ],
+        "B_sees": [
+          "Alice Chen"
+        ]
+      },
+      "afterReload": {
+        "A": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "AAAAAAAA"
+        },
+        "B": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "BBBBBBBB"
+        },
+        "server": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "bodyText": "Baseline paragraph."
+        }
+      }
+    },
+    {
+      "run": "ws-1",
+      "doc": "75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+      "users": [
+        "dev@ship.local",
+        "alice.chen@ship.local"
+      ],
+      "tests": [
+        {
+          "field": "title",
+          "mechanism": "React useState + debounced PATCH (Editor.tsx:187)",
+          "typedA": "TitleFromA",
+          "typedB": "TitleFromB",
+          "baseline": "Concurrent Edit Test",
+          "baselineHeld": true,
+          "A_sees": "Concurrent Edit TestTitleFromB",
+          "B_sees": "Concurrent Edit TestTitleFromB",
+          "server": "Concurrent Edit TestTitleFromB",
+          "clients_converged": true,
+          "server_has_A": false,
+          "server_has_B": true,
+          "both_survived": false,
+          "lost_edit_of": [
+            "A"
+          ],
+          "conflict_indicator_shown": false
+        },
+        {
+          "field": "body",
+          "mechanism": "TipTap + Yjs over WebSocket",
+          "typedA": "AAAAAAAA",
+          "typedB": "BBBBBBBB",
+          "A_chars_typed": 8,
+          "A_chars_gained_on_server": 8,
+          "B_chars_typed": 8,
+          "B_chars_gained_on_server": 8,
+          "no_data_loss": true,
+          "clients_converged": true,
+          "client_matches_server": true,
+          "interleaved": true,
+          "sampleA": "Baseline paragraph.BABABABABABABABABABABABABABABABA",
+          "sampleB": "Baseline paragraph.BABABABABABABABABABABABABABABABA",
+          "sampleServer": "Baseline paragraph.BABABABABABABABABABABABABABABABA",
+          "wsOpenA": 7,
+          "wsCloseA": 6,
+          "wsOpenB": 6,
+          "wsCloseB": 5,
+          "statusA": "docs\nConcurrent Edit TestTitleFromB\nSaved\nD\nA",
+          "statusB": "docs\nConcurrent Edit TestTitleFromB\nSaved\nA\nD"
+        }
+      ],
+      "notes": [],
+      "ws": [
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339212397
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339212409
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339215711
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339215711
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339215722
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339215722
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339215754
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339215755
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339215771
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339215771
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216299
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216299
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216309
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216318
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216342
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216342
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216353
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216358
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216794
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216804
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216823
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216832
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216832
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339216840
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339224280
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339224282
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339224525
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339224526
+        }
+      ],
+      "loggedIn": {
+        "A": true,
+        "B": true
+      },
+      "resetStatus": {
+        "title": 200
+      },
+      "before": {
+        "server": {
+          "title": "Concurrent Edit Test",
+          "bodyText": "Baseline paragraph.BABABABABABABABA"
+        }
+      },
+      "resetHeld": true,
+      "awareness": {
+        "A_sees": [
+          "Dev User",
+          "Alice Chen"
+        ],
+        "B_sees": [
+          "Alice Chen",
+          "Dev User"
+        ]
+      },
+      "afterReload": {
+        "A": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.BABABABABABABABABABABABABABABABA\nDev User\n\n"
+        },
+        "B": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.BABABABABABABABABABABABABABABABA\nDev User\n\n"
+        },
+        "server": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "bodyText": "Baseline paragraph.BABABABABABABABABABABABABABABABA"
+        }
+      }
+    },
+    {
+      "run": "ws-2",
+      "doc": "75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+      "users": [
+        "dev@ship.local",
+        "alice.chen@ship.local"
+      ],
+      "tests": [
+        {
+          "field": "title",
+          "mechanism": "React useState + debounced PATCH (Editor.tsx:187)",
+          "typedA": "TitleFromA",
+          "typedB": "TitleFromB",
+          "baseline": "Concurrent Edit Test",
+          "baselineHeld": true,
+          "A_sees": "Concurrent Edit TestTitleFromB",
+          "B_sees": "Concurrent Edit TestTitleFromB",
+          "server": "Concurrent Edit TestTitleFromB",
+          "clients_converged": true,
+          "server_has_A": false,
+          "server_has_B": true,
+          "both_survived": false,
+          "lost_edit_of": [
+            "A"
+          ],
+          "conflict_indicator_shown": false
+        },
+        {
+          "field": "body",
+          "mechanism": "TipTap + Yjs over WebSocket",
+          "typedA": "AAAAAAAA",
+          "typedB": "BBBBBBBB",
+          "A_chars_typed": 8,
+          "A_chars_gained_on_server": 0,
+          "B_chars_typed": 8,
+          "B_chars_gained_on_server": 0,
+          "no_data_loss": false,
+          "clients_converged": false,
+          "client_matches_server": false,
+          "interleaved": true,
+          "sampleA": "Baseline paragraph.BABABABABABABABABABABABABABABABAAAAAAAAA",
+          "sampleB": "Baseline paragraph.BABABABABABABABABABABABABABABABABBBBBBBB",
+          "sampleServer": "Baseline paragraph.BABABABABABABABABABABABABABABABA",
+          "wsOpenA": 14,
+          "wsCloseA": 14,
+          "wsOpenB": 12,
+          "wsCloseB": 12,
+          "statusA": "docs\nConcurrent Edit TestTitleFromB\nSaved\nD",
+          "statusB": "docs\nConcurrent Edit TestTitleFromB\nSaved\nA"
+        }
+      ],
+      "notes": [],
+      "ws": [
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339232172
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339232172
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235485
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235486
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235496
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235496
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235531
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235531
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235544
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235544
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339235546
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235546
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235748
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339235749
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339235749
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236069
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236088
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236088
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236093
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236093
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236097
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236097
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236116
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236117
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236120
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236120
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236120
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236120
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236321
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236321
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236321
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236321
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236322
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236322
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236591
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236596
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236601
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236609
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236612
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236612
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236619
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236622
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236622
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236814
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236814
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236814
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236824
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339236824
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339236824
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339237219
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339237219
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339237219
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339237227
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339237227
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339237228
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339238024
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339238025
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339238025
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339238030
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339238030
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339238030
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339239626
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339239626
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339239626
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339239631
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339239631
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339239632
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339242128
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339242129
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339242129
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339242133
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339242133
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339242133
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244265
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339244267
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244267
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244272
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339244276
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244276
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244469
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339244469
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244469
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244478
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339244478
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244478
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244873
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339244873
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244873
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244881
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339244882
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339244882
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339245677
+        },
+        {
+          "tag": "B",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339245677
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339245677
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339245684
+        },
+        {
+          "tag": "A",
+          "event": "error",
+          "err": "Error during WebSocket handshake: Unexpected response code: 429",
+          "t": 1785339245684
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:75eed1d0-ee8e-4e89-bb32-4b92a014bc21",
+          "t": 1785339245684
+        }
+      ],
+      "loggedIn": {
+        "A": true,
+        "B": true
+      },
+      "resetStatus": {
+        "title": 200
+      },
+      "before": {
+        "server": {
+          "title": "Concurrent Edit Test",
+          "bodyText": "Baseline paragraph.BABABABABABABABABABABABABABABABA"
+        }
+      },
+      "resetHeld": true,
+      "awareness": {
+        "A_sees": [
+          "Dev User",
+          "Alice Chen"
+        ],
+        "B_sees": [
+          "Alice Chen",
+          "Dev User"
+        ]
+      },
+      "afterReload": {
+        "A": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.BABABABABABABABABABABABABABABABAAAAAAAAA"
+        },
+        "B": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "body": "Baseline paragraph.BABABABABABABABABABABABABABABABABBBBBBBB"
+        },
+        "server": {
+          "title": "Concurrent Edit TestTitleFromB",
+          "bodyText": "Baseline paragraph.BABABABABABABABABABABABABABABABA"
+        }
+      }
+    },
+    {
+      "run": "after-restart",
+      "doc": "4a907275-47ea-4748-b93b-e62bf6431745",
+      "users": [
+        "dev@ship.local",
+        "alice.chen@ship.local"
+      ],
+      "tests": [
+        {
+          "field": "title",
+          "mechanism": "React useState + debounced PATCH (Editor.tsx:187)",
+          "typedA": "TitleFromA",
+          "typedB": "TitleFromB",
+          "baseline": "Concurrent Edit Test",
+          "baselineHeld": true,
+          "A_sees": "Concurrent Edit TestTitleFromA",
+          "B_sees": "Concurrent Edit TestTitleFromA",
+          "server": "Concurrent Edit TestTitleFromA",
+          "clients_converged": true,
+          "server_has_A": true,
+          "server_has_B": false,
+          "both_survived": false,
+          "lost_edit_of": [
+            "B"
+          ],
+          "conflict_indicator_shown": false
+        },
+        {
+          "field": "body",
+          "mechanism": "TipTap + Yjs over WebSocket",
+          "typedA": "AAAAAAAA",
+          "typedB": "BBBBBBBB",
+          "A_chars_typed": 8,
+          "A_chars_gained_on_server": 8,
+          "B_chars_typed": 8,
+          "B_chars_gained_on_server": 8,
+          "no_data_loss": true,
+          "clients_converged": true,
+          "client_matches_server": true,
+          "interleaved": true,
+          "sampleA": "Baseline paragraph.ABABABABABABABAB",
+          "sampleB": "Baseline paragraph.ABABABABABABABAB",
+          "sampleServer": "Baseline paragraph.ABABABABABABABAB",
+          "wsOpenA": 7,
+          "wsCloseA": 6,
+          "wsOpenB": 6,
+          "wsCloseB": 5,
+          "statusA": "docs\nConcurrent Edit TestTitleFromA\nSaved\nD\nA",
+          "statusB": "docs\nConcurrent Edit TestTitleFromA\nSaved\nA\nD"
+        }
+      ],
+      "notes": [],
+      "ws": [
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339361192
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339361193
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339364498
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339364501
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339364508
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339364509
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339364543
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339364543
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339364559
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339364559
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365080
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365080
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365089
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365098
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365118
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365119
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365129
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365129
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365580
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365598
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365607
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365616
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365618
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339365626
+        },
+        {
+          "tag": "A",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339373054
+        },
+        {
+          "tag": "B",
+          "event": "close",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339373054
+        },
+        {
+          "tag": "B",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339373290
+        },
+        {
+          "tag": "A",
+          "event": "open",
+          "url": "3000/collaboration/wiki:4a907275-47ea-4748-b93b-e62bf6431745",
+          "t": 1785339373290
+        }
+      ],
+      "loggedIn": {
+        "A": true,
+        "B": true
+      },
+      "resetStatus": {
+        "title": 200
+      },
+      "before": {
+        "server": {
+          "title": "Concurrent Edit Test",
+          "bodyText": "Baseline paragraph."
+        }
+      },
+      "resetHeld": true,
+      "awareness": {
+        "A_sees": [
+          "Dev User",
+          "Alice Chen"
+        ],
+        "B_sees": [
+          "Alice Chen",
+          "Dev User"
+        ]
+      },
+      "afterReload": {
+        "A": {
+          "title": "Concurrent Edit TestTitleFromA",
+          "body": "Baseline paragraph.ABABABABABABABAB\nDev User\n\n"
+        },
+        "B": {
+          "title": "Concurrent Edit TestTitleFromA",
+          "body": "Baseline paragraph.ABABABABABABABAB\nDev User\n\n"
+        },
+        "server": {
+          "title": "Concurrent Edit TestTitleFromA",
+          "bodyText": "Baseline paragraph.ABABABABABABABAB"
+        }
+      }
+    }
+  ]
+}
