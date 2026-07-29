@@ -1920,6 +1920,15 @@ node docs/audit/scripts/measure-queries.mjs --out /tmp/cat4-raw.json
 >    statement. Counting all three inflated every flow ~3x — `view_a_document` read 450
 >    instead of 200. The parser now counts executions only.
 
+> **Third counting error, found by challenging the number rather than the method.** The
+> reported figure for `view_a_document` was **200**. Cross-checking it against HTTP requests
+> showed only **7** requests for that page — 200 queries could not follow from 7 requests at
+> ~7 queries each. Cause: `docker logs` returns the entire history, so `FLOWMARK` markers from
+> *earlier runs of this script* were still present, and the parser appended to the same array
+> each time instead of resetting. Every flow was inflated by exactly the number of times the
+> script had been run — 4×. The parser now resets on each marker. **Corrected figures below
+> supersede the originals.**
+
 **Known limitation, stated rather than papered over:** PostgreSQL logs multi-line SQL across
 multiple lines and the parser captures only the first. Query *counts* and *durations* are
 exact; the recorded SQL text for multi-line statements is truncated to its first line. The
@@ -1930,13 +1939,13 @@ from the log.
 
 | User Flow | Total Queries | Slowest Query (ms) | N+1 Detected? |
 |---|---:|---:|---|
-| Load main page (`/my-week`) | **128** | 0.674 | **Yes** |
-| View a document (`/documents/:id`) | **200** | 3.669 | **Yes** |
-| List issues (`/issues`) | **92** | 1.408 | **Yes** |
-| Load sprint board (`/weeks`) | **56** | 0.741 | **Yes** |
-| Search content | **64** | 0.788 | **Yes** |
+| Load main page (`/my-week`) | **32** | 3.791 | **Yes** |
+| View a document (`/documents/:id`) | **48** | 0.652 | **Yes** |
+| List issues (`/issues`) | **23** | 0.364 | **Yes** |
+| Load sprint board (`/weeks`) | **14** | 0.820 | **Yes** |
+| Search content | **16** | 0.313 | **Yes** |
 
-Total query time per flow is small — 8.9 ms to 34.2 ms — so nothing here is slow *yet*. The
+Total query time per flow is small — 1.5 ms to 8.8 ms — so nothing here is slow *yet*. The
 problem is count, not latency.
 
 ### Weaknesses
@@ -1945,18 +1954,20 @@ problem is count, not latency.
 authenticated API request re-runs the same four-query preamble: fetch session, **write**
 `last_activity`, fetch user, fetch workspace membership.
 
-Measured on `view_a_document` — 200 queries total:
+Measured on `view_a_document` — **48 queries for 7 HTTP requests**:
 
 ```
-52x  UPDATE sessions SET last_activity = $1 WHERE id = $2      <- a WRITE per request
-40x  SELECT s.id, s.user_id, s.workspace_id, s.expires_at ...
-16x  SELECT w.id, w.name, wm.role ...
-16x  SELECT role FROM workspace_memberships WHERE workspace_id = $1 AND user_id = $2
+13x  UPDATE sessions SET last_activity = $1 WHERE id = $2      <- a WRITE per request
+10x  SELECT s.id, s.user_id, s.workspace_id, s.expires_at ...
+ 4x  SELECT w.id, w.name, wm.role ...
+ 4x  SELECT role FROM workspace_memberships WHERE workspace_id = $1 AND user_id = $2
+ 3x  SELECT user_id, workspace_id, last_activity, created_at
+ 2x  SELECT id, email, name, is_super_admin FROM users WHERE id = $1
 ---
-124 of 200 queries (62%) are authentication overhead, not application data.
+36 of 48 queries (75%) are authentication overhead.
+Every repeated statement is a session, user or membership lookup; the 12
+single-occurrence queries are the actual document data.
 ```
-
-The pattern holds across every flow: 56 of 128 on the main page, 48 of 92 on issues.
 
 The `UPDATE` is the expensive part conceptually — it turns every read request into a write,
 which takes a row lock, generates WAL, and blocks the session row for concurrent requests
@@ -1965,7 +1976,7 @@ granularity.
 
 **Severity: high.** This is also the clearest route to p.5's target of *"20% reduction in
 total query count on at least one user flow"* — writing `last_activity` at most once every
-N seconds instead of every request removes 52 of 200 queries on document view, **26%**, from
+N seconds instead of every request removes 13 of 48 queries on document view, **27%**, from
 one change.
 
 **W4-2 · The purpose-built partial composite index is not being chosen.**
@@ -2027,7 +2038,7 @@ list-view N+1 the category description anticipates.
 p.5 sets the bar at *"20% reduction in total query count on at least one user flow, or 50%
 improvement on the slowest query,"* with before/after `EXPLAIN ANALYZE` required.
 
-W4-1 clears the first option on its own — 26% on `view_a_document` by throttling the
+W4-1 clears the first option on its own — 27% on `view_a_document` by throttling the
 `last_activity` write. W4-2 and W4-3 together are the more interesting fix and are what the
 before/after `EXPLAIN ANALYZE` requirement is really aimed at, since they change the plan
 shape rather than the request count.
