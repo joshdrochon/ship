@@ -787,9 +787,18 @@ accessible name of every exposed node — which answers p.7's two questions obje
 cannot establish is whether the resulting speech is comprehensible in practice. That
 limitation is why the measure bullet is still marked incomplete.
 
+> **Corrected — the `/login` row previously reported `/docs` under the wrong name.** The
+> script authenticated before walking its page list, and `PublicRoute` redirects a logged-in
+> visitor from `/login` to `/docs` (`web/src/main.tsx:104`). The walk therefore measured
+> `/docs` twice and filed one copy as `/login`, which is why the two rows were identical —
+> 158 nodes, 2 headings, both landmarks. The real login page has **4 interactive nodes, 1
+> heading and neither landmark**. The script now captures `/login` before authenticating and
+> throws if it is redirected. The remaining six rows re-measured **identical** on a cleaned
+> database, so the error was confined to this one row.
+
 | Page | Interactive nodes | **Unnamed** | Headings | `main` | `navigation` |
 |---|---:|---:|---:|---|---|
-| `/login` | 158 | 0 | 2 | yes | yes |
+| `/login` | **4** | 0 | **1** | **no** | **no** |
 | `/docs` | 158 | 0 | 2 | yes | yes |
 | `/my-week` | 21 | 0 | 6 | yes | yes |
 | `/issues` | 405 | 0 | **2** | yes | yes |
@@ -807,8 +816,11 @@ limitation is why the measure bullet is still marked incomplete.
 - **`/admin`: 1 unnamed `button`**, matching axe's `button-name` failure.
 - Every other page measured: **zero** unnamed interactive nodes.
 
-**Can you understand the page structure? Partly.** Landmarks are in good shape — every one of
-the seven pages exposes both `main` and `navigation`, so landmark navigation works. Heading
+**Can you understand the page structure? Partly.** Landmarks are in good shape *once you are
+signed in* — all six authenticated pages expose both `main` and `navigation`, so landmark
+navigation works there. **`/login` exposes neither**, which is the correction above and which
+matches what axe independently reported for that page (`landmark-one-main`, location 7 below).
+The first page every user meets is the one page with no landmark structure at all. Heading
 structure is the weak half:
 
 - **`/issues` exposes 2,257 accessibility nodes behind 2 headings.**

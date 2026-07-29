@@ -1,0 +1,3703 @@
+{
+  "generated": "2026-07-29T17:09:49.626Z",
+  "base": "http://localhost:5173",
+  "pages": [
+    {
+      "page": "login",
+      "path": "/login",
+      "totalNodes": 17,
+      "expectedCursorStops": 17,
+      "suggestedSteps": 25,
+      "landmarks": [],
+      "headings": [
+        "Sign in to Ship"
+      ],
+      "unnamedStops": 7,
+      "unnamedByRole": {
+        "paragraph": 4,
+        "text": 2,
+        "img": 1
+      },
+      "expectedOrder": [
+        {
+          "step": 1,
+          "role": "img",
+          "name": "Ship"
+        },
+        {
+          "step": 2,
+          "role": "heading",
+          "name": "Sign in to Ship"
+        },
+        {
+          "step": 3,
+          "role": "paragraph",
+          "name": ""
+        },
+        {
+          "step": 4,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 5,
+          "role": "textbox",
+          "name": "Email address"
+        },
+        {
+          "step": 6,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 7,
+          "role": "textbox",
+          "name": "Password"
+        },
+        {
+          "step": 8,
+          "role": "button",
+          "name": "Sign in"
+        },
+        {
+          "step": 9,
+          "role": "paragraph",
+          "name": ""
+        },
+        {
+          "step": 10,
+          "role": "paragraph",
+          "name": ""
+        },
+        {
+          "step": 11,
+          "role": "paragraph",
+          "name": ""
+        },
+        {
+          "step": 12,
+          "role": "img",
+          "name": "Check (h-3)"
+        },
+        {
+          "step": 13,
+          "role": "img",
+          "name": "Close (h-4)"
+        },
+        {
+          "step": 14,
+          "role": "img",
+          "name": "Warning (h-5)"
+        },
+        {
+          "step": 15,
+          "role": "img",
+          "name": "Info (h-6)"
+        },
+        {
+          "step": 16,
+          "role": "button",
+          "name": "Open Tanstack query devtools"
+        },
+        {
+          "step": 17,
+          "role": "img",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "page": "docs home",
+      "path": "/docs",
+      "totalNodes": 356,
+      "expectedCursorStops": 348,
+      "suggestedSteps": 406,
+      "landmarks": [
+        "navigation",
+        "complementary",
+        "main",
+        "complementary"
+      ],
+      "headings": [
+        "Docs",
+        "Documents"
+      ],
+      "unnamedStops": 188,
+      "unnamedByRole": {
+        "img": 182,
+        "text": 5,
+        "listitem": 1
+      },
+      "expectedOrder": [
+        {
+          "step": 1,
+          "role": "link",
+          "name": "Skip to main content"
+        },
+        {
+          "step": 2,
+          "role": "button",
+          "name": "1 accountability item is due today. 1 View items"
+        },
+        {
+          "step": 3,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 4,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 5,
+          "role": "button",
+          "name": "S"
+        },
+        {
+          "step": 6,
+          "role": "button",
+          "name": "Dashboard"
+        },
+        {
+          "step": 7,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 8,
+          "role": "button",
+          "name": "Docs"
+        },
+        {
+          "step": 9,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 10,
+          "role": "button",
+          "name": "Programs"
+        },
+        {
+          "step": 11,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 12,
+          "role": "button",
+          "name": "Projects"
+        },
+        {
+          "step": 13,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 14,
+          "role": "button",
+          "name": "Teams (standup due)"
+        },
+        {
+          "step": 15,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 16,
+          "role": "button",
+          "name": "Settings"
+        },
+        {
+          "step": 17,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 18,
+          "role": "button",
+          "name": "D"
+        },
+        {
+          "step": 19,
+          "role": "heading",
+          "name": "Docs"
+        },
+        {
+          "step": 20,
+          "role": "button",
+          "name": "New document"
+        },
+        {
+          "step": 21,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 22,
+          "role": "button",
+          "name": "Collapse sidebar"
+        },
+        {
+          "step": 23,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 24,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 25,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 26,
+          "role": "treeitem",
+          "name": "Expand Welcome to Ship Document actions"
+        },
+        {
+          "step": 27,
+          "role": "button",
+          "name": "Expand"
+        },
+        {
+          "step": 28,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 29,
+          "role": "link",
+          "name": "Welcome to Ship"
+        },
+        {
+          "step": 30,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 31,
+          "role": "treeitem",
+          "name": "Ship Project Overview Document actions"
+        },
+        {
+          "step": 32,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 33,
+          "role": "link",
+          "name": "Ship Project Overview"
+        },
+        {
+          "step": 34,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 35,
+          "role": "treeitem",
+          "name": "Architecture Guide Document actions"
+        },
+        {
+          "step": 36,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 37,
+          "role": "link",
+          "name": "Architecture Guide"
+        },
+        {
+          "step": 38,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 39,
+          "role": "treeitem",
+          "name": "API Reference Document actions"
+        },
+        {
+          "step": 40,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 41,
+          "role": "link",
+          "name": "API Reference"
+        },
+        {
+          "step": 42,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 43,
+          "role": "treeitem",
+          "name": "Development Setup Document actions"
+        },
+        {
+          "step": 44,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 45,
+          "role": "link",
+          "name": "Development Setup"
+        },
+        {
+          "step": 46,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 47,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 48,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 49,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 50,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 51,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 52,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 53,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 54,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 55,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 56,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 57,
+          "role": "listitem",
+          "name": ""
+        },
+        {
+          "step": 58,
+          "role": "link",
+          "name": "42 more..."
+        },
+        {
+          "step": 59,
+          "role": "heading",
+          "name": "Documents"
+        },
+        {
+          "step": 60,
+          "role": "textbox",
+          "name": "Search..."
+        },
+        {
+          "step": 61,
+          "role": "combobox",
+          "name": "Sort by"
+        },
+        {
+          "step": 62,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 63,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 64,
+          "role": "button",
+          "name": "List view"
+        },
+        {
+          "step": 65,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 66,
+          "role": "button",
+          "name": "Tree view"
+        },
+        {
+          "step": 67,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 68,
+          "role": "button",
+          "name": "New Document"
+        },
+        {
+          "step": 69,
+          "role": "tab",
+          "name": "All"
+        },
+        {
+          "step": 70,
+          "role": "tab",
+          "name": "Workspace"
+        },
+        {
+          "step": 71,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 72,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 73,
+          "role": "tab",
+          "name": "Private"
+        },
+        {
+          "step": 74,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 75,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 76,
+          "role": "treeitem",
+          "name": "Expand Welcome to Ship Delete document Add sub-document"
+        },
+        {
+          "step": 77,
+          "role": "button",
+          "name": "Expand"
+        },
+        {
+          "step": 78,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 79,
+          "role": "link",
+          "name": "Welcome to Ship"
+        },
+        {
+          "step": 80,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 81,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 82,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 83,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 84,
+          "role": "treeitem",
+          "name": "Ship Project Overview Delete document Add sub-document"
+        },
+        {
+          "step": 85,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 86,
+          "role": "link",
+          "name": "Ship Project Overview"
+        },
+        {
+          "step": 87,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 88,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 89,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 90,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 91,
+          "role": "treeitem",
+          "name": "Architecture Guide Delete document Add sub-document"
+        },
+        {
+          "step": 92,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 93,
+          "role": "link",
+          "name": "Architecture Guide"
+        },
+        {
+          "step": 94,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 95,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 96,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 97,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 98,
+          "role": "treeitem",
+          "name": "API Reference Delete document Add sub-document"
+        },
+        {
+          "step": 99,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 100,
+          "role": "link",
+          "name": "API Reference"
+        },
+        {
+          "step": 101,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 102,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 103,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 104,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 105,
+          "role": "treeitem",
+          "name": "Development Setup Delete document Add sub-document"
+        },
+        {
+          "step": 106,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 107,
+          "role": "link",
+          "name": "Development Setup"
+        },
+        {
+          "step": 108,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 109,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 110,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 111,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 112,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 113,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 114,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 115,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 116,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 117,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 118,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 119,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 120,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 121,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 122,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 123,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 124,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 125,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 126,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 127,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 128,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 129,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 130,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 131,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 132,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 133,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 134,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 135,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 136,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 137,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 138,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 139,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 140,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 141,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 142,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 143,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 144,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 145,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 146,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 147,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 148,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 149,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 150,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 151,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 152,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 153,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 154,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 155,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 156,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 157,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 158,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 159,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 160,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 161,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 162,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 163,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 164,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 165,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 166,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 167,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 168,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 169,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 170,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 171,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 172,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 173,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 174,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 175,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 176,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 177,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 178,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 179,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 180,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 181,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 182,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 183,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 184,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 185,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 186,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 187,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 188,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 189,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 190,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 191,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 192,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 193,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 194,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 195,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 196,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 197,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 198,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 199,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 200,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 201,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 202,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 203,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 204,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 205,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 206,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 207,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 208,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 209,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 210,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 211,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 212,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 213,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 214,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 215,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 216,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 217,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 218,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 219,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 220,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 221,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 222,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 223,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 224,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 225,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 226,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 227,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 228,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 229,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 230,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 231,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 232,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 233,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 234,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 235,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 236,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 237,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 238,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 239,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 240,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 241,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 242,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 243,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 244,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 245,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 246,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 247,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 248,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 249,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 250,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 251,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 252,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 253,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 254,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 255,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 256,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 257,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 258,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 259,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 260,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 261,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 262,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 263,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 264,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 265,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 266,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 267,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 268,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 269,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 270,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 271,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 272,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 273,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 274,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 275,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 276,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 277,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 278,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 279,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 280,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 281,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 282,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 283,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 284,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 285,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 286,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 287,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 288,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 289,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 290,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 291,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 292,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 293,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 294,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 295,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 296,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 297,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 298,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 299,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 300,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 301,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 302,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 303,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 304,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 305,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 306,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 307,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 308,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 309,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 310,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 311,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 312,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 313,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 314,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 315,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 316,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 317,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 318,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 319,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 320,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 321,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 322,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 323,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 324,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 325,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 326,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 327,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 328,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 329,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 330,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 331,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 332,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 333,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 334,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 335,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 336,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 337,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 338,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 339,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 340,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 341,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 342,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 343,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 344,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 345,
+          "role": "button",
+          "name": "Add sub-document"
+        },
+        {
+          "step": 346,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 347,
+          "role": "button",
+          "name": "Open Tanstack query devtools"
+        },
+        {
+          "step": 348,
+          "role": "img",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "page": "document editor",
+      "path": "/docs/02109d7f-d3ba-46ea-b7cc-c73119536e36",
+      "totalNodes": 100,
+      "expectedCursorStops": 94,
+      "suggestedSteps": 114,
+      "landmarks": [
+        "navigation",
+        "complementary",
+        "main",
+        "complementary"
+      ],
+      "headings": [
+        "Docs",
+        "Ship Project Overview",
+        "Backlinks"
+      ],
+      "unnamedStops": 44,
+      "unnamedByRole": {
+        "img": 27,
+        "text": 13,
+        "listitem": 1,
+        "paragraph": 3
+      },
+      "expectedOrder": [
+        {
+          "step": 1,
+          "role": "link",
+          "name": "Skip to main content"
+        },
+        {
+          "step": 2,
+          "role": "button",
+          "name": "1 accountability item is due today. 1 View items"
+        },
+        {
+          "step": 3,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 4,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 5,
+          "role": "button",
+          "name": "S"
+        },
+        {
+          "step": 6,
+          "role": "button",
+          "name": "Dashboard"
+        },
+        {
+          "step": 7,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 8,
+          "role": "button",
+          "name": "Docs"
+        },
+        {
+          "step": 9,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 10,
+          "role": "button",
+          "name": "Programs"
+        },
+        {
+          "step": 11,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 12,
+          "role": "button",
+          "name": "Projects"
+        },
+        {
+          "step": 13,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 14,
+          "role": "button",
+          "name": "Teams (standup due)"
+        },
+        {
+          "step": 15,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 16,
+          "role": "button",
+          "name": "Settings"
+        },
+        {
+          "step": 17,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 18,
+          "role": "button",
+          "name": "D"
+        },
+        {
+          "step": 19,
+          "role": "heading",
+          "name": "Docs"
+        },
+        {
+          "step": 20,
+          "role": "button",
+          "name": "New document"
+        },
+        {
+          "step": 21,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 22,
+          "role": "button",
+          "name": "Collapse sidebar"
+        },
+        {
+          "step": 23,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 24,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 25,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 26,
+          "role": "treeitem",
+          "name": "Expand Welcome to Ship Document actions"
+        },
+        {
+          "step": 27,
+          "role": "button",
+          "name": "Expand"
+        },
+        {
+          "step": 28,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 29,
+          "role": "link",
+          "name": "Welcome to Ship"
+        },
+        {
+          "step": 30,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 31,
+          "role": "treeitem",
+          "name": "Ship Project Overview Document actions"
+        },
+        {
+          "step": 32,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 33,
+          "role": "link",
+          "name": "Ship Project Overview"
+        },
+        {
+          "step": 34,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 35,
+          "role": "treeitem",
+          "name": "Architecture Guide Document actions"
+        },
+        {
+          "step": 36,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 37,
+          "role": "link",
+          "name": "Architecture Guide"
+        },
+        {
+          "step": 38,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 39,
+          "role": "treeitem",
+          "name": "API Reference Document actions"
+        },
+        {
+          "step": 40,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 41,
+          "role": "link",
+          "name": "API Reference"
+        },
+        {
+          "step": 42,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 43,
+          "role": "treeitem",
+          "name": "Development Setup Document actions"
+        },
+        {
+          "step": 44,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 45,
+          "role": "link",
+          "name": "Development Setup"
+        },
+        {
+          "step": 46,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 47,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 48,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 49,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 50,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 51,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 52,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 53,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 54,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 55,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 56,
+          "role": "button",
+          "name": "Document actions"
+        },
+        {
+          "step": 57,
+          "role": "listitem",
+          "name": ""
+        },
+        {
+          "step": 58,
+          "role": "link",
+          "name": "42 more..."
+        },
+        {
+          "step": 59,
+          "role": "button",
+          "name": "Back to docs"
+        },
+        {
+          "step": 60,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 61,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 62,
+          "role": "heading",
+          "name": "Ship Project Overview"
+        },
+        {
+          "step": 63,
+          "role": "button",
+          "name": "Delete document"
+        },
+        {
+          "step": 64,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 65,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 66,
+          "role": "textbox",
+          "name": "Untitled"
+        },
+        {
+          "step": 67,
+          "role": "paragraph",
+          "name": ""
+        },
+        {
+          "step": 68,
+          "role": "button",
+          "name": "Drag to reorder block"
+        },
+        {
+          "step": 69,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 70,
+          "role": "button",
+          "name": "Collapse sidebar"
+        },
+        {
+          "step": 71,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 72,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 73,
+          "role": "combobox",
+          "name": "Document type"
+        },
+        {
+          "step": 74,
+          "role": "option",
+          "name": "Wiki"
+        },
+        {
+          "step": 75,
+          "role": "option",
+          "name": "Issue"
+        },
+        {
+          "step": 76,
+          "role": "option",
+          "name": "Project"
+        },
+        {
+          "step": 77,
+          "role": "option",
+          "name": "Week"
+        },
+        {
+          "step": 78,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 79,
+          "role": "button",
+          "name": "Select maintainer..."
+        },
+        {
+          "step": 80,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 81,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 82,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 83,
+          "role": "button",
+          "name": "Workspace"
+        },
+        {
+          "step": 84,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 85,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 86,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 87,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 88,
+          "role": "paragraph",
+          "name": ""
+        },
+        {
+          "step": 89,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 90,
+          "role": "paragraph",
+          "name": ""
+        },
+        {
+          "step": 91,
+          "role": "heading",
+          "name": "Backlinks"
+        },
+        {
+          "step": 92,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 93,
+          "role": "button",
+          "name": "Open Tanstack query devtools"
+        },
+        {
+          "step": 94,
+          "role": "img",
+          "name": ""
+        }
+      ]
+    },
+    {
+      "page": "workspace settings",
+      "path": "/settings",
+      "totalNodes": 295,
+      "expectedCursorStops": 260,
+      "suggestedSteps": 304,
+      "landmarks": [
+        "navigation",
+        "complementary",
+        "main",
+        "navigation",
+        "main",
+        "complementary"
+      ],
+      "headings": [
+        "Settings"
+      ],
+      "unnamedStops": 37,
+      "unnamedByRole": {
+        "img": 9,
+        "text": 3,
+        "combobox": 24,
+        "cell": 1
+      },
+      "expectedOrder": [
+        {
+          "step": 1,
+          "role": "link",
+          "name": "Skip to main content"
+        },
+        {
+          "step": 2,
+          "role": "button",
+          "name": "1 accountability item is due today. 1 View items"
+        },
+        {
+          "step": 3,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 4,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 5,
+          "role": "button",
+          "name": "S"
+        },
+        {
+          "step": 6,
+          "role": "button",
+          "name": "Dashboard"
+        },
+        {
+          "step": 7,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 8,
+          "role": "button",
+          "name": "Docs"
+        },
+        {
+          "step": 9,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 10,
+          "role": "button",
+          "name": "Programs"
+        },
+        {
+          "step": 11,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 12,
+          "role": "button",
+          "name": "Projects"
+        },
+        {
+          "step": 13,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 14,
+          "role": "button",
+          "name": "Teams (standup due)"
+        },
+        {
+          "step": 15,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 16,
+          "role": "button",
+          "name": "Settings"
+        },
+        {
+          "step": 17,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 18,
+          "role": "button",
+          "name": "D"
+        },
+        {
+          "step": 19,
+          "role": "heading",
+          "name": "Settings"
+        },
+        {
+          "step": 20,
+          "role": "button",
+          "name": "Collapse sidebar"
+        },
+        {
+          "step": 21,
+          "role": "img",
+          "name": ""
+        },
+        {
+          "step": 22,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 23,
+          "role": "button",
+          "name": "Members"
+        },
+        {
+          "step": 24,
+          "role": "button",
+          "name": "Pending Invites"
+        },
+        {
+          "step": 25,
+          "role": "button",
+          "name": "API Tokens"
+        },
+        {
+          "step": 26,
+          "role": "button",
+          "name": "Audit Logs"
+        },
+        {
+          "step": 27,
+          "role": "link",
+          "name": "Conversions"
+        },
+        {
+          "step": 28,
+          "role": "checkbox",
+          "name": "Show archived"
+        },
+        {
+          "step": 29,
+          "role": "text",
+          "name": ""
+        },
+        {
+          "step": 30,
+          "role": "columnheader",
+          "name": "Name"
+        },
+        {
+          "step": 31,
+          "role": "columnheader",
+          "name": "Email"
+        },
+        {
+          "step": 32,
+          "role": "columnheader",
+          "name": "Role"
+        },
+        {
+          "step": 33,
+          "role": "columnheader",
+          "name": "Joined"
+        },
+        {
+          "step": 34,
+          "role": "columnheader",
+          "name": "Actions"
+        },
+        {
+          "step": 35,
+          "role": "cell",
+          "name": "Alice Chen"
+        },
+        {
+          "step": 36,
+          "role": "cell",
+          "name": "alice.chen@ship.local"
+        },
+        {
+          "step": 37,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 38,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 39,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 40,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 41,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 42,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 43,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 44,
+          "role": "cell",
+          "name": "Bob Martinez"
+        },
+        {
+          "step": 45,
+          "role": "cell",
+          "name": "bob.martinez@ship.local"
+        },
+        {
+          "step": 46,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 47,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 48,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 49,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 50,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 51,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 52,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 53,
+          "role": "cell",
+          "name": "Carol Williams"
+        },
+        {
+          "step": 54,
+          "role": "cell",
+          "name": "carol.williams@ship.local"
+        },
+        {
+          "step": 55,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 56,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 57,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 58,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 59,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 60,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 61,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 62,
+          "role": "cell",
+          "name": "David Kim"
+        },
+        {
+          "step": 63,
+          "role": "cell",
+          "name": "david.kim@ship.local"
+        },
+        {
+          "step": 64,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 65,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 66,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 67,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 68,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 69,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 70,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 71,
+          "role": "cell",
+          "name": "Dev User(you)"
+        },
+        {
+          "step": 72,
+          "role": "cell",
+          "name": "dev@ship.local"
+        },
+        {
+          "step": 73,
+          "role": "cell",
+          "name": "Admin"
+        },
+        {
+          "step": 74,
+          "role": "combobox",
+          "name": "Workspace must have at least one admin"
+        },
+        {
+          "step": 75,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 76,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 77,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 78,
+          "role": "cell",
+          "name": ""
+        },
+        {
+          "step": 79,
+          "role": "cell",
+          "name": "Emma Johnson"
+        },
+        {
+          "step": 80,
+          "role": "cell",
+          "name": "emma.johnson@ship.local"
+        },
+        {
+          "step": 81,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 82,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 83,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 84,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 85,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 86,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 87,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 88,
+          "role": "cell",
+          "name": "Fixture User 1"
+        },
+        {
+          "step": 89,
+          "role": "cell",
+          "name": "audit.fixture+0@ship.local"
+        },
+        {
+          "step": 90,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 91,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 92,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 93,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 94,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 95,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 96,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 97,
+          "role": "cell",
+          "name": "Fixture User 10"
+        },
+        {
+          "step": 98,
+          "role": "cell",
+          "name": "audit.fixture+9@ship.local"
+        },
+        {
+          "step": 99,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 100,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 101,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 102,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 103,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 104,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 105,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 106,
+          "role": "cell",
+          "name": "Fixture User 11"
+        },
+        {
+          "step": 107,
+          "role": "cell",
+          "name": "audit.fixture+10@ship.local"
+        },
+        {
+          "step": 108,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 109,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 110,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 111,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 112,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 113,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 114,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 115,
+          "role": "cell",
+          "name": "Fixture User 12"
+        },
+        {
+          "step": 116,
+          "role": "cell",
+          "name": "audit.fixture+11@ship.local"
+        },
+        {
+          "step": 117,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 118,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 119,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 120,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 121,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 122,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 123,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 124,
+          "role": "cell",
+          "name": "Fixture User 13"
+        },
+        {
+          "step": 125,
+          "role": "cell",
+          "name": "audit.fixture+12@ship.local"
+        },
+        {
+          "step": 126,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 127,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 128,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 129,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 130,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 131,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 132,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 133,
+          "role": "cell",
+          "name": "Fixture User 14"
+        },
+        {
+          "step": 134,
+          "role": "cell",
+          "name": "audit.fixture+13@ship.local"
+        },
+        {
+          "step": 135,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 136,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 137,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 138,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 139,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 140,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 141,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 142,
+          "role": "cell",
+          "name": "Fixture User 2"
+        },
+        {
+          "step": 143,
+          "role": "cell",
+          "name": "audit.fixture+1@ship.local"
+        },
+        {
+          "step": 144,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 145,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 146,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 147,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 148,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 149,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 150,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 151,
+          "role": "cell",
+          "name": "Fixture User 3"
+        },
+        {
+          "step": 152,
+          "role": "cell",
+          "name": "audit.fixture+2@ship.local"
+        },
+        {
+          "step": 153,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 154,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 155,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 156,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 157,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 158,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 159,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 160,
+          "role": "cell",
+          "name": "Fixture User 4"
+        },
+        {
+          "step": 161,
+          "role": "cell",
+          "name": "audit.fixture+3@ship.local"
+        },
+        {
+          "step": 162,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 163,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 164,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 165,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 166,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 167,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 168,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 169,
+          "role": "cell",
+          "name": "Fixture User 5"
+        },
+        {
+          "step": 170,
+          "role": "cell",
+          "name": "audit.fixture+4@ship.local"
+        },
+        {
+          "step": 171,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 172,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 173,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 174,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 175,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 176,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 177,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 178,
+          "role": "cell",
+          "name": "Fixture User 6"
+        },
+        {
+          "step": 179,
+          "role": "cell",
+          "name": "audit.fixture+5@ship.local"
+        },
+        {
+          "step": 180,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 181,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 182,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 183,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 184,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 185,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 186,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 187,
+          "role": "cell",
+          "name": "Fixture User 7"
+        },
+        {
+          "step": 188,
+          "role": "cell",
+          "name": "audit.fixture+6@ship.local"
+        },
+        {
+          "step": 189,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 190,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 191,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 192,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 193,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 194,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 195,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 196,
+          "role": "cell",
+          "name": "Fixture User 8"
+        },
+        {
+          "step": 197,
+          "role": "cell",
+          "name": "audit.fixture+7@ship.local"
+        },
+        {
+          "step": 198,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 199,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 200,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 201,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 202,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 203,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 204,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 205,
+          "role": "cell",
+          "name": "Fixture User 9"
+        },
+        {
+          "step": 206,
+          "role": "cell",
+          "name": "audit.fixture+8@ship.local"
+        },
+        {
+          "step": 207,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 208,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 209,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 210,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 211,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 212,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 213,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 214,
+          "role": "cell",
+          "name": "Frank Garcia"
+        },
+        {
+          "step": 215,
+          "role": "cell",
+          "name": "frank.garcia@ship.local"
+        },
+        {
+          "step": 216,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 217,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 218,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 219,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 220,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 221,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 222,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 223,
+          "role": "cell",
+          "name": "Grace Lee"
+        },
+        {
+          "step": 224,
+          "role": "cell",
+          "name": "grace.lee@ship.local"
+        },
+        {
+          "step": 225,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 226,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 227,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 228,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 229,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 230,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 231,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 232,
+          "role": "cell",
+          "name": "Henry Patel"
+        },
+        {
+          "step": 233,
+          "role": "cell",
+          "name": "henry.patel@ship.local"
+        },
+        {
+          "step": 234,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 235,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 236,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 237,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 238,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 239,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 240,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 241,
+          "role": "cell",
+          "name": "Iris Nguyen"
+        },
+        {
+          "step": 242,
+          "role": "cell",
+          "name": "iris.nguyen@ship.local"
+        },
+        {
+          "step": 243,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 244,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 245,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 246,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 247,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 248,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 249,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 250,
+          "role": "cell",
+          "name": "Jack Brown"
+        },
+        {
+          "step": 251,
+          "role": "cell",
+          "name": "jack.brown@ship.local"
+        },
+        {
+          "step": 252,
+          "role": "cell",
+          "name": "Member"
+        },
+        {
+          "step": 253,
+          "role": "combobox",
+          "name": ""
+        },
+        {
+          "step": 254,
+          "role": "option",
+          "name": "Admin"
+        },
+        {
+          "step": 255,
+          "role": "option",
+          "name": "Member"
+        },
+        {
+          "step": 256,
+          "role": "cell",
+          "name": "7/28/2026"
+        },
+        {
+          "step": 257,
+          "role": "cell",
+          "name": "Archive"
+        },
+        {
+          "step": 258,
+          "role": "button",
+          "name": "Archive"
+        },
+        {
+          "step": 259,
+          "role": "button",
+          "name": "Open Tanstack query devtools"
+        },
+        {
+          "step": 260,
+          "role": "img",
+          "name": ""
+        }
+      ]
+    }
+  ],
+  "totals": {
+    "expectedCursorStops": 719,
+    "suggestedSteps": 849
+  }
+}
