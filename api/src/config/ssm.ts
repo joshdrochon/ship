@@ -40,6 +40,19 @@ export async function loadProductionSecrets(): Promise<void> {
     return; // Use .env files for local dev
   }
 
+  // Already configured by the platform (Render, Fly, a container runtime, CI):
+  // there is no SSM to reach and nothing to fetch. Elastic Beanstalk does not
+  // set DATABASE_URL, so it still takes the SSM path below unchanged.
+  //
+  // This guard lives here rather than at the call sites because all three
+  // entrypoints reach for secrets — index.ts, db/migrate.ts and db/seed.ts —
+  // and migrate.ts runs first in the container CMD. Guarding only index.ts
+  // leaves the process dying in migrate with a credentials error.
+  if (process.env.DATABASE_URL) {
+    console.log('DATABASE_URL already set — skipping SSM');
+    return;
+  }
+
   const environment = process.env.ENVIRONMENT || 'prod';
   const basePath = `/ship/${environment}`;
 

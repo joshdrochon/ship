@@ -12,16 +12,9 @@ config({ path: join(__dirname, '../.env') });
 
 async function main() {
   // Load secrets from SSM in production (before importing app).
-  //
-  // Skipped when DATABASE_URL is already present, which means the platform
-  // injected configuration directly (Render, Fly, a container runtime) and there
-  // is no SSM to reach. Elastic Beanstalk is unaffected: it does not set
-  // DATABASE_URL, so SSM still populates it there exactly as before.
-  //
-  // Without this guard the process exits before binding a port on any host
-  // without AWS credentials — getSSMSecret throws and main() rejects.
-  const platformProvidedConfig = Boolean(process.env.DATABASE_URL);
-  if (process.env.NODE_ENV === 'production' && !platformProvidedConfig) {
+  // loadProductionSecrets is a no-op when DATABASE_URL is already set — see the
+  // guard in config/ssm.ts, which covers this entrypoint plus migrate and seed.
+  if (process.env.NODE_ENV === 'production') {
     const { loadProductionSecrets } = await import('./config/ssm.js');
     await loadProductionSecrets();
   }
