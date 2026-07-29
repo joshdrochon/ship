@@ -77,6 +77,14 @@ ENV NODE_ENV=production
 ENV VITE_APP_ENV=production
 ENV PORT=80
 
-# Start the application (run migrations first to ensure schema exists)
+# Start: migrate, then seed, then serve.
+#
+# `;` not `&&` between migrate and seed deliberately — migrate exits non-zero on
+# a database that already has the schema, and that must not stop the server.
+#
+# Seeding on boot is safe: seed.js checks for every record before inserting and
+# logs "already exists" rather than duplicating. It guarantees a deployed demo
+# instance always has a working login and realistic data, at the cost of a few
+# hundred milliseconds on cold start.
 WORKDIR /app/api
-CMD ["sh", "-c", "node dist/db/migrate.js && node dist/index.js"]
+CMD ["sh", "-c", "node dist/db/migrate.js; node dist/db/seed.js; node dist/index.js"]
