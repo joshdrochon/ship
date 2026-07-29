@@ -1,4 +1,7 @@
 import express from 'express';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -235,6 +238,27 @@ export function createApp(corsOrigin: string = 'http://localhost:5173'): express
   // Comments routes
   app.use('/api/documents', conditionalCsrf, documentCommentsRouter);
   app.use('/api/comments', conditionalCsrf, commentsRouter);
+
+  // Serve the built frontend from the same origin as the API, when it is present.
+  //
+  // On AWS the frontend is a separate S3/CloudFront deployment, so this directory
+  // does not exist and the block is skipped — behaviour there is unchanged.
+  //
+  // Same-origin is not a convenience here, it is required: the session cookie is
+  // sameSite:'strict' (see above), so a frontend served from a different domain
+  // could never send it and login would fail silently.
+  const webDist = join(dirname(fileURLToPath(import.meta.url)), '../../web/dist');
+  if (existsSync(webDist)) {
+    app.use(express.static(webDist, { index: false, maxAge: '1y' }));
+
+    // SPA fallback — client-side routes like /docs/:id have no file on disk.
+    // Anything under /api, /health or /collaboration has already been handled
+    // above; this must not swallow them.
+    app.get(/^\/(?!api\/|health$|collaboration\/).*/, (_req, res) => {
+      res.sendFile(join(webDist, 'index.html'));
+    });
+    console.log(`Serving frontend from ${webDist}`);
+  }
 
   // Initialize CAIA OAuth client at startup
   initializeCAIA().catch((err) => {

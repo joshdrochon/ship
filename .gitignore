@@ -113,3 +113,12 @@ vendor/
 
 # Vite PWA dev artifacts
 web/dev-dist/
+
+# Coverage output (regenerable; provider added for audit Category 5, p.6)
+coverage/
+*/coverage/
+__pycache__/
+*.pyc
+
+# Internal work tracking — not a PRD deliverable
+docs/audit/audit-checklist.md

@@ -1,0 +1,182 @@
+{
+  "pages": [
+    {
+      "page": "login",
+      "path": "/login",
+      "total_nodes": 356,
+      "interactive": 158,
+      "unnamed_interactive": 0,
+      "unnamed_by_role": {},
+      "unnamed_samples": [],
+      "headings": 2,
+      "heading_names": [
+        "Docs",
+        "Documents"
+      ],
+      "landmarks": [
+        "navigation",
+        "complementary",
+        "main",
+        "complementary"
+      ],
+      "has_main": true,
+      "tree_exposed": true,
+      "treeitems": 10
+    },
+    {
+      "page": "docs",
+      "path": "/docs",
+      "total_nodes": 356,
+      "interactive": 158,
+      "unnamed_interactive": 0,
+      "unnamed_by_role": {},
+      "unnamed_samples": [],
+      "headings": 2,
+      "heading_names": [
+        "Docs",
+        "Documents"
+      ],
+      "landmarks": [
+        "navigation",
+        "complementary",
+        "main",
+        "complementary"
+      ],
+      "has_main": true,
+      "tree_exposed": true,
+      "treeitems": 10
+    },
+    {
+      "page": "my-week",
+      "path": "/my-week",
+      "total_nodes": 50,
+      "interactive": 21,
+      "unnamed_interactive": 0,
+      "unnamed_by_role": {},
+      "unnamed_samples": [],
+      "headings": 6,
+      "heading_names": [
+        "Dashboard",
+        "Week 14",
+        "Assigned Projects",
+        "Weekly Plan",
+        "Weekly Retro",
+        "Daily Updates"
+      ],
+      "landmarks": [
+        "navigation",
+        "complementary",
+        "main",
+        "complementary"
+      ],
+      "has_main": true,
+      "tree_exposed": false,
+      "treeitems": 0
+    },
+    {
+      "page": "issues",
+      "path": "/issues",
+      "total_nodes": 2257,
+      "interactive": 405,
+      "unnamed_interactive": 0,
+      "unnamed_by_role": {},
+      "unnamed_samples": [],
+      "headings": 2,
+      "heading_names": [
+        "Issues",
+        "Issues"
+      ],
+      "landmarks": [
+        "navigation",
+        "complementary",
+        "main",
+        "complementary"
+      ],
+      "has_main": true,
+      "tree_exposed": false,
+      "treeitems": 0
+    },
+    {
+      "page": "settings",
+      "path": "/settings",
+      "total_nodes": 295,
+      "interactive": 117,
+      "unnamed_interactive": 24,
+      "unnamed_by_role": {
+        "combobox": 24
+      },
+      "unnamed_samples": [
+        "combobox",
+        "combobox",
+        "combobox",
+        "combobox",
+        "combobox",
+        "combobox"
+      ],
+      "headings": 1,
+      "heading_names": [
+        "Settings"
+      ],
+      "landmarks": [
+        "navigation",
+        "complementary",
+        "main",
+        "navigation",
+        "main",
+        "complementary"
+      ],
+      "has_main": true,
+      "tree_exposed": false,
+      "treeitems": 0
+    },
+    {
+      "page": "admin",
+      "path": "/admin",
+      "total_nodes": 34,
+      "interactive": 9,
+      "unnamed_interactive": 1,
+      "unnamed_by_role": {
+        "button": 1
+      },
+      "unnamed_samples": [
+        "button"
+      ],
+      "headings": 1,
+      "heading_names": [
+        "Admin Dashboard"
+      ],
+      "landmarks": [
+        "banner",
+        "navigation",
+        "main"
+      ],
+      "has_main": true,
+      "tree_exposed": false,
+      "treeitems": 0
+    },
+    {
+      "page": "team directory",
+      "path": "/team/directory",
+      "total_nodes": 94,
+      "interactive": 19,
+      "unnamed_interactive": 0,
+      "unnamed_by_role": {},
+      "unnamed_samples": [],
+      "headings": 2,
+      "heading_names": [
+        "Teams",
+        "Team Directory"
+      ],
+      "landmarks": [
+        "navigation",
+        "complementary",
+        "main",
+        "complementary"
+      ],
+      "has_main": true,
+      "tree_exposed": false,
+      "treeitems": 0
+    }
+  ],
+  "generated": "2026-07-28T23:23:55.378Z"
+}

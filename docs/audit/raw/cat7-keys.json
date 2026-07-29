@@ -1,0 +1,127 @@
+{
+  "arrow_keys": [
+    {
+      "page": "docs tree",
+      "widget_role": "tree",
+      "member_role": "treeitem",
+      "focus_before": {
+        "tag": "BODY",
+        "role": null,
+        "text": "Skip to main content1 accountability ite",
+        "id": null
+      },
+      "focus_after": {
+        "tag": "BODY",
+        "role": null,
+        "text": "Skip to main content1 accountability ite",
+        "id": null
+      },
+      "focus_moved": false
+    },
+    {
+      "page": "docs tree",
+      "widget_role": "tablist",
+      "member_role": "tab",
+      "focus_before": {
+        "tag": "BUTTON",
+        "role": "tab",
+        "text": "All",
+        "id": "filter-all"
+      },
+      "focus_after": {
+        "tag": "BUTTON",
+        "role": "tab",
+        "text": "All",
+        "id": "filter-all"
+      },
+      "focus_moved": false
+    },
+    {
+      "page": "issues list",
+      "widget_role": "tablist",
+      "member_role": "tab",
+      "focus_before": {
+        "tag": "BUTTON",
+        "role": "tab",
+        "text": "All",
+        "id": "filter-"
+      },
+      "focus_after": {
+        "tag": "BUTTON",
+        "role": "tab",
+        "text": "All",
+        "id": "filter-"
+      },
+      "focus_moved": false
+    },
+    {
+      "page": "issues list",
+      "widget_role": "grid",
+      "member_role": "gridcell",
+      "focus_before": {
+        "tag": "BUTTON",
+        "role": "tab",
+        "text": "All",
+        "id": "filter-"
+      },
+      "focus_after": {
+        "tag": "BUTTON",
+        "role": "tab",
+        "text": "All",
+        "id": "filter-"
+      },
+      "focus_moved": false
+    }
+  ],
+  "enter_space": [
+    {
+      "page": "docs",
+      "key": "Enter",
+      "target": "1 accountability item is due today.1View",
+      "activated": true
+    },
+    {
+      "page": "docs",
+      "key": "Space",
+      "target": "1 accountability item is due today.1View",
+      "activated": true
+    },
+    {
+      "page": "issues",
+      "key": "Enter",
+      "target": "1 accountability item is due today.1View",
+      "activated": true
+    },
+    {
+      "page": "issues",
+      "key": "Space",
+      "target": "issues",
+      "activated": true
+    },
+    {
+      "page": "my-week",
+      "key": "Enter",
+      "target": "1 accountability item is due today.1View",
+      "activated": true
+    },
+    {
+      "page": "my-week",
+      "key": "Space",
+      "target": "1 accountability item is due today.1View",
+      "activated": true
+    }
+  ],
+  "focus_visible": [
+    {
+      "page": "docs",
+      "checked": 40,
+      "noIndicator": 0
+    },
+    {
+      "page": "issues",
+      "checked": 40,
+      "noIndicator": 0
+    }
+  ],
+  "notes": []
+}

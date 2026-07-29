@@ -11,7 +11,9 @@ config({ path: join(__dirname, '../.env.local') });
 config({ path: join(__dirname, '../.env') });
 
 async function main() {
-  // Load secrets from SSM in production (before importing app)
+  // Load secrets from SSM in production (before importing app).
+  // loadProductionSecrets is a no-op when DATABASE_URL is already set — see the
+  // guard in config/ssm.ts, which covers this entrypoint plus migrate and seed.
   if (process.env.NODE_ENV === 'production') {
     const { loadProductionSecrets } = await import('./config/ssm.js');
     await loadProductionSecrets();
