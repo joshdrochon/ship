@@ -877,6 +877,16 @@ The worst groups:
 editor     10x  "button, Document actions, has popup menu"
 ```
 
+**Confirmed with real VoiceOver.** A human ran VoiceOver over the `/settings` member table and
+landed on a role dropdown. It announced:
+
+> Member, menu pop up collapse
+
+The role value, the control type, and its state — and **no indication of which person the row
+belongs to.** The simulator predicted `combobox, member`; real VoiceOver phrases it
+differently and carries exactly the same information, which is to say the role but not the
+member. Four methods now agree on the defect and two independently establish the consequence.
+
 **This sharpens W7-4 rather than repeating it.** The tree inspection and axe both found the
 24 `/settings` comboboxes have an *empty accessible name*. The simulated announcement shows
 what that means in the ear: the control falls back to announcing its **current value**, so all
@@ -1120,6 +1130,55 @@ never went through those primitives: raw `<select>`, hand-built trees, a hand-bu
 508 claim is a procurement and legal exposure, not just a bug. Recorded separately from
 the technical findings because the fix is partly editorial: either the claim comes down
 or the violations go.
+
+**W7-13 · Icon buttons can announce as an unnamed "image"; 284 of 286 inline SVGs are exposed
+to assistive technology.** Found by a human running real VoiceOver — not by any automated
+method in this audit, and it contradicts what those methods predicted, which is why it is
+recorded separately rather than folded into W7-12.
+
+Observed: landing on a document row reads the group and includes "Delete document" among the
+options. Landing on the delete **icon** announces an **image** — no name, no button role.
+
+Cause, `web/src/components/DocumentTreeItem.tsx:129`:
+
+```jsx
+<button aria-label="Delete document" data-testid="delete-document-button">
+  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+```
+
+The `<svg>` carries no `aria-hidden="true"`, so it is its own node in the accessibility tree
+with role `image` and an empty accessible name. The `aria-label` names the button; it does not
+describe the child. Which of the two the cursor lands on decides what the user hears.
+
+Static sweep of the frontend:
+
+| Inline `<svg>` elements | With `aria-hidden` | **Without** |
+|---:|---:|---:|
+| 286 | 2 | **284 (99%)** across **73 files** |
+
+Worst files: `pages/App.tsx` (26), `editor/SlashCommands.tsx` (19), `ActionItemsModal.tsx`
+(15), `IssuesList.tsx` (13), `ActionItems.tsx` (10).
+
+**Why nothing automated caught it.** axe checks that a *button* has an accessible name — this
+one does, so it passes. The tree inspection counted the button, not its child. The simulator
+walked the button's announcement, not the SVG's. All three examined the correct node; a real
+user can land on the wrong one.
+
+**Arrival path, now established.** Verified with mouse-following enabled (VoiceOver Utility >
+Navigation > Mouse pointer: *Moves VoiceOver cursor*):
+
+| Cursor lands on | VoiceOver says |
+|---|---|
+| The document row | the document name, then its controls — "delete" and "add subdocument" |
+| **The trash icon itself** | **"image"** — nothing else |
+
+So the label exists at the row level and disappears at the control. A user who moves the
+pointer onto the button they intend to press — the ordinary way a sighted screen-reader user
+targets a control — gets no name for it.
+
+**Severity: high.** One attribute (`aria-hidden="true"`) on decorative icons fixes it, so it
+is cheap; but as it stands an icon-only control can announce as an unnamed image at the moment
+of activation, including the delete control.
 
 **W7-12 · 42% of controls are announced identically to another control on the same page.**
 Measured by simulated screen-reader announcement over the real DOM: **388 of 914 controls**

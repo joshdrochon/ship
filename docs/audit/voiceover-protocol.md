@@ -111,36 +111,62 @@ not on this list.
 
 ---
 
-## Why this is manual
+## Status — partially run, two items deferred
 
-Automation was attempted and got most of the way. `guidepup` 0.29.2 (latest) can start and
-stop VoiceOver, and AppleScript reaches it — `version` returns `10`. But every content object
-in VoiceOver's scripting dictionary fails on this machine:
+A real VoiceOver pass was run by a human on 2026-07-29 and produced two findings now in the
+report: **W7-13** (icon buttons announcing as an unnamed "image") and confirmation of
+**W7-4/W7-12** on `/settings`, where a role dropdown announced *"Member, menu pop up collapse"*
+— the role, never the person.
+
+Two checks were not completed and are deliberately left open rather than guessed:
+
+| # | Check | Why it is still open |
+|---|---|---|
+| 3 | `/issues` heading count from the rotor | The reported answer ("6 to cycle through") may have counted rotor *lists* rather than headings inside the Headings list. The report's figure of **2 headings** stands on its own measurement (`ariaSnapshot`), and this cross-check is unresolved — not contradicted. |
+| 5 | Sidebar tree arrow-key behaviour | Not attempted. W7-3 currently rests on the static observation that `role="tree"` is present without tree keyboard handlers; a live confirmation would strengthen it but is not required for the finding to stand. |
+
+Neither gap affects a row of p.7's Audit Deliverable table — all five are filled. Both are
+cross-checks on findings that already have independent evidence.
+
+---
+
+## Why this is manual — corrected
+
+An earlier version of this section claimed VoiceOver's scripting content API was unavailable on
+macOS 14.6.1. **That was wrong, and the cause was misdiagnosed.**
+
+What actually happened: `content of last phrase`, `vo cursor` and `properties` all returned
+`-1728` while guidepup had its own VoiceOver preference bundle mounted. Setting
+`SCREnableAppleScript` with `defaults write` was not enough. The setting that matters is the
+checkbox — **VoiceOver Utility > General > "Allow VoiceOver to be controlled with
+AppleScript"** — which was unticked in the live session. Once ticked, both operations work:
 
 ```
-tell application "VoiceOver" to return content of last phrase
-  -> Can't get content of last phrase. (-1728)
-tell application "VoiceOver" to return vo cursor
-  -> Can't get vo cursor. (-1728)
-tell application "VoiceOver" to return properties
-  -> Can't get properties. (-1728)
+tell application "VoiceOver" to return content of last phrase   -> speaks back correctly
+tell application "VoiceOver" to tell vo cursor to move right    -> cursor advances
 ```
 
-`-1728` is "object not found". Without `last phrase` there is no way to read back what was
-spoken, and without `vo cursor` there is no way to know where the cursor is — so a driven walk
-produces 25 empty strings, which is exactly what it produced.
+`name of vo cursor` still returns `-1728`, but nothing needed depends on it.
 
-This is not a missing permission. All of these are in place and were verified:
+`docs/audit/scripts/measure-voiceover.mjs` drives real VoiceOver on that basis and was used to
+capture the login-page transcript in `raw/cat7-voiceover.json`.
 
-- `SCREnableAppleScript = 1` in both the user domain and guidepup's mounted preference bundle
-- AEServer and the terminal granted Accessibility
-- guidepup's macOS 14 preference bundle installed and mounting cleanly
-- VoiceOver starting and stopping under program control
-- Safari confirmed frontmost before each walk
+**What is still manual, and why.** Reading VoiceOver is solved; driving a *useful traversal* is
+not. Two problems remain unsolved in the script:
 
-macOS is 14.6.1 (23G93). The scripting *control* surface works; the scripting *content*
-surface does not.
+1. The VO cursor leaves the browser. On the first run it walked into the macOS Dock and
+   recorded `Trash (19 of 19)` 58 times. `move to first item` plus escape-detection improved
+   this but did not fix it.
+2. Safari cannot be signed in reliably from a script. Keystroke injection into the login form
+   did not take, and Safari's `do JavaScript` needs a Develop-menu opt-in that cannot be set
+   from the command line — its preference container is sandboxed. Every "authenticated" page
+   silently walked `/login` again, which is how it was caught: five pages reported identical
+   numbers.
 
-The accessibility-tree inspection in `measure-a11y-tree.mjs` and the traversal map in
-`map-a11y-traversal.mjs` remain automated and are what the predictions above are drawn from.
-Neither is a substitute for this pass and neither is reported as one.
+So the automated driver is good for one unauthenticated page. The authenticated pages need a
+human, which is what the protocol above is for.
+
+The accessibility-tree inspection in `measure-a11y-tree.mjs`, the traversal map in
+`map-a11y-traversal.mjs`, and the simulator in `measure-virtual-screenreader.mjs` are all
+automated and are where the predictions above come from. None is a substitute for this pass and
+none is reported as one.
