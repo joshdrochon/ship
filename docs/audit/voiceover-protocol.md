@@ -7,7 +7,7 @@ Automation of this is blocked on macOS 14.6.1 — see "Why this is manual" at th
 questions p.7 asks are a human judgement anyway; this protocol makes that judgement fast and
 targeted rather than open-ended.
 
-**Time: ~12 minutes.** Turn VoiceOver on with **⌘F5**. Turn it off the same way.
+**Time: ~15 minutes.** Turn VoiceOver on with **⌘F5**. Turn it off the same way.
 
 Essential keys:
 
@@ -40,7 +40,20 @@ Measured: 4 interactive nodes, 1 heading, **no `main` landmark, no `navigation` 
 
 ---
 
-## 2 · Workspace settings — `/settings`
+## 2 · Docs home — `/docs` *(the one that matters most)*
+
+Simulated announcement measured **52 buttons all saying `button, Delete document`** and 52
+saying `button, Add sub-document`, with the document never named (W7-12). No scanner catches
+this, because the buttons are not unnamed — they are identically named.
+
+1. **VO + →** repeatedly through the document list, or **VO + U** → **Form Controls**.
+2. Land on a delete button.
+   - *Prediction: it says "Delete document" and never says **which** document.*
+   - Exact words heard: ______________________
+3. **The question that matters:** from the control alone, could you tell which document you
+   are about to delete? Y / N ______
+
+## 3 · Workspace settings — `/settings`
 
 Measured: 117 interactive nodes, **24 comboboxes with an empty accessible name**, 1 heading.
 These are the member-role dropdowns. This is finding W7-4 and the highest-consequence one in
@@ -48,15 +61,17 @@ the category — these controls grant workspace admin.
 
 1. **VO + U** → **Form Controls**. Arrow down the list.
 2. Land on a role dropdown.
-   - *Prediction: it announces as "pop up button" with no indication of **which member** it
-     belongs to.*
+   - *Prediction: it announces the current role ("member" or "admin") and the control type,
+     with no indication of **which person** it belongs to. The simulator produced
+     `combobox, member` for all 24 — VoiceOver will phrase it differently but should carry
+     the same information, i.e. the role but not the person.*
    - Exact words heard: ______________________
 3. **The question that matters:** with only what VoiceOver said, could you tell whose
    permissions you are about to change? Y / N ______
 
 ---
 
-## 3 · Issues list — `/issues`
+## 4 · Issues list — `/issues`
 
 Measured: **405 interactive nodes behind 2 headings**, 2,257 accessibility nodes.
 
@@ -67,7 +82,7 @@ Measured: **405 interactive nodes behind 2 headings**, 2,257 accessibility nodes
 
 ---
 
-## 4 · Document editor — `/docs/{any document}`
+## 5 · Document editor — `/docs/{any document}`
 
 Measured: 94 cursor stops, 3 headings, 4 landmarks. The sidebar tree is `role="tree"` with
 `treeitem` children (W7-3: tree role without tree keyboard behaviour).
@@ -83,14 +98,15 @@ Measured: 94 cursor stops, 3 headings, 4 landmarks. The sidebar tree is `role="t
 
 ## What to hand back
 
-Just the answers above, in any form. Four things decide the write-up:
+Just the answers above, in any form. Five things decide the write-up:
 
 1. Could you log in using only VoiceOver?
-2. Could you tell which member each `/settings` role dropdown controlled?
-3. Could you navigate `/issues` by heading?
-4. Did the sidebar tree respond to arrow keys?
+2. On `/docs`, could you tell which document a Delete button would destroy?
+3. Could you tell which member each `/settings` role dropdown controlled?
+4. Could you navigate `/issues` by heading?
+5. Did the sidebar tree respond to arrow keys?
 
-Anything that surprised you is worth more than the four answers — write it down even if it is
+Anything that surprised you is worth more than the five answers — write it down even if it is
 not on this list.
 
 ---
