@@ -1,0 +1,224 @@
+{
+  "tool": "real VoiceOver on macOS, driven by AppleScript, against Safari",
+  "macos": "14.6.1",
+  "base": "http://localhost:5173",
+  "stepsPerPage": 140,
+  "pages": [
+    {
+      "page": "login",
+      "path": "/login",
+      "steps": 19,
+      "spoken": 19,
+      "silent": 0,
+      "distinct": 15,
+      "escapedBrowser": 0,
+      "escapedSamples": [],
+      "cursorStalls": 1,
+      "stallDetail": [
+        {
+          "phrase": "Open Tanstack query devtools button",
+          "consecutiveSteps": 5,
+          "firstStep": 14
+        }
+      ],
+      "repeatedPhrases": [
+        {
+          "phrase": "Open Tanstack query devtools button",
+          "count": 5
+        }
+      ],
+      "mentionsDeleteDocument": 0,
+      "transcript": [
+        "heading level 1 Sign in to Ship",
+        "Enter your credentials to continue",
+        "Email address",
+        "dev@ship.local Insertion at end of text. Email address required edit text email field with autofill menu",
+        "Password",
+        "8 characters Password required secure edit text with autofill menu",
+        "Sign in button",
+        "Dev credentials:",
+        "dev@ship.local / admin123",
+        "USWDS Icons:",
+        "Check (h-3) image",
+        "Close (h-4) image",
+        "Warning (h-5) image",
+        "Info (h-6) image",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button"
+      ]
+    },
+    {
+      "page": "docs home",
+      "path": "/docs",
+      "steps": 19,
+      "spoken": 19,
+      "silent": 0,
+      "distinct": 15,
+      "escapedBrowser": 0,
+      "escapedSamples": [],
+      "cursorStalls": 1,
+      "stallDetail": [
+        {
+          "phrase": "Open Tanstack query devtools button",
+          "consecutiveSteps": 5,
+          "firstStep": 14
+        }
+      ],
+      "repeatedPhrases": [
+        {
+          "phrase": "Open Tanstack query devtools button",
+          "count": 5
+        }
+      ],
+      "mentionsDeleteDocument": 0,
+      "transcript": [
+        "heading level 1 Sign in to Ship",
+        "Enter your credentials to continue",
+        "Email address",
+        "dev@ship.local Insertion at end of text. Email address required edit text email field",
+        "Password",
+        "8 characters Password required secure edit text with autofill menu",
+        "Sign in button",
+        "Dev credentials:",
+        "dev@ship.local / admin123",
+        "USWDS Icons:",
+        "Check (h-3) image",
+        "Close (h-4) image",
+        "Warning (h-5) image",
+        "Info (h-6) image",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button"
+      ]
+    },
+    {
+      "page": "document editor",
+      "path": "/docs/02109d7f-d3ba-46ea-b7cc-c73119536e36",
+      "steps": 19,
+      "spoken": 19,
+      "silent": 0,
+      "distinct": 15,
+      "escapedBrowser": 0,
+      "escapedSamples": [],
+      "cursorStalls": 1,
+      "stallDetail": [
+        {
+          "phrase": "Open Tanstack query devtools button",
+          "consecutiveSteps": 5,
+          "firstStep": 14
+        }
+      ],
+      "repeatedPhrases": [
+        {
+          "phrase": "Open Tanstack query devtools button",
+          "count": 5
+        }
+      ],
+      "mentionsDeleteDocument": 0,
+      "transcript": [
+        "heading level 1 Sign in to Ship",
+        "Enter your credentials to continue",
+        "Email address",
+        "dev@ship.local Insertion at end of text. Email address required edit text email field with autofill menu",
+        "Password",
+        "8 characters Password required secure edit text with autofill menu",
+        "Sign in button",
+        "Dev credentials:",
+        "dev@ship.local / admin123",
+        "USWDS Icons:",
+        "Check (h-3) image",
+        "Close (h-4) image",
+        "Warning (h-5) image",
+        "Info (h-6) image",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button"
+      ]
+    },
+    {
+      "page": "workspace settings",
+      "path": "/settings",
+      "steps": 19,
+      "spoken": 19,
+      "silent": 0,
+      "distinct": 15,
+      "escapedBrowser": 0,
+      "escapedSamples": [],
+      "cursorStalls": 1,
+      "stallDetail": [
+        {
+          "phrase": "Open Tanstack query devtools button",
+          "consecutiveSteps": 5,
+          "firstStep": 14
+        }
+      ],
+      "repeatedPhrases": [
+        {
+          "phrase": "Open Tanstack query devtools button",
+          "count": 5
+        }
+      ],
+      "mentionsDeleteDocument": 0,
+      "transcript": [
+        "heading level 1 Sign in to Ship",
+        "Enter your credentials to continue",
+        "Email address",
+        "dev@ship.local Insertion at end of text. Email address required edit text email field with autofill menu",
+        "Password",
+        "8 characters Password required secure edit text with autofill menu",
+        "Sign in button",
+        "Dev credentials:",
+        "dev@ship.local / admin123",
+        "USWDS Icons:",
+        "Check (h-3) image",
+        "Close (h-4) image",
+        "Warning (h-5) image",
+        "Info (h-6) image",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button",
+        "Open Tanstack query devtools button"
+      ]
+    },
+    {
+      "page": "issues",
+      "path": "/issues",
+      "steps": 5,
+      "spoken": 5,
+      "silent": 0,
+      "distinct": 1,
+      "escapedBrowser": 0,
+      "escapedSamples": [],
+      "cursorStalls": 1,
+      "stallDetail": [
+        {
+          "phrase": "Split pane button",
+          "consecutiveSteps": 5,
+          "firstStep": 0
+        }
+      ],
+      "repeatedPhrases": [
+        {
+          "phrase": "Split pane button",
+          "count": 5
+        }
+      ],
+      "mentionsDeleteDocument": 0,
+      "transcript": [
+        "Split pane button",
+        "Split pane button",
+        "Split pane button",
+        "Split pane button",
+        "Split pane button"
+      ]
+    }
+  ]
+}
