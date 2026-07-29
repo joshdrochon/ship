@@ -37,6 +37,14 @@ COPY api/ ./api/
 # shared must build first; api's tsconfig references its emitted types
 RUN pnpm build:shared && pnpm --filter @ship/api build
 
+# Frontend, served from the same origin as the API. Same-origin is required, not
+# preferred: the session cookie is sameSite:'strict', so a frontend on another
+# domain could never send it. VITE_API_URL stays empty so the client uses
+# relative URLs and hits whatever host is serving it.
+COPY web/ ./web/
+RUN pnpm --filter @ship/web build
+RUN test -f web/dist/index.html || (echo "web build produced no index.html" && exit 1)
+
 # Fail loudly here rather than at container start
 RUN test -f api/dist/index.js || (echo "api build produced no dist/index.js" && exit 1) \
  && test -f api/dist/db/schema.sql || (echo "schema.sql missing from api/dist/db" && exit 1) \
@@ -61,6 +69,7 @@ RUN pnpm install --frozen-lockfile --prod --ignore-scripts && pnpm store prune
 
 COPY --from=builder /app/shared/dist/ ./shared/dist/
 COPY --from=builder /app/api/dist/ ./api/dist/
+COPY --from=builder /app/web/dist/ ./web/dist/
 
 EXPOSE 80
 
