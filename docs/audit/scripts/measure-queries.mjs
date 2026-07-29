@@ -68,7 +68,16 @@ function parseFlows(raw) {
 
   for (const line of lines) {
     const mk = line.match(/FLOWMARK:([a-z0-9_-]+)/i);
-    if (mk) { current = mk[1]; flows[current] ??= []; pendingDur = null; continue; }
+    if (mk) {
+      current = mk[1];
+      // RESET, do not append. `docker logs` returns the whole history, so markers
+      // from previous runs of this script are present too. Appending across runs
+      // multiplied every flow's count by the number of times the script had been
+      // run — view_a_document read 200 when the real figure was ~70.
+      flows[current] = [];
+      pendingDur = null;
+      continue;
+    }
     const d = line.match(durRe);
     const s = line.match(stmtRe);
     if (s && s[2]) {
