@@ -37,6 +37,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
     "@guidepup/guidepup": "^0.29.2",
+    "@guidepup/virtual-screen-reader": "^0.32.1",
     "@playwright/test": "^1.57.0",
     "@testcontainers/postgresql": "^11.11.0",
     "@types/supertest": "^6.0.3",

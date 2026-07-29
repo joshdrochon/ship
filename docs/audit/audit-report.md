@@ -831,6 +831,68 @@ density it does not function — a user must traverse linearly through hundreds 
 because there are no waypoints. That is a structural finding the Lighthouse scores do not
 capture: `/issues` scores **100**.
 
+#### Screen reader — simulated announcements
+
+`docs/audit/scripts/measure-virtual-screenreader.mjs`, driving
+`@guidepup/virtual-screen-reader` over the running application in Chromium.
+
+```bash
+node docs/audit/scripts/measure-virtual-screenreader.mjs --out docs/audit/raw/cat7-virtual-sr.json
+```
+
+**This is a screen reader simulator, not VoiceOver, and is not reported as VoiceOver.** Its
+own documentation is explicit that it *"should not replace but augment your screen reader
+testing, there is no substitute for testing with real screen readers and with real users."*
+What it adds over the tree inspection above is the thing p.7 actually asks about: not the
+roles and names a screen reader *consumes*, but the **phrases it would speak**, computed per
+W3C ACCNAME / WAI-ARIA / HTML-AAM against the real rendered DOM.
+
+Attempting the real thing failed and the evidence is recorded in
+`docs/audit/voiceover-protocol.md`: VoiceOver starts and stops under program control and
+AppleScript reaches it (`version` returns `10`), but every content object in its scripting
+dictionary returns `-1728` — `content of last phrase`, `vo cursor`, `properties`. Reading
+VoiceOver's caption panel through the accessibility API fails too; the VoiceOver process
+exposes 0 windows and 0 UI elements to System Events. macOS 14.6.1 (23G93).
+
+| Page | Controls announced | Bare role | **Indistinguishable** | Groups |
+|---|---:|---:|---:|---:|
+| `/login` | 3 | 0 | 0 | 0 |
+| `/docs` | 263 | 0 | **138** | 15 |
+| document editor | 58 | 0 | **14** | 3 |
+| `/issues` | 472 | 0 | **136** | 34 |
+| `/settings` | 118 | 0 | **100** | 5 |
+| **Total** | **914** | **0** | **388 (42%)** | **57** |
+
+**Every control announces something — 0 of 914 are bare role.** The defect is not silence, it
+is that **388 of 914 controls (42%) are announced identically to another control on the same
+page.** A user hears a phrase that does not tell them which control they are on.
+
+The worst groups:
+
+```
+/docs      52x  "button, Delete document"
+/docs      52x  "button, Add sub-document"
+/settings  25x  "option, Admin, admin, not selected, position 1, set size 2"
+/settings  24x  "combobox, member, has popup listbox, not expanded"
+editor     10x  "button, Document actions, has popup menu"
+```
+
+**This sharpens W7-4 rather than repeating it.** The tree inspection and axe both found the
+24 `/settings` comboboxes have an *empty accessible name*. The simulated announcement shows
+what that means in the ear: the control falls back to announcing its **current value**, so all
+24 say `combobox, member` — the same three words, whichever person's permissions they control.
+Three independent methods now agree, and this is the one that establishes the consequence.
+
+`/docs` is worse and was not previously identified. **52 buttons announce as
+`button, Delete document`** with nothing naming the document. A screen reader user cannot tell
+which document a delete button destroys without leaving the control and reconstructing
+position from surrounding context.
+
+**Can you interact with all controls? No.** Reachable, yes; distinguishable, no — for 42% of
+them. **Can you understand the page structure?** The landmark and heading findings above stand
+unchanged. What remains open is whether the resulting speech is comprehensible in practice,
+which no simulator settles — see the manual protocol.
+
 #### Missing ARIA labels or roles — locations
 
 **7 distinct locations, 25 affected nodes.** The two counts differ because location 1 repeats
@@ -1058,6 +1120,34 @@ never went through those primitives: raw `<select>`, hand-built trees, a hand-bu
 508 claim is a procurement and legal exposure, not just a bug. Recorded separately from
 the technical findings because the fix is partly editorial: either the claim comes down
 or the violations go.
+
+**W7-12 · 42% of controls are announced identically to another control on the same page.**
+Measured by simulated screen-reader announcement over the real DOM: **388 of 914 controls**
+across five pages, in **57 groups**. None is silent — 0 of 914 announce a bare role — so this
+is invisible to a scanner checking for missing accessible names, and axe reports nothing for
+the worst instance.
+
+```
+/docs      52x  "button, Delete document"        <- destructive, no document named
+/docs      52x  "button, Add sub-document"
+/settings  24x  "combobox, member, has popup listbox, not expanded"
+```
+
+`/docs` is the serious one and is not covered by any existing finding. Fifty-two delete
+buttons announce the same three words. The document each one destroys is never spoken, so a
+screen reader user has no way to confirm the target of an irreversible action from the control
+itself.
+
+`/settings` is the same defect as W7-4 seen from the other end: the accessible name is empty,
+so the control announces its *value* instead, and every member with the same role produces an
+identical phrase.
+
+Fixing this is the same edit as W7-4 — an `aria-label` carrying the row's subject — so the two
+should be fixed together, but they are separate findings because a scanner catches one and
+cannot catch the other.
+
+**Severity: high.** Measured behaviour, not a heuristic, and it defeats safe operation of a
+destructive control.
 
 **W7-11 · Heading structure does not support screen reader navigation.** `/issues` exposes
 **2,257 accessibility nodes behind 2 headings**; `/settings` has **1 heading for 117
