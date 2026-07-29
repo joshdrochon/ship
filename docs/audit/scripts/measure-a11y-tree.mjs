@@ -63,11 +63,26 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
-  await login(page);
 
-  for (const [label, path] of PAGES) {
+  // /login must be captured BEFORE authenticating. PublicRoute redirects a
+  // logged-in visitor from /login to /docs (web/src/main.tsx:104), so visiting it
+  // after login silently measures /docs and files the result under "login". An
+  // earlier revision did exactly that, which is why /login and /docs previously
+  // reported identical figures — they were the same page.
+  const publicPages = PAGES.filter(([, p]) => p === '/login');
+  const privatePages = PAGES.filter(([, p]) => p !== '/login');
+
+  for (const [label, path] of [...publicPages, ...privatePages]) {
+    if (path !== '/login' && !page.url().includes('/docs') && !res.loggedIn) {
+      await login(page);
+      res.loggedIn = true;
+    }
     await page.goto(BASE + path, { waitUntil: 'networkidle', timeout: 30000 }).catch(() => {});
     await sleep(1200); await dismiss(page);
+    if (path === '/login' && !page.url().includes('/login')) {
+      throw new Error('Redirected away from /login — the session is authenticated. ' +
+                      'Capture /login before logging in.');
+    }
 
     // page.accessibility was removed in Playwright 1.57. ariaSnapshot() is the
     // current API and emits the same tree as YAML: "role \"accessible name\"".

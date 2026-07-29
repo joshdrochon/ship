@@ -3,25 +3,19 @@
     {
       "page": "login",
       "path": "/login",
-      "total_nodes": 356,
-      "interactive": 158,
+      "total_nodes": 17,
+      "interactive": 4,
       "unnamed_interactive": 0,
       "unnamed_by_role": {},
       "unnamed_samples": [],
-      "headings": 2,
+      "headings": 1,
       "heading_names": [
-        "Docs",
-        "Documents"
+        "Sign in to Ship"
       ],
-      "landmarks": [
-        "navigation",
-        "complementary",
-        "main",
-        "complementary"
-      ],
-      "has_main": true,
-      "tree_exposed": true,
-      "treeitems": 10
+      "landmarks": [],
+      "has_main": false,
+      "tree_exposed": false,
+      "treeitems": 0
     },
     {
       "page": "docs",
@@ -49,8 +43,8 @@
     {
       "page": "my-week",
       "path": "/my-week",
-      "total_nodes": 50,
-      "interactive": 21,
+      "total_nodes": 51,
+      "interactive": 22,
       "unnamed_interactive": 0,
       "unnamed_by_role": {},
       "unnamed_samples": [],
@@ -178,5 +172,6 @@
       "treeitems": 0
     }
   ],
-  "generated": "2026-07-28T23:23:55.378Z"
+  "generated": "2026-07-29T17:08:25.100Z",
+  "loggedIn": true
 }
