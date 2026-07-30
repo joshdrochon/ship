@@ -1,0 +1,16 @@
+initial load (total)  385,118 B (376.1 kB)
+  gzip                114,910 B (112.2 kB)
+  JS                  315,217 B (307.8 kB) across 4 files
+  CSS                 65,103 B (63.6 kB)
+  index.html          4,798 B (4.7 kB)
+
+entry chunk           index-B8T7TWoG.js
+                      65,893 B (64.3 kB)
+
+deferred JS           1,968,775 B (1922.6 kB) across 308 files
+
+initial JS breakdown (top 15)
+  vendor-react-DTmS2JJb.js                        166,410 B (162.5 kB)
+  index-B8T7TWoG.js                               65,893 B (64.3 kB)
+  vendor-query-_oxqrmmt.js                        46,023 B (44.9 kB)
+  vendor-router-Jb59XTrA.js                       36,891 B (36.0 kB)

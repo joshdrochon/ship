@@ -1,0 +1,30 @@
+{
+  "initial_bytes": 385118,
+  "initial_gzip_bytes": 114910,
+  "initial_js_bytes": 315217,
+  "initial_js_files": 4,
+  "initial_css_bytes": 65103,
+  "html_bytes": 4798,
+  "entry_chunk": "index-B8T7TWoG.js",
+  "entry_chunk_bytes": 65893,
+  "deferred_js_bytes": 1968775,
+  "deferred_js_files": 308,
+  "initial_js_breakdown": [
+    [
+      "vendor-react-DTmS2JJb.js",
+      166410
+    ],
+    [
+      "index-B8T7TWoG.js",
+      65893
+    ],
+    [
+      "vendor-query-_oxqrmmt.js",
+      46023
+    ],
+    [
+      "vendor-router-Jb59XTrA.js",
+      36891
+    ]
+  ]
+}

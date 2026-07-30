@@ -1,0 +1,13 @@
+initial load (total)  2,144,744 B (2094.5 kB)
+  gzip                599,789 B (585.7 kB)
+  JS                  2,073,684 B (2025.1 kB) across 1 files
+  CSS                 66,512 B (65.0 kB)
+  index.html          4,548 B (4.4 kB)
+
+entry chunk           index-DtPqXJLf.js
+                      2,073,684 B (2025.1 kB)
+
+deferred JS           176,747 B (172.6 kB) across 260 files
+
+initial JS breakdown (top 15)
+  index-DtPqXJLf.js                               2,073,684 B (2025.1 kB)

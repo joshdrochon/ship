@@ -1,6 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
-import EmojiPicker, { Theme, EmojiClickData } from 'emoji-picker-react';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import type { EmojiClickData } from 'emoji-picker-react';
 import { cn } from '@/lib/cn';
+
+// `import type` above is erased at build time, so this file carries no runtime
+// reference to emoji-picker-react — the only path to the library is the
+// import() below, which runs when the popover first opens.
+const EmojiPickerPanel = lazy(() => import('./EmojiPickerPanel'));
 
 interface EmojiPickerPopoverProps {
   value?: string | null;
@@ -73,15 +78,20 @@ export function EmojiPickerPopover({ value, onChange, children, className }: Emo
                 Remove emoji
               </button>
             )}
-            <EmojiPicker
-              onEmojiClick={handleEmojiClick}
-              skinTonesDisabled={true}
-              theme={Theme.DARK}
-              height={350}
-              width={300}
-              searchPlaceholder="Search emoji..."
-              previewConfig={{ showPreview: false }}
-            />
+            {/* Fallback is sized to the picker (300x350) so the popover does not
+                resize under the cursor when the chunk lands. */}
+            <Suspense
+              fallback={
+                <div
+                  className="flex items-center justify-center text-sm text-muted"
+                  style={{ width: 300, height: 350 }}
+                >
+                  Loading emoji...
+                </div>
+              }
+            >
+              <EmojiPickerPanel onEmojiClick={handleEmojiClick} />
+            </Suspense>
           </div>
         </div>
       )}
