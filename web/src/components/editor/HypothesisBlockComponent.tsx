@@ -25,7 +25,7 @@ export function HypothesisBlockComponent({ node }: NodeViewProps) {
           className="flex-shrink-0 mt-0.5 text-amber-500"
           contentEditable={false}
         >
-          <svg
+          <svg aria-hidden="true" focusable="false"
             className="w-5 h-5"
             fill="none"
             stroke="currentColor"
@@ -56,7 +56,7 @@ export function HypothesisBlockComponent({ node }: NodeViewProps) {
             {/* Show placeholder when empty */}
             {isEmpty && (
               <div
-                className="absolute inset-0 pointer-events-none text-muted/50"
+                className="absolute inset-0 pointer-events-none text-muted"
                 contentEditable={false}
               >
                 {placeholder}

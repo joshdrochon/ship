@@ -321,7 +321,11 @@ function MembersTab({
                     {isArchived ? (
                       <span className="text-muted">-</span>
                     ) : (
+                      /* W7-4/W7-12: without an accessible name a screen reader falls back to
+                         announcing the control's value, so every row said "member" and nothing
+                         said whose permissions were about to change. */
                       <select
+                        aria-label={`Workspace role for ${member.name}`}
                         value={member.role || 'member'}
                         onChange={(e) => onUpdateRole(member.userId, e.target.value as 'admin' | 'member')}
                         disabled={isLastAdmin}
@@ -343,7 +347,7 @@ function MembersTab({
                     {isArchived ? (
                       <button
                         onClick={() => onRestoreMember(member.userId)}
-                        className="text-sm text-accent hover:text-accent/80 transition-colors"
+                        className="text-sm text-accent hover:text-accent-hover transition-colors"
                       >
                         Restore
                       </button>
@@ -484,7 +488,7 @@ function InvitesTab({
                     {invite.x509SubjectDn ? (
                       <span className="font-mono text-xs">{invite.x509SubjectDn}</span>
                     ) : (
-                      <span className="text-muted/50">-</span>
+                      <span className="text-muted">-</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-muted capitalize">{invite.role}</td>
@@ -498,7 +502,7 @@ function InvitesTab({
                         "text-sm transition-colors",
                         copiedId === invite.id
                           ? "text-green-500"
-                          : "text-accent hover:text-accent/80"
+                          : "text-accent hover:text-accent-hover"
                       )}
                     >
                       {copiedId === invite.id ? 'Copied!' : 'Copy Link'}

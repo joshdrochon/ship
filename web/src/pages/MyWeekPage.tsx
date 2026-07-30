@@ -128,7 +128,7 @@ export function MyWeekPage() {
             className="p-1.5 rounded hover:bg-border/50 text-muted hover:text-foreground transition-colors"
             aria-label="Previous week"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
@@ -138,7 +138,7 @@ export function MyWeekPage() {
             className="p-1.5 rounded hover:bg-border/50 text-muted hover:text-foreground transition-colors"
             aria-label="Next week"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg aria-hidden="true" focusable="false" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
             </svg>
           </button>
@@ -225,7 +225,7 @@ export function MyWeekPage() {
                   <div className="space-y-0 max-h-[300px] overflow-hidden">
                     {plan.items.map((item, i) => (
                       <div key={i} className="flex items-start gap-2.5 py-1.5">
-                        <span className="text-[11px] font-semibold text-muted/50 w-4 text-right shrink-0 mt-0.5">
+                        <span className="text-[11px] font-semibold text-muted w-4 text-right shrink-0 mt-0.5">
                           {i + 1}.
                         </span>
                         <span className="text-sm text-foreground leading-relaxed">{item.text}</span>
@@ -287,7 +287,7 @@ export function MyWeekPage() {
                   <div className="space-y-0 max-h-[300px] overflow-hidden">
                     {retro.items.map((item, i) => (
                       <div key={i} className="flex items-start gap-2.5 py-1.5">
-                        <span className="text-[11px] font-semibold text-muted/50 w-4 text-right shrink-0 mt-0.5">
+                        <span className="text-[11px] font-semibold text-muted w-4 text-right shrink-0 mt-0.5">
                           {i + 1}.
                         </span>
                         <span className="text-sm text-foreground leading-relaxed">{item.text}</span>

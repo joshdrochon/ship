@@ -162,7 +162,7 @@ export function WeekReview({ sprintId }: WeekReviewProps) {
                       : 'bg-border/50 text-muted hover:bg-border'
                   )}
                 >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg aria-hidden="true" focusable="false" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Validated
@@ -176,7 +176,7 @@ export function WeekReview({ sprintId }: WeekReviewProps) {
                       : 'bg-border/50 text-muted hover:bg-border'
                   )}
                 >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg aria-hidden="true" focusable="false" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                   Invalidated

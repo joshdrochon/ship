@@ -29,31 +29,31 @@ function DocumentTypeIcon({ type, className }: { type: string; className?: strin
   switch (type) {
     case 'program':
       return (
-        <svg className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg aria-hidden="true" focusable="false" className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
         </svg>
       );
     case 'project':
       return (
-        <svg className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg aria-hidden="true" focusable="false" className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
         </svg>
       );
     case 'sprint':
       return (
-        <svg className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg aria-hidden="true" focusable="false" className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       );
     case 'issue':
       return (
-        <svg className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg aria-hidden="true" focusable="false" className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
         </svg>
       );
     default:
       return (
-        <svg className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg aria-hidden="true" focusable="false" className={cn('h-3.5 w-3.5', className)} fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
         </svg>
       );
@@ -63,7 +63,7 @@ function DocumentTypeIcon({ type, className }: { type: string; className?: strin
 // Chevron icon for expandable items
 function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
-    <svg
+    <svg aria-hidden="true" focusable="false"
       className={cn('h-3.5 w-3.5 text-muted transition-transform', expanded && 'rotate-90')}
       fill="none"
       stroke="currentColor"
@@ -99,7 +99,7 @@ export function ContextTreeNav({ documentId, documentType }: ContextTreeNavProps
     <div className="space-y-1" data-testid="context-tree-nav">
       {/* Context header */}
       <div className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-muted uppercase tracking-wider">
-        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg aria-hidden="true" focusable="false" className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h7" />
         </svg>
         Context
@@ -200,7 +200,7 @@ export function DocumentBreadcrumbs({ items }: { items: BreadcrumbItem[] }) {
         return (
           <span key={item.id} className="flex items-center gap-1 min-w-0">
             {index > 0 && (
-              <svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg aria-hidden="true" focusable="false" className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             )}

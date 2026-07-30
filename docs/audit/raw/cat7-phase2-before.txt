@@ -1,0 +1,109 @@
+
+raw scan: /tmp/ship-a11y-lane7-before/raw.json
+
+Lighthouse accessibility score per page
+page                         path                               desktop  mobile  failed audits (desktop)
+login                        /login                                  98      98  landmark-one-main
+docs (documents home)        /docs                                  100     100  —
+my-week                      /my-week                                96      96  color-contrast
+dashboard                    /dashboard                              96      96  color-contrast
+issues list                  /issues                                100     100  —
+projects list                /projects                               96     100  color-contrast
+programs list                /programs                              100     100  —
+team allocation              /team/allocation                        96     100  color-contrast
+team directory               /team/directory                        100     100  —
+team status                  /team/status                            96     100  color-contrast
+workspace settings           /settings                              100     100  —
+admin (super admin)          /admin                                  88      88  button-name,color-contrast
+issue document               /documents/114e6abb-9f9a-4e14-b31       96      96  color-contrast
+project document             /documents/e3fb8ef5-8e17-4f74-9c1      100     100  —
+sprint document              /documents/c58da6ff-3a85-4d0d-bd2      100     100  —
+weekly plan document         /documents/92b10cb3-efd6-440c-802       96      96  color-contrast
+wiki document                /documents/69ae3ba6-96f5-48ae-998      100     100  —
+
+axe-core violations. "wcag" columns = the WCAG 2.1 A/AA + Section 508 tag
+set (the conformance claim under test); "all" = axe default rule set,
+which adds axe best-practice rules on top.
+page                         C+S rules C+S nodes wcag rules wcag nodes all nodes contrast
+login                                0         0          0          0         6        0
+docs (documents home)                0         0          0          0         0        0
+my-week                              1        15          1         15        15       15
+dashboard                            1        14          1         14        14       14
+issues list                          0         0          0          0         1        0
+projects list                        1        16          1         16        17       16
+programs list                        0         0          0          0         1        0
+team allocation                      1         1          1          1         1        1
+team directory                       0         0          0          0         0        0
+team status                          1         1          1          1         1        1
+workspace settings                   1        10          1         10        14        0
+admin (super admin)                  2         2          2          2         2        1
+issue document                       1         3          1          3         3        3
+project document                     1         1          1          1         3        0
+sprint document                      2         2          2          2         2        0
+weekly plan document                 2         4          2          4         4        3
+wiki document                        0         0          0          0         1        0
+action-items modal (auto-op          0         0          0          0         0        0
+
+Totals across all scanned pages (WCAG/508 tag set)
+  critical  rules=   6  nodes=   15
+  serious   rules=   8  nodes=   54
+  moderate  rules=   0  nodes=    0
+  minor     rules=   0  nodes=    0
+  CRITICAL+SERIOUS  rules=14  nodes=69
+
+Violated rules, ranked by node count
+  serious   color-contrast                        54 nodes
+  critical  select-name                           11 nodes
+  critical  aria-valid-attr-value                  2 nodes
+  critical  button-name                            1 nodes
+  critical  aria-allowed-attr                      1 nodes
+
+Colour-contrast failures (<4.5:1 text / <3:1 UI): 54 nodes
+   1.84:1 (needs 4.5:1)  my-week                <span class="text-xs font-medium text-muted">Fri</span>
+   1.84:1 (needs 4.5:1)  my-week                <span class="text-xs text-muted ml-1">7/31</span>
+   1.84:1 (needs 4.5:1)  my-week                <span class="text-xs text-muted italic">Upcoming</span>
+   1.84:1 (needs 4.5:1)  my-week                <span class="text-xs font-medium text-muted">Sat</span>
+   1.84:1 (needs 4.5:1)  my-week                <span class="text-xs text-muted ml-1">8/1</span>
+   1.84:1 (needs 4.5:1)  my-week                <span class="text-xs text-muted italic">Upcoming</span>
+   1.84:1 (needs 4.5:1)  my-week                <span class="text-xs font-medium text-muted">Sun</span>
+   1.84:1 (needs 4.5:1)  my-week                <span class="text-xs text-muted ml-1">8/2</span>
+   1.84:1 (needs 4.5:1)  my-week                <span class="text-xs text-muted italic">Upcoming</span>
+   1.87:1 (needs 4.5:1)  weekly plan document   <span>Version History</span>
+   2.22:1 (needs 4.5:1)  dashboard              <div class="flex items-center gap-1.5 text-[11px] font-medium mt-1 tex
+   2.25:1 (needs 4.5:1)  weekly plan document   <span class="text-xs text-muted/50">AI quality check will appear as yo
+   2.26:1 (needs 4.5:1)  my-week                <span class="text-[11px] font-semibold text-muted/50 w-4 text-right sh
+   2.26:1 (needs 4.5:1)  my-week                <span class="text-[11px] font-semibold text-muted/50 w-4 text-right sh
+   2.26:1 (needs 4.5:1)  my-week                <span class="text-[11px] font-semibold text-muted/50 w-4 text-right sh
+
+Keyboard reachability (Tab traversal only — see caveat in docstring)
+page                         expected  reached unreachable  main  h1  skip
+login                               4        4           0     0   1     0
+docs (documents home)              48       48          10     1   1     1
+my-week                            23       23           0     1   1     1
+dashboard                          14       14           0     1   1     1
+issues list                       236      340           0     1   1     1
+projects list                      83       83          15     1   1     1
+programs list                      26       31           0     1   1     1
+team allocation                    49       64           0     1   1     1
+team directory                     19       19           0     1   1     1
+team status                       144      144           0     1   1     1
+workspace settings                 38       38           0     2   1     1
+admin (super admin)                 9        9           0     1   1     0
+issue document                    136      240           1     1   1     1
+project document                   88       84          19     1   0     1
+sprint document                    34       35           5     1   1     1
+weekly plan document               72       69          19     1   1     1
+wiki document                      35       36           7     1   1     1
+action-items modal (auto-op        16        4          12     1   1     1
+
+ARIA-name / role rule failures (node counts)
+  select-name                           11
+  aria-valid-attr-value                  2
+  button-name                            1
+  aria-allowed-attr                      1
+
+Source-level patterns (198 .ts/.tsx files in web/src)
+  focus:outline-none                   86 (64 keep a visible indicator, 22 do not)
+  opacity-modified text colours        22  {'text-muted/30': 1, 'text-muted/50': 12, 'text-muted/60': 4, 'text-accent/80': 4, 'text-foreground/80': 1}
+  role= counts                            {'tree': 8, 'treeitem': 18, 'tab': 2, 'tablist': 2, 'tabpanel': 0}
+  aria-controls targets referenced        ['tabpanel-']

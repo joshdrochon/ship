@@ -144,7 +144,7 @@ function ExpandableGuide({ title, children }: { title: string; children: React.R
     <div className="border border-border rounded">
       <button onClick={toggle} className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-muted hover:text-foreground">
         {title}
-        <svg className={cn('w-3 h-3 transition-transform', expanded && 'rotate-180')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg aria-hidden="true" focusable="false" className={cn('w-3 h-3 transition-transform', expanded && 'rotate-180')} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
@@ -227,7 +227,7 @@ export function PlanQualityAssistant({
       <div className="flex items-center justify-between">
         <label className="text-xs font-medium text-muted">AI Quality Check</label>
         {loading && (
-          <svg className="w-3 h-3 animate-spin text-muted" viewBox="0 0 24 24" fill="none">
+          <svg aria-hidden="true" focusable="false" className="w-3 h-3 animate-spin text-muted" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
@@ -355,7 +355,7 @@ export function RetroQualityAssistant({
       <div className="flex items-center justify-between">
         <label className="text-xs font-medium text-muted">AI Quality Check</label>
         {loading && (
-          <svg className="w-3 h-3 animate-spin text-muted" viewBox="0 0 24 24" fill="none">
+          <svg aria-hidden="true" focusable="false" className="w-3 h-3 animate-spin text-muted" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
@@ -380,11 +380,11 @@ export function RetroQualityAssistant({
                   {/* Status icon */}
                   <span className="mt-0.5 flex-shrink-0">
                     {item.addressed && item.has_evidence ? (
-                      <svg className="w-3.5 h-3.5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" /></svg>
+                      <svg aria-hidden="true" focusable="false" className="w-3.5 h-3.5 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" /></svg>
                     ) : item.addressed ? (
-                      <svg className="w-3.5 h-3.5 text-yellow-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 9v2m0 4h.01" /><circle cx="12" cy="12" r="10" strokeWidth="2" /></svg>
+                      <svg aria-hidden="true" focusable="false" className="w-3.5 h-3.5 text-yellow-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 9v2m0 4h.01" /><circle cx="12" cy="12" r="10" strokeWidth="2" /></svg>
                     ) : (
-                      <svg className="w-3.5 h-3.5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                      <svg aria-hidden="true" focusable="false" className="w-3.5 h-3.5 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
                     )}
                   </span>
                   <div className="min-w-0">

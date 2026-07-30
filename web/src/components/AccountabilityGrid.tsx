@@ -485,7 +485,7 @@ function StatusIcon({
 }) {
   if (!hasContent) {
     return (
-      <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg aria-hidden="true" focusable="false" className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="8" strokeWidth="2" />
       </svg>
     );
@@ -493,7 +493,7 @@ function StatusIcon({
 
   if (approvalState === 'approved') {
     return (
-      <svg className="h-4 w-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg aria-hidden="true" focusable="false" className="h-4 w-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
       </svg>
     );
@@ -501,7 +501,7 @@ function StatusIcon({
 
   if (approvalState === 'changed_since_approved') {
     return (
-      <svg className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
+      <svg aria-hidden="true" focusable="false" className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
       </svg>
     );
@@ -509,7 +509,7 @@ function StatusIcon({
 
   // Written but not approved
   return (
-    <svg className="h-4 w-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className="h-4 w-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
       <circle cx="12" cy="12" r="8" />
     </svg>
   );

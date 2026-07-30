@@ -275,7 +275,7 @@ export function StatusOverviewHeatmap({ showArchived = false }: StatusOverviewHe
     return (
       <div className="flex flex-1 items-center justify-center">
         <div className="flex items-center gap-2 text-muted">
-          <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+          <svg aria-hidden="true" focusable="false" className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
@@ -296,7 +296,7 @@ export function StatusOverviewHeatmap({ showArchived = false }: StatusOverviewHe
   if (!data || data.programs.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center text-muted p-8">
-        <svg className="w-16 h-16 mb-4 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <svg aria-hidden="true" focusable="false" className="w-16 h-16 mb-4 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
         </svg>
         <p className="text-lg font-medium mb-2">No team members with allocations</p>
@@ -351,7 +351,7 @@ export function StatusOverviewHeatmap({ showArchived = false }: StatusOverviewHe
                     onClick={() => toggleProgram(row.id)}
                     className="flex h-10 w-[240px] items-center gap-2 border-b border-border bg-border/30 px-3 hover:bg-border/50 text-left"
                   >
-                    <svg
+                    <svg aria-hidden="true" focusable="false"
                       className={cn('w-3 h-3 transition-transform', expandedPrograms.has(row.id) && 'rotate-90')}
                       viewBox="0 0 24 24"
                       fill="none"

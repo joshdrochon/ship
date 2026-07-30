@@ -331,7 +331,7 @@ function IssueCard({
               className="p-0.5 rounded hover:bg-border/50 text-muted hover:text-foreground"
               aria-label={`More actions for issue #${issue.ticket_number}`}
             >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+              <svg aria-hidden="true" focusable="false" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                 <circle cx="12" cy="5" r="2" />
                 <circle cx="12" cy="12" r="2" />
                 <circle cx="12" cy="19" r="2" />

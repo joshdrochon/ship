@@ -211,7 +211,7 @@ export function BacklinksPanel({ documentId }: BacklinksPanelProps) {
                 className="absolute right-1 top-1 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-border/50 text-muted hover:text-foreground transition-opacity"
                 aria-label={`Actions for ${backlink.title || 'Untitled'}`}
               >
-                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
+                <svg aria-hidden="true" focusable="false" className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor">
                   <circle cx="12" cy="5" r="2" />
                   <circle cx="12" cy="12" r="2" />
                   <circle cx="12" cy="19" r="2" />
@@ -246,7 +246,7 @@ export function BacklinksPanel({ documentId }: BacklinksPanelProps) {
 // Icons
 function OpenIcon({ className }: { className?: string }) {
   return (
-    <svg className={cn('h-4 w-4', className)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg aria-hidden="true" focusable="false" className={cn('h-4 w-4', className)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
       <rect x="9" y="3" width="6" height="4" rx="1" />
     </svg>
@@ -255,7 +255,7 @@ function OpenIcon({ className }: { className?: string }) {
 
 function ExternalLinkIcon({ className }: { className?: string }) {
   return (
-    <svg className={cn('h-4 w-4', className)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg aria-hidden="true" focusable="false" className={cn('h-4 w-4', className)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
       <polyline points="15 3 21 3 21 9" />
       <line x1="10" y1="14" x2="21" y2="3" />
@@ -265,7 +265,7 @@ function ExternalLinkIcon({ className }: { className?: string }) {
 
 function LinkIcon({ className }: { className?: string }) {
   return (
-    <svg className={cn('h-4 w-4', className)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <svg aria-hidden="true" focusable="false" className={cn('h-4 w-4', className)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
     </svg>

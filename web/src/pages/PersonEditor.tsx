@@ -267,7 +267,7 @@ function SprintHistory({ metrics }: { metrics: SprintMetricsResponse }) {
 
       {/* Trend line SVG */}
       <div className="mb-3">
-        <svg viewBox="0 0 200 60" className="h-12 w-full">
+        <svg aria-hidden="true" focusable="false" viewBox="0 0 200 60" className="h-12 w-full">
           {/* Background grid */}
           <line x1="0" y1="30" x2="200" y2="30" stroke="currentColor" strokeOpacity="0.1" />
           <line x1="0" y1="15" x2="200" y2="15" stroke="currentColor" strokeOpacity="0.05" />

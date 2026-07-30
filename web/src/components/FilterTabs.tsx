@@ -42,7 +42,9 @@ export function FilterTabs({ tabs, activeId, onChange, ariaLabel }: FilterTabsPr
               'ml-1 rounded-full px-1.5 py-0.5 text-xs font-medium',
               activeId === tab.id
                 ? 'bg-foreground/10 text-foreground'
-                : 'bg-muted/30 text-muted'
+                // bg-muted/30 composites to a mid-grey that leaves text-muted at 3.65:1.
+                // A darker chip keeps the same visual weight and clears 4.5:1.
+                : 'bg-border/50 text-muted'
             )}>
               {tab.count}
             </span>

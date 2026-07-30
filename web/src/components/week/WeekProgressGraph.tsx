@@ -66,7 +66,7 @@ export function WeekProgressGraph({
         )}
       </div>
 
-      <svg width={width} height={height} className="text-muted">
+      <svg aria-hidden="true" focusable="false" width={width} height={height} className="text-muted">
         {/* Grid lines */}
         <g className="stroke-border">
           {[0, 50, 100].map((percent) => (
