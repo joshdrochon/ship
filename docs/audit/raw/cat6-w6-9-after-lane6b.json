@@ -1,0 +1,154 @@
+{
+  "summary": {
+    "label": "after-lane-6b",
+    "runs_attempted": 5,
+    "runs_with_reset_held": 5,
+    "title_both_survived": 5,
+    "title_one_edit_destroyed": 0,
+    "title_clients_converged": 5,
+    "title_baseline_text_intact": 5,
+    "body_no_data_loss": 5
+  },
+  "runs": [
+    {
+      "run": 1,
+      "ms": 21640,
+      "doc": "af9856c0-87b3-4f2b-ada3-52cdba0ef157",
+      "resetHeld": true,
+      "title": {
+        "typedA": "AAAAAAAA",
+        "typedB": "BBBBBBBB",
+        "server": "Concurrent Edit TestBABABABABABABABA",
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "server_has_A": true,
+        "server_has_B": true,
+        "both_survived": true,
+        "lost_edit_of": [],
+        "clients_converged": true,
+        "interleaved": true,
+        "baseline_text_intact": true,
+        "conflict_indicator_shown": false
+      },
+      "body": {
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "no_data_loss": true,
+        "clients_converged": true
+      },
+      "afterReload_title": "Concurrent Edit TestBABABABABABABABA"
+    },
+    {
+      "run": 2,
+      "ms": 20041,
+      "doc": "af9856c0-87b3-4f2b-ada3-52cdba0ef157",
+      "resetHeld": true,
+      "title": {
+        "typedA": "AAAAAAAA",
+        "typedB": "BBBBBBBB",
+        "server": "Concurrent Edit TestBABABABABABABABA",
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "server_has_A": true,
+        "server_has_B": true,
+        "both_survived": true,
+        "lost_edit_of": [],
+        "clients_converged": true,
+        "interleaved": true,
+        "baseline_text_intact": true,
+        "conflict_indicator_shown": false
+      },
+      "body": {
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "no_data_loss": true,
+        "clients_converged": true
+      },
+      "afterReload_title": "Concurrent Edit TestBABABABABABABABA"
+    },
+    {
+      "run": 3,
+      "ms": 19896,
+      "doc": "af9856c0-87b3-4f2b-ada3-52cdba0ef157",
+      "resetHeld": true,
+      "title": {
+        "typedA": "AAAAAAAA",
+        "typedB": "BBBBBBBB",
+        "server": "Concurrent Edit TestBABABABABABABABA",
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "server_has_A": true,
+        "server_has_B": true,
+        "both_survived": true,
+        "lost_edit_of": [],
+        "clients_converged": true,
+        "interleaved": true,
+        "baseline_text_intact": true,
+        "conflict_indicator_shown": false
+      },
+      "body": {
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "no_data_loss": true,
+        "clients_converged": true
+      },
+      "afterReload_title": "Concurrent Edit TestBABABABABABABABA"
+    },
+    {
+      "run": 4,
+      "ms": 19726,
+      "doc": "af9856c0-87b3-4f2b-ada3-52cdba0ef157",
+      "resetHeld": true,
+      "title": {
+        "typedA": "AAAAAAAA",
+        "typedB": "BBBBBBBB",
+        "server": "Concurrent Edit TestABABABABABABABAB",
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "server_has_A": true,
+        "server_has_B": true,
+        "both_survived": true,
+        "lost_edit_of": [],
+        "clients_converged": true,
+        "interleaved": true,
+        "baseline_text_intact": true,
+        "conflict_indicator_shown": false
+      },
+      "body": {
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "no_data_loss": true,
+        "clients_converged": true
+      },
+      "afterReload_title": "Concurrent Edit TestABABABABABABABAB"
+    },
+    {
+      "run": 5,
+      "ms": 19762,
+      "doc": "af9856c0-87b3-4f2b-ada3-52cdba0ef157",
+      "resetHeld": true,
+      "title": {
+        "typedA": "AAAAAAAA",
+        "typedB": "BBBBBBBB",
+        "server": "Concurrent Edit TestABABABABABABABAB",
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "server_has_A": true,
+        "server_has_B": true,
+        "both_survived": true,
+        "lost_edit_of": [],
+        "clients_converged": true,
+        "interleaved": true,
+        "baseline_text_intact": true,
+        "conflict_indicator_shown": false
+      },
+      "body": {
+        "A_chars_gained_on_server": 8,
+        "B_chars_gained_on_server": 8,
+        "no_data_loss": true,
+        "clients_converged": true
+      },
+      "afterReload_title": "Concurrent Edit TestABABABABABABABAB"
+    }
+  ]
+}

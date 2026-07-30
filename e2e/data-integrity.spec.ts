@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
+import { expectDocumentTitleSaved } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -72,11 +73,10 @@ test.describe('Data Integrity - Document Persistence', () => {
     await titleInput.click()
     await titleInput.fill('Complete Document Test')
 
-    // Wait for title to save
-    await page.waitForResponse(
-      resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH',
-      { timeout: 5000 }
-    ).catch(() => {})
+    // Wait for the title to actually reach the server. This used to wait for a
+    // PATCH and swallow the timeout, which since W6-9 (title moved into the
+    // CRDT) meant it silently waited 5s and continued regardless.
+    await expectDocumentTitleSaved(page, 'Complete Document Test')
 
     // Add content using markdown shortcuts (more reliable than keyboard shortcuts)
     await editor.click()

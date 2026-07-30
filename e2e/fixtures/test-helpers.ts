@@ -99,3 +99,58 @@ export async function waitForTableData(
   await expect(page.locator(tableSelector).first()).toBeVisible({ timeout: 15000 });
   await page.waitForLoadState('networkidle');
 }
+
+/**
+ * Extract the document UUID from a `/documents/:id` URL.
+ */
+export function documentIdFromUrl(url: string): string {
+  const id = url.split('/documents/')[1]?.split(/[?#/]/)[0];
+  if (!id) throw new Error(`Not a document URL: ${url}`);
+  return id;
+}
+
+/**
+ * Wait until the server actually holds `title` for this document.
+ *
+ * WHY THIS EXISTS (lane-6b). Tests used to wait for
+ * `PATCH /api/documents/:id` as their signal that a title had saved. W6-9 moved
+ * the title into the Yjs CRDT, so it is now persisted by the collaboration
+ * server's debounced write instead. The REST PATCH still fires, but only as a
+ * fallback when the collaboration socket has not synced within 1.5s of typing
+ * (see web/src/hooks/useCollaborativeTitle.ts) — which makes waiting for it a
+ * race, not a reliable signal.
+ *
+ * Asserting on the outcome instead is correct under either transport: the title
+ * is saved when the API serves it back. Rule 2 (brief p.8) permits fixing a test
+ * with justification; the justification is that the transport changed by design
+ * while the behaviour did not.
+ *
+ * @param page - The Playwright page, used for its baseURL-aware request context
+ * @param title - The title the document should end up with
+ * @param docId - Document id; defaults to the one in the page's current URL
+ */
+export async function expectDocumentTitleSaved(
+  page: Page,
+  title: string,
+  docId?: string,
+): Promise<void> {
+  const id = docId ?? documentIdFromUrl(page.url());
+  await expect(async () => {
+    const resp = await page.request.get(`/api/documents/${id}`);
+    expect(resp.ok(), `GET /api/documents/${id} should succeed`).toBeTruthy();
+    expect((await resp.json()).title).toBe(title);
+  }).toPass({ timeout: 15000 });
+}
+
+/**
+ * Fill the document title field and wait until the server has stored it.
+ *
+ * Replaces the older "fill, then wait for a PATCH" pattern. See
+ * `expectDocumentTitleSaved` for why that pattern no longer holds.
+ */
+export async function setDocumentTitle(page: Page, title: string): Promise<void> {
+  const titleInput = page.getByPlaceholder('Untitled');
+  await expect(titleInput).toBeVisible({ timeout: 5000 });
+  await titleInput.fill(title);
+  await expectDocumentTitleSaved(page, title);
+}
