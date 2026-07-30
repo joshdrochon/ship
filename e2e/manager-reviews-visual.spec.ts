@@ -226,7 +226,7 @@ test.describe('Manager Reviews Visual Verification', () => {
     await dialog.getByPlaceholder('Add context for this decision...').fill(
       'Strong retrospective quality for a first full week after onboarding.'
     );
-    await dialog.locator('button[title=\"Fully Successful\"]').click();
+    await dialog.locator('button[title="Fully Successful"]').click();
     await expect(rateButton).toBeEnabled();
 
     await page.screenshot({

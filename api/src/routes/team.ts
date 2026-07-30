@@ -578,7 +578,7 @@ router.post('/assign', authMiddleware, async (req: Request, res: Response) => {
 
     // Find existing sprint for this program, project, and sprint number
     // Use IS NOT DISTINCT FROM for program_id to handle NULL values correctly
-    let sprintResult = await pool.query(
+    const sprintResult = await pool.query(
       `SELECT id, properties FROM documents
        WHERE workspace_id = $1 AND document_type = 'sprint'
          AND ($2::uuid IS NULL AND NOT EXISTS (SELECT 1 FROM document_associations WHERE document_id = documents.id AND relationship_type = 'program') OR id IN (SELECT document_id FROM document_associations WHERE related_id = $2 AND relationship_type = 'program'))
