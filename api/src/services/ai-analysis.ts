@@ -25,7 +25,15 @@ function getClient(): BedrockRuntimeClient | null {
   if (bedrockClient) return bedrockClient;
 
   try {
-    bedrockClient = new BedrockRuntimeClient({ region: REGION });
+    // BEDROCK_ENDPOINT redirects this client at a local mock so the one-command local
+    // stack (./start.sh, Rule 6) can exercise the AI paths without AWS credentials.
+    // Unset everywhere else, in which case the SDK resolves the real regional endpoint
+    // exactly as before.
+    const endpoint = process.env.BEDROCK_ENDPOINT;
+    bedrockClient = new BedrockRuntimeClient({
+      region: REGION,
+      ...(endpoint ? { endpoint } : {}),
+    });
     return bedrockClient;
   } catch (err) {
     console.warn('Failed to initialize Bedrock client:', err);

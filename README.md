@@ -79,38 +79,75 @@ The goal isn't to check boxes. It's to capture what your team learned so you can
 
 ## Getting Started
 
-### Prerequisites
+### Cold start — one command
 
-- [Node.js](https://nodejs.org/) 20 or newer
-- [pnpm](https://pnpm.io/) (`npm install -g pnpm`)
-- [Docker](https://www.docker.com/) (for the database)
-
-### Setup
+From a clean checkout, this is the whole thing:
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/US-Department-of-the-Treasury/ship.git
-cd ship
+git clone <your-fork-url> ship && cd ship
+./start.sh
+```
 
-# 2. Install dependencies
+**Docker is the only prerequisite.** Node, pnpm, and PostgreSQL all run inside
+containers, so you do not need any of them installed on the host. The script builds the
+images, starts PostgreSQL, runs migrations, seeds sample data, starts a mock Bedrock so
+the AI features work without AWS credentials, waits until everything answers a health
+check, then prints the URLs and how many documents got seeded.
+
+First run takes a few minutes while images build. Later runs are cached and take seconds.
+
+```bash
+./start.sh              # start everything and wait until healthy
+./start.sh --clean      # discard the database volume and re-seed from scratch
+./start.sh --logs       # start, then follow logs
+./start.sh --down       # stop everything (data volume kept)
+./start.sh --no-mocks   # skip the mock Bedrock service
+./start.sh --help
+```
+
+If a service does not come up, the script prints that container's last 40 log lines and
+leaves the stack running so you can inspect it.
+
+### Alternative: run on the host
+
+Faster hot-reload, but you have to supply Node 20+, pnpm, and a running PostgreSQL
+yourself. Use `./start.sh` if you just want it working.
+
+<details>
+<summary>Host setup steps</summary>
+
+Prerequisites: [Node.js](https://nodejs.org/) 20+, [pnpm](https://pnpm.io/), and
+[Docker](https://www.docker.com/) for the database.
+
+```bash
+# 1. Install dependencies
 pnpm install
 
-# 3. Configure environment
+# 2. Configure environment
 cp api/.env.example api/.env.local
 cp web/.env.example web/.env
 
-# 4. Start the database
-docker-compose up -d
+# 3. Start the database
+docker compose up -d
 
-# 5. Create sample data
+# 4. Run migrations, then seed
+pnpm db:migrate
 pnpm db:seed
 
-# 6. Run database migrations
-pnpm db:migrate
-
-# 7. Start the application
+# 5. Start the application
 pnpm dev
 ```
+
+Two things to know about this path:
+
+- **`pnpm db:migrate` can exit 0 while applying only some migrations.** If the app
+  behaves as though a column is missing, check that `schema_migrations` has as many rows
+  as there are files in `api/src/db/migrations/`.
+- **`pnpm test` truncates whatever database `DATABASE_URL` points at** — including this
+  one. Re-run `pnpm db:seed` after any unit-test run. `./start.sh` is unaffected; its
+  database is a separate container on port 5433.
+
+</details>
 
 ### Open the App
 
