@@ -92,6 +92,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # `needs: build` orders the jobs; it does not carry a filesystem between them.
+      # api/ and web/ import @ship/shared, which resolves to shared/dist/index.d.ts, so
+      # without this tsc reports TS2307 "Cannot find module '@ship/shared'" on ~40 files.
+      # The `test` job above already does exactly this, which is why it passed while this
+      # one failed. GitLab does not need it: `needs: ['build']` there downloads the build
+      # artifact, and shared/dist/ is in its paths.
+      - run: pnpm build:shared
       - run: pnpm type-check
 
   test:
