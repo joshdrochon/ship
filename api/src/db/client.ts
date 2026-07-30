@@ -1,5 +1,5 @@
 import pg from 'pg';
-import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
+import type { PoolClient, QueryConfig, QueryResult, QueryResultRow } from 'pg';
 import { config } from 'dotenv';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -155,6 +155,22 @@ export interface QueryRunner {
   // "possibly undefined" error — 728 of them, in files this lane does not own.
   // Per-query row types are the fix for that, one call site at a time, behind the
   // same generic parameter this signature already exposes.
+  // Named prepared statements go through this overload. pg selects its
+  // extended-protocol path when given a config object carrying a `name`, which
+  // lets each pooled connection parse and plan a statement once and thereafter
+  // only bind and execute. GET /api/documents uses it for its six query shapes.
+  //
+  // This is the overload the interface comment below anticipated. Adding it with
+  // a type, rather than widening the surface back out to `Pool`, is the point.
+  //
+  // Declared FIRST on purpose. Overload order is resolution order for calls, but
+  // utility types like `Parameters<typeof pool.query>` read the LAST signature —
+  // and several existing suites extract that to type their mocks. Putting the
+  // (text, values) form last keeps those suites compiling unchanged.
+  query<R extends QueryResultRow = any>(
+    config: QueryConfig<any[]>,
+  ): Promise<QueryResult<R>>;
+
   query<R extends QueryResultRow = any>(
     text: string,
     values?: unknown[],
@@ -185,10 +201,17 @@ export interface Database extends QueryRunner {
 
 const pool: Database = {
   query<R extends QueryResultRow = QueryResultRow>(
-    text: string,
+    textOrConfig: string | QueryConfig<any[]>,
     values?: unknown[],
   ): Promise<QueryResult<R>> {
-    return withConnectRetry(() => basePool.query<R>(text, values));
+    // Both overloads keep the connect-retry wrapper. A prepared statement that
+    // could not retry a lost connection would be a silent hole in exactly the
+    // hottest endpoint.
+    return withConnectRetry(() =>
+      typeof textOrConfig === 'string'
+        ? basePool.query<R>(textOrConfig, values)
+        : basePool.query<R>(textOrConfig),
+    );
   },
 
   connect(): Promise<PoolClient> {

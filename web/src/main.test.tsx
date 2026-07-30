@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 /**
@@ -73,14 +73,19 @@ describe('top-level route error boundaries (W6-1 regression)', () => {
     // The symptom being regressed against: nothing rendered at all.
     expect(container.textContent?.trim()).not.toBe('');
 
-    const fallback = screen.getByTestId('route-error-boundary');
+    // Routes are React.lazy since the code-splitting work, so the component that
+    // throws is not loaded on the first paint — the tree shows the Suspense
+    // fallback first and only reaches the error boundary once the chunk resolves.
+    // findBy* waits for that; getBy* asserted against the loading state and saw
+    // the spinner instead of the boundary.
+    const fallback = await screen.findByTestId('route-error-boundary');
     expect(fallback).toBeInTheDocument();
     // Screen readers must be told, not just sighted users.
     expect(fallback).toHaveAttribute('role', 'alert');
 
     // And there must be a way out — the audit measured 0 recovery affordances.
-    expect(screen.getByRole('button', { name: /reload/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /sign-in/i })).toHaveAttribute('href', '/login');
+    expect(await screen.findByRole('button', { name: /reload/i })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /sign-in/i })).toHaveAttribute('href', '/login');
   });
 
   it('does not swallow errors from routes that have their own boundary', async () => {
@@ -93,6 +98,8 @@ describe('top-level route error boundaries (W6-1 regression)', () => {
         <App />
       </MemoryRouter>
     );
-    expect(screen.queryByTestId('route-error-boundary')).not.toBeInTheDocument();
+    // Let any lazy chunk settle before asserting absence, so this cannot pass
+    // merely because nothing has rendered yet.
+    await waitFor(() => expect(screen.queryByTestId('route-error-boundary')).not.toBeInTheDocument());
   });
 });
