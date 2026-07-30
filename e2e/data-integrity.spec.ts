@@ -181,7 +181,9 @@ test.describe('Data Integrity - Document Persistence', () => {
     await titleInput.fill('Empty Document')
     await titleInput.blur()
 
-    await page.waitForTimeout(2000)
+    // W6-9: wait for the durable write rather than a fixed sleep sitting exactly
+    // on the 2s debounce boundary.
+    await expectDocumentTitleSaved(page, 'Empty Document')
 
     // Reload
     await page.reload()

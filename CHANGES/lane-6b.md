@@ -6,13 +6,20 @@ it, how to roll it back — plus the reasoning and tradeoffs (Rule 9).
 ## Summary
 
 Lane 6's W6-9 fix (document title moved from a debounced REST `PATCH` into the
-Yjs CRDT) turned 10 E2E tests red and blocked the merge. **It was not a product
-regression.** The title still persists correctly; ten tests were asserting on the
-*transport* that used to carry it.
+Yjs CRDT) turned 10 E2E tests red and blocked the merge. **The ten red tests were
+not a product regression.** The title still persists correctly; they were
+asserting on the *transport* that used to carry it.
+
+W6-9 did, however, move the durability window — measured and quantified in
+[Durability](#durability-w6-9-did-move-the-exposure-window-and-here-are-the-numbers)
+below. Closing a tab is safe (33 ms flush); the residual exposure is an API
+process crash during continuous typing. That is a real tradeoff, it is not
+fixed here, and it is flagged for the merge decision.
 
 | | Before (merged, pre-fix) | After |
 |---|---:|---:|
 | `backlinks.spec.ts` + `issue-estimates.spec.ts` | **10 failed / 8 passed**, 15.5m | **18 passed / 0 failed**, 1.3m |
+| Full E2E suite | 1 failed, 7 flaky, 863 passed | see attribution below |
 | W6-9 concurrent title edit, both users' text survives | 5 / 5 | **5 / 5** (unchanged) |
 | `pnpm test` | 502 | 502 |
 | `pnpm --filter @ship/web exec vitest run` | 192 | 192 |
@@ -70,6 +77,61 @@ server's 2s debounce.
 
 No production code was changed in this lane.
 
+## Durability: W6-9 did move the exposure window, and here are the numbers
+
+Fixing the tests raised a fair question: the title used to be flushed by a
+*throttled* PATCH (which fires repeatedly **during** typing) and is now written by
+a *debounce* that **resets on every keystroke**
+(`api/src/collaboration/index.ts:189-197`). Did a fix aimed at preventing data
+loss open a gap in the other direction? Measured rather than argued, with
+`docs/audit/scripts/measure-title-durability.mjs` (raw:
+`docs/audit/raw/cat6-title-durability.json`):
+
+| Scenario | Measured |
+|---|---:|
+| Last keystroke → durable column write, typing then stopping | **2026 ms** |
+| Continuous typing, 12s: samples showing the typed text in the column *during* typing | **0 of 19** |
+| Continuous typing: flush after typing stopped | 1862 ms |
+| Continuous typing: total exposure window | **13862 ms** |
+| Typed, then closed the tab 300 ms later — did it survive? | **yes, durable 33 ms after close** |
+
+**What this establishes.**
+
+1. **The idle window is ~2.0s**, exactly the debounce.
+2. **During continuous typing the column is stale for the entire session** — 0 of
+   19 samples over 12 seconds showed the typed text. The debounce genuinely
+   resets without bound, so the exposure window grows with typing duration
+   (12s of typing → 13.9s of exposure). Under the old throttle this window was
+   roughly a second and did not grow.
+3. **Closing the tab does NOT lose the title.** This is the scenario that sounds
+   worst and it is the one that is safest: when the last connection to a room
+   drops, `ws.on('close')` clears the pending timer and persists immediately
+   (`api/src/collaboration/index.ts:860-867`). Measured at **33 ms** after a tab
+   close made 300 ms into typing — well inside the debounce. Navigation, tab
+   close, and a browser crash all close the socket and therefore all flush.
+
+**Does `yjs_state` close the gap independently? No.** Worth stating because it is
+the intuitive answer: `persistDocument` writes `yjs_state`, `content` and `title`
+in a **single** UPDATE on the **same** debounce (`index.ts:178-183`), so
+`yjs_state` is exactly as stale as the column. What closes the gap is the
+immediate flush on disconnect, not a second persistence path.
+
+**The residual risk, stated precisely.** The only way to lose a typed title is
+**the API process dying while updates sit in the collaboration server's in-memory
+Y.Doc.** That window is ~2s when idle and unbounded during continuous typing,
+where the old throttle kept it near a second. Every browser-side failure mode is
+covered by the disconnect flush.
+
+This is a narrow regression in a rare failure mode, traded for eliminating a
+common one (concurrent edits destroying each other, 0/5 → 5/5). It is a real
+tradeoff and it is recorded here rather than buried.
+
+**Not fixed in this lane, deliberately.** The obvious mitigations — capping the
+debounce with a maximum age so continuous typing still flushes periodically, or
+adding a `maxWait` to `schedulePersist` — are product tuning decisions with real
+latency/write-amplification tradeoffs. **That call belongs to the user, not to a
+lane repairing a test regression.** Flagged for the merge decision.
+
 ## The finding worth keeping: tests coupled to transport
 
 Eight spec files waited on `method() === 'PATCH'` as a proxy for "the data was
@@ -112,8 +174,40 @@ because those fields never moved into the CRDT, and they were left alone:
 | `e2e/data-integrity.spec.ts` | title wait (which swallowed its own timeout) → real assertion |
 | `e2e/drag-handle.spec.ts` | title wait → outcome assertion |
 | `e2e/weeks.spec.ts` | title wait → outcome assertion |
+| `e2e/edge-cases.spec.ts` | special-characters title test: fixed sleep → outcome assertion |
+| `e2e/race-conditions.spec.ts` | rapid-title-changes test: fixed sleep → outcome assertion |
+| `docs/audit/scripts/measure-title-durability.mjs` | **new.** The durability harness behind the numbers above |
 
 Production code: **none**.
+
+### Second class of breakage, found only by the full suite
+
+The two-spec reproduction could not surface these. Four more tests filled a
+title, slept a fixed 1500 ms, then reloaded — which races the 2 s debounce. They
+pass in isolation and fail under 4-worker load:
+
+```
+autosave-race-conditions.spec.ts:65   type-pause-type
+autosave-race-conditions.spec.ts:120  multiple pause-resume cycles
+autosave-race-conditions.spec.ts:147  issue title: stale response
+edge-cases.spec.ts:298                handles special characters in titles
+```
+
+Same root cause, same fix. I swept for the pattern and pre-emptively fixed three
+more sites sitting on the 2 s boundary (`autosave:93`, `data-integrity:181`,
+`race-conditions:102`). After the fix: **38/38** across those four spec files.
+
+### Full-suite failure attribution
+
+Run of 871 tests: **863 passed, 1 failed, 7 flaky.** Attributed:
+
+| Test | Verdict |
+|---|---|
+| `autosave-race-conditions.spec.ts:65,:120,:147` | title-timing, **fixed in this lane** |
+| `edge-cases.spec.ts:298` | title-timing, **fixed in this lane** |
+| `inline-comments.spec.ts:118` | in `known-flakes.txt` |
+| `my-week-stale-data.spec.ts:28,:63` | in `known-flakes.txt` |
+| `feedback-consolidation.spec.ts:52` | not in `known-flakes.txt`; a table/seed-load timing flake with no title involvement, passed on retry. Unrelated to this lane — candidate for the flake list. |
 
 ## The one real semantic change: the throttle test
 
@@ -151,6 +245,12 @@ PLAYWRIGHT_WORKERS=2 pnpm exec playwright test \
 
 # the regression tests specifically
 PLAYWRIGHT_WORKERS=2 pnpm exec playwright test e2e/title-persistence.spec.ts --workers=2
+
+# durability window (needs the app running)
+BASE=http://localhost:<web> API=http://localhost:<api> \
+  DB=postgresql://ship:ship_dev_password@localhost:5432/ship_lane_6b \
+  DOC_ID=<wiki uuid> node docs/audit/scripts/measure-title-durability.mjs \
+    --out docs/audit/raw/cat6-title-durability.json
 
 # W6-9 must still hold — needs the app running (pnpm dev, note the ports)
 BASE=http://localhost:<web> API=http://localhost:<api> DOC_ID=<wiki uuid> RUNS=5 \

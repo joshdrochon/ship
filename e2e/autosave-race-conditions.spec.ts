@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env';
-import { documentIdFromUrl } from './fixtures/test-helpers';
+import { documentIdFromUrl, expectDocumentTitleSaved } from './fixtures/test-helpers';
 
 /**
  * Auto-Save Race Condition Tests
@@ -78,8 +78,10 @@ test.describe('Auto-Save Race Conditions - Title Field', () => {
     // Continue typing while server response may be in-flight
     await titleInput.fill('Hello World');
 
-    // Wait for any stale responses to arrive
-    await page.waitForTimeout(1500);
+    // W6-9: the title is persisted by the collaboration server on a 2s debounce
+    // (schedulePersist), not by a REST throttle, so a fixed sleep shorter than
+    // that races the durable write. Wait for the value to actually land.
+    await expectDocumentTitleSaved(page, 'Hello World');
 
     // Title should be "Hello World", NOT reverted to "Hello"
     await expect(titleInput).toHaveValue('Hello World');
@@ -105,8 +107,10 @@ test.describe('Auto-Save Race Conditions - Title Field', () => {
       await page.waitForTimeout(50); // 50ms between characters
     }
 
-    // Wait for final save to complete
-    await page.waitForTimeout(1500);
+    // W6-9: the title is persisted by the collaboration server on a 2s debounce
+    // (schedulePersist), not by a REST throttle, so a fixed sleep shorter than
+    // that races the durable write. Wait for the value to actually land.
+    await expectDocumentTitleSaved(page, fullTitle);
 
     // Title should be the full string, not truncated by intermediate saves
     await expect(titleInput).toHaveValue(fullTitle);
@@ -133,7 +137,11 @@ test.describe('Auto-Save Race Conditions - Title Field', () => {
 
     // Third segment
     await titleInput.fill('Part 1 and Part 2 and Part 3');
-    await page.waitForTimeout(1500); // Wait for all saves
+
+    // W6-9: the title is persisted by the collaboration server on a 2s debounce
+    // (schedulePersist), not by a REST throttle, so a fixed sleep shorter than
+    // that races the durable write. Wait for the value to actually land.
+    await expectDocumentTitleSaved(page, 'Part 1 and Part 2 and Part 3');
 
     // Should have complete title
     await expect(titleInput).toHaveValue('Part 1 and Part 2 and Part 3');
@@ -159,8 +167,10 @@ test.describe('Auto-Save Race Conditions - Title Field', () => {
     // Continue typing
     await titleInput.fill('Bug: login fails');
 
-    // Wait for responses
-    await page.waitForTimeout(1500);
+    // W6-9: the title is persisted by the collaboration server on a 2s debounce
+    // (schedulePersist), not by a REST throttle, so a fixed sleep shorter than
+    // that races the durable write. Wait for the value to actually land.
+    await expectDocumentTitleSaved(page, 'Bug: login fails');
 
     // Should have full title
     await expect(titleInput).toHaveValue('Bug: login fails');

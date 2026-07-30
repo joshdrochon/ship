@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
+import { expectDocumentTitleSaved } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -305,8 +306,9 @@ test.describe('Edge Cases', () => {
     await titleInput.click()
     await titleInput.fill(specialTitle)
 
-    // Wait for autosave
-    await page.waitForTimeout(1500)
+    // W6-9: persisted on the collaboration server's 2s debounce, so wait for the
+    // durable write rather than a fixed sleep that races it.
+    await expectDocumentTitleSaved(page, specialTitle)
 
     // Reload and verify
     await page.reload()
