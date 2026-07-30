@@ -1,0 +1,4164 @@
+{
+  "base": "http://localhost:5173",
+  "generated_at": "2026-07-30T20:28:20.857Z",
+  "routes": [
+    {
+      "name": "login",
+      "path": "/login",
+      "url": "http://localhost:5173/login",
+      "final_url": "http://localhost:5173/login",
+      "dialog_dismissal": {
+        "dialog_seen": false,
+        "closed_by_escape": null,
+        "focusable_in_dialog": 0
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 23,
+        "incomplete": 0,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 2,
+        "node_violations": 6,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 2,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 6,
+          "minor": 0
+        },
+        "passes": 31,
+        "incomplete": 0,
+        "violations": [
+          {
+            "id": "landmark-one-main",
+            "impact": "moderate",
+            "help": "Document should have one main landmark",
+            "tags": [
+              "cat.semantics",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  "html"
+                ],
+                "html": "<html lang=\"en\">",
+                "data": null
+              }
+            ]
+          },
+          {
+            "id": "region",
+            "impact": "moderate",
+            "help": "All page content should be contained by landmarks",
+            "tags": [
+              "cat.keyboard",
+              "best-practice",
+              "RGAAv4",
+              "RGAA-9.2.1"
+            ],
+            "nodes": 5,
+            "targets": [
+              {
+                "target": [
+                  ".mb-8"
+                ],
+                "html": "<div class=\"mb-8 text-center\"><img src=\"/icons/white/logo-128.png\" alt=\"Ship\" class=\"mx-auto h-16 w-16\"><h1 class=\"mt-4 text-2xl font-semibold text-foreground\">Sign in to Ship</h1><p class=\"mt-2 text-sm text-muted\">Enter",
+                "data": {
+                  "isIframe": false
+                }
+              },
+              {
+                "target": [
+                  "form > div:nth-child(1)"
+                ],
+                "html": "<div>",
+                "data": {
+                  "isIframe": false
+                }
+              },
+              {
+                "target": [
+                  "form > div:nth-child(2)"
+                ],
+                "html": "<div>",
+                "data": {
+                  "isIframe": false
+                }
+              },
+              {
+                "target": [
+                  ".mt-8"
+                ],
+                "html": "<div class=\"mt-8 text-center text-xs text-muted\"><p>Dev credentials:</p><p class=\"mt-1 font-mono text-muted\">dev@ship.local / admin123</p></div>",
+                "data": {
+                  "isIframe": false
+                }
+              },
+              {
+                "target": [
+                  ".mb-2"
+                ],
+                "html": "<p class=\"mb-2 text-muted\">USWDS Icons:</p>",
+                "data": {
+                  "isIframe": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 0,
+        "nav": 0,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 1,
+            "text": "Sign in to Ship"
+          }
+        ],
+        "skip_link": 0,
+        "lang": "en",
+        "title": "Ship - Project Management & Documentation",
+        "aria_label_count": 5,
+        "aria_labelledby_count": 0,
+        "role_count": 4,
+        "live_regions": 0
+      },
+      "keyboard": {
+        "expected_focusable": 4,
+        "reached": 4,
+        "tab_stops_recorded": 4,
+        "tabs_pressed": 5,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 150,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 0,
+        "first_10_tab_stops": [
+          {
+            "uid": "67",
+            "tag": "input",
+            "role": "",
+            "name": ""
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Sign in"
+          },
+          {
+            "uid": "256",
+            "tag": "button",
+            "role": "",
+            "name": "Open Tanstack query devtools"
+          },
+          {
+            "uid": "64",
+            "tag": "input",
+            "role": "",
+            "name": ""
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "docs (documents home)",
+      "path": "/docs",
+      "url": "http://localhost:5173/docs",
+      "final_url": "http://localhost:5173/docs",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 24,
+        "incomplete": 1,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 39,
+        "incomplete": 1,
+        "violations": []
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Docs"
+          },
+          {
+            "level": 1,
+            "text": "Documents"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Documents | Ship",
+        "aria_label_count": 36,
+        "aria_labelledby_count": 0,
+        "role_count": 20,
+        "live_regions": 2
+      },
+      "keyboard": {
+        "expected_focusable": 48,
+        "reached": 48,
+        "tab_stops_recorded": 48,
+        "tabs_pressed": 49,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 224,
+        "unreachable_count": 10,
+        "unreachable_by_kind": {
+          "li[role=treeitem]": 10
+        },
+        "unreachable": [
+          {
+            "uid": "108",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Welcome to Ship",
+            "html": "<li role=\"treeitem\" aria-expanded=\"false\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"108\"><div class=\"flex w-full items-c"
+          },
+          {
+            "uid": "120",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Project Overview",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"120\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "132",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Architecture Guide",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"132\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "144",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Reference",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"144\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "156",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Development Setup",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"156\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "198",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Welcome to Ship",
+            "html": "<li role=\"treeitem\" aria-expanded=\"false\" aria-selected=\"false\" data-testid=\"doc-item\" data-a11y-uid=\"198\"><div class=\"group flex items-center gap-1.5 rounded-m"
+          },
+          {
+            "uid": "210",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Project Overview",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-testid=\"doc-item\" data-a11y-uid=\"210\"><div class=\"group flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm "
+          },
+          {
+            "uid": "222",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Architecture Guide",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-testid=\"doc-item\" data-a11y-uid=\"222\"><div class=\"group flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm "
+          },
+          {
+            "uid": "234",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Reference",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-testid=\"doc-item\" data-a11y-uid=\"234\"><div class=\"group flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm "
+          },
+          {
+            "uid": "246",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Development Setup",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-testid=\"doc-item\" data-a11y-uid=\"246\"><div class=\"group flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm "
+          }
+        ],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 10,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "my-week",
+      "path": "/my-week",
+      "url": "http://localhost:5173/my-week",
+      "final_url": "http://localhost:5173/my-week",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 1,
+        "node_violations": 9,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 1,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 9,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 21,
+        "incomplete": 0,
+        "violations": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ],
+            "nodes": 9,
+            "targets": [
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(5) > .w-20.flex-shrink-0 > .font-medium.text-xs"
+                ],
+                "html": "<span class=\"text-xs font-medium text-muted\">Fri</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(5) > .w-20.flex-shrink-0 > .ml-1.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted ml-1\">7/31</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(5) > .min-w-0.flex-1 > .italic.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted italic\">Upcoming</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(6) > .w-20.flex-shrink-0 > .font-medium.text-xs"
+                ],
+                "html": "<span class=\"text-xs font-medium text-muted\">Sat</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(6) > .w-20.flex-shrink-0 > .ml-1.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted ml-1\">8/1</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(6) > .min-w-0.flex-1 > .italic.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted italic\">Upcoming</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(7) > .w-20.flex-shrink-0 > .font-medium.text-xs"
+                ],
+                "html": "<span class=\"text-xs font-medium text-muted\">Sun</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(7) > .w-20.flex-shrink-0 > .ml-1.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted ml-1\">8/2</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "axe_all_rules": {
+        "rule_violations": 1,
+        "node_violations": 9,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 1,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 9,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 34,
+        "incomplete": 0,
+        "violations": [
+          {
+            "id": "color-contrast",
+            "impact": "serious",
+            "help": "Elements must meet minimum color contrast ratio thresholds",
+            "tags": [
+              "cat.color",
+              "wcag2aa",
+              "wcag143",
+              "TTv5",
+              "TT13.c",
+              "EN-301-549",
+              "EN-9.1.4.3",
+              "ACT",
+              "RGAAv4",
+              "RGAA-3.2.1"
+            ],
+            "nodes": 9,
+            "targets": [
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(5) > .w-20.flex-shrink-0 > .font-medium.text-xs"
+                ],
+                "html": "<span class=\"text-xs font-medium text-muted\">Fri</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(5) > .w-20.flex-shrink-0 > .ml-1.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted ml-1\">7/31</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(5) > .min-w-0.flex-1 > .italic.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted italic\">Upcoming</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(6) > .w-20.flex-shrink-0 > .font-medium.text-xs"
+                ],
+                "html": "<span class=\"text-xs font-medium text-muted\">Sat</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(6) > .w-20.flex-shrink-0 > .ml-1.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted ml-1\">8/1</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(6) > .min-w-0.flex-1 > .italic.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted italic\">Upcoming</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(7) > .w-20.flex-shrink-0 > .font-medium.text-xs"
+                ],
+                "html": "<span class=\"text-xs font-medium text-muted\">Sun</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              },
+              {
+                "target": [
+                  ".opacity-40.py-2\\.5.bg-surface:nth-child(7) > .w-20.flex-shrink-0 > .ml-1.text-xs"
+                ],
+                "html": "<span class=\"text-xs text-muted ml-1\">8/2</span>",
+                "data": {
+                  "fgColor": "#474747",
+                  "bgColor": "#0d0d0d",
+                  "contrastRatio": 2.09,
+                  "fontSize": "9.0pt (12px)",
+                  "fontWeight": "normal",
+                  "messageKey": null,
+                  "expectedContrastRatio": "4.5:1"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "contrast": [
+        {
+          "target": [
+            ".opacity-40.py-2\\.5.bg-surface:nth-child(5) > .w-20.flex-shrink-0 > .font-medium.text-xs"
+          ],
+          "html": "<span class=\"text-xs font-medium text-muted\">Fri</span>",
+          "fgColor": "#474747",
+          "bgColor": "#0d0d0d",
+          "contrastRatio": 2.09,
+          "fontSize": "9.0pt (12px)",
+          "fontWeight": "normal",
+          "messageKey": null,
+          "expectedContrastRatio": "4.5:1"
+        },
+        {
+          "target": [
+            ".opacity-40.py-2\\.5.bg-surface:nth-child(5) > .w-20.flex-shrink-0 > .ml-1.text-xs"
+          ],
+          "html": "<span class=\"text-xs text-muted ml-1\">7/31</span>",
+          "fgColor": "#474747",
+          "bgColor": "#0d0d0d",
+          "contrastRatio": 2.09,
+          "fontSize": "9.0pt (12px)",
+          "fontWeight": "normal",
+          "messageKey": null,
+          "expectedContrastRatio": "4.5:1"
+        },
+        {
+          "target": [
+            ".opacity-40.py-2\\.5.bg-surface:nth-child(5) > .min-w-0.flex-1 > .italic.text-xs"
+          ],
+          "html": "<span class=\"text-xs text-muted italic\">Upcoming</span>",
+          "fgColor": "#474747",
+          "bgColor": "#0d0d0d",
+          "contrastRatio": 2.09,
+          "fontSize": "9.0pt (12px)",
+          "fontWeight": "normal",
+          "messageKey": null,
+          "expectedContrastRatio": "4.5:1"
+        },
+        {
+          "target": [
+            ".opacity-40.py-2\\.5.bg-surface:nth-child(6) > .w-20.flex-shrink-0 > .font-medium.text-xs"
+          ],
+          "html": "<span class=\"text-xs font-medium text-muted\">Sat</span>",
+          "fgColor": "#474747",
+          "bgColor": "#0d0d0d",
+          "contrastRatio": 2.09,
+          "fontSize": "9.0pt (12px)",
+          "fontWeight": "normal",
+          "messageKey": null,
+          "expectedContrastRatio": "4.5:1"
+        },
+        {
+          "target": [
+            ".opacity-40.py-2\\.5.bg-surface:nth-child(6) > .w-20.flex-shrink-0 > .ml-1.text-xs"
+          ],
+          "html": "<span class=\"text-xs text-muted ml-1\">8/1</span>",
+          "fgColor": "#474747",
+          "bgColor": "#0d0d0d",
+          "contrastRatio": 2.09,
+          "fontSize": "9.0pt (12px)",
+          "fontWeight": "normal",
+          "messageKey": null,
+          "expectedContrastRatio": "4.5:1"
+        },
+        {
+          "target": [
+            ".opacity-40.py-2\\.5.bg-surface:nth-child(6) > .min-w-0.flex-1 > .italic.text-xs"
+          ],
+          "html": "<span class=\"text-xs text-muted italic\">Upcoming</span>",
+          "fgColor": "#474747",
+          "bgColor": "#0d0d0d",
+          "contrastRatio": 2.09,
+          "fontSize": "9.0pt (12px)",
+          "fontWeight": "normal",
+          "messageKey": null,
+          "expectedContrastRatio": "4.5:1"
+        },
+        {
+          "target": [
+            ".opacity-40.py-2\\.5.bg-surface:nth-child(7) > .w-20.flex-shrink-0 > .font-medium.text-xs"
+          ],
+          "html": "<span class=\"text-xs font-medium text-muted\">Sun</span>",
+          "fgColor": "#474747",
+          "bgColor": "#0d0d0d",
+          "contrastRatio": 2.09,
+          "fontSize": "9.0pt (12px)",
+          "fontWeight": "normal",
+          "messageKey": null,
+          "expectedContrastRatio": "4.5:1"
+        },
+        {
+          "target": [
+            ".opacity-40.py-2\\.5.bg-surface:nth-child(7) > .w-20.flex-shrink-0 > .ml-1.text-xs"
+          ],
+          "html": "<span class=\"text-xs text-muted ml-1\">8/2</span>",
+          "fgColor": "#474747",
+          "bgColor": "#0d0d0d",
+          "contrastRatio": 2.09,
+          "fontSize": "9.0pt (12px)",
+          "fontWeight": "normal",
+          "messageKey": null,
+          "expectedContrastRatio": "4.5:1"
+        },
+        {
+          "target": [
+            ".opacity-40.py-2\\.5.bg-surface:nth-child(7) > .min-w-0.flex-1 > .italic.text-xs"
+          ],
+          "html": "<span class=\"text-xs text-muted italic\">Upcoming</span>",
+          "fgColor": "#474747",
+          "bgColor": "#0d0d0d",
+          "contrastRatio": 2.09,
+          "fontSize": "9.0pt (12px)",
+          "fontWeight": "normal",
+          "messageKey": null,
+          "expectedContrastRatio": "4.5:1"
+        }
+      ],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Dashboard"
+          },
+          {
+            "level": 1,
+            "text": "Week 14"
+          },
+          {
+            "level": 2,
+            "text": "Assigned Projects"
+          },
+          {
+            "level": 2,
+            "text": "Weekly Plan"
+          },
+          {
+            "level": 2,
+            "text": "Weekly Retro"
+          },
+          {
+            "level": 2,
+            "text": "Daily Updates"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Ship | Ship",
+        "aria_label_count": 13,
+        "aria_labelledby_count": 0,
+        "role_count": 2,
+        "live_regions": 1
+      },
+      "keyboard": {
+        "expected_focusable": 23,
+        "reached": 23,
+        "tab_stops_recorded": 23,
+        "tabs_pressed": 24,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 150,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 0,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "dashboard",
+      "path": "/dashboard",
+      "url": "http://localhost:5173/dashboard",
+      "final_url": "http://localhost:5173/dashboard",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 20,
+        "incomplete": 0,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 33,
+        "incomplete": 0,
+        "violations": []
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Dashboard"
+          },
+          {
+            "level": 1,
+            "text": "My Work"
+          },
+          {
+            "level": 2,
+            "text": "Your Focus This Week"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Ship | Ship",
+        "aria_label_count": 11,
+        "aria_labelledby_count": 0,
+        "role_count": 2,
+        "live_regions": 1
+      },
+      "keyboard": {
+        "expected_focusable": 14,
+        "reached": 14,
+        "tab_stops_recorded": 14,
+        "tabs_pressed": 15,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 150,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 0,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "issues list",
+      "path": "/issues",
+      "url": "http://localhost:5173/issues",
+      "final_url": "http://localhost:5173/issues",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 27,
+        "incomplete": 1,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 1,
+        "node_violations": 1,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 1
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 1
+        },
+        "passes": 42,
+        "incomplete": 1,
+        "violations": [
+          {
+            "id": "empty-table-header",
+            "impact": "minor",
+            "help": "Table header text should not be empty",
+            "tags": [
+              "cat.name-role-value",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  "th[aria-label=\"Selection\"]"
+                ],
+                "html": "<th class=\"w-10 px-2 py-2\" aria-label=\"Selection\"></th>",
+                "data": null
+              }
+            ]
+          }
+        ]
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Issues"
+          },
+          {
+            "level": 1,
+            "text": "Issues"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Issues | Ship",
+        "aria_label_count": 335,
+        "aria_labelledby_count": 0,
+        "role_count": 1264,
+        "live_regions": 2
+      },
+      "keyboard": {
+        "expected_focusable": 236,
+        "reached": 340,
+        "tab_stops_recorded": 340,
+        "tabs_pressed": 341,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 788,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 104,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "projects list",
+      "path": "/projects",
+      "url": "http://localhost:5173/projects",
+      "final_url": "http://localhost:5173/projects",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 25,
+        "incomplete": 1,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 1,
+        "node_violations": 1,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 1
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 1
+        },
+        "passes": 41,
+        "incomplete": 1,
+        "violations": [
+          {
+            "id": "empty-table-header",
+            "impact": "minor",
+            "help": "Table header text should not be empty",
+            "tags": [
+              "cat.name-role-value",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  "th[aria-label=\"Selection\"]"
+                ],
+                "html": "<th class=\"w-10 px-2 py-2\" aria-label=\"Selection\"></th>",
+                "data": null
+              }
+            ]
+          }
+        ]
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Projects"
+          },
+          {
+            "level": 1,
+            "text": "Projects"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Ship | Ship",
+        "aria_label_count": 63,
+        "aria_labelledby_count": 0,
+        "role_count": 208,
+        "live_regions": 2
+      },
+      "keyboard": {
+        "expected_focusable": 83,
+        "reached": 83,
+        "tab_stops_recorded": 83,
+        "tabs_pressed": 84,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 329,
+        "unreachable_count": 15,
+        "unreachable_by_kind": {
+          "li[role=treeitem]": 15
+        },
+        "unreachable": [
+          {
+            "uid": "103",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Design System - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"103\"><div class=\"group relative\" data-a11y-uid=\"104\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "117",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Platform - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"117\"><div class=\"group relative\" data-a11y-uid=\"118\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "131",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Authentication - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"131\"><div class=\"group relative\" data-a11y-uid=\"132\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "145",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Ship Core - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"145\"><div class=\"group relative\" data-a11y-uid=\"146\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "159",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Infrastructure - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"159\"><div class=\"group relative\" data-a11y-uid=\"160\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "173",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Authentication - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"173\"><div class=\"group relative\" data-a11y-uid=\"174\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "187",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Ship Core - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"187\"><div class=\"group relative\" data-a11y-uid=\"188\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "201",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Infrastructure - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"201\"><div class=\"group relative\" data-a11y-uid=\"202\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "215",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Platform - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"215\"><div class=\"group relative\" data-a11y-uid=\"216\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "229",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Design System - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"229\"><div class=\"group relative\" data-a11y-uid=\"230\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "243",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Ship Core - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"243\"><div class=\"group relative\" data-a11y-uid=\"244\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "257",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Infrastructure - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"257\"><div class=\"group relative\" data-a11y-uid=\"258\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "271",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Platform - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"271\"><div class=\"group relative\" data-a11y-uid=\"272\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "285",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Design System - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"285\"><div class=\"group relative\" data-a11y-uid=\"286\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "299",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Authentication - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"299\"><div class=\"group relative\" data-a11y-uid=\"300\"><div class=\"flex w-full"
+          }
+        ],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 15,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "programs list",
+      "path": "/programs",
+      "url": "http://localhost:5173/programs",
+      "final_url": "http://localhost:5173/programs",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 26,
+        "incomplete": 1,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 1,
+        "node_violations": 1,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 1
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 1
+        },
+        "passes": 41,
+        "incomplete": 1,
+        "violations": [
+          {
+            "id": "empty-table-header",
+            "impact": "minor",
+            "help": "Table header text should not be empty",
+            "tags": [
+              "cat.name-role-value",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  "th[aria-label=\"Selection\"]"
+                ],
+                "html": "<th class=\"w-10 px-2 py-2\" aria-label=\"Selection\"></th>",
+                "data": null
+              }
+            ]
+          }
+        ]
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Programs"
+          },
+          {
+            "level": 1,
+            "text": "Programs"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Programs | Ship",
+        "aria_label_count": 25,
+        "aria_labelledby_count": 0,
+        "role_count": 50,
+        "live_regions": 2
+      },
+      "keyboard": {
+        "expected_focusable": 26,
+        "reached": 31,
+        "tab_stops_recorded": 31,
+        "tabs_pressed": 32,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 158,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 5,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "team allocation",
+      "path": "/team/allocation",
+      "url": "http://localhost:5173/team/allocation",
+      "final_url": "http://localhost:5173/team/allocation",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 25,
+        "incomplete": 2,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 40,
+        "incomplete": 2,
+        "violations": []
+      },
+      "contrast": [],
+      "contrast_incomplete": 10,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 1,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Teams"
+          },
+          {
+            "level": 1,
+            "text": "Allocation"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Team Allocation | Ship",
+        "aria_label_count": 19,
+        "aria_labelledby_count": 0,
+        "role_count": 2,
+        "live_regions": 1
+      },
+      "keyboard": {
+        "expected_focusable": 49,
+        "reached": 64,
+        "tab_stops_recorded": 64,
+        "tabs_pressed": 65,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 227,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 15,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "team directory",
+      "path": "/team/directory",
+      "url": "http://localhost:5173/team/directory",
+      "final_url": "http://localhost:5173/team/directory",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 26,
+        "incomplete": 0,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 42,
+        "incomplete": 0,
+        "violations": []
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Teams"
+          },
+          {
+            "level": 1,
+            "text": "Team Directory"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Team Directory | Ship",
+        "aria_label_count": 11,
+        "aria_labelledby_count": 0,
+        "role_count": 2,
+        "live_regions": 1
+      },
+      "keyboard": {
+        "expected_focusable": 19,
+        "reached": 19,
+        "tab_stops_recorded": 19,
+        "tabs_pressed": 20,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 150,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 0,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "team status",
+      "path": "/team/status",
+      "url": "http://localhost:5173/team/status",
+      "final_url": "http://localhost:5173/team/status",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 24,
+        "incomplete": 1,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 39,
+        "incomplete": 1,
+        "violations": []
+      },
+      "contrast": [],
+      "contrast_incomplete": 5,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 1,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Teams"
+          },
+          {
+            "level": 1,
+            "text": "Status Overview"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Status Overview | Ship",
+        "aria_label_count": 131,
+        "aria_labelledby_count": 0,
+        "role_count": 2,
+        "live_regions": 1
+      },
+      "keyboard": {
+        "expected_focusable": 144,
+        "reached": 144,
+        "tab_stops_recorded": 144,
+        "tabs_pressed": 145,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 512,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 0,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "workspace settings",
+      "path": "/settings",
+      "url": "http://localhost:5173/settings",
+      "final_url": "http://localhost:5173/settings",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 26,
+        "incomplete": 0,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 3,
+        "node_violations": 3,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 3,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 3,
+          "minor": 0
+        },
+        "passes": 42,
+        "incomplete": 0,
+        "violations": [
+          {
+            "id": "landmark-main-is-top-level",
+            "impact": "moderate",
+            "help": "Main landmark should not be contained in another landmark",
+            "tags": [
+              "cat.semantics",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  ".p-6"
+                ],
+                "html": "<main class=\"flex-1 overflow-auto p-6 pb-20\">",
+                "data": {
+                  "role": "main"
+                }
+              }
+            ]
+          },
+          {
+            "id": "landmark-no-duplicate-main",
+            "impact": "moderate",
+            "help": "Document should not have more than one main landmark",
+            "tags": [
+              "cat.semantics",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  "#main-content"
+                ],
+                "html": "<main id=\"main-content\" class=\"flex flex-1 flex-col overflow-hidden\" role=\"main\" tabindex=\"-1\">",
+                "data": null
+              }
+            ]
+          },
+          {
+            "id": "landmark-unique",
+            "impact": "moderate",
+            "help": "Landmarks should have a unique role or role/label/title (i.e. accessible name) combination",
+            "tags": [
+              "cat.semantics",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  "#main-content"
+                ],
+                "html": "<main id=\"main-content\" class=\"flex flex-1 flex-col overflow-hidden\" role=\"main\" tabindex=\"-1\">",
+                "data": {
+                  "role": "main",
+                  "accessibleText": null
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 2,
+        "nav": 2,
+        "banner": 1,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Settings"
+          },
+          {
+            "level": 1,
+            "text": "Workspace Settings: Ship Workspace"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Settings | Ship",
+        "aria_label_count": 22,
+        "aria_labelledby_count": 0,
+        "role_count": 2,
+        "live_regions": 1
+      },
+      "keyboard": {
+        "expected_focusable": 38,
+        "reached": 38,
+        "tab_stops_recorded": 38,
+        "tabs_pressed": 39,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 194,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 0,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "admin (super admin)",
+      "path": "/admin",
+      "url": "http://localhost:5173/admin",
+      "final_url": "http://localhost:5173/admin",
+      "dialog_dismissal": {
+        "dialog_seen": false,
+        "closed_by_escape": null,
+        "focusable_in_dialog": 0
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 20,
+        "incomplete": 0,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 34,
+        "incomplete": 0,
+        "violations": []
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 1,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 1,
+            "text": "Admin Dashboard"
+          }
+        ],
+        "skip_link": 0,
+        "lang": "en",
+        "title": "Ship - Project Management & Documentation",
+        "aria_label_count": 2,
+        "aria_labelledby_count": 0,
+        "role_count": 0,
+        "live_regions": 0
+      },
+      "keyboard": {
+        "expected_focusable": 9,
+        "reached": 9,
+        "tab_stops_recorded": 9,
+        "tabs_pressed": 10,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 150,
+        "unreachable_count": 0,
+        "unreachable_by_kind": {},
+        "unreachable": [],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 0,
+        "first_10_tab_stops": [
+          {
+            "uid": "58",
+            "tag": "button",
+            "role": "",
+            "name": "Back to documents"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "Workspaces"
+          },
+          {
+            "uid": "67",
+            "tag": "button",
+            "role": "",
+            "name": "Users"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Audit Logs"
+          },
+          {
+            "uid": "73",
+            "tag": "input",
+            "role": "",
+            "name": ""
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "New Workspace"
+          },
+          {
+            "uid": "89",
+            "tag": "a",
+            "role": "",
+            "name": "Ship Workspace"
+          },
+          {
+            "uid": "95",
+            "tag": "button",
+            "role": "",
+            "name": "Archive"
+          },
+          {
+            "uid": "269",
+            "tag": "button",
+            "role": "",
+            "name": "Open Tanstack query devtools"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "issue document",
+      "path": "/documents/114e6abb-9f9a-4e14-b317-3988759324a2",
+      "url": "http://localhost:5173/documents/114e6abb-9f9a-4e14-b317-3988759324a2",
+      "final_url": "http://localhost:5173/documents/114e6abb-9f9a-4e14-b317-3988759324a2",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 28,
+        "incomplete": 2,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 43,
+        "incomplete": 2,
+        "violations": []
+      },
+      "contrast": [],
+      "contrast_incomplete": 1,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Issues"
+          },
+          {
+            "level": 1,
+            "text": "Create admin dashboard"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Ship | Ship",
+        "aria_label_count": 131,
+        "aria_labelledby_count": 0,
+        "role_count": 7,
+        "live_regions": 2
+      },
+      "keyboard": {
+        "expected_focusable": 136,
+        "reached": 240,
+        "tab_stops_recorded": 240,
+        "tabs_pressed": 241,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 488,
+        "unreachable_count": 1,
+        "unreachable_by_kind": {
+          "li[role=treeitem]": 1
+        },
+        "unreachable": [
+          {
+            "uid": "109",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "#17 Create admin dashboard",
+            "html": "<li role=\"treeitem\" aria-current=\"page\" data-a11y-uid=\"109\"><div class=\"flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm bg-border/50 text-foreground fo"
+          }
+        ],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 105,
+        "first_10_tab_stops": [
+          {
+            "uid": "57",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "58",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "67",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "69",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "72",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "75",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "78",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "81",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "86",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "90",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "project document",
+      "path": "/documents/e3fb8ef5-8e17-4f74-9c18-6edb141e5f53",
+      "url": "http://localhost:5173/documents/e3fb8ef5-8e17-4f74-9c18-6edb141e5f53",
+      "final_url": "http://localhost:5173/documents/e3fb8ef5-8e17-4f74-9c18-6edb141e5f53",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 24,
+        "incomplete": 1,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 2,
+        "node_violations": 2,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 1,
+          "minor": 1
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 1,
+          "minor": 1
+        },
+        "passes": 39,
+        "incomplete": 1,
+        "violations": [
+          {
+            "id": "empty-table-header",
+            "impact": "minor",
+            "help": "Table header text should not be empty",
+            "tags": [
+              "cat.name-role-value",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  "th[aria-label=\"Selection\"]"
+                ],
+                "html": "<th class=\"w-10 px-2 py-2\" aria-label=\"Selection\"></th>",
+                "data": null
+              }
+            ]
+          },
+          {
+            "id": "page-has-heading-one",
+            "impact": "moderate",
+            "help": "Page should contain a level-one heading",
+            "tags": [
+              "cat.semantics",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  "html"
+                ],
+                "html": "<html lang=\"en\">",
+                "data": null
+              }
+            ]
+          }
+        ]
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 0,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Projects"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Ship | Ship",
+        "aria_label_count": 58,
+        "aria_labelledby_count": 0,
+        "role_count": 76,
+        "live_regions": 2
+      },
+      "keyboard": {
+        "expected_focusable": 88,
+        "reached": 84,
+        "tab_stops_recorded": 84,
+        "tabs_pressed": 85,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 344,
+        "unreachable_count": 19,
+        "unreachable_by_kind": {
+          "li[role=treeitem]": 19
+        },
+        "unreachable": [
+          {
+            "uid": "103",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Design System - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"103\"><div class=\"group relative\" data-a11y-uid=\"104\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "117",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Platform - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"117\"><div class=\"group relative\" data-a11y-uid=\"118\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "131",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Authentication - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"131\"><div class=\"group relative\" data-a11y-uid=\"132\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "145",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Ship Core - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"145\"><div class=\"group relative\" data-a11y-uid=\"146\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "159",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Infrastructure - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"159\"><div class=\"group relative\" data-a11y-uid=\"160\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "173",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Authentication - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"173\"><div class=\"group relative\" data-a11y-uid=\"174\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "187",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Ship Core - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"187\"><div class=\"group relative\" data-a11y-uid=\"188\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "201",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Infrastructure - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"201\"><div class=\"group relative\" data-a11y-uid=\"202\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "215",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Platform - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"215\"><div class=\"group relative\" data-a11y-uid=\"216\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "229",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Design System - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"229\"><div class=\"group relative\" data-a11y-uid=\"230\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "243",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Ship Core - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"243\"><div class=\"group relative\" data-a11y-uid=\"244\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "257",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Infrastructure - Performance24DetailsWeeksIssuesRetro",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"true\" data-a11y-uid=\"257\"><div class=\"group relative\" data-a11y-uid=\"258\"><div class=\"flex w-full "
+          },
+          {
+            "uid": "272",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Details",
+            "html": "<li role=\"treeitem\" data-a11y-uid=\"272\"><a class=\"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors bg-border/50 text-foreground\" href=\"/"
+          },
+          {
+            "uid": "277",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Weeks",
+            "html": "<li role=\"treeitem\" data-a11y-uid=\"277\"><a class=\"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors text-muted hover:bg-border/30 hover:t"
+          },
+          {
+            "uid": "282",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Issues",
+            "html": "<li role=\"treeitem\" data-a11y-uid=\"282\"><a class=\"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors text-muted hover:bg-border/30 hover:t"
+          },
+          {
+            "uid": "287",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Retro",
+            "html": "<li role=\"treeitem\" data-a11y-uid=\"287\"><a class=\"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors text-muted hover:bg-border/30 hover:t"
+          },
+          {
+            "uid": "292",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Platform - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"292\"><div class=\"group relative\" data-a11y-uid=\"293\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "306",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Design System - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"306\"><div class=\"group relative\" data-a11y-uid=\"307\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "320",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Authentication - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"320\"><div class=\"group relative\" data-a11y-uid=\"321\"><div class=\"flex w-full"
+          }
+        ],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 15,
+        "first_10_tab_stops": [
+          {
+            "uid": "56",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "57",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "66",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "68",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "71",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "74",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "77",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "80",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "85",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "89",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "sprint document",
+      "path": "/documents/c58da6ff-3a85-4d0d-bd2b-f5382b16db77",
+      "url": "http://localhost:5173/documents/c58da6ff-3a85-4d0d-bd2b-f5382b16db77",
+      "final_url": "http://localhost:5173/documents/c58da6ff-3a85-4d0d-bd2b-f5382b16db77",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 25,
+        "incomplete": 2,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 40,
+        "incomplete": 2,
+        "violations": []
+      },
+      "contrast": [],
+      "contrast_incomplete": 1,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Docs"
+          },
+          {
+            "level": 1,
+            "text": "Week 17"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Ship | Ship",
+        "aria_label_count": 26,
+        "aria_labelledby_count": 0,
+        "role_count": 13,
+        "live_regions": 3
+      },
+      "keyboard": {
+        "expected_focusable": 34,
+        "reached": 35,
+        "tab_stops_recorded": 35,
+        "tabs_pressed": 36,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 182,
+        "unreachable_count": 5,
+        "unreachable_by_kind": {
+          "li[role=treeitem]": 5
+        },
+        "unreachable": [
+          {
+            "uid": "109",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Welcome to Ship",
+            "html": "<li role=\"treeitem\" aria-expanded=\"false\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"109\"><div class=\"flex w-full items-c"
+          },
+          {
+            "uid": "121",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Project Overview",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"121\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "133",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Architecture Guide",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"133\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "145",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Reference",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"145\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "157",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Development Setup",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"157\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          }
+        ],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 6,
+        "first_10_tab_stops": [
+          {
+            "uid": "57",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "58",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "67",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "69",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "72",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "75",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "78",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "81",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "86",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "90",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "weekly plan document",
+      "path": "/documents/92b10cb3-efd6-440c-8026-97c08d5d3759",
+      "url": "http://localhost:5173/documents/92b10cb3-efd6-440c-8026-97c08d5d3759",
+      "final_url": "http://localhost:5173/documents/92b10cb3-efd6-440c-8026-97c08d5d3759",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 1,
+        "node_violations": 1,
+        "by_impact_rules": {
+          "critical": 1,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 1,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 27,
+        "incomplete": 1,
+        "violations": [
+          {
+            "id": "aria-allowed-attr",
+            "impact": "critical",
+            "help": "Elements must only use supported ARIA attributes",
+            "tags": [
+              "cat.aria",
+              "wcag2a",
+              "wcag412",
+              "EN-301-549",
+              "EN-9.4.1.2",
+              "RGAAv4",
+              "RGAA-7.1.1"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  ".tiptap-wrapper > div"
+                ],
+                "html": "<div aria-expanded=\"false\" style=\"position: relative;\">",
+                "data": null
+              }
+            ]
+          }
+        ]
+      },
+      "axe_all_rules": {
+        "rule_violations": 1,
+        "node_violations": 1,
+        "by_impact_rules": {
+          "critical": 1,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 1,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 42,
+        "incomplete": 1,
+        "violations": [
+          {
+            "id": "aria-allowed-attr",
+            "impact": "critical",
+            "help": "Elements must only use supported ARIA attributes",
+            "tags": [
+              "cat.aria",
+              "wcag2a",
+              "wcag412",
+              "EN-301-549",
+              "EN-9.4.1.2",
+              "RGAAv4",
+              "RGAA-7.1.1"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  ".tiptap-wrapper > div"
+                ],
+                "html": "<div aria-expanded=\"false\" style=\"position: relative;\">",
+                "data": null
+              }
+            ]
+          }
+        ]
+      },
+      "contrast": [],
+      "contrast_incomplete": 1,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Projects"
+          },
+          {
+            "level": 1,
+            "text": "Week 14 Plan - Jack Brown"
+          },
+          {
+            "level": 2,
+            "text": "What I plan to accomplish this week"
+          },
+          {
+            "level": 3,
+            "text": "Weekly Plan"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Ship | Ship",
+        "aria_label_count": 45,
+        "aria_labelledby_count": 0,
+        "role_count": 24,
+        "live_regions": 2
+      },
+      "keyboard": {
+        "expected_focusable": 72,
+        "reached": 69,
+        "tab_stops_recorded": 69,
+        "tabs_pressed": 70,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 296,
+        "unreachable_count": 19,
+        "unreachable_by_kind": {
+          "li[role=treeitem]": 19
+        },
+        "unreachable": [
+          {
+            "uid": "104",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Design System - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"104\"><div class=\"group relative\" data-a11y-uid=\"105\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "118",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Platform - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"118\"><div class=\"group relative\" data-a11y-uid=\"119\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "132",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Authentication - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"132\"><div class=\"group relative\" data-a11y-uid=\"133\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "146",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Ship Core - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"146\"><div class=\"group relative\" data-a11y-uid=\"147\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "160",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Infrastructure - Bug Fixes80",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"160\"><div class=\"group relative\" data-a11y-uid=\"161\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "174",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Authentication - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"174\"><div class=\"group relative\" data-a11y-uid=\"175\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "188",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Ship Core - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"188\"><div class=\"group relative\" data-a11y-uid=\"189\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "202",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Infrastructure - Core Features60DetailsWeeksIssuesRetro",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"true\" data-a11y-uid=\"202\"><div class=\"group relative\" data-a11y-uid=\"203\"><div class=\"flex w-full "
+          },
+          {
+            "uid": "217",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Details",
+            "html": "<li role=\"treeitem\" data-a11y-uid=\"217\"><a class=\"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors text-muted hover:bg-border/30 hover:t"
+          },
+          {
+            "uid": "222",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Weeks",
+            "html": "<li role=\"treeitem\" data-a11y-uid=\"222\"><a class=\"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors bg-border/50 text-foreground\" href=\"/"
+          },
+          {
+            "uid": "227",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Issues",
+            "html": "<li role=\"treeitem\" data-a11y-uid=\"227\"><a class=\"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors text-muted hover:bg-border/30 hover:t"
+          },
+          {
+            "uid": "232",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Retro",
+            "html": "<li role=\"treeitem\" data-a11y-uid=\"232\"><a class=\"flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors text-muted hover:bg-border/30 hover:t"
+          },
+          {
+            "uid": "237",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Platform - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"237\"><div class=\"group relative\" data-a11y-uid=\"238\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "251",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Design System - Core Features60",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"251\"><div class=\"group relative\" data-a11y-uid=\"252\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "265",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Ship Core - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"265\"><div class=\"group relative\" data-a11y-uid=\"266\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "279",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Infrastructure - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"279\"><div class=\"group relative\" data-a11y-uid=\"280\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "293",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Platform - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"293\"><div class=\"group relative\" data-a11y-uid=\"294\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "307",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Design System - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"307\"><div class=\"group relative\" data-a11y-uid=\"308\"><div class=\"flex w-full"
+          },
+          {
+            "uid": "321",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Authentication - Performance24",
+            "html": "<li data-testid=\"project-item\" role=\"treeitem\" aria-expanded=\"false\" data-a11y-uid=\"321\"><div class=\"group relative\" data-a11y-uid=\"322\"><div class=\"flex w-full"
+          }
+        ],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 16,
+        "first_10_tab_stops": [
+          {
+            "uid": "57",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "58",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "67",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "69",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "72",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "75",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "78",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "81",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "86",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "90",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "wiki document",
+      "path": "/documents/69ae3ba6-96f5-48ae-998e-0c16e21cf729",
+      "url": "http://localhost:5173/documents/69ae3ba6-96f5-48ae-998e-0c16e21cf729",
+      "final_url": "http://localhost:5173/documents/69ae3ba6-96f5-48ae-998e-0c16e21cf729",
+      "dialog_dismissal": {
+        "dialog_seen": true,
+        "closed_by_escape": true,
+        "focusable_in_dialog": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 25,
+        "incomplete": 2,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 1,
+        "node_violations": 1,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 1,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 1,
+          "minor": 0
+        },
+        "passes": 40,
+        "incomplete": 2,
+        "violations": [
+          {
+            "id": "heading-order",
+            "impact": "moderate",
+            "help": "Heading levels should only increase by one",
+            "tags": [
+              "cat.semantics",
+              "best-practice"
+            ],
+            "nodes": 1,
+            "targets": [
+              {
+                "target": [
+                  "h3"
+                ],
+                "html": "<h3 class=\"text-xs font-medium text-muted\">Backlinks</h3>",
+                "data": null
+              }
+            ]
+          }
+        ]
+      },
+      "contrast": [],
+      "contrast_incomplete": 1,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Docs"
+          },
+          {
+            "level": 1,
+            "text": "Advanced Topics"
+          },
+          {
+            "level": 3,
+            "text": "Backlinks"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Ship | Ship",
+        "aria_label_count": 26,
+        "aria_labelledby_count": 0,
+        "role_count": 12,
+        "live_regions": 3
+      },
+      "keyboard": {
+        "expected_focusable": 35,
+        "reached": 36,
+        "tab_stops_recorded": 36,
+        "tabs_pressed": 37,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 185,
+        "unreachable_count": 7,
+        "unreachable_by_kind": {
+          "li[role=treeitem]": 7
+        },
+        "unreachable": [
+          {
+            "uid": "109",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Welcome to ShipAdvanced TopicsGetting Started",
+            "html": "<li role=\"treeitem\" aria-expanded=\"true\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"109\"><div class=\"flex w-full items-ce"
+          },
+          {
+            "uid": "122",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Advanced Topics",
+            "html": "<li role=\"treeitem\" aria-selected=\"true\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"122\"><div class=\"flex w-full items-center gap-1.5 rounded-m"
+          },
+          {
+            "uid": "134",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Getting Started",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"134\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "146",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Project Overview",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"146\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "158",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Architecture Guide",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"158\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "170",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Reference",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"170\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "182",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Development Setup",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"182\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          }
+        ],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 8,
+        "first_10_tab_stops": [
+          {
+            "uid": "57",
+            "tag": "a",
+            "role": "",
+            "name": "Skip to main content"
+          },
+          {
+            "uid": "58",
+            "tag": "button",
+            "role": "",
+            "name": "2 accountability items are due today.2View items"
+          },
+          {
+            "uid": "67",
+            "tag": "button",
+            "role": "",
+            "name": "S"
+          },
+          {
+            "uid": "69",
+            "tag": "button",
+            "role": "",
+            "name": "Dashboard"
+          },
+          {
+            "uid": "72",
+            "tag": "button",
+            "role": "",
+            "name": "Docs"
+          },
+          {
+            "uid": "75",
+            "tag": "button",
+            "role": "",
+            "name": "Programs"
+          },
+          {
+            "uid": "78",
+            "tag": "button",
+            "role": "",
+            "name": "Projects"
+          },
+          {
+            "uid": "81",
+            "tag": "button",
+            "role": "",
+            "name": "Teams (standup due)"
+          },
+          {
+            "uid": "86",
+            "tag": "button",
+            "role": "",
+            "name": "Settings"
+          },
+          {
+            "uid": "90",
+            "tag": "button",
+            "role": "",
+            "name": "D"
+          }
+        ]
+      },
+      "ok": true
+    },
+    {
+      "name": "action-items modal (auto-opens)",
+      "path": "/docs",
+      "url": "http://localhost:5173/docs",
+      "final_url": "http://localhost:5173/docs",
+      "modal": {
+        "present": true,
+        "accessible_name": "Action Items",
+        "aria_modal": null,
+        "focusable_inside": 4
+      },
+      "axe_wcag_508": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 23,
+        "incomplete": 1,
+        "violations": []
+      },
+      "axe_all_rules": {
+        "rule_violations": 0,
+        "node_violations": 0,
+        "by_impact_rules": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "by_impact_nodes": {
+          "critical": 0,
+          "serious": 0,
+          "moderate": 0,
+          "minor": 0
+        },
+        "passes": 35,
+        "incomplete": 1,
+        "violations": []
+      },
+      "contrast": [],
+      "contrast_incomplete": 0,
+      "structure": {
+        "main": 1,
+        "nav": 1,
+        "banner": 0,
+        "contentinfo": 0,
+        "h1": 1,
+        "headings": [
+          {
+            "level": 2,
+            "text": "Docs"
+          },
+          {
+            "level": 1,
+            "text": "Documents"
+          },
+          {
+            "level": 2,
+            "text": "Action Items"
+          }
+        ],
+        "skip_link": 1,
+        "lang": "en",
+        "title": "Documents | Ship",
+        "aria_label_count": 37,
+        "aria_labelledby_count": 1,
+        "role_count": 21,
+        "live_regions": 2
+      },
+      "keyboard": {
+        "expected_focusable": 16,
+        "reached": 4,
+        "tab_stops_recorded": 4,
+        "tabs_pressed": 4,
+        "truncated_at_max_tabs": false,
+        "wrapped_to_start": true,
+        "max_tabs": 150,
+        "unreachable_count": 12,
+        "unreachable_by_kind": {
+          "button": 2,
+          "li[role=treeitem]": 5,
+          "a": 5
+        },
+        "unreachable": [
+          {
+            "uid": "59",
+            "tag": "button",
+            "role": "",
+            "tabindex": "",
+            "name": "2 accountability items are due today.2View items",
+            "html": "<button class=\"flex w-full items-center justify-center gap-3 bg-amber-700 px-4 py-2 text-white hover:bg-amber-800 transition-colors cursor-pointer\" aria-live=\"p"
+          },
+          {
+            "uid": "110",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Welcome to Ship",
+            "html": "<li role=\"treeitem\" aria-expanded=\"false\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"110\"><div class=\"flex w-full items-c"
+          },
+          {
+            "uid": "112",
+            "tag": "button",
+            "role": "",
+            "tabindex": "",
+            "name": "Expand Welcome to Ship",
+            "html": "<button type=\"button\" class=\"w-4 h-4 flex-shrink-0 flex items-center justify-center p-0 rounded hover:bg-border/50\" aria-label=\"Expand Welcome to Ship\" data-a11"
+          },
+          {
+            "uid": "115",
+            "tag": "a",
+            "role": "",
+            "tabindex": "",
+            "name": "Welcome to Ship",
+            "html": "<a class=\"flex-1 truncate text-left cursor-pointer flex items-center gap-1\" href=\"/documents/3c3dcb39-d207-46ed-bbae-4d716723d624\" data-discover=\"true\" data-a11"
+          },
+          {
+            "uid": "122",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Project Overview",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"122\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "127",
+            "tag": "a",
+            "role": "",
+            "tabindex": "",
+            "name": "Project Overview",
+            "html": "<a class=\"flex-1 truncate text-left cursor-pointer flex items-center gap-1\" href=\"/documents/d2e2fc55-d0ee-4789-94d0-872a0987ced1\" data-discover=\"true\" data-a11"
+          },
+          {
+            "uid": "134",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Architecture Guide",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"134\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "139",
+            "tag": "a",
+            "role": "",
+            "tabindex": "",
+            "name": "Architecture Guide",
+            "html": "<a class=\"flex-1 truncate text-left cursor-pointer flex items-center gap-1\" href=\"/documents/48a49c76-796f-4f72-84b5-a34bb9797d88\" data-discover=\"true\" data-a11"
+          },
+          {
+            "uid": "146",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "API Reference",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"146\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "151",
+            "tag": "a",
+            "role": "",
+            "tabindex": "",
+            "name": "API Reference",
+            "html": "<a class=\"flex-1 truncate text-left cursor-pointer flex items-center gap-1\" href=\"/documents/d0347a81-647f-4278-8ca0-bb944c94e72b\" data-discover=\"true\" data-a11"
+          },
+          {
+            "uid": "158",
+            "tag": "li",
+            "role": "treeitem",
+            "tabindex": "",
+            "name": "Development Setup",
+            "html": "<li role=\"treeitem\" aria-selected=\"false\" data-tree-item=\"true\" data-testid=\"doc-item\" data-a11y-uid=\"158\"><div class=\"flex w-full items-center gap-1.5 rounded-"
+          },
+          {
+            "uid": "163",
+            "tag": "a",
+            "role": "",
+            "tabindex": "",
+            "name": "Development Setup",
+            "html": "<a class=\"flex-1 truncate text-left cursor-pointer flex items-center gap-1\" href=\"/documents/8b75bb4a-2c68-4efb-8829-ef66a27468b1\" data-discover=\"true\" data-a11"
+          }
+        ],
+        "positive_tabindex": [],
+        "reached_but_not_in_expected_set": 0,
+        "first_10_tab_stops": [
+          {
+            "uid": "619",
+            "tag": "button",
+            "role": "",
+            "name": "Post standupPost standup for Week 14 (5 issues assigned)Week"
+          },
+          {
+            "uid": "631",
+            "tag": "button",
+            "role": "",
+            "name": "Write retroWrite week 14 retro for Ship Core - Core Features"
+          },
+          {
+            "uid": "645",
+            "tag": "button",
+            "role": "",
+            "name": "Got it"
+          },
+          {
+            "uid": "614",
+            "tag": "button",
+            "role": "",
+            "name": "Close"
+          }
+        ]
+      },
+      "ok": true
+    }
+  ],
+  "discovered_ids": {
+    "weekly_plan": "92b10cb3-efd6-440c-8026-97c08d5d3759",
+    "weekly_retro": "5f910927-32be-4d6b-822f-04a0cac3ac97",
+    "weekly_review": "07a41dc2-58e5-46a1-8bc4-10eae05828c6",
+    "standup": "73d9f122-d520-43bc-b3ad-2d74efe1cc94",
+    "wiki": "69ae3ba6-96f5-48ae-998e-0c16e21cf729",
+    "issue": "114e6abb-9f9a-4e14-b317-3988759324a2",
+    "sprint": "c58da6ff-3a85-4d0d-bd2b-f5382b16db77",
+    "project": "e3fb8ef5-8e17-4f74-9c18-6edb141e5f53",
+    "program": "797dba3f-6e25-4aae-9832-0d309211f832",
+    "person": "0e517b2c-5fa3-49e3-bc53-2648ac5bda40"
+  },
+  "cookies": [
+    {
+      "name": "connect.sid",
+      "value": "s%3A36wJa1fiajKeRZQsTr8AKQtX3KiX0Nni.hpiMdqjR7rTN1fmbktFuj8S3PnAGJXj%2BlTyueow7Cyw",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1785444206.383939,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Strict"
+    },
+    {
+      "name": "session_id",
+      "value": "12b81322745deb1d8de1f220f2f972936e8202db6220177d2c0aee5fda1694c7",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1785444206.486817,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Strict"
+    }
+  ]
+}

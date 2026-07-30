@@ -1,0 +1,123 @@
+# ShipShape on Render — render-oss/render
+#
+# One `terraform apply` stands up the whole deployment: a managed PostgreSQL
+# instance, a web service built from the repo's root Dockerfile, and the wiring
+# between them. It replaces `scripts/deploy.sh` (220 lines, Elastic Beanstalk)
+# and `scripts/deploy-frontend.sh` (72 lines, S3 + CloudFront invalidation).
+# The mapping, step by step, is in README.md.
+#
+# Two resources:
+#
+#   render_postgres.ship          managed PostgreSQL 16
+#   render_web_service.shipshape  Docker web service, 1 instance
+#
+# The database URL is never typed anywhere. It is read off the postgres
+# resource's computed `connection_info` and handed to the service as an
+# environment variable, so the two cannot disagree and no connection string
+# enters a variable, a tfvars file, or this repository. The AWS path solves the
+# same problem with an SSM parameter that a human writes by hand
+# (scripts/deploy.sh, /ship/{env}/DATABASE_URL).
+
+locals {
+  # Env vars that only exist when configured. Terraform's `merge` drops nothing,
+  # so build the optional half first and filter nulls out of it — setting these
+  # to "" instead would make api/src/services/caia.ts see a configured-but-empty
+  # base URL and fail inside a request rather than at boot.
+  optional_env_values = {
+    APP_BASE_URL = var.app_base_url
+    CORS_ORIGIN  = var.cors_origin
+    CDN_DOMAIN   = var.cdn_domain
+  }
+
+  optional_env = {
+    for k, v in local.optional_env_values : k => { value = v }
+    if v != null
+  }
+
+  # Supplied secret if there is one, otherwise let Render generate it. Rendered
+  # as two different shapes because `generate_value` and `value` are mutually
+  # exclusive in the provider's env var schema.
+  session_env = var.session_secret == null ? { generate_value = true } : { value = var.session_secret }
+}
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+resource "render_postgres" "ship" {
+  name         = var.database_name
+  plan         = var.database_plan
+  region       = var.render_region
+  version      = var.postgres_version
+  disk_size_gb = var.disk_size_gb
+
+  # `database_name` and `database_user` are deliberately not set.
+  #
+  # They are optional+computed, and Render disambiguates the database name on
+  # create — ask for "ship" and you get "ship_<suffix>". A literal here therefore
+  # never matches what comes back, and the attribute forces replacement, so the
+  # config would plan a destroy of a healthy database on every run. Measured,
+  # not assumed: an import plan of the live instance against an earlier draft of
+  # this file reported
+  #     ~ database_name = "ship_<suffix>" -> "ship" # forces replacement
+  #     Plan: 1 to import, 1 to add, 0 to change, 1 to destroy.
+  # and prevent_destroy below is what stopped it. Letting Render name the
+  # database costs nothing: DATABASE_URL is read off connection_info, so no
+  # human ever types the name.
+
+  # The database is the one resource here whose replacement is unrecoverable —
+  # Render deletes the volume with the instance, and this plan is `free`, which
+  # has no backups. Make Terraform refuse rather than obey.
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Web service
+# ---------------------------------------------------------------------------
+resource "render_web_service" "shipshape" {
+  name   = var.service_name
+  plan   = var.service_plan
+  region = var.render_region
+
+  runtime_source = {
+    docker = {
+      repo_url        = var.repo_url
+      branch          = var.branch
+      dockerfile_path = var.dockerfile_path
+      context         = "."
+      auto_deploy     = var.auto_deploy
+    }
+  }
+
+  # /health is an unauthenticated 200 handler. Render polls it after each deploy
+  # and rolls back to the previous instance if it never passes, which is the one
+  # safety property the Elastic Beanstalk script has no equivalent of — it
+  # uploads a bundle and returns. The live service has this unset (`""`), so
+  # setting it here is a change, not a transcription.
+  health_check_path = "/health"
+
+  num_instances = var.num_instances
+
+  # Give the process time to drain WebSocket connections. The collaboration
+  # server holds long-lived sockets (api/src/collaboration/index.ts); the
+  # default kills them at once, so an editor mid-keystroke loses the buffered
+  # Yjs update rather than flushing it.
+  max_shutdown_delay_seconds = 60
+
+  env_vars = merge(
+    {
+      NODE_ENV = { value = "production" }
+
+      # Private-network address. Never leaves Render's network, unlike the
+      # external string, which is why this one and not that one.
+      DATABASE_URL = { value = render_postgres.ship.connection_info.internal_connection_string }
+
+      # api/src/app.ts:43 throws at boot if this is missing under NODE_ENV
+      # =production. Generated by Render when var.session_secret is null, so a
+      # clean-machine apply needs exactly one credential: the API key.
+      SESSION_SECRET = local.session_env
+    },
+    local.optional_env,
+  )
+}
