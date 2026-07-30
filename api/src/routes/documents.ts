@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../db/client.js';
 import { z } from 'zod';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireAuth } from '../middleware/auth.js';
 import { isWorkspaceAdmin } from '../middleware/visibility.js';
 import { handleVisibilityChange, handleDocumentConversion, invalidateDocumentCache, broadcastToUser } from '../collaboration/index.js';
 import { extractHypothesisFromContent, extractSuccessCriteriaFromContent, extractVisionFromContent, extractGoalsFromContent, checkDocumentCompleteness } from '../utils/extractHypothesis.js';
@@ -90,17 +90,22 @@ const updateDocumentSchema = z.object({
   plan: z.string().optional(), // Alias for hypothesis (frontend sends 'plan', stored as 'plan' in properties)
 });
 
-// List documents
-router.get('/', authMiddleware, async (req: Request, res: Response) => {
-  try {
-    const { type, parent_id } = req.query;
-    const userId = req.userId!;
-    const workspaceId = req.workspaceId!;
-
-    // Check if user is admin (admins can see all documents)
-    const isAdmin = await isWorkspaceAdmin(userId, workspaceId);
-
-    let query = `
+// --- GET /api/documents query plan cache -------------------------------------
+//
+// The list query has exactly six shapes (type filter on/off x parent filter
+// none/null/value). Building the text per request meant PostgreSQL re-parsed and
+// re-planned it on every call: EXPLAIN reported `Planning Time: 0.658 ms` against
+// `Execution Time: 0.733 ms` at 600 documents, i.e. planning was ~47% of the
+// server-side cost of the hottest endpoint in the app. Naming each shape lets
+// node-postgres use the extended protocol's named-statement path, so each pooled
+// connection parses and plans once and then only binds/executes.
+//
+// The admin check is folded in as an uncorrelated scalar subquery instead of being
+// fetched by a separate `isWorkspaceAdmin()` round trip. PostgreSQL evaluates it
+// once as an InitPlan, so it costs one index probe inside a query we were already
+// issuing, rather than a second pool checkout + round trip on the request's
+// critical path.
+const DOCUMENTS_LIST_SELECT = `
       SELECT id, workspace_id, document_type, title, parent_id, position,
              ticket_number, properties,
              created_at, updated_at, created_by, visibility
@@ -108,43 +113,69 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
       WHERE workspace_id = $1
         AND archived_at IS NULL
         AND deleted_at IS NULL
-        AND (visibility = 'workspace' OR created_by = $2 OR $3 = TRUE)
-    `;
-    const params: (string | boolean | null)[] = [workspaceId, userId, isAdmin];
+        AND (visibility = 'workspace' OR created_by = $2
+             OR (SELECT wm.role FROM workspace_memberships wm
+                  WHERE wm.workspace_id = $1 AND wm.user_id = $2) = 'admin')`;
 
-    if (type) {
-      query += ` AND document_type = $${params.length + 1}`;
-      params.push(type as string);
-    }
+const DOCUMENTS_LIST_ORDER = ` ORDER BY position ASC, created_at DESC`;
 
-    if (parent_id !== undefined) {
-      if (parent_id === 'null' || parent_id === '') {
-        query += ` AND parent_id IS NULL`;
-      } else {
-        query += ` AND parent_id = $${params.length + 1}`;
-        params.push(parent_id as string);
-      }
-    }
+type ParentFilter = 'any' | 'null' | 'value';
 
-    query += ` ORDER BY position ASC, created_at DESC`;
+// Statement text must be stable for a given name, so it is derived from the shape
+// and memoised rather than rebuilt per request.
+const documentsListStatements = new Map<string, string>();
 
-    const result = await pool.query(query, params);
+function documentsListStatement(hasType: boolean, parentFilter: ParentFilter): { name: string; text: string } {
+  const name = `documents_list_${hasType ? 't' : 'x'}_${parentFilter}`;
+  let text = documentsListStatements.get(name);
+  if (text === undefined) {
+    // $1 and $2 are always workspace id and user id, so the optional filters take $3 and
+    // $4 in the order the handler pushes them.
+    const parentParam = hasType ? '$4' : '$3';
+    let sql = DOCUMENTS_LIST_SELECT;
+    if (hasType) sql += ` AND document_type = $3`;
+    if (parentFilter === 'null') sql += ` AND parent_id IS NULL`;
+    else if (parentFilter === 'value') sql += ` AND parent_id = ${parentParam}`;
+    text = sql + DOCUMENTS_LIST_ORDER;
+    documentsListStatements.set(name, text);
+  }
+  return { name, text };
+}
 
-    // Extract properties into flat fields for backwards compatibility
-    const documents = result.rows.map(row => {
+// List documents
+router.get('/', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { type, parent_id } = req.query;
+    const { userId, workspaceId } = requireAuth(req);
+
+    const parentFilter: ParentFilter =
+      parent_id === undefined ? 'any'
+        : (parent_id === 'null' || parent_id === '') ? 'null'
+          : 'value';
+
+    const { name, text } = documentsListStatement(Boolean(type), parentFilter);
+    const params: (string | null)[] = [workspaceId, userId];
+    if (type) params.push(type as string);
+    if (parentFilter === 'value') params.push(parent_id as string);
+
+    const result = await pool.query({ name, text, values: params });
+
+    // Extract properties into flat fields for backwards compatibility.
+    // Mutated in place: the previous version allocated a second 600-element array
+    // of spread copies purely to add seven keys, which is ~600 extra objects of
+    // garbage per request on the app's highest-traffic endpoint.
+    const documents = result.rows;
+    for (let i = 0; i < documents.length; i++) {
+      const row = documents[i];
       const props = row.properties || {};
-      return {
-        ...row,
-        // Flatten common properties for backwards compatibility
-        state: props.state,
-        priority: props.priority,
-        estimate: props.estimate,
-        assignee_id: props.assignee_id,
-        source: props.source,
-        prefix: props.prefix,
-        color: props.color,
-      };
-    });
+      row.state = props.state;
+      row.priority = props.priority;
+      row.estimate = props.estimate;
+      row.assignee_id = props.assignee_id;
+      row.source = props.source;
+      row.prefix = props.prefix;
+      row.color = props.color;
+    }
 
     res.json(documents);
   } catch (err) {
@@ -577,7 +608,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     // Sprint plans clear the "write sprint plan" action item
     // Documents with outcome property linked to sprints clear the "write retro" action item
     if (document_type === 'weekly_plan' || (properties && 'outcome' in properties)) {
-      broadcastToUser(req.userId!, 'accountability:updated', { documentId: newDoc.id, documentType: document_type });
+      broadcastToUser(requireAuth(req).userId, 'accountability:updated', { documentId: newDoc.id, documentType: document_type });
     }
 
     res.status(201).json(newDoc);

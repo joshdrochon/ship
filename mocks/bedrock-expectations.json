@@ -1,0 +1,51 @@
+[
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/model/.*/invoke"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "content-type": ["application/json"]
+      },
+      "body": {
+        "type": "JSON",
+        "json": {
+          "id": "msg_mock_local",
+          "type": "message",
+          "role": "assistant",
+          "model": "mock-local-bedrock",
+          "stop_reason": "end_turn",
+          "usage": { "input_tokens": 0, "output_tokens": 0 },
+          "content": [
+            {
+              "type": "text",
+              "text": "{\"falsifiability\":{\"score\":3,\"rationale\":\"MOCK RESPONSE from docker-compose.mocks.yml. The local stack is wired to a mock Bedrock, so this text is fixed and carries no analysis. Unset BEDROCK_ENDPOINT and supply AWS credentials to get real output.\"},\"workload\":{\"score\":3,\"rationale\":\"MOCK RESPONSE - not a real assessment.\"},\"suggestions\":[\"This is canned mock output.\"]}"
+            }
+          ]
+        }
+      }
+    },
+    "times": { "unlimited": true },
+    "priority": 10
+  },
+  {
+    "httpRequest": {
+      "method": "POST",
+      "path": "/model/.*/invoke-with-response-stream"
+    },
+    "httpResponse": {
+      "statusCode": 501,
+      "headers": { "content-type": ["application/json"] },
+      "body": {
+        "type": "JSON",
+        "json": {
+          "message": "Streaming is not implemented by the local mock. ai-analysis.ts uses non-streaming InvokeModel."
+        }
+      }
+    },
+    "times": { "unlimited": true },
+    "priority": 5
+  }
+]

@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
+import { expectDocumentTitleSaved } from './fixtures/test-helpers'
 
 /**
  * Drag Handle E2E Tests
@@ -450,9 +451,9 @@ test.describe('Drag Handle - Block Reordering', () => {
       const embeddableDocId = embeddableDocUrl.split('/documents/')[1]
       const titleInput = page.getByPlaceholder('Untitled')
       await titleInput.fill('Embeddable Doc')
-      await page.waitForResponse(
-        resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH'
-      )
+      // Outcome, not transport: since W6-9 the title is persisted by the
+      // collaboration server, not by a REST PATCH from the browser.
+      await expectDocumentTitleSaved(page, 'Embeddable Doc', embeddableDocId)
 
       // Create another document with the embed
       await page.goto('/docs')
@@ -460,86 +461,61 @@ test.describe('Drag Handle - Block Reordering', () => {
       await expect(page).toHaveURL(/\/documents\/[a-f0-9-]+/, { timeout: 10000 })
 
       const editor = page.locator('.ProseMirror')
+      // Wait for the editor to be ready rather than sleeping at it. TipTap and
+      // ProseMirror now ship in their own `vendor-editor` chunk and this route is
+      // React.lazy, so the editor mounts strictly later than it used to. The fixed
+      // 500 ms this replaces was already a guess; code splitting is what made the
+      // guess wrong.
+      await expect(editor).toBeVisible({ timeout: 15000 })
+      await expect(editor).toHaveAttribute('contenteditable', 'true')
       await editor.click()
-      await page.waitForTimeout(500) // Wait for editor to fully initialize
 
       // Add content before embed
       await page.keyboard.type('BEFORE EMBED')
       await page.keyboard.press('Enter')
-      await page.waitForTimeout(200)
 
-      // Insert document embed directly via TipTap editor API (more reliable than slash command)
-      await page.evaluate((docId: string) => {
-        // Find the TipTap editor instance - it's attached to the ProseMirror element
-        const proseMirror = document.querySelector('.ProseMirror') as HTMLElement
-        if (!proseMirror) throw new Error('ProseMirror element not found')
+      // Insert the embed through the slash menu — the only path the application
+      // actually implements.
+      //
+      // What was here before: three strategies tried in order. The first dispatched a
+      // CustomEvent named `insert-document-embed`, which nothing in web/src or api/src
+      // has ever listened for, so it was dead code that always fell through. The third
+      // appended a raw <div data-document-embed> straight into `.ProseMirror` via
+      // appendChild, which satisfies the selector below without ever entering the
+      // ProseMirror document — so the drag assertions that follow would have been
+      // operating on a node the editor does not know exists.
+      //
+      // Rule 2 (p.8) permits fixing a test with justification. The justification is that
+      // the test asserted on DOM it had injected itself, and the fallbacks masked which
+      // path ran, so a genuine break in embed insertion could not have failed it.
+      const documentEmbed = page.locator('[data-document-embed]')
 
-        // Get the editor instance from the view
-        const view = (proseMirror as any).pmViewDesc?.view || (proseMirror as any).__vue__?.editor || (window as any).__TIPTAP_EDITOR__
+      await page.keyboard.type('/doc', { delay: 50 })
 
-        // Alternative: Use the React-based approach - find the editor from window
-        // The Editor component often exposes the editor on window for debugging
-        // Let's try to dispatch a custom event that the editor can handle
-        const event = new CustomEvent('insert-document-embed', {
-          detail: { documentId: docId, title: 'Embeddable Doc' }
-        })
-        document.dispatchEvent(event)
-      }, embeddableDocId)
+      // The suggestion list renders only after the document query resolves. Wait on the
+      // option, not on a fixed interval.
+      //
+      // Match the description as well as the title. The sidebar document tree also
+      // renders a button named "Embeddable Doc" — the document itself — and a bare
+      // /Embeddable Doc/ matched it first, navigating away instead of inserting.
+      // SlashCommands.tsx:130 gives every document suggestion the description
+      // "Embed this document", so the accessible name of the menu item is the title
+      // followed by that phrase, and nothing else on the page has both.
+      const embedOption = page
+        .getByRole('button', { name: /Embeddable Doc\s+Embed this document/i })
+        .first()
+      await expect(embedOption).toBeVisible({ timeout: 15000 })
+      await embedOption.click()
 
-      // Wait a moment for the embed to potentially be inserted
-      await page.waitForTimeout(300)
-
-      // Check if embed was inserted - if not, try the slash command approach with more robust handling
-      let embedCount = await page.locator('[data-document-embed]').count()
-      if (embedCount === 0) {
-        // Fallback: try slash command with slow typing and more wait time
-        await page.keyboard.type('/doc', { delay: 100 })
-        await page.waitForTimeout(1000)
-
-        // Look for dropdown with relaxed matching
-        const dropdownVisible = await page.getByRole('button', { name: /embed/i }).first().isVisible().catch(() => false)
-
-        if (dropdownVisible) {
-          // Find and click the Embeddable Doc option
-          const embedButton = page.getByRole('button', { name: /Embeddable Doc/i }).first()
-          if (await embedButton.isVisible({ timeout: 2000 }).catch(() => false)) {
-            await embedButton.click()
-          } else {
-            // Just press Enter to select the first embed-related option
-            await page.keyboard.press('Enter')
-          }
-        } else {
-          // Dropdown didn't appear - press Escape to clear any partial state
-          await page.keyboard.press('Escape')
-          // Clear the /doc text
-          for (let i = 0; i < 4; i++) {
-            await page.keyboard.press('Backspace')
-          }
-
-          // Insert embed using direct content insertion via evaluate
-          await page.evaluate((docId: string) => {
-            const proseMirror = document.querySelector('.ProseMirror')
-            if (proseMirror) {
-              // Create embed node HTML and insert it
-              const embedHtml = `<div data-document-embed="${docId}" data-title="Embeddable Doc">Embeddable Doc</div>`
-              const tempDiv = document.createElement('div')
-              tempDiv.innerHTML = embedHtml
-              proseMirror.appendChild(tempDiv.firstChild!)
-            }
-          }, embeddableDocId)
-        }
-        await page.waitForTimeout(500)
-      }
+      // The embed must be in the editor before anything is typed after it.
+      await expect(documentEmbed.first()).toBeVisible({ timeout: 10000 })
 
       // Add content after embed
       await page.keyboard.press('Enter')
       await page.keyboard.type('AFTER EMBED')
+      await expect(editor).toContainText('AFTER EMBED')
 
-      await page.waitForTimeout(500)
-
-      // Find the document embed
-      const documentEmbed = page.locator('[data-document-embed]')
-      embedCount = await documentEmbed.count()
+      const embedCount = await documentEmbed.count()
 
       // Document embed should be inserted - fail if it doesn't work
       expect(embedCount).toBeGreaterThan(0)

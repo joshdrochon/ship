@@ -107,7 +107,7 @@ export function isBusinessDay(dateStr: string): boolean {
  * @returns ISO date string of the next business day
  */
 export function getNextBusinessDay(dateStr: string): string {
-  let date = parseDate(dateStr);
+  const date = parseDate(dateStr);
 
   // Move to the next day
   date.setUTCDate(date.getUTCDate() + 1);
@@ -134,7 +134,7 @@ export function addBusinessDays(dateStr: string, days: number): string {
     return dateStr;
   }
 
-  let date = parseDate(dateStr);
+  const date = parseDate(dateStr);
   const direction = days > 0 ? 1 : -1;
   let remaining = Math.abs(days);
 
@@ -166,7 +166,7 @@ export function businessDaysBetween(startDateStr: string, endDateStr: string): n
   const direction = forward ? 1 : -1;
 
   let count = 0;
-  let current = new Date(startDate);
+  const current = new Date(startDate);
 
   while (true) {
     current.setUTCDate(current.getUTCDate() + direction);

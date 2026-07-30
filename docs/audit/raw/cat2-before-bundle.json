@@ -1,0 +1,14 @@
+{
+  "total_bytes": 3431950,
+  "total_files": 301,
+  "js_bytes": 2250431,
+  "js_files": 261,
+  "css_bytes": 66512,
+  "gzip_js_css_bytes": 697766,
+  "largest_chunk": "index-DtPqXJLf.js",
+  "largest_chunk_bytes": 2073684,
+  "largest_chunk_gzip": 585810,
+  "unused_dependencies": [
+    "@tanstack/query-sync-storage-persister"
+  ]
+}

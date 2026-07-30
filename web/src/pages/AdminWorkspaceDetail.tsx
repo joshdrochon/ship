@@ -316,7 +316,7 @@ export function AdminWorkspaceDetailPage() {
                         {invite.x509SubjectDn ? (
                           <span className="font-mono text-xs">{invite.x509SubjectDn}</span>
                         ) : (
-                          <span className="text-muted/50">-</span>
+                          <span className="text-muted">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-sm text-muted capitalize">{invite.role}</td>
@@ -330,7 +330,7 @@ export function AdminWorkspaceDetailPage() {
                             "text-sm transition-colors",
                             copiedId === invite.id
                               ? "text-green-500"
-                              : "text-accent hover:text-accent/80"
+                              : "text-accent hover:text-accent-hover"
                           )}
                         >
                           {copiedId === invite.id ? 'Copied!' : 'Copy Link'}
@@ -366,7 +366,7 @@ export function AdminWorkspaceDetailPage() {
                     }}
                     className="ml-auto text-muted hover:text-foreground"
                   >
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg aria-hidden="true" focusable="false" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -502,7 +502,7 @@ export function AdminWorkspaceDetailPage() {
 
 function BackIcon() {
   return (
-    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
     </svg>
   );

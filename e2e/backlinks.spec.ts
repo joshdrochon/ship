@@ -1,5 +1,9 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { triggerMentionPopup } from './fixtures/test-helpers'
+import {
+  triggerMentionPopup,
+  expectDocumentTitleSaved,
+  setDocumentTitle as fillAndSaveTitle,
+} from './fixtures/test-helpers'
 
 /**
  * Backlinks E2E Tests
@@ -25,16 +29,16 @@ async function createNewDocument(page: Page) {
   return page.url()
 }
 
-// Helper to set document title
+// Helper to set document title.
+//
+// This used to wait for `PATCH /api/documents/:id`. W6-9 moved the title into
+// the Yjs CRDT, so it is persisted by the collaboration server rather than by a
+// REST call from the browser, and that wait timed out in every test below —
+// during SETUP, before any backlink code ran. We now wait for the observable
+// outcome (the server serves the new title back), which holds under either
+// transport. See fixtures/test-helpers.ts.
 async function setDocumentTitle(page: Page, title: string) {
-  const titleInput = page.getByPlaceholder('Untitled')
-  await expect(titleInput).toBeVisible({ timeout: 5000 })
-  await titleInput.fill(title)
-  await page.waitForResponse(
-    resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH',
-    { timeout: 5000 }
-  )
-  await page.waitForTimeout(500)
+  await fillAndSaveTitle(page, title)
 }
 
 test.describe('Backlinks', () => {
@@ -316,11 +320,7 @@ test.describe('Backlinks', () => {
 
     const titleInput2 = page2.getByPlaceholder('Untitled')
     await titleInput2.fill('Live Update Doc')
-    await page2.waitForResponse(
-      resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH',
-      { timeout: 5000 }
-    )
-    await page2.waitForTimeout(500)
+    await expectDocumentTitleSaved(page2, 'Live Update Doc')
 
     // In page2, mention Document P
     const editor2 = page2.locator('.ProseMirror')
@@ -335,12 +335,15 @@ test.describe('Backlinks', () => {
     await expect(docOption).toBeVisible({ timeout: 5000 })
     await docOption.click()
 
-    // Wait for sync to complete in page2
+    // Wait for the link sync to reach the server. This is the call this test
+    // actually depends on (the mention becoming a backlink row); it was
+    // previously waiting on the title PATCH, which is unrelated and no longer
+    // fires reliably now that the title lives in the CRDT.
     await page2.waitForResponse(
-      resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH',
-      { timeout: 5000 }
-    ).catch(() => {}) // Ignore if no response
-    await page2.waitForTimeout(2000)
+      resp => resp.url().includes('/links') && resp.request().method() === 'POST',
+      { timeout: 10000 }
+    ).catch(() => {}) // Ignore if the sync already landed
+    await page2.waitForTimeout(1000)
 
     // In page1 (Document P), check if backlinks updated
     await page.goto(docPUrl)
@@ -413,10 +416,7 @@ test.describe('Backlinks', () => {
 
       const titleInput = page.getByPlaceholder('Untitled')
       await titleInput.fill(`Referrer ${i}`)
-      await page.waitForResponse(
-        resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH',
-        { timeout: 5000 }
-      )
+      await expectDocumentTitleSaved(page, `Referrer ${i}`)
 
       const editor = page.locator('.ProseMirror')
 

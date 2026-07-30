@@ -16,7 +16,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "echo \"no tests in @ship/shared\"",
+    "test:coverage": "echo \"no tests in @ship/shared\""
   },
   "devDependencies": {
     "@types/node": "^22.19.3",

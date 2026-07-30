@@ -12,6 +12,8 @@ than taken on trust.
 | File | Category | Produced by | Contains |
 |---|---|---|---|
 | `cat3-results.json` | 3 API Response Time | `scripts/bench-api.sh` | k6 output — P50/P95/P99/max, request counts and failure rate for 5 endpoints × 10/25/50 VUs (15 runs) |
+| `cat3-lane3-before.json` / `cat3-lane3-after.json` | 3 API Response Time | `scripts/bench-api.sh` (RATE=12) | Lane 3's own before/after pair, both runs taken back to back under `scripts/measure-lock.sh` on one machine at 600 docs / 170 issues / 25 users / 35 sprints |
+| `cat3-lane3-saturation-before.json` / `-after.json` | 3 API Response Time | `scripts/bench-api-saturation.sh` (RATE=150) | The same pair with the rate limiter lifted (`API_RATE_LIMIT_MAX`) and arrival rate past the point where requests overlap, so 10/25/50 VUs are a real variable rather than a flat line (W3-3) |
 | `cat4-raw.json` | 4 Query Efficiency | `scripts/measure-queries.mjs` | Per-flow query counts, slowest statement, and repeated-shape clusters for the 5 user flows p.5 names |
 | `cat6-raw.json` | 6 Runtime Errors | `scripts/measure-runtime-errors.mjs` | Console/network entries, malformed-input results, offline/reconnect cycle, 3G throttle timings |
 | `cat7-keys.json` | 7 Accessibility | `scripts/measure-keyboard.mjs` | Arrow-key focus movement per composite widget, Enter/Space activation, focus-visibility sampling |

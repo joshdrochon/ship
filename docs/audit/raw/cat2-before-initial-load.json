@@ -1,0 +1,18 @@
+{
+  "initial_bytes": 2144744,
+  "initial_gzip_bytes": 599789,
+  "initial_js_bytes": 2073684,
+  "initial_js_files": 1,
+  "initial_css_bytes": 66512,
+  "html_bytes": 4548,
+  "entry_chunk": "index-DtPqXJLf.js",
+  "entry_chunk_bytes": 2073684,
+  "deferred_js_bytes": 176747,
+  "deferred_js_files": 260,
+  "initial_js_breakdown": [
+    [
+      "index-DtPqXJLf.js",
+      2073684
+    ]
+  ]
+}

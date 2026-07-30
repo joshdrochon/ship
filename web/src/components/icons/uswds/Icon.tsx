@@ -77,6 +77,15 @@ export function Icon({
   className,
   title,
 }: IconProps): JSX.Element | null {
+  // Memoize the lazy icon component lookup.
+  // Runs before the validity check on purpose: a hook cannot sit below an early
+  // return, or the hook count changes between a render with a valid name and one
+  // with an invalid name. The lookup absorbs the invalid case by returning null.
+  const LazyIcon = useMemo(
+    () => (isValidIconName(name) ? getLazyIcon(name) : null),
+    [name],
+  );
+
   // Validate icon name at runtime
   if (!isValidIconName(name)) {
     if (process.env.NODE_ENV !== 'production') {
@@ -87,9 +96,6 @@ export function Icon({
 
     return null;
   }
-
-  // Memoize the lazy icon component lookup
-  const LazyIcon = useMemo(() => getLazyIcon(name), [name]);
 
   // Handle case where icon loader wasn't found (shouldn't happen if types are in sync)
   if (!LazyIcon) {

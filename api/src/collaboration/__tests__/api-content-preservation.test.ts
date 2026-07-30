@@ -145,7 +145,7 @@ describe('API Content Preservation', () => {
       const fragment = doc.getXmlFragment('default')
 
       if (issueResult.rows[0].content) {
-        let jsonContent = issueResult.rows[0].content
+        const jsonContent = issueResult.rows[0].content
         if (jsonContent && jsonContent.type === 'doc' && Array.isArray(jsonContent.content)) {
           jsonToYjs(doc, fragment, jsonContent)
         }

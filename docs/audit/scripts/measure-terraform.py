@@ -35,7 +35,16 @@ TF_DIR = REPO / "terraform"
 
 # A "root" is a directory Terraform would be run from (has a backend or a
 # provider block). A "module" is one that is only ever consumed via source=.
-ROOTS = ["", "bootstrap", "environments/dev", "environments/shadow", "environments/prod"]
+LEGACY_ROOTS = ["", "bootstrap", "environments/dev", "environments/shadow", "environments/prod"]
+
+# Phase 2 roots (lane 8). Kept in a separate list so the legacy AWS baseline
+# above stays byte-identical to what the audit measured, and skipped when the
+# directory is absent so this script still runs against a pre-lane-8 checkout —
+# which is what makes the before/after comparison the same script on both sides.
+PHASE2_ROOTS = ["local-config", "render"]
+
+ROOTS = LEGACY_ROOTS + [r for r in PHASE2_ROOTS if (TF_DIR / r).is_dir()]
+
 MODULES = [
     "modules/aurora",
     "modules/cloudfront-s3",
@@ -253,8 +262,19 @@ def read_lock(rel: str):
 
 
 def satisfies_tilde(version: str, constraint: str) -> bool | None:
-    """Evaluate only `~> X.Y` / `~> X.Y.Z`, which is all this repo uses."""
-    m = re.match(r"~>\s*(\d+)\.(\d+)(?:\.(\d+))?$", constraint.strip())
+    """Evaluate `~> X.Y` / `~> X.Y.Z` and exact `X.Y.Z` / `= X.Y.Z` pins.
+
+    Exact pins were originally out of scope because the repo had none. Once lane 8
+    pinned every constraint, returning None for them turned the
+    constraint/lock-conflict check into a silent pass — it would have reported
+    "none" while six module lock files still recorded aws 6.28.0 against a
+    5.100.0 pin. Handled explicitly rather than skipped.
+    """
+    constraint = constraint.strip()
+    exact = re.match(r"=?\s*(\d+\.\d+\.\d+)$", constraint)
+    if exact:
+        return version.strip() == exact.group(1)
+    m = re.match(r"~>\s*(\d+)\.(\d+)(?:\.(\d+))?$", constraint)
     if not m:
         return None
     v = [int(x) for x in version.split(".")]

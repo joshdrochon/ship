@@ -14,7 +14,7 @@ interface DocumentTreeItemProps {
 
 function DocumentIcon({ className }: { className?: string }) {
   return (
-    <svg
+    <svg aria-hidden="true" focusable="false"
       className={cn('h-4 w-4', className)}
       fill="none"
       stroke="currentColor"
@@ -32,7 +32,7 @@ function DocumentIcon({ className }: { className?: string }) {
 
 function ChevronIcon({ isOpen, className }: { isOpen: boolean; className?: string }) {
   return (
-    <svg
+    <svg aria-hidden="true" focusable="false"
       className={cn(
         'h-4 w-4 transition-transform',
         isOpen && 'rotate-90',
@@ -64,6 +64,10 @@ export function DocumentTreeItem({
 
   const isActive = activeDocumentId === document.id;
   const hasChildren = document.children.length > 0;
+  // W7-12: every row rendered the same four labels ("Delete document", "Add sub-document",
+  // "Expand", "Collapse"), so 52 destructive controls announced identically and none of them
+  // named the document it would destroy. The title is the only distinguishing information.
+  const docName = document.title || 'Untitled';
 
   return (
     <li
@@ -89,7 +93,7 @@ export function DocumentTreeItem({
               type="button"
               className="w-4 h-4 flex-shrink-0 flex items-center justify-center p-0 rounded hover:bg-border/50"
               onClick={() => setIsOpen(!isOpen)}
-              aria-label={isOpen ? 'Collapse' : 'Expand'}
+              aria-label={isOpen ? `Collapse ${docName}` : `Expand ${docName}`}
             >
               <ChevronIcon isOpen={isOpen} className="text-muted" />
             </button>
@@ -123,10 +127,10 @@ export function DocumentTreeItem({
                 e.stopPropagation();
                 onDelete(document.id);
               }}
-              aria-label="Delete document"
+              aria-label={`Delete ${docName}`}
               data-testid="delete-document-button"
             >
-              <svg
+              <svg aria-hidden="true" focusable="false"
                 className="h-3.5 w-3.5"
                 fill="none"
                 stroke="currentColor"
@@ -152,9 +156,9 @@ export function DocumentTreeItem({
               isHovered ? 'opacity-100' : 'opacity-50'
             )}
             onClick={() => onCreateChild(document.id)}
-            aria-label="Add sub-document"
+            aria-label={`Add sub-document to ${docName}`}
           >
-            <svg
+            <svg aria-hidden="true" focusable="false"
               className="h-3.5 w-3.5 text-muted"
               fill="none"
               stroke="currentColor"

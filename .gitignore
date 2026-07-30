@@ -65,6 +65,22 @@ test-results/
 .audit
 
 # Terraform
+#
+# Recursive globs first. The path-anchored rules that follow were the original
+# ruleset and they only match one directory level, which is how
+# terraform/environments/shadow/tfplan got committed (audit finding W8-1) —
+# `terraform/tfplan` and `terraform/*.tfplan` match neither a nested `tfplan`
+# nor a nested state file. Terraform writes credentials into state and into
+# saved plans in PLAINTEXT, so these must match at any depth.
+*.tfvars
+*.tfstate
+*.tfstate.*
+tfplan
+*.tfplan
+.terraform/
+crash.log
+crash.*.log
+
 terraform/.terraform/
 terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
@@ -123,3 +139,24 @@ __pycache__/
 # Internal work tracking — not a PRD deliverable
 docs/audit/audit-checklist.md
 docs/audit/early-submission-checklist.md
+
+# CI-generated reports (regenerable; produced by .gitlab-ci.yml / .github/workflows/ci.yml)
+# audit-baseline.json is deliberately NOT here — it is the committed record of known
+# advisories that scripts/audit-summary.mjs diffs against.
+licenses.json
+licenses.md
+licenses.csv
+pnpm-audit.json
+audit-summary.md
+eslint-report.txt
+*/junit.xml
+dist-sha.txt
+
+# E2E run logs — large, regenerable; findings are summarised in docs/audit/
+docs/audit/raw/e2e-*.log
+
+# Category 6 before/after screenshots are deliverables, not scratch output: the
+# improvement target (brief p.7) requires "a screenshot or recording" per fix, so
+# this one evidence directory is tracked despite the rules above.
+!docs/audit/evidence/
+!docs/audit/evidence/**

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { queryResult } from '../test/queryResult.js';
 
 // Mock pool before importing auth middleware
 vi.mock('../db/client.js', () => ({
@@ -7,7 +8,13 @@ vi.mock('../db/client.js', () => ({
   },
 }));
 
-import { authMiddleware } from '../middleware/auth.js';
+import {
+  authMiddleware,
+  isAuthenticated,
+  type AuthIdentity,
+  MissingAuthContextError,
+  requireAuth,
+} from '../middleware/auth.js';
 import { pool } from '../db/client.js';
 import { Request, Response, NextFunction } from 'express';
 import { SESSION_TIMEOUT_MS, ABSOLUTE_SESSION_TIMEOUT_MS } from '@ship/shared';
@@ -27,6 +34,12 @@ function createMockReqRes(cookies: Record<string, string> = {}) {
 describe('authMiddleware', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // `clearAllMocks` clears recorded calls but NOT the `mockResolvedValueOnce` queue.
+    // Several tests below queue more responses than the middleware consumes, and the
+    // leftovers used to be silently inherited by the next test — which only stayed
+    // invisible while every test happened to over-queue by the same amount. `mockReset`
+    // drains the queue so each test starts from a known state.
+    vi.mocked(pool.query).mockReset();
   });
 
   describe('session validation', () => {
@@ -45,7 +58,7 @@ describe('authMiddleware', () => {
 
     it('returns 401 when session does not exist in database', async () => {
       const { req, res, next } = createMockReqRes({ session_id: 'invalid-session' });
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [], rowCount: 0 } as any);
+      vi.mocked(pool.query).mockResolvedValueOnce(queryResult([]));
       await authMiddleware(req, res, next);
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith(
@@ -70,8 +83,8 @@ describe('authMiddleware', () => {
             is_super_admin: false,
           }],
         } as any)
-        .mockResolvedValueOnce({ rows: [{ id: 'membership-1' }] } as any)
-        .mockResolvedValueOnce({ rows: [] } as any);
+        .mockResolvedValueOnce(queryResult([{ id: 'membership-1' }]))
+        .mockResolvedValueOnce(queryResult([]));
 
       await authMiddleware(req, res, next);
       expect(req.sessionId).toBe('valid-session');
@@ -149,7 +162,7 @@ describe('authMiddleware', () => {
             is_super_admin: false,
           }],
         } as any)
-        .mockResolvedValueOnce({ rows: [] } as any);
+        .mockResolvedValueOnce(queryResult([]));
 
       await authMiddleware(req, res, next);
       expect(pool.query).toHaveBeenCalledWith(
@@ -174,7 +187,7 @@ describe('authMiddleware', () => {
             is_super_admin: false,
           }],
         } as any)
-        .mockResolvedValueOnce({ rows: [] } as any);
+        .mockResolvedValueOnce(queryResult([]));
 
       await authMiddleware(req, res, next);
       expect(res.status).toHaveBeenCalledWith(403);
@@ -201,7 +214,7 @@ describe('authMiddleware', () => {
             is_super_admin: true,
           }],
         } as any)
-        .mockResolvedValueOnce({ rows: [] } as any);
+        .mockResolvedValueOnce(queryResult([]));
 
       await authMiddleware(req, res, next);
       expect(req.isSuperAdmin).toBe(true);
@@ -240,8 +253,8 @@ describe('authMiddleware', () => {
             is_super_admin: false,
           }],
         } as any)
-        .mockResolvedValueOnce({ rows: [{ id: 'membership-1' }] } as any)
-        .mockResolvedValueOnce({ rows: [] } as any);
+        .mockResolvedValueOnce(queryResult([{ id: 'membership-1' }]))
+        .mockResolvedValueOnce(queryResult([]));
 
       await authMiddleware(req, res, next);
       expect(res.cookie).toHaveBeenCalledWith('session_id', 'valid-session', {
@@ -270,12 +283,94 @@ describe('authMiddleware', () => {
             is_super_admin: false,
           }],
         } as any)
-        .mockResolvedValueOnce({ rows: [{ id: 'membership-1' }] } as any)
-        .mockResolvedValueOnce({ rows: [] } as any);
+        .mockResolvedValueOnce(queryResult([{ id: 'membership-1' }]))
+        .mockResolvedValueOnce(queryResult([]));
 
       await authMiddleware(req, res, next);
       expect(res.cookie).not.toHaveBeenCalled();
       expect(next).toHaveBeenCalled();
+    });
+  });
+
+  describe('session activity write throttle (Category 4, W4-1)', () => {
+    const UPDATE_ACTIVITY_SQL = 'UPDATE sessions SET last_activity = $1 WHERE id = $2';
+
+    function mockValidSession(lastActivity: Date) {
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'valid-session',
+            user_id: 'user-123',
+            workspace_id: 'ws-123',
+            last_activity: lastActivity,
+            created_at: new Date(),
+            is_super_admin: false,
+          }],
+        } as any)
+        .mockResolvedValueOnce(queryResult([{ id: 'membership-1' }]))
+        .mockResolvedValueOnce(queryResult([]));
+    }
+
+    // The bug: this UPDATE ran on EVERY authenticated request, turning every read into a
+    // write. It was 13 of the 48 queries on the measured "view a document" flow. If the
+    // throttle is reverted, this test fails.
+    it('does NOT write last_activity when the stored value is still fresh', async () => {
+      const { req, res, next } = createMockReqRes({ session_id: 'valid-session' });
+      mockValidSession(new Date(Date.now() - 30 * 1000));
+
+      await authMiddleware(req, res, next);
+
+      expect(pool.query).not.toHaveBeenCalledWith(UPDATE_ACTIVITY_SQL, expect.anything());
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('writes last_activity once the stored value is stale', async () => {
+      const { req, res, next } = createMockReqRes({ session_id: 'valid-session' });
+      mockValidSession(new Date(Date.now() - 90 * 1000));
+
+      await authMiddleware(req, res, next);
+
+      expect(pool.query).toHaveBeenCalledWith(UPDATE_ACTIVITY_SQL, [
+        expect.any(Date),
+        'valid-session',
+      ]);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('costs two queries per request in the steady state, not three', async () => {
+      const { req, res, next } = createMockReqRes({ session_id: 'valid-session' });
+      mockValidSession(new Date(Date.now() - 5 * 1000));
+
+      await authMiddleware(req, res, next);
+
+      // session lookup + workspace membership check. The activity write is the third
+      // query this flow used to pay for on every single request.
+      expect(pool.query).toHaveBeenCalledTimes(2);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('still expires an idle session, and does so no later than the timeout', async () => {
+      // The throttle lags the stored timestamp, so it can only ever expire a session
+      // EARLY. This guards the direction of that error: a session whose real last
+      // activity is past the timeout must still be rejected.
+      const { req, res, next } = createMockReqRes({ session_id: 'stale-session' });
+      vi.mocked(pool.query)
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 'stale-session',
+            user_id: 'user-123',
+            workspace_id: 'ws-123',
+            last_activity: new Date(Date.now() - SESSION_TIMEOUT_MS - 1000),
+            created_at: new Date(),
+            is_super_admin: false,
+          }],
+        } as any)
+        .mockResolvedValueOnce(queryResult([]));
+
+      await authMiddleware(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(next).not.toHaveBeenCalled();
     });
   });
 
@@ -308,7 +403,7 @@ describe('authMiddleware', () => {
           }],
         } as any)
         // Mock update last_used_at
-        .mockResolvedValueOnce({ rows: [] } as any);
+        .mockResolvedValueOnce(queryResult([]));
 
       await authMiddleware(req, res, next);
       expect(req.userId).toBe('user-123');
@@ -321,7 +416,7 @@ describe('authMiddleware', () => {
       const { req, res, next } = createMockReqResWithAuth('Bearer invalid_token');
 
       // Mock token not found
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any);
+      vi.mocked(pool.query).mockResolvedValueOnce(queryResult([]));
 
       await authMiddleware(req, res, next);
       expect(res.status).toHaveBeenCalledWith(401);
@@ -337,7 +432,7 @@ describe('authMiddleware', () => {
       const { req, res, next } = createMockReqResWithAuth('Bearer ship_revokedtoken');
 
       // Mock token found but revoked (revoked_at is set)
-      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as any); // No results means revoked/expired
+      vi.mocked(pool.query).mockResolvedValueOnce(queryResult([])); // No results means revoked/expired
 
       await authMiddleware(req, res, next);
       expect(res.status).toHaveBeenCalledWith(401);
@@ -366,7 +461,7 @@ describe('authMiddleware', () => {
             is_super_admin: false,
           }],
         } as any)
-        .mockResolvedValueOnce({ rows: [] } as any);
+        .mockResolvedValueOnce(queryResult([]));
 
       await authMiddleware(req, res, next);
       // Should use token auth, not session
@@ -374,5 +469,47 @@ describe('authMiddleware', () => {
       expect(req.isApiToken).toBe(true);
       expect(next).toHaveBeenCalled();
     });
+  });
+});
+
+describe('requireAuth / isAuthenticated', () => {
+  /** A request carrying only the identity fields authMiddleware would have attached. */
+  function bareRequest(identity: Partial<AuthIdentity> = {}): Request {
+    return Object.assign(createMockReqRes().req, identity);
+  }
+
+  it('returns the request narrowed to its identity when authMiddleware has run', () => {
+    const req = bareRequest({ userId: 'user-1', workspaceId: 'ws-1' });
+
+    const authed = requireAuth(req);
+
+    // Typed as string, not string | undefined — no non-null assertion needed here.
+    const userId: string = authed.userId;
+    const workspaceId: string = authed.workspaceId;
+    expect(userId).toBe('user-1');
+    expect(workspaceId).toBe('ws-1');
+    expect(authed).toBe(req);
+  });
+
+  it('throws instead of yielding undefined when the route is not behind authMiddleware', () => {
+    // This is what `req.userId!` used to hide: the assertion evaluated to undefined
+    // and that undefined was passed straight into a SQL parameter.
+    expect(() => requireAuth(bareRequest())).toThrow(MissingAuthContextError);
+  });
+
+  it('throws when only one half of the identity is present', () => {
+    expect(() => requireAuth(bareRequest({ userId: 'user-1' }))).toThrow(
+      MissingAuthContextError
+    );
+    expect(() => requireAuth(bareRequest({ workspaceId: 'ws-1' }))).toThrow(
+      MissingAuthContextError
+    );
+  });
+
+  it('reports identity presence without throwing', () => {
+    expect(isAuthenticated(bareRequest())).toBe(false);
+    expect(isAuthenticated(bareRequest({ userId: 'user-1', workspaceId: 'ws-1' }))).toBe(
+      true
+    );
   });
 });

@@ -57,7 +57,24 @@ function shape(sql) {
 function parseFlows(raw) {
   // duration lines look like:  LOG:  duration: 1.234 ms  statement: SELECT ...
   //                    or:     LOG:  duration: 1.234 ms  execute <unnamed>: SELECT ...
-  const lines = raw.split('\n');
+  //
+  // FOURTH counting error, found when a re-run of this script reported 1190 queries for
+  // view_a_document against a frozen baseline of 48. One PostgreSQL container serves every
+  // lane's worktree database, and `log_statement=all` is a cluster-wide setting, so the log
+  // interleaves *every* database's traffic. FLOWMARK scoping cannot separate them: another
+  // lane's queries land between this lane's markers and get attributed to this lane's flow.
+  // With five lanes active the inflation was ~25x.
+  //
+  // Fixed by tagging each log line with its database and keeping only our own:
+  //
+  //   ALTER SYSTEM SET log_line_prefix = '%m [%p] db=%d'; SELECT pg_reload_conf();
+  //
+  // The filter also discards this container's older log history, which predates the prefix
+  // change and therefore carries no db= tag — which is what we want, since only the current
+  // run is in scope. Other lanes' parsers match from `LOG:` onward and are unaffected by the
+  // longer prefix.
+  const dbTag = new RegExp(`\\bdb=${DB}\\b`);
+  const lines = raw.split('\n').filter((l) => dbTag.test(l));
   const flows = {};
   let current = null;
   // Count EXECUTIONS only. The extended query protocol logs parse/bind/execute
@@ -113,6 +130,16 @@ async function dismissModal(page) {
 async function main() {
   if (psql('show log_statement') !== 'all')
     throw new Error("postgres log_statement is not 'all' — enable it first");
+
+  // Without %d in the prefix every line is indistinguishable from another lane's traffic,
+  // and the db filter in parseFlows would drop everything and report 0 queries. Fail loudly
+  // instead: a wrong number is more expensive than a refusal.
+  if (!/%d/.test(psql('show log_line_prefix')))
+    throw new Error(
+      "postgres log_line_prefix has no %d — run:\n" +
+      `  docker exec ${CONTAINER} psql -U ${PG_USER} -d ${DB} \\\n` +
+      `    -c "ALTER SYSTEM SET log_line_prefix = '%m [%p] db=%d '" -c "SELECT pg_reload_conf()"`
+    );
 
   const docId = psql(
     "select id from documents where document_type='wiki' and properties->>'_audit_fixture' is null limit 1");

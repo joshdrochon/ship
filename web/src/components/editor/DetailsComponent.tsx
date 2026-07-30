@@ -34,7 +34,7 @@ export function DetailsComponent({ node, updateAttributes }: NodeViewProps) {
           aria-label={isOpen ? 'Collapse' : 'Expand'}
           contentEditable={false}
         >
-          <svg
+          <svg aria-hidden="true" focusable="false"
             className={'w-4 h-4 text-muted-foreground transition-transform duration-200 ' + (isOpen ? 'rotate-90' : '')}
             fill="none"
             stroke="currentColor"

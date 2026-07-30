@@ -53,6 +53,14 @@ export function WeekProgressGraph({
     completed: '#22C55E',
   }[status];
 
+  // Spoken description of the chart below. The header states the hours and the on-track
+  // flag, but the start and end dates are drawn as <text> on the axis and appear nowhere
+  // else, so they have to be in here.
+  const trackSuffix = status === 'active' ? (isOnTrack ? ', on track' : ', behind') : '';
+  const chartLabel =
+    `Burndown chart, ${formatDate(startDate)} to ${formatDate(endDate)}: ` +
+    `${completedHours} of ${scopeHours} hours complete${trackSuffix}.`;
+
   return (
     <div className="rounded-lg border border-border bg-border/20 p-3">
       <div className="flex items-center justify-between mb-2 text-xs">
@@ -66,7 +74,28 @@ export function WeekProgressGraph({
         )}
       </div>
 
-      <svg width={width} height={height} className="text-muted">
+      {/*
+        A chart is content, not an icon. The decorative-icon sweep (ef29e8b) hid every
+        inline SVG in web/src, on the reasoning that each one sits inside a control that
+        already carries a name — true for icons, wrong here. The header above states the
+        hours and the on-track flag, but the start and end dates exist only as text nodes
+        drawn on this axis, so hiding the whole graph removed them from the page.
+
+        role="img" with a summarising label, rather than simply un-hiding it: the raw
+        axis labels read as a bare sequence of numbers in visual order, which is not a
+        description of a burndown chart.
+
+        (Deliberately no angle-bracketed tag names in this comment — the invariant in
+        a11y-invariants.test.ts scans source text, so prose that quotes markup is
+        indistinguishable from markup.)
+      */}
+      <svg
+        role="img"
+        aria-label={chartLabel}
+        width={width}
+        height={height}
+        className="text-muted"
+      >
         {/* Grid lines */}
         <g className="stroke-border">
           {[0, 50, 100].map((percent) => (

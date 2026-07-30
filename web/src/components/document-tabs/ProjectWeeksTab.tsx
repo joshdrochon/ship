@@ -211,7 +211,7 @@ export default function ProjectWeeksTab({ documentId }: DocumentTabProps) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="flex items-center gap-2 text-muted">
-          <svg className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+          <svg aria-hidden="true" focusable="false" className="w-5 h-5 animate-spin" viewBox="0 0 24 24" fill="none">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
@@ -233,7 +233,7 @@ export default function ProjectWeeksTab({ documentId }: DocumentTabProps) {
   if (!data || data.people.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center text-muted p-8">
-        <svg className="w-16 h-16 mb-4 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <svg aria-hidden="true" focusable="false" className="w-16 h-16 mb-4 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
         </svg>
         <p className="text-lg font-medium mb-2">No team allocations</p>

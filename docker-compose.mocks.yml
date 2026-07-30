@@ -1,0 +1,48 @@
+# Mock external services for local development.
+#
+# Rule 6 (brief p.9) requires the one-command start to bring up "app, database, and any
+# mock external services." Ship has exactly one outbound third-party dependency in the
+# request path: AWS Bedrock, used by api/src/services/ai-analysis.ts for the plan and
+# retro quality banners.
+#
+# Without a mock, the local stack still runs — getClient() returns null and the AI
+# features silently do nothing — but a developer cannot see or work on those features,
+# and cannot tell a broken integration from a disabled one. This makes the dependency
+# present and deterministic.
+#
+# Layered as an override so it can be dropped: `./start.sh --no-mocks` omits this file.
+#
+# Not a full Bedrock emulator. It answers InvokeModel with a fixed, well-formed payload
+# in the Anthropic Messages shape, which is what the app parses. It does not verify
+# SigV4 — the app sends real signatures and this ignores them.
+
+services:
+  mock-bedrock:
+    image: mockserver/mockserver:5.15.0
+    ports:
+      - '4599:1080'
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/bedrock-expectations.json
+      MOCKSERVER_LOG_LEVEL: WARN
+    volumes:
+      - ./mocks:/config:ro
+    # No healthcheck: the mockserver image is distroless and has no shell, so a
+    # CMD-SHELL probe cannot execute and the container is reported unhealthy forever
+    # even though the server is serving. Docker offers no shell-free HTTP probe.
+    #
+    # Strict ordering is not needed anyway. api/src/services/ai-analysis.ts creates its
+    # Bedrock client lazily on the first analysis request and returns null on failure, so
+    # the API boots and serves regardless of whether this is ready yet — and the first
+    # analysis request comes long after startup.
+
+  api:
+    environment:
+      # api/src/services/ai-analysis.ts reads this and passes it to the Bedrock client
+      # as an endpoint override. Unset in production, where the SDK resolves the real
+      # regional endpoint.
+      BEDROCK_ENDPOINT: http://mock-bedrock:1080
+      AWS_ACCESS_KEY_ID: mock
+      AWS_SECRET_ACCESS_KEY: mock
+      AWS_REGION: us-east-1
+    depends_on:
+      - mock-bedrock

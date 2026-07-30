@@ -212,7 +212,7 @@ export function ConvertedDocumentsPage() {
 // Icon components
 function DocumentIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -225,7 +225,7 @@ function DocumentIcon({ className }: { className?: string }) {
 
 function FolderIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -238,7 +238,7 @@ function FolderIcon({ className }: { className?: string }) {
 
 function ArrowRightIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -251,7 +251,7 @@ function ArrowRightIcon({ className }: { className?: string }) {
 
 function CalendarIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -264,7 +264,7 @@ function CalendarIcon({ className }: { className?: string }) {
 
 function UserIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"

@@ -12,9 +12,58 @@
 import { createHash } from 'crypto';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { extractText } from '../utils/document-content.js';
+import { CircuitBreaker, CircuitOpenError } from './circuitBreaker.js';
 
 const MODEL_ID = 'global.anthropic.claude-opus-4-5-20251101-v1:0';
 const REGION = 'us-east-1';
+
+/**
+ * Implementation Rule 7, applied to the only third-party call in the request
+ * path. Before this, `callBedrock` had no timeout, no retry and no breaker: the
+ * SDK's defaults are a 0 ms (i.e. unlimited) socket timeout and 3 attempts of
+ * standard retry, and nothing stopped a dead endpoint from being dialled again on
+ * every keystroke-triggered analysis.
+ *
+ * Failure modes these protect against, in order:
+ *
+ *  - CONNECT_TIMEOUT_MS — Bedrock (or the local mock) accepting a TCP connection
+ *    and never completing the handshake. Without it the request hangs on an
+ *    Express handler until the client gives up, holding a socket and a DB
+ *    connection the whole time.
+ *  - REQUEST_TIMEOUT_MS — a model call that starts and stalls. 2048 max_tokens
+ *    on Opus finishes well inside 20 s; past that it is not coming.
+ *  - MAX_ATTEMPTS — a single throttled (429) or 5xx response. Bounded, because
+ *    the caller is a UI poll: retrying forever turns one slow analysis into a
+ *    queue of them.
+ *  - The circuit breaker — a Bedrock outage, an expired role, or (as W6-8
+ *    recorded, 15 occurrences in one local session) no AWS credentials at all.
+ *    Every weekly plan and retro page load reached for Bedrock, waited for the
+ *    full credential-chain resolution, and logged another unhandled rejection.
+ *    After 5 consecutive failures the circuit opens for 60 s and those calls
+ *    return `ai_unavailable` immediately, which is the same answer the UI already
+ *    knows how to render.
+ */
+const CONNECT_TIMEOUT_MS = 3_000;
+const REQUEST_TIMEOUT_MS = 20_000;
+const MAX_ATTEMPTS = 3;
+const BREAKER_FAILURE_THRESHOLD = 5;
+const BREAKER_COOLDOWN_MS = 60_000;
+
+const bedrockBreaker = new CircuitBreaker({
+  name: 'bedrock',
+  failureThreshold: BREAKER_FAILURE_THRESHOLD,
+  cooldownMs: BREAKER_COOLDOWN_MS,
+});
+
+/** Exposed for the health endpoint and for tests. */
+export function getBedrockBreakerStats() {
+  return bedrockBreaker.stats;
+}
+
+/** Test seam: lets a suite start from a known circuit state. */
+export function resetBedrockBreaker(): void {
+  bedrockBreaker.reset();
+}
 
 // Lazy-initialize client (fails gracefully if AWS credentials unavailable)
 let bedrockClient: BedrockRuntimeClient | null = null;
@@ -25,7 +74,23 @@ function getClient(): BedrockRuntimeClient | null {
   if (bedrockClient) return bedrockClient;
 
   try {
-    bedrockClient = new BedrockRuntimeClient({ region: REGION });
+    // BEDROCK_ENDPOINT redirects this client at a local mock so the one-command local
+    // stack (./start.sh, Rule 6) can exercise the AI paths without AWS credentials.
+    // Unset everywhere else, in which case the SDK resolves the real regional endpoint
+    // exactly as before.
+    const endpoint = process.env.BEDROCK_ENDPOINT;
+    bedrockClient = new BedrockRuntimeClient({
+      region: REGION,
+      ...(endpoint ? { endpoint } : {}),
+      maxAttempts: MAX_ATTEMPTS,
+      // Handler options, not a handler instance: the SDK constructs the
+      // NodeHttpHandler itself, so this needs no import of @smithy/* — which is a
+      // transitive dependency here and must not become a direct one.
+      requestHandler: {
+        connectionTimeout: CONNECT_TIMEOUT_MS,
+        requestTimeout: REQUEST_TIMEOUT_MS,
+      },
+    });
     return bedrockClient;
   } catch (err) {
     console.warn('Failed to initialize Bedrock client:', err);
@@ -245,14 +310,27 @@ async function callBedrock(systemPrompt: string, userPrompt: string): Promise<st
     body: new TextEncoder().encode(body),
   });
 
-  const response = await client.send(command);
-  const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+  // Rule 7: the breaker wraps the send, so a Bedrock outage or a missing
+  // credential chain costs one fast rejection per caller instead of a full
+  // timeout each. Callers already treat a throw as `ai_unavailable`, so a
+  // CircuitOpenError needs no new handling — but it is logged distinctly, because
+  // "we did not call Bedrock" and "Bedrock failed" are different operationally.
+  try {
+    const response = await bedrockBreaker.run(() => client.send(command));
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
 
-  if (responseBody.content && responseBody.content[0]?.text) {
-    return responseBody.content[0].text;
+    if (responseBody.content && responseBody.content[0]?.text) {
+      return responseBody.content[0].text;
+    }
+
+    return null;
+  } catch (err) {
+    if (err instanceof CircuitOpenError) {
+      console.warn(`[ai-analysis] Skipping Bedrock call: ${err.message}`);
+      return null;
+    }
+    throw err;
   }
-
-  return null;
 }
 
 /**

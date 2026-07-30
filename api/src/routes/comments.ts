@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../db/client.js';
 import { z } from 'zod';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireAuth } from '../middleware/auth.js';
 
 type RouterType = ReturnType<typeof Router>;
 
@@ -19,7 +19,7 @@ const createCommentSchema = z.object({
 documentCommentsRouter.get('/:id/comments', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id: documentId } = req.params;
-    const workspaceId = req.workspaceId!;
+    const { workspaceId } = requireAuth(req);
 
     const result = await pool.query(
       `SELECT c.*, u.name as author_name, u.email as author_email
@@ -57,8 +57,7 @@ documentCommentsRouter.get('/:id/comments', authMiddleware, async (req: Request,
 documentCommentsRouter.post('/:id/comments', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id: documentId } = req.params;
-    const userId = req.userId!;
-    const workspaceId = req.workspaceId!;
+    const { userId, workspaceId } = requireAuth(req);
 
     const parsed = createCommentSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -140,8 +139,7 @@ const updateCommentSchema = z.object({
 commentsRouter.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id: commentId } = req.params;
-    const userId = req.userId!;
-    const workspaceId = req.workspaceId!;
+    const { userId, workspaceId } = requireAuth(req);
 
     const parsed = updateCommentSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -227,8 +225,7 @@ commentsRouter.patch('/:id', authMiddleware, async (req: Request, res: Response)
 commentsRouter.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { id: commentId } = req.params;
-    const userId = req.userId!;
-    const workspaceId = req.workspaceId!;
+    const { userId, workspaceId } = requireAuth(req);
 
     const result = await pool.query(
       'DELETE FROM comments WHERE id = $1 AND workspace_id = $2 AND author_id = $3 RETURNING id',

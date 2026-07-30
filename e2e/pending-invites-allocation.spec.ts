@@ -267,7 +267,7 @@ test.describe('Pending Invite Acceptance Flow', () => {
     // Verify they appear as pending first
     let peopleResponse = await page.request.get('/api/team/people')
     let people = await peopleResponse.json()
-    let pendingPerson = people.find((p: { email: string }) => p.email === testEmail)
+    const pendingPerson = people.find((p: { email: string }) => p.email === testEmail)
 
     expect(pendingPerson).toBeDefined()
     expect(pendingPerson.isPending).toBe(true)
@@ -398,7 +398,7 @@ test.describe('Full Pending User Allocation Flow (Story 7)', () => {
     let gridResponse = await page.request.get('/api/team/grid')
     expect(gridResponse.status()).toBe(200)
     let gridData = await gridResponse.json()
-    let pendingUser = gridData.users.find((u: { email: string }) => u.email === testEmail)
+    const pendingUser = gridData.users.find((u: { email: string }) => u.email === testEmail)
 
     expect(pendingUser).toBeDefined()
     expect(pendingUser.isPending).toBe(true)

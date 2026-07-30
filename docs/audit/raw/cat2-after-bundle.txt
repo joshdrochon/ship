@@ -1,0 +1,14 @@
+total dist            3,465,762 B (3384.5 kB) across 353 files
+  .js                2,283,992 B (2230.5 kB)     312 files
+  .png               1,065,895 B (1040.9 kB)     31 files
+  .css               66,513 B (65.0 kB)          2 files
+  .ico               28,972 B (28.3 kB)          2 files
+  .svg               13,362 B (13.0 kB)          2 files
+
+gzip (JS+CSS)         735,555 B (718.3 kB)
+chunk count (JS)      312
+largest chunk         vendor-editor-cnFZDnyj.js
+                      476,475 B (465.3 kB) raw / 152,885 B (149.3 kB) gzip
+                      20.9% of all JS
+
+unused dependencies   ['@tanstack/query-sync-storage-persister']

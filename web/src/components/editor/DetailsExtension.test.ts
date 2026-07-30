@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { DetailsExtension } from './DetailsExtension';
+import { DetailsExtension, DetailsSummary, DetailsContent } from './DetailsExtension';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
+
+/**
+ * DetailsExtension declares `content: 'detailsSummary detailsContent'`, so it cannot
+ * build a ProseMirror schema on its own — the two child node types have to be
+ * registered alongside it. Editor.tsx:596-598 registers all three together; any test
+ * that constructs an Editor must do the same or schema parsing throws
+ * "No node type or group 'detailsSummary' found".
+ */
+const detailsExtensions = [DetailsExtension, DetailsSummary, DetailsContent];
 
 describe('DetailsExtension', () => {
   it('should create a valid TipTap extension', () => {
@@ -10,11 +19,16 @@ describe('DetailsExtension', () => {
     expect(extension.name).toBe('details');
   });
 
-  it('should be configured as a block node with content', () => {
+  it('should be configured as a block node with a summary and content child', () => {
     const extension = DetailsExtension;
     expect(extension.config.group).toBe('block');
-    expect(extension.config.content).toBe('block+');
+    expect(extension.config.content).toBe('detailsSummary detailsContent');
     expect(extension.config.defining).toBe(true);
+  });
+
+  it('should declare the two child node types its content expression requires', () => {
+    expect(DetailsSummary.name).toBe('detailsSummary');
+    expect(DetailsContent.name).toBe('detailsContent');
   });
 
   it('should have addAttributes function defined', () => {
@@ -55,7 +69,7 @@ describe('DetailsExtension', () => {
 
   it('should work in editor context', () => {
     const editor = new Editor({
-      extensions: [StarterKit, DetailsExtension],
+      extensions: [StarterKit, ...detailsExtensions],
       content: '<p>Test content</p>',
     });
 
@@ -67,7 +81,7 @@ describe('DetailsExtension', () => {
 
   it('should allow inserting details via command', () => {
     const editor = new Editor({
-      extensions: [StarterKit, DetailsExtension],
+      extensions: [StarterKit, ...detailsExtensions],
       content: '<p>Test content</p>',
     });
 

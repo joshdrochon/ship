@@ -1,0 +1,47 @@
+[
+{
+ "endpoint": "/api/team/grid",
+ "rate": 48.0,
+ "before": {
+  "p50": 10.44,
+  "p95": 16.1,
+  "p99": 20.51,
+  "max": 44.57,
+  "samples": 2160
+ },
+ "after": {
+  "p50": 8.07,
+  "p95": 13.15,
+  "p99": 17.06,
+  "max": 37.88,
+  "samples": 2161
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p95_pct": -18.3,
+ "delta_p50_pct": -22.7
+}
+,
+{
+ "endpoint": "/api/auth/me",
+ "rate": 48.0,
+ "before": {
+  "p50": 5.72,
+  "p95": 11.63,
+  "p99": 16.01,
+  "max": 28.21,
+  "samples": 2160
+ },
+ "after": {
+  "p50": 4.47,
+  "p95": 10.16,
+  "p99": 13.7,
+  "max": 26.16,
+  "samples": 2161
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p95_pct": -12.6,
+ "delta_p50_pct": -21.9
+}
+]

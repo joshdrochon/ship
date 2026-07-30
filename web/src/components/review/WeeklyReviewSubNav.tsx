@@ -32,10 +32,9 @@ export function WeeklyReviewSubNav({ reviewState }: WeeklyReviewSubNavProps) {
     setRatingInput(reviewState.currentRating ?? null);
   }, [open, reviewState.approvalComment, reviewState.currentRating]);
 
-  if (!reviewState.isReviewMode) {
-    return null;
-  }
-
+  // Hoisted above the isReviewMode early return: hooks are matched by call order, so
+  // leaving this below the return changes the hook count as soon as review mode
+  // toggles, and React throws "Rendered more hooks than during the previous render".
   const approveLabel = useMemo(() => {
     if (reviewState.isRetro) {
       return reviewState.approvalState === 'approved'
@@ -51,6 +50,10 @@ export function WeeklyReviewSubNav({ reviewState }: WeeklyReviewSubNavProps) {
         ? 'Re-approve Plan'
         : 'Approve Plan';
   }, [reviewState.approvalState, reviewState.isRetro]);
+
+  if (!reviewState.isReviewMode) {
+    return null;
+  }
 
   const approveDisabled =
     !reviewState.effectiveSprintId ||
@@ -131,7 +134,7 @@ export function WeeklyReviewSubNav({ reviewState }: WeeklyReviewSubNavProps) {
             <div className="flex items-center justify-between border-b border-border px-5 py-3">
               <Dialog.Title className="text-lg font-semibold text-foreground">Submit Review</Dialog.Title>
               <Dialog.Close className="rounded p-1 text-muted hover:bg-border hover:text-foreground" aria-label="Close">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg aria-hidden="true" focusable="false" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </Dialog.Close>

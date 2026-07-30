@@ -321,7 +321,7 @@ export function LoginPage() {
                 'flex items-center justify-center gap-2'
               )}
             >
-              <svg
+              <svg aria-hidden="true" focusable="false"
                 className="h-5 w-5"
                 viewBox="0 0 24 24"
                 fill="none"

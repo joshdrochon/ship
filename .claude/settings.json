@@ -1,0 +1,34 @@
+{
+  "$comment": [
+    "Committed hook wiring, so it travels to git worktrees and to the fork.",
+    "Personal preferences (model, theme, permissions) stay in the gitignored",
+    "settings.local.json — only project-wide guardrails belong here."
+  ],
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/verify-prd-citations.py\"",
+            "timeout": 20,
+            "statusMessage": "Verifying PRD citations"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/implementation-rules-check.py\"",
+            "timeout": 10,
+            "statusMessage": "Checking implementation rules"
+          }
+        ]
+      }
+    ]
+  }
+}

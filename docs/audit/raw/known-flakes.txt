@@ -1,0 +1,12 @@
+   3 e2e/my-week-stale-data.spec.ts:63:7 › My Week - stale data after editing plan/retro › retro edits are visible on /my-week after navigating back
+   2 e2e/status-overview-heatmap.spec.ts:69:7 › Status Overview Heatmap › displays split cells for plan/retro status
+   2 e2e/my-week-stale-data.spec.ts:28:7 › My Week - stale data after editing plan/retro › plan edits are visible on /my-week after navigating back
+   1 e2e/team-mode.spec.ts:408:9 › Team Mode (Phase 7) › Assignments View - Collapse/Expand › clicking collapsed header expands the group
+   1 e2e/status-overview-heatmap.spec.ts:88:7 › Status Overview Heatmap › clicking plan cell navigates to weekly plan document
+   1 e2e/project-weeks.spec.ts:178:7 › Project Weeks Tab › project link in Properties sidebar navigates back to project
+   1 e2e/programs.spec.ts:212:7 › Programs › program cards show emoji or initial badges
+   1 e2e/performance.spec.ts:366:7 › Performance - Many Images › many images do not crash the editor
+   1 e2e/mentions.spec.ts:374:7 › Mentions › should sync mentions between collaborators
+   1 e2e/inline-comments.spec.ts:118:7 › Inline Comments › canceling a comment removes the highlight
+   1 e2e/edge-cases.spec.ts:320:7 › Edge Cases › handles Unicode content (emoji, CJK characters)
+   1 e2e/drag-handle.spec.ts:300:9 › Drag Handle - Block Reordering › Content Preservation › drag preserves full paragraph content

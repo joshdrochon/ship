@@ -1,34 +1,70 @@
 /**
- * Extract hypothesis content from TipTap JSON document structure.
+ * Extract named sections out of a TipTap JSON document.
  *
- * Looks for H2 headings with text "Hypothesis" (case-insensitive)
- * and extracts the content between that heading and the next H2.
+ * A section is an H2 heading with a known title, plus every node between it and the next
+ * H2 (or the end of the document). Projects use "Hypothesis" and "Success Criteria";
+ * programs use "Vision" and "Goals".
  *
- * Returns the extracted text as a plain string, or null if no hypothesis found.
+ * The `documents.content` column holds whatever the editor last wrote, so the value handed
+ * to these functions is genuinely `unknown` — it can be null (Yjs-only documents), a doc
+ * from an older schema, or a node type that has since been removed. Everything below is
+ * therefore checked rather than asserted.
  */
 
+/**
+ * A TipTap node, validated only as far as the format guarantees: `type` is a string.
+ *
+ * `text`, `attrs` and `content` are left as `unknown` and narrowed at the point of use.
+ * Declaring them `string` / `TipTapNode[]` would be a claim about stored JSON that
+ * nothing checks — which is exactly what the `as TipTapDoc` assertions used to do.
+ */
 interface TipTapNode {
-  type: string;
-  content?: TipTapNode[];
-  text?: string;
-  attrs?: Record<string, unknown>;
+  readonly type: string;
+  readonly text?: unknown;
+  readonly attrs?: unknown;
+  readonly content?: unknown;
 }
 
-interface TipTapDoc {
-  type: 'doc';
-  content?: TipTapNode[];
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isTipTapNode(value: unknown): value is TipTapNode {
+  return isRecord(value) && typeof value.type === 'string';
+}
+
+/** Child nodes of a node, dropping anything that is not a node. */
+function childNodes(node: TipTapNode): TipTapNode[] {
+  return Array.isArray(node.content) ? node.content.filter(isTipTapNode) : [];
+}
+
+/** One of a node's `attrs`, or undefined when `attrs` is absent or not an object. */
+function attr(node: TipTapNode, name: string): unknown {
+  return isRecord(node.attrs) ? node.attrs[name] : undefined;
 }
 
 /**
- * Extract plain text from a TipTap node tree
+ * Top-level nodes of a TipTap document, or null if the value is not one.
+ *
+ * Replaces `content as TipTapDoc` followed by a `doc.type !== 'doc'` check: the same two
+ * conditions, but as a guard that produces a type the rest of the file can rely on.
  */
-function extractText(nodes: TipTapNode[]): string {
+function topLevelNodes(content: unknown): TipTapNode[] | null {
+  if (!isRecord(content)) return null;
+  if (content.type !== 'doc' || !Array.isArray(content.content)) return null;
+  return content.content.filter(isTipTapNode);
+}
+
+/**
+ * Extract plain text from a TipTap node tree.
+ */
+function extractText(nodes: readonly TipTapNode[]): string {
   let text = '';
   for (const node of nodes) {
-    if (node.type === 'text' && node.text) {
+    if (node.type === 'text' && typeof node.text === 'string' && node.text) {
       text += node.text;
-    } else if (node.content) {
-      text += extractText(node.content);
+    } else if (node.content !== undefined) {
+      text += extractText(childNodes(node));
     }
     // Add newlines after block elements
     if (['paragraph', 'heading', 'bulletList', 'orderedList', 'listItem', 'blockquote'].includes(node.type)) {
@@ -39,21 +75,39 @@ function extractText(nodes: TipTapNode[]): string {
 }
 
 /**
- * Check if a node is an H2 heading with "Hypothesis" text
- */
-function isHypothesisHeading(node: TipTapNode): boolean {
-  if (node.type !== 'heading') return false;
-  if (node.attrs?.level !== 2) return false;
-
-  const text = extractText(node.content || []).trim().toLowerCase();
-  return text === 'hypothesis';
-}
-
-/**
  * Check if a node is any H2 heading
  */
 function isH2Heading(node: TipTapNode): boolean {
-  return node.type === 'heading' && node.attrs?.level === 2;
+  return node.type === 'heading' && attr(node, 'level') === 2;
+}
+
+/** Heading text, trimmed and lowercased, for comparison against a section title. */
+function headingText(node: TipTapNode): string {
+  return extractText(childNodes(node)).trim().toLowerCase();
+}
+
+/**
+ * Text of the section introduced by the first H2 whose text is `title`.
+ *
+ * Runs from the node after the heading up to the next H2, or the end of the document.
+ * Returns null when the heading is absent or the section is empty.
+ */
+function extractSection(nodes: readonly TipTapNode[], title: string): string | null {
+  const start = nodes.findIndex((node) => isH2Heading(node) && headingText(node) === title);
+  if (start === -1) return null;
+
+  const afterHeading = nodes.slice(start + 1);
+  const nextH2 = afterHeading.findIndex(isH2Heading);
+  const sectionNodes = nextH2 === -1 ? afterHeading : afterHeading.slice(0, nextH2);
+  if (sectionNodes.length === 0) return null;
+
+  return extractText(sectionNodes).trim() || null;
+}
+
+/** Parse the document, then extract one named section from it. */
+function extractNamedSection(content: unknown, title: string): string | null {
+  const nodes = topLevelNodes(content);
+  return nodes === null ? null : extractSection(nodes, title);
 }
 
 /**
@@ -67,49 +121,19 @@ function isH2Heading(node: TipTapNode): boolean {
  * @returns Extracted hypothesis text, or null if no hypothesis section found
  */
 export function extractHypothesisFromContent(content: unknown): string | null {
-  if (!content || typeof content !== 'object') return null;
-
-  const doc = content as TipTapDoc;
-  if (doc.type !== 'doc' || !Array.isArray(doc.content)) return null;
-
-  const nodes = doc.content;
+  const nodes = topLevelNodes(content);
+  if (nodes === null) return null;
 
   // First, look for hypothesisBlock nodes (preferred)
   for (const node of nodes) {
-    if (node.type === 'hypothesisBlock' && node.content) {
-      const text = extractText(node.content).trim();
+    if (node.type === 'hypothesisBlock' && node.content !== undefined) {
+      const text = extractText(childNodes(node)).trim();
       if (text) return text;
     }
   }
 
   // Fallback: look for H2 "Hypothesis" heading (legacy format)
-  let hypothesisStartIndex = -1;
-
-  // Find the Hypothesis H2 heading
-  for (let i = 0; i < nodes.length; i++) {
-    if (isHypothesisHeading(nodes[i]!)) {
-      hypothesisStartIndex = i;
-      break;
-    }
-  }
-
-  if (hypothesisStartIndex === -1) return null;
-
-  // Find the end (next H2 or end of document)
-  let hypothesisEndIndex = nodes.length;
-  for (let i = hypothesisStartIndex + 1; i < nodes.length; i++) {
-    if (isH2Heading(nodes[i]!)) {
-      hypothesisEndIndex = i;
-      break;
-    }
-  }
-
-  // Extract content between heading and end
-  const contentNodes = nodes.slice(hypothesisStartIndex + 1, hypothesisEndIndex);
-  if (contentNodes.length === 0) return null;
-
-  const text = extractText(contentNodes).trim();
-  return text || null;
+  return extractSection(nodes, 'hypothesis');
 }
 
 /**
@@ -122,43 +146,7 @@ export function extractHypothesisFromContent(content: unknown): string | null {
  * @returns Extracted success criteria text, or null if no section found
  */
 export function extractSuccessCriteriaFromContent(content: unknown): string | null {
-  if (!content || typeof content !== 'object') return null;
-
-  const doc = content as TipTapDoc;
-  if (doc.type !== 'doc' || !Array.isArray(doc.content)) return null;
-
-  const nodes = doc.content;
-  let startIndex = -1;
-
-  // Find the Success Criteria H2 heading (case-insensitive)
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i]!;
-    if (node.type === 'heading' && node.attrs?.level === 2) {
-      const text = extractText(node.content || []).trim().toLowerCase();
-      if (text === 'success criteria') {
-        startIndex = i;
-        break;
-      }
-    }
-  }
-
-  if (startIndex === -1) return null;
-
-  // Find the end (next H2 or end of document)
-  let endIndex = nodes.length;
-  for (let i = startIndex + 1; i < nodes.length; i++) {
-    if (isH2Heading(nodes[i]!)) {
-      endIndex = i;
-      break;
-    }
-  }
-
-  // Extract content between heading and end
-  const contentNodes = nodes.slice(startIndex + 1, endIndex);
-  if (contentNodes.length === 0) return null;
-
-  const text = extractText(contentNodes).trim();
-  return text || null;
+  return extractNamedSection(content, 'success criteria');
 }
 
 /**
@@ -172,43 +160,7 @@ export function extractSuccessCriteriaFromContent(content: unknown): string | nu
  * @returns Extracted vision text, or null if no section found
  */
 export function extractVisionFromContent(content: unknown): string | null {
-  if (!content || typeof content !== 'object') return null;
-
-  const doc = content as TipTapDoc;
-  if (doc.type !== 'doc' || !Array.isArray(doc.content)) return null;
-
-  const nodes = doc.content;
-  let startIndex = -1;
-
-  // Find the Vision H2 heading (case-insensitive)
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i]!;
-    if (node.type === 'heading' && node.attrs?.level === 2) {
-      const text = extractText(node.content || []).trim().toLowerCase();
-      if (text === 'vision') {
-        startIndex = i;
-        break;
-      }
-    }
-  }
-
-  if (startIndex === -1) return null;
-
-  // Find the end (next H2 or end of document)
-  let endIndex = nodes.length;
-  for (let i = startIndex + 1; i < nodes.length; i++) {
-    if (isH2Heading(nodes[i]!)) {
-      endIndex = i;
-      break;
-    }
-  }
-
-  // Extract content between heading and end
-  const contentNodes = nodes.slice(startIndex + 1, endIndex);
-  if (contentNodes.length === 0) return null;
-
-  const text = extractText(contentNodes).trim();
-  return text || null;
+  return extractNamedSection(content, 'vision');
 }
 
 /**
@@ -222,43 +174,7 @@ export function extractVisionFromContent(content: unknown): string | null {
  * @returns Extracted goals text, or null if no section found
  */
 export function extractGoalsFromContent(content: unknown): string | null {
-  if (!content || typeof content !== 'object') return null;
-
-  const doc = content as TipTapDoc;
-  if (doc.type !== 'doc' || !Array.isArray(doc.content)) return null;
-
-  const nodes = doc.content;
-  let startIndex = -1;
-
-  // Find the Goals H2 heading (case-insensitive)
-  for (let i = 0; i < nodes.length; i++) {
-    const node = nodes[i]!;
-    if (node.type === 'heading' && node.attrs?.level === 2) {
-      const text = extractText(node.content || []).trim().toLowerCase();
-      if (text === 'goals') {
-        startIndex = i;
-        break;
-      }
-    }
-  }
-
-  if (startIndex === -1) return null;
-
-  // Find the end (next H2 or end of document)
-  let endIndex = nodes.length;
-  for (let i = startIndex + 1; i < nodes.length; i++) {
-    if (isH2Heading(nodes[i]!)) {
-      endIndex = i;
-      break;
-    }
-  }
-
-  // Extract content between heading and end
-  const contentNodes = nodes.slice(startIndex + 1, endIndex);
-  if (contentNodes.length === 0) return null;
-
-  const text = extractText(contentNodes).trim();
-  return text || null;
+  return extractNamedSection(content, 'goals');
 }
 
 /**

@@ -81,9 +81,20 @@ const loginLimiter = rateLimit({
 });
 
 // General API rate limit (100 req/min in prod, 1000 in dev)
+//
+// API_RATE_LIMIT_MAX overrides the ceiling. This exists because the limit binds long
+// before the process does -- at the default dev ceiling of 1000/min the server is
+// throttled at 16.7 req/s, so a load generator measures the limiter rather than the
+// endpoint and latency comes out flat across every concurrency level (audit W3-1/W3-3).
+// Benchmarks must raise it identically on both sides of a before/after pair; see
+// docs/audit/raw/cat3-lane3-*.md. It is deliberately opt-in: unset, behaviour is
+// byte-for-byte what it was.
+const rateLimitMaxOverride = Number.parseInt(process.env.API_RATE_LIMIT_MAX ?? '', 10);
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: isTestEnv ? 10000 : isDevEnv ? 1000 : 100, // High limit for tests/dev
+  max: Number.isFinite(rateLimitMaxOverride) && rateLimitMaxOverride > 0
+    ? rateLimitMaxOverride
+    : isTestEnv ? 10000 : isDevEnv ? 1000 : 100, // High limit for tests/dev
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please slow down.' },

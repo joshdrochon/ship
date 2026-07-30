@@ -1,0 +1,29 @@
+{
+  "idle_flush_ms": 2026,
+  "idle_flush_note": "last keystroke -> durable column write",
+  "continuous": {
+    "typed_for_ms": 12000,
+    "keystrokes": 78,
+    "samples_taken": 19,
+    "samples_showing_typed_text_during_typing": 0,
+    "column_stale_for_entire_typing_session": true,
+    "flush_after_typing_stopped_ms": 1862,
+    "exposure_window_ms": 13862
+  },
+  "tab_close": {
+    "closed_after_ms": 300,
+    "durable_after_close_ms": 33,
+    "survived": true
+  },
+  "residual_risk": {
+    "what_is_exposed": "updates held only in the collaboration server's in-memory Y.Doc",
+    "lost_only_if": "the API process dies before the debounced write",
+    "browser_tab_close": "covered by immediate flush on last disconnect"
+  },
+  "meta": {
+    "base": "http://localhost:5175",
+    "doc_id": "c32650cb-fdd3-4610-94ac-825824373631",
+    "debounce_ms_in_code": 2000,
+    "measured_at": "2026-07-30T17:57:52.947Z"
+  }
+}

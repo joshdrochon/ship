@@ -86,7 +86,7 @@ export function InlineWeekSelector({
         disabled={disabled}
         className={cn(
           'text-left text-sm w-full px-0 py-0 rounded hover:bg-border/30 transition-colors -mx-1 px-1',
-          value ? 'text-muted' : 'text-muted/60',
+          value ? 'text-muted' : 'text-muted',
           disabled && 'cursor-not-allowed opacity-50',
           !disabled && 'cursor-pointer'
         )}

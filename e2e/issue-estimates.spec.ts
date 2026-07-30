@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/isolated-env'
+import { expectDocumentTitleSaved } from './fixtures/test-helpers'
 
 /**
  * Issue Estimates & Status Tracking - E2E Tests
@@ -83,7 +84,7 @@ test.describe('Issue Estimates', () => {
 
       // Set title
       await page.getByPlaceholder('Untitled').fill('Backlog Issue No Estimate')
-      await page.waitForResponse(resp => resp.url().includes('/api/documents/'))
+      await expectDocumentTitleSaved(page, 'Backlog Issue No Estimate')
 
       // Should be able to save without estimate (backlog is fine)
       // No error should appear
@@ -97,7 +98,7 @@ test.describe('Issue Estimates', () => {
 
       // Set title and program
       await page.getByPlaceholder('Untitled').fill('Sprint Issue Needs Estimate')
-      await page.waitForResponse(resp => resp.url().includes('/api/documents/'))
+      await expectDocumentTitleSaved(page, 'Sprint Issue Needs Estimate')
 
       // Select a program first - wait for program selector to appear
       const addProgram = page.getByText('Add program...')
@@ -140,7 +141,7 @@ test.describe('Issue Estimates', () => {
 
       // Set title
       await page.getByPlaceholder('Untitled').fill('Sprint Issue With Estimate')
-      await page.waitForResponse(resp => resp.url().includes('/api/documents/'))
+      await expectDocumentTitleSaved(page, 'Sprint Issue With Estimate')
 
       // Set estimate first
       const estimateInput = page.locator('input[type="number"]').or(page.getByPlaceholder(/estimate|hours/i))

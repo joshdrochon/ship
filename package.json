@@ -22,7 +22,7 @@
     "build:api": "pnpm run build:shared && pnpm --filter @ship/api build",
     "build:web": "pnpm run build:shared && pnpm --filter @ship/web build",
     "type-check": "pnpm --recursive run type-check",
-    "lint": "pnpm --recursive run lint",
+    "lint": "eslint .",
     "clean": "pnpm --recursive run clean && rm -rf node_modules",
     "test": "pnpm --filter @ship/api test",
     "test:e2e": "playwright test",
@@ -32,22 +32,38 @@
     "db:migrate": "pnpm --filter @ship/api db:migrate",
     "db:orphan-check": "pnpm --filter @ship/api db:orphan-check",
     "prepare": "husky",
-    "postinstall": "git config merge.ours.driver true && (command -v comply >/dev/null 2>&1 || echo '\\n⚠️  comply CLI not installed - pre-commit hooks require it\\n   Install with: pip install comply-cli\\n')"
+    "postinstall": "git config merge.ours.driver true && (command -v comply >/dev/null 2>&1 || echo '\\n\u26a0\ufe0f  comply CLI not installed - pre-commit hooks require it\\n   Install with: pip install comply-cli\\n')",
+    "lint:fix": "eslint . --fix",
+    "test:all": "pnpm --recursive run test",
+    "test:coverage": "pnpm --recursive run test:coverage",
+    "licenses": "pnpm licenses list --json > licenses.json && node scripts/license-inventory.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.0",
+    "@eslint/js": "^10.0.1",
     "@guidepup/guidepup": "^0.29.2",
     "@guidepup/virtual-screen-reader": "^0.32.1",
     "@playwright/test": "^1.57.0",
     "@testcontainers/postgresql": "^11.11.0",
     "@types/supertest": "^6.0.3",
-    "@vitest/ui": "^4.0.16",
+    "@vitest/ui": "^4.1.10",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "get-port": "^7.1.0",
+    "globals": "^17.8.0",
     "husky": "^9.1.7",
     "prettier": "^3.4.2",
     "supertest": "^7.1.4",
     "testcontainers": "^11.11.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.0.16"
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^4.1.10"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-xml-parser": ">=5.3.5",
+      "protobufjs": ">=7.5.5",
+      "vitest": ">=4.1.0"
+    }
   }
 }

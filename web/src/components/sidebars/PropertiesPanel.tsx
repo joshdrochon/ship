@@ -320,7 +320,7 @@ function WeeklyDocumentSidebar({
               <div className="mb-2">
                 {approvalState === 'approved' ? (
                   <span className="inline-flex items-center gap-1 rounded bg-green-600/20 px-2 py-1 text-xs font-medium text-green-400">
-                    <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" /></svg>
+                    <svg aria-hidden="true" focusable="false" className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5" /></svg>
                     Approved
                   </span>
                 ) : approvalState === 'changed_since_approved' ? (
