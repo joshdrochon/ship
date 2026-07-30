@@ -112,7 +112,10 @@ describe('decorative icons are hidden from assistive technology (W7-13)', () => 
     for (const file of sourceFiles()) {
       const src = readFileSync(file, 'utf8');
       for (const m of src.matchAll(/<svg(?=[\s/>])/g)) {
-        let i = m.index! + 4;
+        // matchAll always sets index on a successful match; bind it once so the
+        // three uses below do not each need a non-null assertion.
+        const start = m.index ?? 0;
+        let i = start + 4;
         let depth = 0;
         let quote: string | null = null;
         while (i < src.length) {
@@ -125,10 +128,10 @@ describe('decorative icons are hidden from assistive technology (W7-13)', () => 
           else if (c === '>' && depth === 0) break;
           i++;
         }
-        const tag = src.slice(m.index!, i);
+        const tag = src.slice(start, i);
         // iconProps is a shared object literal that already carries aria-hidden.
         if (!tag.includes('aria-hidden') && !tag.includes('iconProps')) {
-          const line = src.slice(0, m.index!).split('\n').length;
+          const line = src.slice(0, start).split('\n').length;
           offenders.push(`${file.replace(WEB_SRC, 'web/src')}:${line}`);
         }
       }
