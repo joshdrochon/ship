@@ -1,0 +1,113 @@
+{
+  "summary": {
+    "label": "before",
+    "routes_tested": 6,
+    "routes_where_the_throw_rendered": 6,
+    "blank_white_pages": 6,
+    "with_recovery_path": 0
+  },
+  "results": [
+    {
+      "route": "/feedback/00000000-0000-0000-0000-000000000000",
+      "name": "feedback",
+      "as": "anon",
+      "reached": true,
+      "landedOn": "/feedback/00000000-0000-0000-0000-000000000000",
+      "blank_screen": true,
+      "root_text_length": 0,
+      "text_sample": "",
+      "recovery_affordances": [],
+      "has_recovery_path": false,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/login",
+      "name": "login",
+      "as": "anon",
+      "reached": true,
+      "landedOn": "/login",
+      "blank_screen": true,
+      "root_text_length": 0,
+      "text_sample": "",
+      "recovery_affordances": [],
+      "has_recovery_path": false,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/setup",
+      "name": "setup",
+      "as": "anon",
+      "reached": true,
+      "landedOn": "/setup",
+      "blank_screen": true,
+      "root_text_length": 0,
+      "text_sample": "",
+      "recovery_affordances": [],
+      "has_recovery_path": false,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/invite/test-token",
+      "name": "invite",
+      "as": "anon",
+      "reached": true,
+      "landedOn": "/invite/test-token",
+      "blank_screen": true,
+      "root_text_length": 0,
+      "text_sample": "",
+      "recovery_affordances": [],
+      "has_recovery_path": false,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/admin",
+      "name": "admin",
+      "as": "auth",
+      "reached": true,
+      "landedOn": "/admin",
+      "blank_screen": true,
+      "root_text_length": 0,
+      "text_sample": "",
+      "recovery_affordances": [],
+      "has_recovery_path": false,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/admin/workspaces/00000000-0000-0000-0000-000000000000",
+      "name": "admin-workspace",
+      "as": "auth",
+      "reached": true,
+      "landedOn": "/admin/workspaces/00000000-0000-0000-0000-000000000000",
+      "blank_screen": true,
+      "root_text_length": 0,
+      "text_sample": "",
+      "recovery_affordances": [],
+      "has_recovery_path": false,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    }
+  ]
+}

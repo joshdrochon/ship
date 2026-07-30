@@ -1,0 +1,45 @@
+{
+  "label": "after",
+  "doc": "2da1e8ad-4e64-43dd-8daa-23dfa8c62adc",
+  "phase1_audit_marker": {
+    "marker": "OFFLINE-EDIT-1785375497593",
+    "status_before_offline": "Saved",
+    "while_offline": {
+      "badge": "Offline",
+      "pageWide": true
+    },
+    "after_reconnect": {
+      "badge": "Saved",
+      "pageWide": true
+    },
+    "badge_recovered_after_ms": 3,
+    "page_wide_probe_recovered_after_ms": null,
+    "audit_probe_says_recovered": false,
+    "badge_says_recovered": true,
+    "offline_edit_survived": true
+  },
+  "phase1_neutral_marker": {
+    "marker": "EDIT-1785375541848",
+    "status_before_offline": "Saved",
+    "while_offline": {
+      "badge": "Offline",
+      "pageWide": true
+    },
+    "after_reconnect": {
+      "badge": "Saved",
+      "pageWide": false
+    },
+    "badge_recovered_after_ms": 4,
+    "page_wide_probe_recovered_after_ms": 4,
+    "audit_probe_says_recovered": true,
+    "badge_says_recovered": true,
+    "offline_edit_survived": true
+  },
+  "phase2_severed_socket": {
+    "badge_while_connected": "Saved",
+    "badge_while_severed": "Offline",
+    "edit_reached_server": false,
+    "badge_claims_saved_while_not_saving": false,
+    "severed_for_ms": 12000
+  }
+}

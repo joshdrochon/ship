@@ -9,10 +9,11 @@
  * distinction matters: a single session would share the same Yjs client id and
  * the same auth row, and would not exercise the merge path at all.
  *
- * Ship stores a document's two editable fields by two different mechanisms, so
- * both are tested separately:
+ * Ship's two editable fields are tested separately:
  *   - body  — TipTap bound to a Yjs doc over the collaboration WebSocket
- *   - title — plain React state (Editor.tsx:187) saved by a debounced PATCH
+ *   - title — a Y.Text in the same Y.Doc as of the W6-9 fix. It was plain React
+ *             state (Editor.tsx:187) saved by a debounced PATCH, which is what
+ *             W6-9 measured: the last PATCH to land overwrote the whole column.
  *
  * Requires the app running: web :5173, api :3000.
  *
@@ -179,12 +180,30 @@ async function main() {
     ).catch(() => null);
   out.awareness = { A_sees: await peers(pageA), B_sees: await peers(pageB) };
 
-  // ------------------------------------------------- title (React state + PATCH)
+  // ------------------------------------------------- title
   // Runs first, on a freshly reset title, so nothing earlier in this script can
   // have dirtied the field under test.
+  //
+  // > **Verdict corrected after the W6-9 fix landed, recorded because it changes
+  // > how the number is read.** The first revision typed "TitleFromA"/"TitleFromB"
+  // > and asked whether the server string *contained* each run. That is the same
+  // > mistake the body test below already documents: once two writers merge
+  // > properly the two streams INTERLEAVE, so the contiguous run is gone even
+  // > though every character survived — the corrected title now reads
+  // > "…EdiTTiittlleeFFrroommBAt Test", which fails a `contains` check while
+  // > losing nothing. A contains-check therefore reports data loss on correct
+  // > behaviour. The verdict is now the body test's criterion, applied to the
+  // > title: count the characters each user contributed and require both counts
+  // > to survive. The marks are single repeated characters so counting is exact,
+  // > and the baseline "Concurrent Edit Test" contains no A or B.
   {
-    const markA = 'TitleFromA';
-    const markB = 'TitleFromB';
+    const markA = 'AAAAAAAA';
+    const markB = 'BBBBBBBB';
+    const count = (s, ch) => ((s ?? '').match(new RegExp(ch, 'g')) ?? []).length;
+    const preTitle = (await readServer(pageA)).title ?? '';
+    const preA = count(preTitle, 'A');
+    const preB = count(preTitle, 'B');
+
     await pageA.locator(TITLE_SEL).click().catch(() => {});
     await pageB.locator(TITLE_SEL).click().catch(() => {});
     await sleep(300);
@@ -195,15 +214,22 @@ async function main() {
     const seenB = (await readTitle(pageB)) ?? '';
     const server = await readServer(pageA);
     const st = server.title ?? '';
+    const gainedA = count(st, 'A') - preA;
+    const gainedB = count(st, 'B') - preB;
     out.tests.push({
-      field: 'title', mechanism: 'React useState + debounced PATCH (Editor.tsx:187)',
+      field: 'title', mechanism: 'Yjs Y.Text in the editor Y.Doc (useCollaborativeTitle)',
       typedA: markA, typedB: markB,
       baseline: BASELINE, baselineHeld: out.resetHeld,
       A_sees: seenA, B_sees: seenB, server: st,
       clients_converged: seenA === seenB,
-      server_has_A: st.includes(markA), server_has_B: st.includes(markB),
-      both_survived: st.includes(markA) && st.includes(markB),
-      lost_edit_of: [!st.includes(markA) ? 'A' : null, !st.includes(markB) ? 'B' : null].filter(Boolean),
+      client_matches_server: seenA === st,
+      A_chars_typed: markA.length, A_chars_gained_on_server: gainedA,
+      B_chars_typed: markB.length, B_chars_gained_on_server: gainedB,
+      server_has_A: gainedA >= markA.length, server_has_B: gainedB >= markB.length,
+      both_survived: gainedA >= markA.length && gainedB >= markB.length,
+      lost_edit_of: [gainedA < markA.length ? 'A' : null, gainedB < markB.length ? 'B' : null].filter(Boolean),
+      interleaved: /(AB|BA){3,}/.test(st),
+      baseline_text_intact: st.includes(BASELINE.slice(0, 10)),
       conflict_indicator_shown:
         (await pageA.getByText(/conflict|overwritten|out of date|someone else/i).count().catch(() => 0)) > 0,
     });
