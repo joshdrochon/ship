@@ -1,0 +1,93 @@
+[
+{
+ "endpoint": "/api/documents",
+ "rate": 24.0,
+ "before": {
+  "p50": 13.08,
+  "p95": 23.28,
+  "p99": 28.7,
+  "max": 42.67,
+  "samples": 2161
+ },
+ "after": {
+  "p50": 12.21,
+  "p95": 22.67,
+  "p99": 27.39,
+  "max": 39.55,
+  "samples": 2161
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p95_pct": -2.6,
+ "delta_p50_pct": -6.7
+}
+,
+{
+ "endpoint": "/api/projects",
+ "rate": 24.0,
+ "before": {
+  "p50": 8.44,
+  "p95": 14.38,
+  "p99": 18.94,
+  "max": 26.91,
+  "samples": 2161
+ },
+ "after": {
+  "p50": 7.14,
+  "p95": 13.14,
+  "p99": 17.47,
+  "max": 23.62,
+  "samples": 2161
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p95_pct": -8.6,
+ "delta_p50_pct": -15.4
+}
+,
+{
+ "endpoint": "/api/team/grid",
+ "rate": 24.0,
+ "before": {
+  "p50": 8.65,
+  "p95": 21.41,
+  "p99": 35.25,
+  "max": 79.33,
+  "samples": 2161
+ },
+ "after": {
+  "p50": 5.65,
+  "p95": 14.9,
+  "p99": 26.2,
+  "max": 70.98,
+  "samples": 2160
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p95_pct": -30.4,
+ "delta_p50_pct": -34.7
+}
+,
+{
+ "endpoint": "/api/auth/me",
+ "rate": 24.0,
+ "before": {
+  "p50": 5.25,
+  "p95": 16.58,
+  "p99": 32.21,
+  "max": 98.85,
+  "samples": 2160
+ },
+ "after": {
+  "p50": 3.99,
+  "p95": 13.24,
+  "p99": 26.41,
+  "max": 98.06,
+  "samples": 2161
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p95_pct": -20.1,
+ "delta_p50_pct": -24.0
+}
+]

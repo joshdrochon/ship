@@ -46,11 +46,10 @@ auth () { # auth <base-url> -> cookie header value
 echo "authenticating against both servers..." >&2
 COOKIE_A=$(auth "$A")
 COOKIE_B=$(auth "$B")
-for pair in "A:$A:$COOKIE_A" "B:$B:$COOKIE_B"; do
-  side="${pair%%:*}"; rest="${pair#*:}"; base="${rest%%:*}"
-  code=$(curl -s -H "Cookie: ${rest#*:}" -o /dev/null -w '%{http_code}' "$base/api/documents")
-  [ "$code" = "200" ] || { echo "auth failed on side $side ($base): $code" >&2; exit 1; }
-done
+CODE_A=$(curl -s -H "Cookie: $COOKIE_A" -o /dev/null -w '%{http_code}' "$A/api/documents")
+CODE_B=$(curl -s -H "Cookie: $COOKIE_B" -o /dev/null -w '%{http_code}' "$B/api/documents")
+[ "$CODE_A" = "200" ] || { echo "auth failed on side A ($A): $CODE_A" >&2; exit 1; }
+[ "$CODE_B" = "200" ] || { echo "auth failed on side B ($B): $CODE_B" >&2; exit 1; }
 echo "authenticated on both." >&2
 
 cat > /tmp/k6-paired.js <<'K6'
