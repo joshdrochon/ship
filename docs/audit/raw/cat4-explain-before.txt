@@ -1,91 +1,94 @@
 # Category 4 EXPLAIN ANALYZE capture
-# database: ship_lane_4   workspace: da8e28fa-3378-4012-b3e4-a9aad001ff3a   user: 08977919-c5da-45e0-8490-3266e2f7495d
-# generated: 2026-07-30T18:01:40Z
+# database: ship_lane_4   workspace: 4c09719c-f82c-49a5-8438-f19b155ee212   user: 068d0ebf-6961-4fe8-902f-53e21c89be99
+# generated: 2026-07-30T20:54:37Z
 # rows: 600 documents
 
 === A. auth middleware: session lookup (runs once per authenticated request) ===
-                                                           QUERY PLAN                                                            
----------------------------------------------------------------------------------------------------------------------------------
- Nested Loop  (cost=0.29..16.39 rows=1 width=89) (actual time=0.007..0.008 rows=1 loops=1)
-   Buffers: shared hit=4
-   ->  Index Scan using sessions_pkey on sessions s  (cost=0.15..8.17 rows=1 width=88) (actual time=0.003..0.003 rows=1 loops=1)
-         Index Cond: (id = 'cat4-explain-fixture'::text)
-         Buffers: shared hit=2
-   ->  Index Scan using users_pkey on users u  (cost=0.14..8.16 rows=1 width=17) (actual time=0.002..0.002 rows=1 loops=1)
-         Index Cond: (id = s.user_id)
-         Buffers: shared hit=2
+                                                    QUERY PLAN                                                    
+------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=1.36..2.68 rows=1 width=122) (actual time=0.022..0.025 rows=1 loops=1)
+   Hash Cond: (u.id = s.user_id)
+   Buffers: shared hit=2
+   ->  Seq Scan on users u  (cost=0.00..1.24 rows=24 width=17) (actual time=0.003..0.005 rows=25 loops=1)
+         Buffers: shared hit=1
+   ->  Hash  (cost=1.35..1.35 rows=1 width=121) (actual time=0.013..0.013 rows=1 loops=1)
+         Buckets: 1024  Batches: 1  Memory Usage: 9kB
+         Buffers: shared hit=1
+         ->  Seq Scan on sessions s  (cost=0.00..1.35 rows=1 width=121) (actual time=0.010..0.010 rows=1 loops=1)
+               Filter: (id = 'cat4-explain-fixture'::text)
+               Rows Removed by Filter: 1
+               Buffers: shared hit=1
  Planning:
-   Buffers: shared hit=162
- Planning Time: 0.244 ms
- Execution Time: 0.015 ms
-(12 rows)
+   Buffers: shared hit=176
+ Planning Time: 0.277 ms
+ Execution Time: 0.035 ms
+(16 rows)
 
 
 === B. auth middleware: last_activity write (the statement Lane 4 throttles) ===
-                                                          QUERY PLAN                                                           
--------------------------------------------------------------------------------------------------------------------------------
- Update on sessions  (cost=0.15..8.17 rows=0 width=0) (actual time=0.027..0.028 rows=0 loops=1)
-   Buffers: shared hit=5
-   ->  Index Scan using sessions_pkey on sessions  (cost=0.15..8.17 rows=1 width=14) (actual time=0.008..0.008 rows=1 loops=1)
-         Index Cond: (id = 'cat4-explain-fixture'::text)
-         Buffers: shared hit=2
- Planning Time: 0.041 ms
- Trigger for constraint sessions_user_id_fkey: time=0.044 calls=1
- Trigger for constraint sessions_workspace_id_fkey: time=0.015 calls=1
- Execution Time: 0.140 ms
-(9 rows)
+                                               QUERY PLAN                                                
+---------------------------------------------------------------------------------------------------------
+ Update on sessions  (cost=0.00..1.35 rows=0 width=0) (actual time=0.013..0.013 rows=0 loops=1)
+   Buffers: shared hit=4
+   ->  Seq Scan on sessions  (cost=0.00..1.35 rows=1 width=14) (actual time=0.002..0.002 rows=1 loops=1)
+         Filter: (id = 'cat4-explain-fixture'::text)
+         Rows Removed by Filter: 1
+         Buffers: shared hit=1
+ Planning Time: 0.014 ms
+ Trigger for constraint sessions_user_id_fkey: time=0.028 calls=1
+ Trigger for constraint sessions_workspace_id_fkey: time=0.012 calls=1
+ Execution Time: 0.082 ms
+(10 rows)
 
 
 === C. auth middleware: workspace membership check ===
-                                                                              QUERY PLAN                                                                               
------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Index Scan using workspace_memberships_workspace_id_user_id_key on workspace_memberships  (cost=0.15..8.17 rows=1 width=16) (actual time=0.006..0.007 rows=1 loops=1)
-   Index Cond: ((workspace_id = 'da8e28fa-3378-4012-b3e4-a9aad001ff3a'::uuid) AND (user_id = '08977919-c5da-45e0-8490-3266e2f7495d'::uuid))
-   Buffers: shared hit=2
+                                                               QUERY PLAN                                                               
+----------------------------------------------------------------------------------------------------------------------------------------
+ Seq Scan on workspace_memberships  (cost=0.00..1.98 rows=1 width=16) (actual time=0.005..0.006 rows=1 loops=1)
+   Filter: ((workspace_id = '4c09719c-f82c-49a5-8438-f19b155ee212'::uuid) AND (user_id = '068d0ebf-6961-4fe8-902f-53e21c89be99'::uuid))
+   Rows Removed by Filter: 24
+   Buffers: shared hit=1
  Planning:
    Buffers: shared hit=68
- Planning Time: 0.091 ms
- Execution Time: 0.010 ms
-(7 rows)
+ Planning Time: 0.139 ms
+ Execution Time: 0.013 ms
+(8 rows)
 
 
 === D. GET /api/documents list query (the index theory from W4-2/W4-3) ===
-                                                                                                                QUERY PLAN                                                                                                                
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
- Sort  (cost=101.17..101.59 rows=170 width=321) (actual time=0.222..0.229 rows=170 loops=1)
+                                                                                                     QUERY PLAN                                                                                                      
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Sort  (cost=4.19..4.19 rows=1 width=321) (actual time=0.371..0.378 rows=170 loops=1)
    Sort Key: "position", created_at DESC
    Sort Method: quicksort  Memory: 76kB
-   Buffers: shared hit=54
-   ->  Bitmap Heap Scan on documents  (cost=5.47..94.87 rows=170 width=321) (actual time=0.017..0.123 rows=170 loops=1)
-         Recheck Cond: (document_type = 'issue'::document_type)
-         Filter: ((archived_at IS NULL) AND (deleted_at IS NULL) AND (workspace_id = 'da8e28fa-3378-4012-b3e4-a9aad001ff3a'::uuid) AND ((visibility = 'workspace'::text) OR (created_by = '08977919-c5da-45e0-8490-3266e2f7495d'::uuid)))
-         Heap Blocks: exact=47
-         Buffers: shared hit=48
-         ->  Bitmap Index Scan on idx_documents_document_type  (cost=0.00..5.43 rows=170 width=0) (actual time=0.010..0.010 rows=170 loops=1)
-               Index Cond: (document_type = 'issue'::document_type)
-               Buffers: shared hit=1
+   Buffers: shared hit=94
+   ->  Index Scan using idx_documents_workspace_id on documents  (cost=0.15..4.18 rows=1 width=321) (actual time=0.010..0.266 rows=170 loops=1)
+         Index Cond: (workspace_id = '4c09719c-f82c-49a5-8438-f19b155ee212'::uuid)
+         Filter: ((archived_at IS NULL) AND (deleted_at IS NULL) AND (document_type = 'issue'::document_type) AND ((visibility = 'workspace'::text) OR (created_by = '068d0ebf-6961-4fe8-902f-53e21c89be99'::uuid)))
+         Rows Removed by Filter: 430
+         Buffers: shared hit=88
  Planning:
-   Buffers: shared hit=289
- Planning Time: 0.397 ms
- Execution Time: 0.245 ms
-(16 rows)
+   Buffers: shared hit=331
+ Planning Time: 0.393 ms
+ Execution Time: 0.392 ms
+(13 rows)
 
 
 === E. index usage on documents (which index the planner actually reaches for) ===
             indexrelname             | idx_scan | idx_tup_read 
 -------------------------------------+----------+--------------
- documents_pkey                      |     2376 |         2376
- idx_documents_document_type         |      339 |        10819
- idx_documents_person_user_id        |       40 |           32
- idx_documents_active                |        5 |          252
- idx_documents_parent_id             |        2 |            0
- idx_documents_archived_at           |        0 |            0
- idx_documents_deleted_at            |        0 |            0
- idx_documents_converted_to          |        0 |            0
- idx_documents_converted_from        |        0 |            0
- idx_documents_workspace_id          |        0 |            0
+ documents_pkey                      |    11448 |        11874
+ idx_documents_workspace_id          |     2830 |       198460
+ idx_documents_parent_id             |     1176 |          226
+ idx_documents_converted_from        |     1096 |           24
+ idx_documents_converted_to          |     1096 |            0
+ idx_documents_document_type         |      579 |        20296
+ idx_documents_visibility_created_by |      136 |         1276
+ idx_documents_person_user_id        |       68 |           76
+ idx_documents_active                |       18 |          926
  idx_documents_properties            |        0 |            0
  idx_documents_visibility            |        0 |            0
- idx_documents_visibility_created_by |        0 |            0
+ idx_documents_archived_at           |        0 |            0
+ idx_documents_deleted_at            |        0 |            0
 (13 rows)
 

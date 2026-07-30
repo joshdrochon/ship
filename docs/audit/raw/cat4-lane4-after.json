@@ -1,0 +1,170 @@
+{
+  "flows": {
+    "load_main_page": {
+      "total_queries": 24,
+      "distinct_shapes": 12,
+      "slowest_ms": 4.398,
+      "slowest_sql": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,",
+      "total_ms": 9.24,
+      "repeated_shapes": [
+        {
+          "count": 6,
+          "total_ms": 5.69,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 4,
+          "total_ms": 0.53,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.24,
+          "shape": "SELECT id, email, name, is_super_admin FROM users WHERE id = $?"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.22,
+          "shape": "SELECT user_id, workspace_id, last_activity, created_at"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.16,
+          "shape": "SELECT id, created_at, expires_at, last_activity FROM sessions WHERE id = $?"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.21,
+          "shape": "SELECT id, title, content, properties, created_at, updated_at"
+        }
+      ]
+    },
+    "view_a_document": {
+      "total_queries": 37,
+      "distinct_shapes": 16,
+      "slowest_ms": 2.572,
+      "slowest_sql": "SELECT role FROM workspace_memberships WHERE workspace_id = $1 AND user_id = $2",
+      "total_ms": 13.51,
+      "repeated_shapes": [
+        {
+          "count": 10,
+          "total_ms": 4.78,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 4,
+          "total_ms": 0.55,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 4,
+          "total_ms": 2.87,
+          "shape": "SELECT role FROM workspace_memberships WHERE workspace_id = $? AND user_id = $?"
+        },
+        {
+          "count": 3,
+          "total_ms": 0.43,
+          "shape": "SELECT user_id, workspace_id, last_activity, created_at"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.97,
+          "shape": "SELECT id, email, name, is_super_admin FROM users WHERE id = $?"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.13,
+          "shape": "SELECT id, created_at, expires_at, last_activity FROM sessions WHERE id = $?"
+        }
+      ]
+    },
+    "list_issues": {
+      "total_queries": 16,
+      "distinct_shapes": 6,
+      "slowest_ms": 2.418,
+      "slowest_sql": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,",
+      "total_ms": 4.64,
+      "repeated_shapes": [
+        {
+          "count": 5,
+          "total_ms": 3.39,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 4,
+          "total_ms": 0.55,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.19,
+          "shape": "SELECT id, email, name, is_super_admin FROM users WHERE id = $?"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.28,
+          "shape": "SELECT user_id, workspace_id, last_activity, created_at"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.12,
+          "shape": "SELECT id, created_at, expires_at, last_activity FROM sessions WHERE id = $?"
+        }
+      ]
+    },
+    "load_sprint_board": {
+      "total_queries": 10,
+      "distinct_shapes": 4,
+      "slowest_ms": 0.334,
+      "slowest_sql": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,",
+      "total_ms": 1.62,
+      "repeated_shapes": [
+        {
+          "count": 4,
+          "total_ms": 0.45,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.64,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.2,
+          "shape": "SELECT id, email, name, is_super_admin FROM users WHERE id = $?"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.32,
+          "shape": "SELECT user_id, workspace_id, last_activity, created_at"
+        }
+      ]
+    },
+    "search_content": {
+      "total_queries": 11,
+      "distinct_shapes": 6,
+      "slowest_ms": 0.752,
+      "slowest_sql": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,",
+      "total_ms": 1.93,
+      "repeated_shapes": [
+        {
+          "count": 4,
+          "total_ms": 1.45,
+          "shape": "SELECT s.id, s.user_id, s.workspace_id, s.expires_at, s.last_activity, s.created_at,"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.21,
+          "shape": "SELECT w.id, w.name, wm.role"
+        },
+        {
+          "count": 2,
+          "total_ms": 0.1,
+          "shape": "SELECT id, created_at, expires_at, last_activity FROM sessions WHERE id = $?"
+        }
+      ]
+    }
+  },
+  "generated": "2026-07-30T20:55:16.955Z"
+}
