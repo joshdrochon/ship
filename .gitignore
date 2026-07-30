@@ -138,3 +138,9 @@ dist-sha.txt
 
 # E2E run logs — large, regenerable; findings are summarised in docs/audit/
 docs/audit/raw/e2e-*.log
+
+# Category 6 before/after screenshots are deliverables, not scratch output: the
+# improvement target (brief p.7) requires "a screenshot or recording" per fix, so
+# this one evidence directory is tracked despite the rules above.
+!docs/audit/evidence/
+!docs/audit/evidence/**

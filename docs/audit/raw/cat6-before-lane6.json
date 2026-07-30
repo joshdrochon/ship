@@ -1,0 +1,370 @@
+{
+  "console": [
+    {
+      "where": "/login",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 (Bad Request)"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "http5xx",
+      "text": "500 PATCH http://localhost:3001/api/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "http5xx",
+      "text": "500 PATCH http://localhost:3001/api/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/events' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "[RealtimeEvents] Error: Event"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/events' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "[RealtimeEvents] Error: Event"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error during WebSocket handshake: Unexpected response code: 429"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error in connection establishment: net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error in connection establishment: net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error in connection establishment: net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error in connection establishment: net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "requestfailed",
+      "text": "GET http://localhost:3001/api/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838/backlinks — net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "Error fetching backlinks: TypeError: Failed to fetch\n    at fetchBacklinks (http://localhost:5174/src/components/editor/BacklinksPanel.tsx:41:32)"
+    },
+    {
+      "where": "/documents/ad9bec1a-d954-4916-aaf3-e3f5e62fa838",
+      "type": "error",
+      "text": "WebSocket connection to 'ws://localhost:3001/collaboration/wiki:ad9bec1a-d954-4916-aaf3-e3f5e62fa838' failed: Error in connection establishment: net::ERR_INTERNET_DISCONNECTED"
+    }
+  ],
+  "routes": [
+    {
+      "route": "login",
+      "path": "/login",
+      "ms": 1874,
+      "new_console": 0
+    },
+    {
+      "route": "my-week",
+      "path": "/my-week",
+      "ms": 1851,
+      "new_console": 0
+    },
+    {
+      "route": "dashboard",
+      "path": "/dashboard",
+      "ms": 1855,
+      "new_console": 0
+    },
+    {
+      "route": "docs",
+      "path": "/docs",
+      "ms": 1842,
+      "new_console": 0
+    },
+    {
+      "route": "issues",
+      "path": "/issues",
+      "ms": 1941,
+      "new_console": 0
+    },
+    {
+      "route": "projects",
+      "path": "/projects",
+      "ms": 1866,
+      "new_console": 0
+    },
+    {
+      "route": "programs",
+      "path": "/programs",
+      "ms": 1851,
+      "new_console": 0
+    },
+    {
+      "route": "weeks",
+      "path": "/weeks",
+      "ms": 1796,
+      "new_console": 0
+    },
+    {
+      "route": "team",
+      "path": "/team",
+      "ms": 1865,
+      "new_console": 0
+    },
+    {
+      "route": "settings",
+      "path": "/settings",
+      "ms": 1832,
+      "new_console": 0
+    },
+    {
+      "route": "admin",
+      "path": "/admin",
+      "ms": 1818,
+      "new_console": 0
+    }
+  ],
+  "malformed": [
+    {
+      "label": "empty",
+      "sent": 0,
+      "accepted": 0,
+      "persisted": 26,
+      "xss_executed": false,
+      "error": null,
+      "console_delta": 0
+    },
+    {
+      "label": "long",
+      "sent": 100000,
+      "accepted": 100000,
+      "persisted": 100000,
+      "xss_executed": false,
+      "error": null,
+      "console_delta": 4
+    },
+    {
+      "label": "special",
+      "sent": 31,
+      "accepted": 31,
+      "persisted": 31,
+      "xss_executed": false,
+      "error": null,
+      "console_delta": 4
+    },
+    {
+      "label": "html",
+      "sent": 38,
+      "accepted": 38,
+      "persisted": 38,
+      "xss_executed": false,
+      "error": null,
+      "console_delta": 0
+    },
+    {
+      "label": "script",
+      "sent": 33,
+      "accepted": 33,
+      "persisted": 33,
+      "xss_executed": false,
+      "error": null,
+      "console_delta": 0
+    },
+    {
+      "label": "sqlish",
+      "sent": 27,
+      "accepted": 27,
+      "persisted": 27,
+      "xss_executed": false,
+      "error": null,
+      "console_delta": 10
+    },
+    {
+      "label": "template",
+      "sent": 50,
+      "accepted": 50,
+      "persisted": 50,
+      "xss_executed": false,
+      "error": null,
+      "console_delta": 10
+    }
+  ],
+  "offline": {
+    "typed_while_offline": true,
+    "ui_signalled_offline": true,
+    "ui_recovered_after_reconnect": false,
+    "edit_survived_reconnect": true,
+    "console_delta": 11
+  },
+  "throttle": [
+    {
+      "route": "my-week",
+      "dom_ms": 12467,
+      "settled_ms": 14273,
+      "showed_loading_state": false,
+      "spinner_stuck_after_settle": false
+    },
+    {
+      "route": "docs",
+      "dom_ms": 12510,
+      "settled_ms": 14343,
+      "showed_loading_state": false,
+      "spinner_stuck_after_settle": false
+    },
+    {
+      "route": "issues",
+      "dom_ms": 12485,
+      "settled_ms": 14324,
+      "showed_loading_state": false,
+      "spinner_stuck_after_settle": false
+    }
+  ],
+  "notes": [
+    "login: ok"
+  ]
+}

@@ -39,6 +39,14 @@ import { CommentDisplayExtension } from './editor/CommentDisplay';
 import { AIScoringDisplayExtension } from './editor/AIScoringDisplay';
 import { PlanReferenceBlockExtension } from './editor/PlanReferenceBlock';
 import { useCommentsQuery, useCreateComment, useUpdateComment } from '@/hooks/useCommentsQuery';
+import { useCollaborativeTitle } from '@/hooks/useCollaborativeTitle';
+import {
+  effectiveSyncStatus,
+  nextStatusOnDisconnect,
+  syncStatusDetail,
+  syncStatusLabel,
+  type SyncStatus,
+} from '@/lib/syncStatus';
 import { BubbleMenu } from '@tiptap/react';
 import 'tippy.js/dist/tippy.css';
 
@@ -89,8 +97,6 @@ interface EditorProps {
   /** Suffix displayed after the title in the header (e.g., author name) */
   titleSuffix?: string;
 }
-
-type SyncStatus = 'connecting' | 'cached' | 'synced' | 'disconnected';
 
 // Generate a consistent color from a string
 function stringToColor(str: string): string {
@@ -184,12 +190,7 @@ export function Editor({
   aiScoringAnalysis,
   titleSuffix,
 }: EditorProps) {
-  const [title, setTitle] = useState(initialTitle === 'Untitled' ? '' : initialTitle);
   const titleInputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Track if user has made local changes (to prevent stale server responses from overwriting)
-  const hasLocalChangesRef = useRef(false);
-  const lastSyncedTitleRef = useRef(initialTitle);
 
   // CRITICAL: Create a new Y.Doc for each documentId using useMemo
   // This ensures the Y.Doc is atomically recreated when documentId changes,
@@ -197,25 +198,18 @@ export function Editor({
   // that contains content from a different document (cross-document contamination bug)
   const ydoc = useMemo(() => new Y.Doc(), [documentId]);
 
-  // Sync title when initialTitle prop changes (e.g., from context update)
-  // Only update if user hasn't made local changes (prevents stale responses from overwriting)
-  useEffect(() => {
-    const newTitle = initialTitle === 'Untitled' ? '' : initialTitle;
-    // Only update if this is a genuinely new value from server
-    // AND user hasn't made local changes since
-    if (!hasLocalChangesRef.current && initialTitle !== lastSyncedTitleRef.current) {
-      setTitle(newTitle);
-      lastSyncedTitleRef.current = initialTitle;
-    }
-  }, [initialTitle]);
-
-  // Reset local changes flag after save completes (parent will update initialTitle)
-  useEffect(() => {
-    if (initialTitle === title || (initialTitle === 'Untitled' && title === '')) {
-      hasLocalChangesRef.current = false;
-      lastSyncedTitleRef.current = initialTitle;
-    }
-  }, [initialTitle, title]);
+  // W6-9: the title is a Yjs shared type in the same Y.Doc as the body, so two
+  // people typing in it merge instead of overwriting each other. It used to be
+  // plain React state saved by a debounced PATCH, which meant the last request to
+  // land replaced the whole column and destroyed the other writer's text.
+  // `onTitleChange` is now only a fallback for when no collaboration session
+  // exists — otherwise the collaboration server persists the title from the CRDT.
+  const { title, setTitleFromInput, markSynced: markTitleSynced } = useCollaborativeTitle({
+    ydoc,
+    initialTitle,
+    onFallbackSave: onTitleChange,
+    inputRef: titleInputRef,
+  });
 
   // Auto-resize title textarea when title changes or on mount
   useEffect(() => {
@@ -249,6 +243,10 @@ export function Editor({
     localStorage.setItem('ship:rightSidebarCollapsed', String(rightSidebarCollapsed));
   }, [rightSidebarCollapsed]);
 
+  // W6-5: true once this document's collaboration socket has connected at least
+  // once. After that point a drop is a real disconnection, not a startup state.
+  const hasSyncedRef = useRef(false);
+
   // Track browser online status for sync indicator using native browser events
   useEffect(() => {
     const handleOnline = () => setIsBrowserOnline(true);
@@ -260,6 +258,27 @@ export function Editor({
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // W6-5: y-websocket retries on its own exponential backoff (up to 2.5 s per
+  // attempt) and does not watch for the browser coming back online, so after a
+  // network blip the document can sit disconnected for seconds after the network
+  // is fine. Force one attempt immediately when the browser says it is back.
+  // Failure mode this protects against: a short connectivity drop leaving the
+  // editor unsynced — and, before the status fix above, silently so.
+  useEffect(() => {
+    if (!provider) return;
+    const reconnectNow = () => {
+      // shouldConnect is false when the socket was closed deliberately (access
+      // revoked, document converted). Do not undo that.
+      if (provider.wsconnected || !provider.shouldConnect) return;
+      console.log('[Editor] Browser back online, forcing collaboration reconnect');
+      provider.disconnect();
+      provider.connect();
+      setSyncStatus('connecting');
+    };
+    window.addEventListener('online', reconnectNow);
+    return () => window.removeEventListener('online', reconnectNow);
+  }, [provider]);
 
   const color = userColor || stringToColor(userName);
 
@@ -287,6 +306,9 @@ export function Editor({
     let wsProvider: WebsocketProvider | null = null;
     let hasCachedContent = false;
     let cancelled = false;
+    // A different document is a different socket: nothing has synced for it yet.
+    hasSyncedRef.current = false;
+    setSyncStatus('connecting');
     // Store the updateUsers callback so we can properly remove it on cleanup
     let updateUsersCallback: (() => void) | null = null;
 
@@ -386,10 +408,18 @@ export function Editor({
         if (cancelled) return; // Don't update state if effect was cleaned up
         console.log(`[Editor] WebSocket status: ${event.status} for ${roomPrefix}:${documentId}`);
         if (event.status === 'connected') {
+          hasSyncedRef.current = true;
           setSyncStatus('synced');
         } else if (event.status === 'disconnected') {
-          // If we have cached content, show 'cached' instead of 'disconnected'
-          setSyncStatus(hasCachedContent ? 'cached' : 'disconnected');
+          // W6-5: 'cached' means "showing content from the local cache while the
+          // socket comes up" — a startup state. Reusing it for a socket that
+          // dropped AFTER a successful sync reported the benign blue "Cached"
+          // while nothing the user typed was reaching the server. Once we have
+          // been connected, a drop is a disconnection and is reported as one.
+          setSyncStatus(nextStatusOnDisconnect({
+            hasSyncedOnce: hasSyncedRef.current,
+            hasCachedContent,
+          }));
         }
       });
 
@@ -442,6 +472,9 @@ export function Editor({
         console.log(`[Editor] WebSocket sync: ${isSynced} for ${roomPrefix}:${documentId}`);
         if (isSynced) {
           setSyncStatus('synced');
+          // From here the Y.Doc holds the authoritative title and the server
+          // persists it, so the REST title fallback must stand down (W6-9).
+          markTitleSynced();
         }
       });
 
@@ -500,7 +533,7 @@ export function Editor({
       setProvider(null);
       setConnectedUsers([]);
     };
-  }, [documentId, userName, color, ydoc, roomPrefix, onBack, onDocumentConverted]);
+  }, [documentId, userName, color, ydoc, roomPrefix, onBack, onDocumentConverted, markTitleSynced]);
 
   // Create slash commands extension (memoized to avoid recreation)
   // documentId is in deps to ensure fresh AbortSignal when switching documents
@@ -805,13 +838,11 @@ export function Editor({
     };
   }, [editor, onPlanChange]);
 
-  // Handle title changes
+  // Handle title changes. The hook diffs against the CRDT and applies only the
+  // characters that changed, which is what lets two writers merge (W6-9).
   const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newTitle = e.target.value;
-    hasLocalChangesRef.current = true; // Mark as having local changes to prevent stale overwrites
-    setTitle(newTitle);
-    onTitleChange?.(newTitle);
-  }, [onTitleChange]);
+    setTitleFromInput(e.target.value);
+  }, [setTitleFromInput]);
 
   return (
     <div className="flex h-full flex-col">
@@ -848,14 +879,22 @@ export function Editor({
           {/* Sync status - WCAG 4.1.3 aria-live for status messages */}
           {/* Show 'Offline' when browser is offline, regardless of WebSocket state */}
           {(() => {
-            const effectiveStatus = !isBrowserOnline ? 'disconnected' : syncStatus;
+            // W6-5: "Offline" now also covers a browser that is online while this
+            // document's socket is not, which is the honest reading — the document
+            // is not connected to anything. The tooltip says what that means for
+            // the user's work, without changing the four status words the
+            // accessibility and E2E suites assert on. See lib/syncStatus.ts.
+            const effectiveStatus = effectiveSyncStatus(syncStatus, isBrowserOnline);
+            const detail = syncStatusDetail(effectiveStatus, isBrowserOnline);
             return (
               <div
                 role="status"
                 aria-live="polite"
                 aria-atomic="true"
+                title={detail}
                 className="flex items-center gap-1.5"
                 data-testid="sync-status"
+                data-sync-state={effectiveStatus}
               >
                 <div
                   className={cn(
@@ -868,10 +907,7 @@ export function Editor({
                   aria-hidden="true"
                 />
                 <span className="text-xs text-muted">
-                  {effectiveStatus === 'synced' && 'Saved'}
-                  {effectiveStatus === 'cached' && 'Cached'}
-                  {effectiveStatus === 'connecting' && 'Saving'}
-                  {effectiveStatus === 'disconnected' && 'Offline'}
+                  {syncStatusLabel(effectiveStatus)}
                 </span>
               </div>
             );
