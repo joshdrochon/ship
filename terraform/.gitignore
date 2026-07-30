@@ -4,7 +4,19 @@
 *.tfstate.*
 *.tfvars
 *.tfvars.secret
+
+# Saved plan files. A saved plan embeds a full state snapshot with every data
+# source resolved, in plaintext. environments/shadow/tfplan was committed this
+# way and leaked the AWS account ID and a named IAM principal (finding W8-1).
+tfplan
+*.tfplan
+
+# Lock files are ignored for the legacy AWS roots (pre-existing rule; the seven
+# tracked ones predate it). New configs commit theirs — a committed lock file is
+# what makes `terraform apply` reproducible on a clean machine.
 .terraform.lock.hcl
+!local-config/.terraform.lock.hcl
+!render/.terraform.lock.hcl
 
 # Crash logs
 crash.log

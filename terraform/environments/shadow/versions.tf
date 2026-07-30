@@ -7,14 +7,22 @@
 terraform {
   required_version = ">= 1.6.0"
 
+  # Provider versions are pinned exactly, not range-constrained. Audit finding
+  # W8-4: `~> 5.0` / `~> 3.6` let two roots resolve different provider versions
+  # from identical configuration in the same session (dev and shadow picked
+  # random 3.9.0, prod picked 3.7.2). aws 5.100.0 is the newest 5.x, so this is
+  # what `~> 5.0` already resolves to today; random 3.7.2 is what
+  # environments/prod's committed lock file records. Neither pin changes which
+  # provider is selected right now -- it stops the selection moving under an
+  # operator who runs `init` mid-incident.
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "5.100.0"
     }
     random = {
       source  = "hashicorp/random"
-      version = "~> 3.6"
+      version = "3.7.2"
     }
   }
 

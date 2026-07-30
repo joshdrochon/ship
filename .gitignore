@@ -65,6 +65,22 @@ test-results/
 .audit
 
 # Terraform
+#
+# Recursive globs first. The path-anchored rules that follow were the original
+# ruleset and they only match one directory level, which is how
+# terraform/environments/shadow/tfplan got committed (audit finding W8-1) —
+# `terraform/tfplan` and `terraform/*.tfplan` match neither a nested `tfplan`
+# nor a nested state file. Terraform writes credentials into state and into
+# saved plans in PLAINTEXT, so these must match at any depth.
+*.tfvars
+*.tfstate
+*.tfstate.*
+tfplan
+*.tfplan
+.terraform/
+crash.log
+crash.*.log
+
 terraform/.terraform/
 terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
