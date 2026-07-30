@@ -11,6 +11,17 @@ import { useToast } from '@/components/ui/Toast';
 import { issueKeys } from '@/hooks/useIssuesQuery';
 import { projectKeys } from '@/hooks/useProjectsQuery';
 import type { DocumentTabProps } from '@/lib/document-tabs';
+import {
+  readBelongsTo,
+  readBooleanOrNull,
+  readField,
+  readFields,
+  readNumberOrNull,
+  readPersonRef,
+  readString,
+  readStringOrNull,
+  readStringArray,
+} from '@/lib/document-fields';
 import { computeICEScore } from '@ship/shared';
 
 /**
@@ -65,16 +76,19 @@ export default function ProjectDetailsTab({ documentId, document }: DocumentTabP
 
       // Optimistically update the document cache
       if (previousDocument) {
-        // Cast updates to Record since we're in ProjectDetailsTab and know these fields exist
-        const projectUpdates = updates as Record<string, unknown>;
-        const updatedDocument = { ...previousDocument, ...projectUpdates };
+        const updatedDocument: Record<string, unknown> = { ...previousDocument, ...updates };
 
         // Recompute ICE score if any ICE property changed
-        if ('impact' in projectUpdates || 'confidence' in projectUpdates || 'ease' in projectUpdates) {
-          const impact = (projectUpdates.impact ?? previousDocument.impact) as number | null;
-          const confidence = (projectUpdates.confidence ?? previousDocument.confidence) as number | null;
-          const ease = (projectUpdates.ease ?? previousDocument.ease) as number | null;
-          updatedDocument.ice_score = computeICEScore(impact, confidence, ease);
+        if ('impact' in updates || 'confidence' in updates || 'ease' in updates) {
+          // Each component falls back to the cached value, so a partial update
+          // (impact only) still scores against the confidence and ease already stored.
+          const iceComponent = (key: 'impact' | 'confidence' | 'ease') =>
+            readNumberOrNull(readField(updates, key) ?? previousDocument[key]);
+          updatedDocument.ice_score = computeICEScore(
+            iceComponent('impact'),
+            iceComponent('confidence'),
+            iceComponent('ease')
+          );
         }
 
         queryClient.setQueryData(['document', documentId], updatedDocument);
@@ -199,34 +213,35 @@ export default function ProjectDetailsTab({ documentId, document }: DocumentTabP
   }), [programs, teamMembers, handleConvert, handleUndoConversion, isConverting, isUndoing]);
 
   // Get program_id from belongs_to array (project's parent program via document_associations)
-  const belongsTo = (document as { belongs_to?: Array<{ id: string; type: string }> }).belongs_to;
-  const programId = belongsTo?.find(b => b.type === 'program')?.id;
+  const belongsTo = readBelongsTo(document.belongs_to);
+  const programId = belongsTo.find(b => b.type === 'program')?.id;
 
-  // Transform to UnifiedDocument format
+  // Transform to UnifiedDocument format. Every field below arrives as `unknown` on
+  // DocumentResponse and is checked at runtime rather than asserted.
   const unifiedDocument: UnifiedDocument = useMemo(() => ({
     id: document.id,
     title: document.title,
     document_type: 'project',
     created_at: document.created_at,
     updated_at: document.updated_at,
-    created_by: document.created_by as string | undefined,
-    properties: document.properties as Record<string, unknown> | undefined,
-    impact: (document.impact as number | null) ?? null,
-    confidence: (document.confidence as number | null) ?? null,
-    ease: (document.ease as number | null) ?? null,
-    color: (document.color as string) || '#3b82f6',
+    created_by: document.created_by,
+    properties: readFields(document.properties),
+    impact: readNumberOrNull(document.impact),
+    confidence: readNumberOrNull(document.confidence),
+    ease: readNumberOrNull(document.ease),
+    color: readString(document.color) || '#3b82f6',
     emoji: null,
     program_id: programId,
-    owner: document.owner as { id: string; name: string; email: string } | null,
-    owner_id: document.owner_id as string | undefined,
+    owner: readPersonRef(document.owner),
+    owner_id: readString(document.owner_id),
     // RACI fields
-    accountable_id: document.accountable_id as string | undefined,
-    consulted_ids: (document.consulted_ids as string[]) || [],
-    informed_ids: (document.informed_ids as string[]) || [],
-    converted_from_id: document.converted_from_id as string | undefined,
+    accountable_id: readString(document.accountable_id),
+    consulted_ids: readStringArray(document.consulted_ids),
+    informed_ids: readStringArray(document.informed_ids),
+    converted_from_id: readString(document.converted_from_id),
     // Design review
-    has_design_review: document.has_design_review as boolean | null | undefined,
-    design_review_notes: document.design_review_notes as string | null | undefined,
+    has_design_review: readBooleanOrNull(document.has_design_review),
+    design_review_notes: readStringOrNull(document.design_review_notes),
   }), [document, programId]);
 
   if (!user) return null;

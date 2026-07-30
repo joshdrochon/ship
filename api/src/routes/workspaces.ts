@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import type { Router as RouterType } from 'express';
 import { pool } from '../db/client.js';
-import { authMiddleware, workspaceAdminMiddleware } from '../middleware/auth.js';
+import { authMiddleware, workspaceAdminMiddleware, requireAuth } from '../middleware/auth.js';
 import { ERROR_CODES, HTTP_STATUS } from '@ship/shared';
 import { logAuditEvent } from '../services/audit.js';
 
@@ -211,7 +211,7 @@ router.post('/:id/switch', authMiddleware, async (req: Request, res: Response): 
 
     await logAuditEvent({
       workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'workspace.switch',
       resourceType: 'workspace',
       resourceId: workspaceId,
@@ -386,7 +386,7 @@ router.post('/:id/members', authMiddleware, workspaceAdminMiddleware, async (req
 
     await logAuditEvent({
       workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'membership.create',
       resourceType: 'user',
       resourceId: userId,
@@ -487,7 +487,7 @@ router.patch('/:id/members/:userId', authMiddleware, workspaceAdminMiddleware, a
 
     await logAuditEvent({
       workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'membership.update',
       resourceType: 'user',
       resourceId: userId,
@@ -588,7 +588,7 @@ router.delete('/:id/members/:userId', authMiddleware, workspaceAdminMiddleware, 
 
     await logAuditEvent({
       workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'membership.delete',
       resourceType: 'user',
       resourceId: userId,
@@ -670,7 +670,7 @@ router.post('/:id/members/:userId/restore', authMiddleware, workspaceAdminMiddle
 
     await logAuditEvent({
       workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'membership.restore',
       resourceType: 'user',
       resourceId: userId,
@@ -858,7 +858,7 @@ router.post('/:id/invites', authMiddleware, workspaceAdminMiddleware, async (req
 
       await logAuditEvent({
         workspaceId,
-        actorUserId: req.userId!,
+        actorUserId: requireAuth(req).userId,
         action: 'member.add',
         resourceType: 'user',
         resourceId: existingUser.id,
@@ -930,7 +930,7 @@ router.post('/:id/invites', authMiddleware, workspaceAdminMiddleware, async (req
 
     await logAuditEvent({
       workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'invite.create',
       resourceType: 'invite',
       resourceId: result.rows[0].id,
@@ -997,7 +997,7 @@ router.delete('/:id/invites/:inviteId', authMiddleware, workspaceAdminMiddleware
 
     await logAuditEvent({
       workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'invite.delete',
       resourceType: 'invite',
       resourceId: inviteId,
