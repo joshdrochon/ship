@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { NextFunction, Request, Response } from 'express';
 
 // Mock pool before importing routes
 vi.mock('../db/client.js', () => ({
@@ -13,9 +14,11 @@ vi.mock('../middleware/visibility.js', () => ({
   VISIBILITY_FILTER_SQL: vi.fn().mockReturnValue('1=1'),
 }));
 
-// Mock auth middleware
-vi.mock('../middleware/auth.js', () => ({
-  authMiddleware: vi.fn((req, res, next) => {
+// Stub only authMiddleware. The rest of the module — notably requireAuth, which every
+// handler now calls — is kept real so the tests exercise the genuine identity check.
+vi.mock('../middleware/auth.js', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../middleware/auth.js')>()),
+  authMiddleware: vi.fn((req: Request, _res: Response, next: NextFunction) => {
     req.userId = 'user-123';
     req.workspaceId = 'ws-123';
     next();

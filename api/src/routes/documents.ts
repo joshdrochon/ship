@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../db/client.js';
 import { z } from 'zod';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireAuth } from '../middleware/auth.js';
 import { isWorkspaceAdmin } from '../middleware/visibility.js';
 import { handleVisibilityChange, handleDocumentConversion, invalidateDocumentCache, broadcastToUser } from '../collaboration/index.js';
 import { extractHypothesisFromContent, extractSuccessCriteriaFromContent, extractVisionFromContent, extractGoalsFromContent, checkDocumentCompleteness } from '../utils/extractHypothesis.js';
@@ -94,8 +94,7 @@ const updateDocumentSchema = z.object({
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { type, parent_id } = req.query;
-    const userId = req.userId!;
-    const workspaceId = req.workspaceId!;
+    const { userId, workspaceId } = requireAuth(req);
 
     // Check if user is admin (admins can see all documents)
     const isAdmin = await isWorkspaceAdmin(userId, workspaceId);
@@ -577,7 +576,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     // Sprint plans clear the "write sprint plan" action item
     // Documents with outcome property linked to sprints clear the "write retro" action item
     if (document_type === 'weekly_plan' || (properties && 'outcome' in properties)) {
-      broadcastToUser(req.userId!, 'accountability:updated', { documentId: newDoc.id, documentType: document_type });
+      broadcastToUser(requireAuth(req).userId, 'accountability:updated', { documentId: newDoc.id, documentType: document_type });
     }
 
     res.status(201).json(newDoc);

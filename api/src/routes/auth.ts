@@ -3,7 +3,7 @@ import type { Router as RouterType } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { pool } from '../db/client.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireAuth } from '../middleware/auth.js';
 import { ERROR_CODES, HTTP_STATUS, SESSION_TIMEOUT_MS, ABSOLUTE_SESSION_TIMEOUT_MS } from '@ship/shared';
 import { logAuditEvent } from '../services/audit.js';
 
@@ -229,7 +229,7 @@ router.post('/logout', authMiddleware, async (req: Request, res: Response): Prom
   try {
     await logAuditEvent({
       workspaceId: req.workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'auth.logout',
       req,
     });
@@ -355,7 +355,7 @@ router.post('/extend-session', authMiddleware, async (req: Request, res: Respons
 
     await logAuditEvent({
       workspaceId: req.workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'auth.extend_session',
       req,
     });

@@ -3,7 +3,7 @@ import type { Router as RouterType } from 'express';
 import crypto from 'crypto';
 import { z } from 'zod';
 import { pool } from '../db/client.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireAuth } from '../middleware/auth.js';
 import { ERROR_CODES, HTTP_STATUS } from '@ship/shared';
 import { logAuditEvent } from '../services/audit.js';
 
@@ -79,7 +79,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response): Promise<vo
 
     await logAuditEvent({
       workspaceId: req.workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'api_token.created',
       resourceType: 'api_token',
       resourceId: result.rows[0].id,
@@ -179,7 +179,7 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response): Promi
 
     await logAuditEvent({
       workspaceId: req.workspaceId,
-      actorUserId: req.userId!,
+      actorUserId: requireAuth(req).userId,
       action: 'api_token.revoked',
       resourceType: 'api_token',
       resourceId: id,
