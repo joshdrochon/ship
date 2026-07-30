@@ -1,0 +1,15 @@
+Lane 5 — verification gate (Rule 2)
+Generated 2026-07-30T18:38:40Z
+
+api unit tests   : Tests  451 passed (451)
+web unit tests   : Tests  152 passed (152)
+pnpm type-check  : exit 0
+pnpm lint        : exit 0 — 263 problems (0 errors, 263 warnings)
+pnpm build       : exit 0
+
+Note: the FIRST invocation of 'pnpm test' after E2E work reported 450/451.
+api/test/setup.ts truncates the dev database on setup, so that run executed
+against stale data. After 'pnpm db:seed', two consecutive runs were 451/451.
+The identity of the single failing test was not captured before it was
+overwritten — recorded here as a gap rather than omitted. No api source and no
+api test was modified by this lane; the diff is three e2e spec files.

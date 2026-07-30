@@ -1,0 +1,127 @@
+Lane 5 (Category 5, Test Coverage) — raw measurement summaries
+Generated 2026-07-30T18:38:40Z from the Playwright logs named in each section.
+Full logs are gitignored (docs/audit/raw/e2e-*.log, *.log); these are the pass/fail/flaky
+lines and failing spec:line lists extracted from them verbatim.
+
+Scripts that produced these runs: docs/audit/scripts/lane5-*.sh
+
+===============================================================================
+1. SEVEN-FILE INTERFERENCE SET — locked, 1 worker, --retries=0, back-to-back
+===============================================================================
+Specs: accountability-week, manager-reviews-visual, my-week-stale-data,
+       project-weeks, request-changes-ui, status-overview-heatmap,
+       weekly-accountability
+Pre-fix = the two lane-5 specs checked out at 767aa2f; post-fix = HEAD.
+Script: docs/audit/scripts/lane5-locked-pair.sh
+
+  PRE1      3 failed 46 passed
+             [chromium] › e2e/my-week-stale-data.spec.ts:28:7 › My Week - stale data after editing plan/retro › plan edits are visible on /my-week after navigating back
+             [chromium] › e2e/project-weeks.spec.ts:178:7 › Project Weeks Tab › project link in Properties sidebar navigates back to project
+             [chromium] › e2e/weekly-accountability.spec.ts:384:7 › Project Allocation Grid API › Allocation grid shows person with assigned issues and plan/retro status
+  POST1     2 failed 47 passed
+             [chromium] › e2e/project-weeks.spec.ts:178:7 › Project Weeks Tab › project link in Properties sidebar navigates back to project
+             [chromium] › e2e/weekly-accountability.spec.ts:384:7 › Project Allocation Grid API › Allocation grid shows person with assigned issues and plan/retro status
+  POST2     2 failed 47 passed
+             [chromium] › e2e/project-weeks.spec.ts:178:7 › Project Weeks Tab › project link in Properties sidebar navigates back to project
+             [chromium] › e2e/weekly-accountability.spec.ts:384:7 › Project Allocation Grid API › Allocation grid shows person with assigned issues and plan/retro status
+
+  Diff: POST is a strict subset of PRE. The only test that changed state is
+  my-week-stale-data.spec.ts:28. project-weeks:178 is in known-flakes.txt
+  (1 of 3). weekly-accountability:384 is not, but fails identically pre-fix,
+  so it is not attributable to this lane.
+
+===============================================================================
+2. SIX-FILE FALSIFICATION — locked, 1 worker, project-weeks.spec.ts REMOVED
+===============================================================================
+Pre-committed prediction from the heatmap RCA: project-weeks leaves a stray
+week-15 allocation that the pre-fix heatmap assertion survives on by luck.
+Remove that spec and the PRE-FIX heatmap test should find zero Weekly Plan
+buttons and FAIL. Stated before the run; retraction promised if it passed.
+Script: docs/audit/scripts/lane5-heatmap-and-full.sh
+
+  H-PRE     3 failed 41 passed
+             [chromium] › e2e/my-week-stale-data.spec.ts:28:7 › My Week - stale data after editing plan/retro › plan edits are visible on /my-week after navigating back
+             [chromium] › e2e/status-overview-heatmap.spec.ts:69:7 › Status Overview Heatmap › displays split cells for plan/retro status
+             [chromium] › e2e/weekly-accountability.spec.ts:384:7 › Project Allocation Grid API › Allocation grid shows person with assigned issues and plan/retro status
+  H-POST    1 failed 43 passed
+             [chromium] › e2e/weekly-accountability.spec.ts:78:7 › Weekly Plan API › POST /weekly-plans creates new weekly plan document
+
+  Outcome: prediction held. status-overview-heatmap.spec.ts:69 FAILED pre-fix
+  and passed post-fix. weekly-accountability:78 surfaced in H-POST; see 4.
+
+===============================================================================
+3. FULL SUITE — post-fix, locked, 4 workers
+===============================================================================
+Command: PLAYWRIGHT_WORKERS=4 pnpm test:e2e
+Baseline for comparison: docs/audit/raw/e2e-run{1,2,3}-summary.txt
+  run1 864 passed / 0 failed / 5 flaky
+  run2 865 passed / 0 failed / 4 flaky
+  run3 862 passed / 0 failed / 7 flaky
+
+  FULL      3 flaky 866 passed
+             [chromium] › e2e/inline-comments.spec.ts:118:7 › Inline Comments › canceling a comment removes the highlight
+             [chromium] › e2e/mentions.spec.ts:374:7 › Mentions › should sync mentions between collaborators
+             [chromium] › e2e/weekly-accountability.spec.ts:78:7 › Weekly Plan API › POST /weekly-plans creates new weekly plan document
+
+  Lane-5 targets in the baseline vs this run:
+    my-week-stale-data.spec.ts:63       3 of 3 baseline runs -> ABSENT
+    my-week-stale-data.spec.ts:28       2 of 3 baseline runs -> ABSENT
+    status-overview-heatmap.spec.ts:69  2 of 3 baseline runs -> ABSENT
+  Remaining flaky, attributed:
+    inline-comments.spec.ts:118         in known-flakes.txt (1 of 3)
+    mentions.spec.ts:374                in known-flakes.txt (1 of 3)
+    weekly-accountability.spec.ts:78    NOT in known-flakes.txt — surfaced by
+                                        this lane's fixes, fixed in bfb1d13
+
+===============================================================================
+4. WEEKLY-ACCOUNTABILITY:78 PAIR — 1 worker, --retries=0, fix stashed/restored
+===============================================================================
+Specs: accountability-week, weekly-accountability. Unlocked (two files, small).
+Script: docs/audit/scripts/lane5-w78.sh
+
+  W78-PRE   1 failed 22 passed
+             [chromium] › e2e/weekly-accountability.spec.ts:78:7 › Weekly Plan API › POST /weekly-plans creates new weekly plan document
+  W78-POST  1 failed 22 passed
+             [chromium] › e2e/weekly-accountability.spec.ts:410:7 › Project Allocation Grid API › Allocation grid shows person with assigned issues and plan/retro status
+
+  :78 flips FAILED -> passed. :410 is the same test as pre-fix :384 (the fix
+  adds 30 lines, shifting it by 26) and is the pre-existing single-worker
+  ordering artifact from section 1. It surfaced because Playwright discards the
+  worker after any failure and the database is worker-scoped, so the :78 failure
+  was resetting the database and incidentally letting :410 pass.
+
+===============================================================================
+5. TARGETED — two lane-5 specs only, 4 workers, x3, UNLOCKED
+===============================================================================
+Regression check, not causal evidence: this configuration was already green
+pre-fix (39/39 at --repeat-each=3), because the flake was never inside these
+files.
+
+  A1        13 passed
+  A2        13 passed
+  A3        13 passed
+
+===============================================================================
+6. DISCARDED RUNS — recorded so they are not quietly omitted
+===============================================================================
+  B1, B2: seven-file set run WITHOUT the measurement lock while lane-3 was
+          benchmarking (load 14.57-16.29). B1 additionally lost the API server
+          mid-run ('socket hang up' in accountability-week:122). A run
+          containing a process death cannot demonstrate determinism, which is
+          the claim, so both are discarded rather than reported.
+  One lock window produced zero tests: an unquoted shell variable holding a
+  multi-word file list does not word-split in zsh, so the file list arrived as a
+  single pathspec. Nothing ran; the lock was released after 0s. All later runs
+  use bash with paths written out literally, and assert a minimum pass count.
+
+===============================================================================
+7. CONDITIONS — Rule 1 caveat
+===============================================================================
+  The machine did not go quiet even under the lock. measure-lock.sh reported:
+    'WARNING: load still 9.11 after 180s — measuring anyway.
+     Record this in the lane's CHANGES entry; the pair may not satisfy Rule 1.'
+  Five other lanes plus Docker were active throughout. Each PRE/POST pair was
+  taken back-to-back inside one lock window, so both halves saw the same load;
+  that is what makes the pairs usable despite the absolute load being high.
+  The full-suite baseline (e2e-run{1,2,3}) was taken on a different day under
+  different load, so section 3 is a weaker pair than sections 1, 2 and 4.
