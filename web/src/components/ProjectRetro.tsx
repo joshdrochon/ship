@@ -213,7 +213,7 @@ export function ProjectRetro({ projectId }: ProjectRetroProps) {
                       : 'bg-border/50 text-muted hover:bg-border'
                   )}
                 >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg aria-hidden="true" focusable="false" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                   Validated
@@ -230,7 +230,7 @@ export function ProjectRetro({ projectId }: ProjectRetroProps) {
                       : 'bg-border/50 text-muted hover:bg-border'
                   )}
                 >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg aria-hidden="true" focusable="false" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                   Invalidated
@@ -286,7 +286,7 @@ export function ProjectRetro({ projectId }: ProjectRetroProps) {
               <div className="space-y-2">
                 {successCriteria.map((criterion, index) => (
                   <div key={index} className="flex items-center gap-2 group">
-                    <svg className="h-4 w-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg aria-hidden="true" focusable="false" className="h-4 w-4 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-sm text-foreground flex-1">{criterion}</span>
@@ -294,7 +294,7 @@ export function ProjectRetro({ projectId }: ProjectRetroProps) {
                       onClick={() => handleRemoveCriterion(index)}
                       className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all"
                     >
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg aria-hidden="true" focusable="false" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </button>

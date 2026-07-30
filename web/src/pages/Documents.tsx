@@ -321,7 +321,7 @@ export function DocumentsPage() {
 
 function LockIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -334,7 +334,7 @@ function LockIcon({ className }: { className?: string }) {
 
 function GlobeIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -400,7 +400,7 @@ function DocumentRowContent({ document, visibleColumns }: { document: WikiDocume
 
 function TrashIcon({ className }: { className?: string }) {
   return (
-    <svg className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg aria-hidden="true" focusable="false" className={className || 'h-4 w-4'} fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path
         strokeLinecap="round"
         strokeLinejoin="round"

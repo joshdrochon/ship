@@ -25,7 +25,7 @@ export function HypothesisBlockComponent({ node }: NodeViewProps) {
           className="flex-shrink-0 mt-0.5 text-amber-500"
           contentEditable={false}
         >
-          <svg
+          <svg aria-hidden="true" focusable="false"
             className="w-5 h-5"
             fill="none"
             stroke="currentColor"
