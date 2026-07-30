@@ -129,11 +129,13 @@ function documentsListStatement(hasType: boolean, parentFilter: ParentFilter): {
   const name = `documents_list_${hasType ? 't' : 'x'}_${parentFilter}`;
   let text = documentsListStatements.get(name);
   if (text === undefined) {
+    // $1 and $2 are always workspace id and user id, so the optional filters take $3 and
+    // $4 in the order the handler pushes them.
+    const parentParam = hasType ? '$4' : '$3';
     let sql = DOCUMENTS_LIST_SELECT;
-    let next = 3;
-    if (hasType) sql += ` AND document_type = $${next++}`;
+    if (hasType) sql += ` AND document_type = $3`;
     if (parentFilter === 'null') sql += ` AND parent_id IS NULL`;
-    else if (parentFilter === 'value') sql += ` AND parent_id = $${next++}`;
+    else if (parentFilter === 'value') sql += ` AND parent_id = ${parentParam}`;
     text = sql + DOCUMENTS_LIST_ORDER;
     documentsListStatements.set(name, text);
   }
