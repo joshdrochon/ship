@@ -35,8 +35,10 @@ import { test, expect, Page } from './fixtures/isolated-env'
 
 // Far outside the -6/+2 week window the heatmap grid and every other spec work in.
 const PLAN_WEEK = 901
+const RETRO_WEEK = 902
 
 const PLAN_TEXT = 'Ship the new dashboard feature'
+const RETRO_TEXT = 'Completed the API refactoring'
 
 /**
  * Wait until the my-week API itself reports the edited item.
@@ -139,11 +141,14 @@ test.describe('My Week - stale data after editing plan/retro', () => {
   })
 
   test('retro edits are visible on /my-week after navigating back', async ({ page }) => {
-    // 1. Navigate to /my-week
-    await page.goto('/my-week')
-    await expect(page.getByRole('heading', { name: /^Week \d+$/ })).toBeVisible({ timeout: 10000 })
+    // 1. Open the week this spec owns — a different one from the plan test, so the two
+    //    tests cannot interfere with each other either
+    await page.goto(`/my-week?week_number=${RETRO_WEEK}`)
+    await expect(page.getByRole('heading', { name: `Week ${RETRO_WEEK}`, exact: true })).toBeVisible(
+      { timeout: 10000 }
+    )
 
-    // 2. Create a retro (click the main create button, not the nudge link)
+    // 2. Create the retro
     await page.getByRole('button', { name: /create retro for this week/i }).click()
 
     // 3. Should navigate to the document editor
@@ -153,19 +158,20 @@ test.describe('My Week - stale data after editing plan/retro', () => {
     const editor = page.locator('.tiptap')
     await expect(editor).toBeVisible({ timeout: 10000 })
 
-    // 5. Type a list item into the editor
+    // 5. Type a list item
     await editor.click()
-    await page.keyboard.type('1. Completed the API refactoring')
+    await page.keyboard.type(`1. ${RETRO_TEXT}`)
 
-    // 6. Wait for the collaboration server to persist the content
-    await expect(page.getByText('Saved')).toBeVisible({ timeout: 10000 })
-    await page.waitForTimeout(3000)
+    // 6. Precondition, not the assertion: the edit has reached the server.
+    await waitForServerToHaveItem(page, RETRO_WEEK, 'retro', RETRO_TEXT)
 
-    // 7. Navigate back to /my-week using client-side navigation
-    await page.getByRole('button', { name: 'Dashboard' }).click()
-    await expect(page.getByRole('heading', { name: /^Week \d+$/ })).toBeVisible({ timeout: 10000 })
+    // 7. Client-side navigation back to the dashboard
+    await page.goBack()
+    await expect(page.getByRole('heading', { name: `Week ${RETRO_WEEK}`, exact: true })).toBeVisible(
+      { timeout: 10000 }
+    )
 
-    // 8. Verify the retro content is visible on the my-week page
-    await expect(page.getByText('Completed the API refactoring')).toBeVisible({ timeout: 15000 })
+    // 8. THE ASSERTION — see the plan test
+    await expect(page.getByText(RETRO_TEXT)).toBeVisible({ timeout: 10000 })
   })
 })
