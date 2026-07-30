@@ -8,9 +8,11 @@ vi.mock('../client.js', () => ({
 import {
   shouldWriteSessionActivity,
   touchSessionActivity,
+  validateSessionForConnection,
   SESSION_ACTIVITY_WRITE_INTERVAL_MS,
 } from '../sessions.js';
 import { pool } from '../client.js';
+import { ABSOLUTE_SESSION_TIMEOUT_MS } from '@ship/shared';
 
 /**
  * Regression tests for Category 4, W4-1.
@@ -80,6 +82,79 @@ describe('session activity write throttle', () => {
 
       expect(writes).toBe(1);
       expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('validateSessionForConnection (WebSocket handshake)', () => {
+    const SELECT_SQL = expect.stringContaining('SELECT user_id, workspace_id');
+    const UPDATE_SQL = 'UPDATE sessions SET last_activity = $1 WHERE id = $2';
+    const DELETE_SQL = 'DELETE FROM sessions WHERE id = $1';
+
+    function mockSession(lastActivity: Date, createdAt = new Date()) {
+      vi.mocked(pool.query).mockResolvedValueOnce({
+        rows: [{
+          user_id: 'user-123',
+          workspace_id: 'ws-123',
+          last_activity: lastActivity,
+          created_at: createdAt,
+        }],
+      } as never);
+    }
+
+    // Each document view opens a Yjs socket and an events socket. Both handshakes used
+    // to write last_activity unconditionally; they were the last 3 UPDATE statements on
+    // the "view a document" flow after the HTTP middleware was throttled.
+    it('does NOT write last_activity for a handshake inside the interval', async () => {
+      mockSession(new Date(Date.now() - 30 * 1000));
+
+      const result = await validateSessionForConnection('sess-1');
+
+      expect(result).toEqual({ userId: 'user-123', workspaceId: 'ws-123' });
+      expect(pool.query).toHaveBeenCalledTimes(1);
+      expect(pool.query).toHaveBeenCalledWith(SELECT_SQL, ['sess-1']);
+      expect(pool.query).not.toHaveBeenCalledWith(UPDATE_SQL, expect.anything());
+    });
+
+    it('writes last_activity once the interval has elapsed', async () => {
+      mockSession(new Date(Date.now() - 90 * 1000));
+
+      await validateSessionForConnection('sess-1');
+
+      expect(pool.query).toHaveBeenCalledWith(UPDATE_SQL, [expect.any(Date), 'sess-1']);
+    });
+
+    it('rejects and deletes a session past the idle timeout', async () => {
+      mockSession(new Date(Date.now() - SESSION_TIMEOUT_MS - 1000));
+
+      const result = await validateSessionForConnection('sess-1');
+
+      expect(result).toBeNull();
+      expect(pool.query).toHaveBeenCalledWith(DELETE_SQL, ['sess-1']);
+      expect(pool.query).not.toHaveBeenCalledWith(UPDATE_SQL, expect.anything());
+    });
+
+    it('rejects and deletes a session past the absolute timeout', async () => {
+      mockSession(new Date(), new Date(Date.now() - ABSOLUTE_SESSION_TIMEOUT_MS - 1000));
+
+      const result = await validateSessionForConnection('sess-1');
+
+      expect(result).toBeNull();
+      expect(pool.query).toHaveBeenCalledWith(DELETE_SQL, ['sess-1']);
+    });
+
+    it('rejects an unknown session without further queries', async () => {
+      vi.mocked(pool.query).mockResolvedValueOnce({ rows: [] } as never);
+
+      expect(await validateSessionForConnection('nope')).toBeNull();
+      expect(pool.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects rather than throwing when the database is unreachable', async () => {
+      // A WebSocket upgrade has nowhere to put a 500, so the failure mode is "refuse
+      // the socket", same as the inline version this replaced.
+      vi.mocked(pool.query).mockRejectedValueOnce(new Error('connection refused'));
+
+      expect(await validateSessionForConnection('sess-1')).toBeNull();
     });
   });
 });

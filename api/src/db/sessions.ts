@@ -1,4 +1,5 @@
 import { pool } from './client.js';
+import { SESSION_TIMEOUT_MS, ABSOLUTE_SESSION_TIMEOUT_MS } from '@ship/shared';
 
 /**
  * Session activity bookkeeping.
@@ -68,4 +69,53 @@ export async function touchSessionActivity(
 
   await pool.query('UPDATE sessions SET last_activity = $1 WHERE id = $2', [now, sessionId]);
   return true;
+}
+
+/**
+ * Validate a session for a WebSocket handshake.
+ *
+ * The Yjs collaboration server and the events server each open a socket per document
+ * view, and each handshake used to repeat the HTTP middleware's session dance inline:
+ * SELECT, two timeout checks, then an unconditional `UPDATE sessions SET last_activity`.
+ * Those handshake writes were the remaining `UPDATE sessions` statements on the measured
+ * "view a document" flow once the HTTP middleware was throttled — 3 of the 40 queries.
+ *
+ * Lifting it here does two things: the same throttle now covers both authentication
+ * paths, and the timeout rules live in one place instead of being duplicated in
+ * `middleware/auth.ts` and `collaboration/index.ts`, where they could silently drift.
+ *
+ * Behaviour is otherwise identical to the inline version it replaces: an expired session
+ * is deleted and rejected, and any error surfaces as a rejection rather than an
+ * exception, because a WebSocket upgrade has nowhere to put a 500.
+ *
+ * @returns the session's user and workspace, or null if the socket must be refused.
+ */
+export async function validateSessionForConnection(
+  sessionId: string
+): Promise<{ userId: string; workspaceId: string } | null> {
+  try {
+    const result = await pool.query(
+      `SELECT user_id, workspace_id, last_activity, created_at
+       FROM sessions WHERE id = $1`,
+      [sessionId]
+    );
+
+    const session = result.rows[0];
+    if (!session) return null;
+
+    const now = new Date();
+    const inactivityMs = now.getTime() - new Date(session.last_activity).getTime();
+    const sessionAgeMs = now.getTime() - new Date(session.created_at).getTime();
+
+    if (sessionAgeMs > ABSOLUTE_SESSION_TIMEOUT_MS || inactivityMs > SESSION_TIMEOUT_MS) {
+      await pool.query('DELETE FROM sessions WHERE id = $1', [sessionId]);
+      return null;
+    }
+
+    await touchSessionActivity(sessionId, now, inactivityMs);
+
+    return { userId: session.user_id, workspaceId: session.workspace_id };
+  } catch {
+    return null;
+  }
 }

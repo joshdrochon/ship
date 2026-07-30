@@ -6,9 +6,9 @@ import * as awarenessProtocol from 'y-protocols/awareness';
 import * as encoding from 'lib0/encoding';
 import * as decoding from 'lib0/decoding';
 import { pool } from '../db/client.js';
+import { validateSessionForConnection } from '../db/sessions.js';
 import { extractHypothesisFromContent, extractSuccessCriteriaFromContent, extractVisionFromContent, extractGoalsFromContent } from '../utils/extractHypothesis.js';
 import { yjsToJson, jsonToYjs } from '../utils/yjsConverter.js';
-import { SESSION_TIMEOUT_MS, ABSOLUTE_SESSION_TIMEOUT_MS } from '@ship/shared';
 import cookie from 'cookie';
 
 const messageSync = 0;
@@ -344,6 +344,10 @@ function handleMessage(ws: WebSocket, message: Uint8Array, docName: string, doc:
 }
 
 // Validate session from cookie header - returns userId/workspaceId or null
+//
+// The session rules (12-hour absolute timeout, 15-minute idle timeout, and the throttled
+// last_activity write) live in db/sessions.ts so this path and the HTTP middleware cannot
+// drift apart. See that file for why the write is throttled.
 async function validateWebSocketSession(request: IncomingMessage): Promise<{ userId: string; workspaceId: string } | null> {
   const cookieHeader = request.headers.cookie;
   if (!cookieHeader) return null;
@@ -352,44 +356,7 @@ async function validateWebSocketSession(request: IncomingMessage): Promise<{ use
   const sessionId = cookies.session_id;
   if (!sessionId) return null;
 
-  try {
-    const result = await pool.query(
-      `SELECT user_id, workspace_id, last_activity, created_at
-       FROM sessions WHERE id = $1`,
-      [sessionId]
-    );
-
-    const session = result.rows[0];
-    if (!session) return null;
-
-    const now = new Date();
-    const lastActivity = new Date(session.last_activity);
-    const createdAt = new Date(session.created_at);
-    const inactivityMs = now.getTime() - lastActivity.getTime();
-    const sessionAgeMs = now.getTime() - createdAt.getTime();
-
-    // Check absolute timeout (12 hours)
-    if (sessionAgeMs > ABSOLUTE_SESSION_TIMEOUT_MS) {
-      await pool.query('DELETE FROM sessions WHERE id = $1', [sessionId]);
-      return null;
-    }
-
-    // Check inactivity timeout (15 minutes)
-    if (inactivityMs > SESSION_TIMEOUT_MS) {
-      await pool.query('DELETE FROM sessions WHERE id = $1', [sessionId]);
-      return null;
-    }
-
-    // Update last activity
-    await pool.query(
-      'UPDATE sessions SET last_activity = $1 WHERE id = $2',
-      [now, sessionId]
-    );
-
-    return { userId: session.user_id, workspaceId: session.workspace_id };
-  } catch {
-    return null;
-  }
+  return validateSessionForConnection(sessionId);
 }
 
 // Check if user can access a document for collaboration (visibility check)
