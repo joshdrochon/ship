@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/isolated-env'
+import { expectDocumentTitleSaved } from './fixtures/test-helpers'
 
 /**
  * Sprint tests that complement program-mode-sprint-ux.spec.ts
@@ -45,8 +46,10 @@ test.describe('Weeks - Issue Editor Integration', () => {
     const titleInput = page.getByPlaceholder('Untitled')
     await titleInput.fill('Sprint Picker Test Issue')
 
-    // Wait for title to save (API call) - unified document model uses /api/documents/
-    await page.waitForResponse(resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH')
+    // Wait for the title to reach the server. Since W6-9 the title is persisted
+    // by the collaboration server rather than a REST PATCH, so assert on the
+    // stored value instead of the wire call.
+    await expectDocumentTitleSaved(page, 'Sprint Picker Test Issue')
 
     // Add an estimate first (required before assigning to sprint)
     const estimateInput = page.getByRole('spinbutton', { name: /estimate/i })

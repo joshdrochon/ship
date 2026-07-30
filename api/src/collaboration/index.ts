@@ -8,6 +8,7 @@ import * as decoding from 'lib0/decoding';
 import { pool } from '../db/client.js';
 import { extractHypothesisFromContent, extractSuccessCriteriaFromContent, extractVisionFromContent, extractGoalsFromContent } from '../utils/extractHypothesis.js';
 import { yjsToJson, jsonToYjs } from '../utils/yjsConverter.js';
+import { reconcileTitleOnLoad, readTitleFromDoc, replaceTitleInDoc } from './documentTitle.js';
 import { SESSION_TIMEOUT_MS, ABSOLUTE_SESSION_TIMEOUT_MS } from '@ship/shared';
 import cookie from 'cookie';
 
@@ -166,12 +167,19 @@ async function persistDocument(docName: string, doc: Y.Doc) {
       goals: goals,
     };
 
-    // Persist yjs_state, content (JSON backup), and updated properties
+    // The title is a Yjs shared type too (see documentTitle.ts), so it is written
+    // from the same snapshot as the content. null means "the CRDT has no title for
+    // this document", and COALESCE then leaves the column as REST last set it.
+    const title = readTitleFromDoc(doc);
+
+    // Persist yjs_state, content (JSON backup), title, and updated properties
     // The content column is kept in sync with yjs_state to serve as a fallback
     // and to support API reads that don't go through the collaboration server
     await pool.query(
-      `UPDATE documents SET yjs_state = $1, content = $2, properties = $3, updated_at = now() WHERE id = $4`,
-      [Buffer.from(state), JSON.stringify(content), JSON.stringify(updatedProps), docId]
+      `UPDATE documents
+       SET yjs_state = $1, content = $2, properties = $3, title = COALESCE($5, title), updated_at = now()
+       WHERE id = $4`,
+      [Buffer.from(state), JSON.stringify(content), JSON.stringify(updatedProps), docId, title]
     );
   } catch (err) {
     console.error('Failed to persist document:', err);
@@ -204,7 +212,7 @@ async function getOrCreateDoc(docName: string): Promise<Y.Doc> {
 
   try {
     const result = await pool.query(
-      'SELECT yjs_state, content FROM documents WHERE id = $1',
+      'SELECT yjs_state, content, title FROM documents WHERE id = $1',
       [docId]
     );
 
@@ -253,6 +261,15 @@ async function getOrCreateDoc(docName: string): Promise<Y.Doc> {
       }
     } else {
       console.log(`[Collaboration] No content found for ${docName}, starting with empty document`);
+    }
+
+    // Reconcile the CRDT title with the column. This happens here, before any
+    // client has synced and before the update listener below is attached, because
+    // the server is the only writer at this instant — so exactly one seed happens.
+    // Two clients seeding the same string concurrently would leave both copies.
+    const titleOutcome = reconcileTitleOnLoad(doc, result.rows[0]?.title);
+    if (titleOutcome !== 'agreed') {
+      console.log(`[Collaboration] CRDT title for ${docName}: ${titleOutcome}`);
     }
   } catch (err) {
     console.error(`[Collaboration] Failed to load document ${docName}:`, err);
@@ -491,6 +508,34 @@ export function invalidateDocumentCache(docId: string): void {
   }
 }
 
+/**
+ * Push a REST title change into any live collaboration room for that document.
+ *
+ * The title is a Yjs shared type (see documentTitle.ts), and the collaboration
+ * server writes it back to the column on every debounced persist. So a rename
+ * made outside the editor — the document tree, an import, an admin fix — must be
+ * applied to the room as well, or the room's older string wins the next persist
+ * and the rename silently disappears.
+ *
+ * Replacement, not merge, is correct here: a REST write carries no
+ * character-level intent, so last-writer-wins is the intended semantic.
+ *
+ * @returns the number of rooms updated (0 when nobody has the document open).
+ */
+export function applyTitleToRoom(docId: string, title: string): number {
+  let updated = 0;
+  docs.forEach((doc, docName) => {
+    if (parseDocId(docName) !== docId) return;
+    // The doc's own 'update' listener broadcasts to connected clients and
+    // schedules the persist, so nothing else is needed here.
+    if (replaceTitleInDoc(doc, title)) updated++;
+  });
+  if (updated > 0) {
+    console.log(`[Collaboration] Applied REST title change for ${docId} to ${updated} room(s)`);
+  }
+  return updated;
+}
+
 export function handleDocumentConversion(
   oldDocId: string,
   newDocId: string,
@@ -602,6 +647,57 @@ export function broadcastToUser(userId: string, eventType: string, data?: Record
 
 // DDoS protection: Max WebSocket message size (10MB, matches REST API limit)
 const MAX_WS_MESSAGE_SIZE = 10 * 1024 * 1024;
+
+/**
+ * Rule 7 (timeouts on inbound sockets, which are outbound from the server's point
+ * of view once it starts writing to them).
+ *
+ * A WebSocket only reports a peer that closed politely. A laptop lid, a dropped
+ * Wi-Fi connection or a NAT table eviction leaves a half-open socket that the
+ * server still believes is live: `ws.readyState` stays OPEN, every document
+ * update is written into it forever, and the connection is never removed from
+ * `conns`. The visible symptoms are ghost cursors and phantom names in the
+ * presence list — the awareness state is only cleaned up in the 'close' handler,
+ * which never fires.
+ *
+ * ws implements ping/pong at the protocol level; this drives it. A client that
+ * fails to answer two consecutive pings is terminated, which fires 'close' and
+ * runs the existing cleanup.
+ *
+ * Failure mode this protects against: half-open sockets accumulating in `conns`
+ * and in the awareness map — a slow memory leak, a broadcast fan-out to sockets
+ * nobody is reading, and ghost collaborators on other users' screens.
+ */
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
+function startHeartbeat(wss: WebSocketServer, label: string): NodeJS.Timeout {
+  const alive = new WeakMap<WebSocket, boolean>();
+
+  wss.on('connection', (ws: WebSocket) => {
+    alive.set(ws, true);
+    ws.on('pong', () => alive.set(ws, true));
+  });
+
+  const timer = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (alive.get(ws) === false) {
+        console.log(`[${label}] Terminating unresponsive socket (missed 2 heartbeats)`);
+        ws.terminate(); // fires 'close', which runs the existing cleanup
+        continue;
+      }
+      alive.set(ws, false);
+      try {
+        ws.ping();
+      } catch {
+        ws.terminate();
+      }
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  // Do not hold the event loop open for this alone.
+  timer.unref?.();
+  return timer;
+}
 
 export function setupCollaboration(server: Server) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_MESSAGE_SIZE });
@@ -828,6 +924,10 @@ export function setupCollaboration(server: Server) {
       console.log(`[Events] User ${sessionData.userId} disconnected (${eventConns.size} total connections)`);
     });
   });
+
+  // Rule 7: detect and reap half-open sockets on both servers (see startHeartbeat).
+  startHeartbeat(wss, 'Collaboration');
+  startHeartbeat(eventsWss, 'Events');
 
   console.log('Yjs collaboration server attached');
   console.log('Events WebSocket server attached');

@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env';
+import { documentIdFromUrl, expectDocumentTitleSaved } from './fixtures/test-helpers';
 
 /**
  * Auto-Save Race Condition Tests
@@ -77,8 +78,10 @@ test.describe('Auto-Save Race Conditions - Title Field', () => {
     // Continue typing while server response may be in-flight
     await titleInput.fill('Hello World');
 
-    // Wait for any stale responses to arrive
-    await page.waitForTimeout(1500);
+    // W6-9: the title is persisted by the collaboration server on a 2s debounce
+    // (schedulePersist), not by a REST throttle, so a fixed sleep shorter than
+    // that races the durable write. Wait for the value to actually land.
+    await expectDocumentTitleSaved(page, 'Hello World');
 
     // Title should be "Hello World", NOT reverted to "Hello"
     await expect(titleInput).toHaveValue('Hello World');
@@ -104,8 +107,10 @@ test.describe('Auto-Save Race Conditions - Title Field', () => {
       await page.waitForTimeout(50); // 50ms between characters
     }
 
-    // Wait for final save to complete
-    await page.waitForTimeout(1500);
+    // W6-9: the title is persisted by the collaboration server on a 2s debounce
+    // (schedulePersist), not by a REST throttle, so a fixed sleep shorter than
+    // that races the durable write. Wait for the value to actually land.
+    await expectDocumentTitleSaved(page, fullTitle);
 
     // Title should be the full string, not truncated by intermediate saves
     await expect(titleInput).toHaveValue(fullTitle);
@@ -132,7 +137,11 @@ test.describe('Auto-Save Race Conditions - Title Field', () => {
 
     // Third segment
     await titleInput.fill('Part 1 and Part 2 and Part 3');
-    await page.waitForTimeout(1500); // Wait for all saves
+
+    // W6-9: the title is persisted by the collaboration server on a 2s debounce
+    // (schedulePersist), not by a REST throttle, so a fixed sleep shorter than
+    // that races the durable write. Wait for the value to actually land.
+    await expectDocumentTitleSaved(page, 'Part 1 and Part 2 and Part 3');
 
     // Should have complete title
     await expect(titleInput).toHaveValue('Part 1 and Part 2 and Part 3');
@@ -158,8 +167,10 @@ test.describe('Auto-Save Race Conditions - Title Field', () => {
     // Continue typing
     await titleInput.fill('Bug: login fails');
 
-    // Wait for responses
-    await page.waitForTimeout(1500);
+    // W6-9: the title is persisted by the collaboration server on a 2s debounce
+    // (schedulePersist), not by a REST throttle, so a fixed sleep shorter than
+    // that races the durable write. Wait for the value to actually land.
+    await expectDocumentTitleSaved(page, 'Bug: login fails');
 
     // Should have full title
     await expect(titleInput).toHaveValue('Bug: login fails');
@@ -176,48 +187,65 @@ test.describe('Auto-Save Race Conditions - Throttle Behavior', () => {
     await login(page);
   });
 
-  test('throttle: saves periodically during long typing session', async ({ page, context }) => {
-    // Track API calls
-    const apiCalls: { timestamp: number; title: string }[] = [];
-    await context.route('**/api/documents/**', async (route) => {
-      const request = route.request();
-      if (request.method() === 'PATCH') {
-        try {
-          const body = request.postDataJSON();
-          if (body?.title) {
-            apiCalls.push({ timestamp: Date.now(), title: body.title });
-          }
-        } catch {
-          // Ignore parse errors
-        }
-      }
-      await route.continue();
-    });
-
+  // W6-9 changed what "periodically" means here, so this test now asserts the
+  // guarantee that actually protects the user's work rather than a PATCH count.
+  //
+  // Before: the title was saved by a throttled `PATCH /api/documents/:id`, so
+  // counting PATCH bodies containing a title was a reasonable proxy for "work is
+  // being flushed while you type". This test required at least 3 of them.
+  //
+  // Now: the title is a Y.Text replicated to the collaboration server on every
+  // keystroke over the WebSocket, and the server writes it to the column on a
+  // 2s trailing debounce. Counting PATCHes measures nothing — there are none in
+  // the steady state. Worse, the debounce resets on each keystroke, so during
+  // *continuous* typing there is legitimately no column write until you pause.
+  //
+  // The user-visible guarantee is that a typing session is not lost and is not
+  // truncated: work done before a pause is durable, and the complete value
+  // survives a reload. That is what is asserted, in two bursts so that an
+  // implementation which only ever saved at the very end would still fail.
+  test('throttle: intermediate and final title edits are both persisted', async ({ page }) => {
     await createNewDocument(page);
+    const docId = documentIdFromUrl(page.url());
 
     const titleInput = page.locator('textarea[placeholder="Untitled"]');
     await titleInput.click();
 
-    // Type continuously for 3 seconds
-    const startTime = Date.now();
-    while (Date.now() - startTime < 3000) {
-      await page.keyboard.type('a');
+    const serverTitle = async (): Promise<string> => {
+      const resp = await page.request.get(`/api/documents/${docId}`);
+      expect(resp.ok(), `GET /api/documents/${docId} should succeed`).toBeTruthy();
+      return (await resp.json()).title ?? '';
+    };
+
+    // Burst 1 — type, then pause long enough for the trailing save to fire.
+    const firstBurst = 'aaaaaaaaaa';
+    for (const ch of firstBurst) {
+      await page.keyboard.type(ch);
+      await page.waitForTimeout(100);
+    }
+    await expect(async () => {
+      expect(await serverTitle()).toBe(firstBurst);
+    }).toPass({ timeout: 15000 });
+
+    // Burst 2 — continue typing. The intermediate state above was already
+    // durable, which is the property the old throttle assertion stood for.
+    const secondBurst = 'bbbbbbbbbb';
+    for (const ch of secondBurst) {
+      await page.keyboard.type(ch);
       await page.waitForTimeout(100);
     }
 
-    // Wait for final save
-    await page.waitForTimeout(1000);
+    const expected = firstBurst + secondBurst;
+    await expect(async () => {
+      expect(await serverTitle()).toBe(expected);
+    }).toPass({ timeout: 15000 });
 
-    // With throttle (500ms), we should have multiple saves during 3s of typing
-    // Expect at least 3-4 intermediate saves (not just one at the end like debounce)
-    expect(apiCalls.length).toBeGreaterThanOrEqual(3);
-
-    // Verify final title was saved correctly
-    const currentValue = await titleInput.inputValue();
+    // And the complete, untruncated value survives a reload.
     await page.reload();
     await expect(page.locator('.ProseMirror')).toBeVisible({ timeout: 5000 });
-    await expect(page.locator('textarea[placeholder="Untitled"]')).toHaveValue(currentValue);
+    await expect(page.locator('textarea[placeholder="Untitled"]')).toHaveValue(expected, {
+      timeout: 10000,
+    });
   });
 });
 

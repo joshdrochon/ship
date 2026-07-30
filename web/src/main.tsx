@@ -43,6 +43,7 @@ import { InviteAcceptPage } from '@/pages/InviteAccept';
 import { SetupPage } from '@/pages/Setup';
 import { ToastProvider } from '@/components/ui/Toast';
 import { MutationErrorToast } from '@/components/MutationErrorToast';
+import { RouteErrorBoundary } from '@/components/ui/RouteErrorBoundary';
 import './index.css';
 
 /**
@@ -129,25 +130,43 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function App() {
+/**
+ * W6-1: every route below is a top-level route with no error boundary above it,
+ * so a render error unmounted the whole tree to a blank white page — measured at
+ * 6 of 6 routes blank with no recovery path (docs/audit/evidence/w6-1/).
+ * `AppLayout` and the document editor have their own boundaries, but both sit
+ * under the `/` route, which is inside the second element here.
+ *
+ * The boundaries go on the two route *elements* rather than on each of the six
+ * pages, because that also covers the three providers wrapped around `AppRoutes`
+ * — a throw in `AuthProvider` white-screened the app just as thoroughly as one in
+ * `LoginPage`, and a per-page boundary would sit below it.
+ */
+export function App() {
   return (
     <Routes>
       {/* Truly public routes - no AuthProvider wrapper */}
       <Route
         path="/feedback/:programId"
-        element={<PublicFeedbackPage />}
+        element={
+          <RouteErrorBoundary label="public feedback">
+            <PublicFeedbackPage />
+          </RouteErrorBoundary>
+        }
       />
       {/* Routes that need AuthProvider (even if some are public) */}
       <Route
         path="/*"
         element={
-          <WorkspaceProvider>
-            <AuthProvider>
-              <RealtimeEventsProvider>
-                <AppRoutes />
-              </RealtimeEventsProvider>
-            </AuthProvider>
-          </WorkspaceProvider>
+          <RouteErrorBoundary label="app">
+            <WorkspaceProvider>
+              <AuthProvider>
+                <RealtimeEventsProvider>
+                  <AppRoutes />
+                </RealtimeEventsProvider>
+              </AuthProvider>
+            </WorkspaceProvider>
+          </RouteErrorBoundary>
         }
       />
     </Routes>
@@ -248,21 +267,29 @@ function AppRoutes() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{ persister: queryPersister }}
-    >
-      <ToastProvider>
-        <MutationErrorToast />
-        <BrowserRouter>
-          <ReviewQueueProvider>
-            <App />
-          </ReviewQueueProvider>
-        </BrowserRouter>
-      </ToastProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
-    </PersistQueryClientProvider>
-  </React.StrictMode>
-);
+// Mount only when there is a root to mount into. Importing this module from a test
+// must not try to render — that is how web/src/main.test.tsx can exercise the real
+// route tree, and therefore prove the W6-1 boundaries are actually wired in rather
+// than testing a copy of the routes.
+const rootElement = document.getElementById('root');
+
+if (rootElement) {
+  ReactDOM.createRoot(rootElement).render(
+    <React.StrictMode>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: queryPersister }}
+      >
+        <ToastProvider>
+          <MutationErrorToast />
+          <BrowserRouter>
+            <ReviewQueueProvider>
+              <App />
+            </ReviewQueueProvider>
+          </BrowserRouter>
+        </ToastProvider>
+        <ReactQueryDevtools initialIsOpen={false} />
+      </PersistQueryClientProvider>
+    </React.StrictMode>
+  );
+}

@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
+import { expectDocumentTitleSaved } from './fixtures/test-helpers'
 
 /**
  * Drag Handle E2E Tests
@@ -450,9 +451,9 @@ test.describe('Drag Handle - Block Reordering', () => {
       const embeddableDocId = embeddableDocUrl.split('/documents/')[1]
       const titleInput = page.getByPlaceholder('Untitled')
       await titleInput.fill('Embeddable Doc')
-      await page.waitForResponse(
-        resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH'
-      )
+      // Outcome, not transport: since W6-9 the title is persisted by the
+      // collaboration server, not by a REST PATCH from the browser.
+      await expectDocumentTitleSaved(page, 'Embeddable Doc', embeddableDocId)
 
       // Create another document with the embed
       await page.goto('/docs')
