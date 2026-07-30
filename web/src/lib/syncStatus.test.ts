@@ -95,11 +95,10 @@ describe('sync status (W6-5 regression)', () => {
 
   describe('the full sequence the harness drives', () => {
     it('online -> offline -> online reports each phase honestly', () => {
-      let status: SyncStatus = 'connecting';
       let online = true;
 
       // connected and synced
-      status = 'synced';
+      let status: SyncStatus = 'synced';
       expect(syncStatusLabel(effectiveSyncStatus(status, online))).toBe('Saved');
 
       // browser drops

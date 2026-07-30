@@ -648,6 +648,57 @@ export function broadcastToUser(userId: string, eventType: string, data?: Record
 // DDoS protection: Max WebSocket message size (10MB, matches REST API limit)
 const MAX_WS_MESSAGE_SIZE = 10 * 1024 * 1024;
 
+/**
+ * Rule 7 (timeouts on inbound sockets, which are outbound from the server's point
+ * of view once it starts writing to them).
+ *
+ * A WebSocket only reports a peer that closed politely. A laptop lid, a dropped
+ * Wi-Fi connection or a NAT table eviction leaves a half-open socket that the
+ * server still believes is live: `ws.readyState` stays OPEN, every document
+ * update is written into it forever, and the connection is never removed from
+ * `conns`. The visible symptoms are ghost cursors and phantom names in the
+ * presence list — the awareness state is only cleaned up in the 'close' handler,
+ * which never fires.
+ *
+ * ws implements ping/pong at the protocol level; this drives it. A client that
+ * fails to answer two consecutive pings is terminated, which fires 'close' and
+ * runs the existing cleanup.
+ *
+ * Failure mode this protects against: half-open sockets accumulating in `conns`
+ * and in the awareness map — a slow memory leak, a broadcast fan-out to sockets
+ * nobody is reading, and ghost collaborators on other users' screens.
+ */
+const HEARTBEAT_INTERVAL_MS = 30_000;
+
+function startHeartbeat(wss: WebSocketServer, label: string): NodeJS.Timeout {
+  const alive = new WeakMap<WebSocket, boolean>();
+
+  wss.on('connection', (ws: WebSocket) => {
+    alive.set(ws, true);
+    ws.on('pong', () => alive.set(ws, true));
+  });
+
+  const timer = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (alive.get(ws) === false) {
+        console.log(`[${label}] Terminating unresponsive socket (missed 2 heartbeats)`);
+        ws.terminate(); // fires 'close', which runs the existing cleanup
+        continue;
+      }
+      alive.set(ws, false);
+      try {
+        ws.ping();
+      } catch {
+        ws.terminate();
+      }
+    }
+  }, HEARTBEAT_INTERVAL_MS);
+
+  // Do not hold the event loop open for this alone.
+  timer.unref?.();
+  return timer;
+}
+
 export function setupCollaboration(server: Server) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_MESSAGE_SIZE });
   const eventsWss = new WebSocketServer({ noServer: true, maxPayload: MAX_WS_MESSAGE_SIZE });
@@ -873,6 +924,10 @@ export function setupCollaboration(server: Server) {
       console.log(`[Events] User ${sessionData.userId} disconnected (${eventConns.size} total connections)`);
     });
   });
+
+  // Rule 7: detect and reap half-open sockets on both servers (see startHeartbeat).
+  startHeartbeat(wss, 'Collaboration');
+  startHeartbeat(eventsWss, 'Events');
 
   console.log('Yjs collaboration server attached');
   console.log('Events WebSocket server attached');
