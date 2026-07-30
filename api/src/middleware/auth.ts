@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { pool } from '../db/client.js';
+import { touchSessionActivity, SESSION_ACTIVITY_WRITE_INTERVAL_MS } from '../db/sessions.js';
 import { SESSION_TIMEOUT_MS, ABSOLUTE_SESSION_TIMEOUT_MS, ERROR_CODES, HTTP_STATUS } from '@ship/shared';
 
 // Extend Express Request to include session info
@@ -263,16 +264,19 @@ export async function authMiddleware(
       }
     }
 
-    // Update last activity
-    await pool.query(
-      'UPDATE sessions SET last_activity = $1 WHERE id = $2',
-      [now, sessionId]
-    );
+    // Update last activity.
+    //
+    // Throttled: see api/src/db/sessions.ts for why an unconditional write here made
+    // every read request a write, and why lagging the stored timestamp by at most
+    // SESSION_ACTIVITY_WRITE_INTERVAL_MS is safe for the 15-minute idle timeout.
+    await touchSessionActivity(sessionId, now, inactivityMs);
 
-    // Refresh cookie with sliding expiration (throttled to avoid overhead)
-    // Only refresh if more than 60 seconds since last activity
-    const COOKIE_REFRESH_THRESHOLD_MS = 60 * 1000;
-    if (inactivityMs > COOKIE_REFRESH_THRESHOLD_MS) {
+    // Refresh cookie with sliding expiration (throttled to avoid overhead).
+    // Same threshold as the activity write above, deliberately: the cookie's maxAge and
+    // the stored last_activity are the two halves of one sliding window, and letting
+    // them drift apart would mean the browser and the database disagree about when the
+    // session dies.
+    if (inactivityMs > SESSION_ACTIVITY_WRITE_INTERVAL_MS) {
       res.cookie('session_id', sessionId, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
