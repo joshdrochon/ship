@@ -85,14 +85,17 @@ async function clickSprintsTab(page: Page) {
   await expect(tab).toBeVisible({ timeout: 15000 })
   await tab.click()
 
-  // Wait for the panel's own content, not just for the tab's data-state.
+  // Wait for the tab to actually be selected, and then for the panel's own content.
   //
-  // The previous version awaited data-state="active" and swallowed the failure in a
-  // .catch(), with the comment "just wait for content to load" — which it then did not
-  // do. So every caller proceeded whether or not the panel had rendered. That was
-  // survivable while this route was in the entry chunk; it is not now that the route is
-  // React.lazy, because the panel mounts strictly later than the tab click resolves.
-  await expect(tab).toHaveAttribute('data-state', 'active', { timeout: 10000 })
+  // The previous version awaited data-state="active" inside a .catch() whose comment
+  // read "just wait for content to load", which it then did not do. Worse than
+  // redundant: TabBar renders `aria-selected`, never `data-state`, so that assertion
+  // could not succeed on any run. It timed out every time and the .catch() ate it, and
+  // every caller proceeded whether or not the panel had rendered.
+  //
+  // That was survivable while this route sat in the entry chunk. It is not now that the
+  // route is React.lazy — the panel mounts strictly later than the tab click resolves.
+  await expect(tab).toHaveAttribute('aria-selected', 'true', { timeout: 10000 })
   await expect(page.getByText(/Week of/).first()).toBeVisible({ timeout: 15000 })
 }
 
