@@ -737,6 +737,9 @@ function DocumentTreeItem({
 
   const isActive = activeId === document.id;
   const hasChildren = document.children.length > 0;
+  // W7-12: "Document actions" / "Expand" / "Collapse" were identical on every row of the
+  // sidebar tree, so the announcement never said which document the control belonged to.
+  const docName = document.title || 'Untitled';
 
   // Context menu handlers
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -840,7 +843,7 @@ function DocumentTreeItem({
             type="button"
             className="w-4 h-4 flex-shrink-0 flex items-center justify-center p-0 rounded hover:bg-border/50"
             onClick={() => setIsOpen(!isOpen)}
-            aria-label={isOpen ? 'Collapse' : 'Expand'}
+            aria-label={isOpen ? `Collapse ${docName}` : `Expand ${docName}`}
           >
             <ChevronIcon isOpen={isOpen} />
           </button>
@@ -866,7 +869,7 @@ function DocumentTreeItem({
           type="button"
           onClick={handleMenuButtonClick}
           className="p-0.5 rounded hover:bg-border/50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-          aria-label="Document actions"
+          aria-label={`Actions for ${docName}`}
           aria-haspopup="menu"
         >
           <MoreHorizontalIcon className="h-3.5 w-3.5" />
@@ -1259,7 +1262,11 @@ function ProjectsList({
                     type="button"
                     onClick={() => toggleProject(project.id)}
                     className="w-4 h-4 flex-shrink-0 flex items-center justify-center p-0 rounded hover:bg-border/50"
-                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
+                    aria-label={
+                      isExpanded
+                        ? `Collapse ${project.title || 'Untitled'}`
+                        : `Expand ${project.title || 'Untitled'}`
+                    }
                   >
                     <ChevronIcon isOpen={isExpanded} />
                   </button>

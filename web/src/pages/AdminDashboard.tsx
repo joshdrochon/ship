@@ -121,6 +121,7 @@ export function AdminDashboardPage() {
           <button
             onClick={() => navigate('/docs')}
             className="text-muted hover:text-foreground transition-colors"
+            aria-label="Back to documents"
           >
             <BackIcon />
           </button>

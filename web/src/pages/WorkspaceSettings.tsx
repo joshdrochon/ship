@@ -321,7 +321,11 @@ function MembersTab({
                     {isArchived ? (
                       <span className="text-muted">-</span>
                     ) : (
+                      /* W7-4/W7-12: without an accessible name a screen reader falls back to
+                         announcing the control's value, so every row said "member" and nothing
+                         said whose permissions were about to change. */
                       <select
+                        aria-label={`Workspace role for ${member.name}`}
                         value={member.role || 'member'}
                         onChange={(e) => onUpdateRole(member.userId, e.target.value as 'admin' | 'member')}
                         disabled={isLastAdmin}

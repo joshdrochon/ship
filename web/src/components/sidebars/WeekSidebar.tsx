@@ -169,7 +169,12 @@ export function WeekSidebar({
       </PropertyRow>
 
       <PropertyRow label="Status" highlighted={isHighlighted('status')}>
+        {/* PropertyRow draws a visible <label> but never associates it (no htmlFor / id),
+            so this control had no accessible name. aria-label restates the visible word
+            deliberately: associating the real label needs an id contract on PropertyRow,
+            which is component logic this lane does not own. */}
         <select
+          aria-label="Status"
           value={sprint.status}
           onChange={(e) => onUpdate({ status: e.target.value as Sprint['status'] })}
           className={`w-full rounded border bg-background px-2 py-1.5 text-sm text-foreground focus:border-accent focus:outline-none ${
