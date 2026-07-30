@@ -135,3 +135,9 @@ audit-summary.md
 eslint-report.txt
 */junit.xml
 dist-sha.txt
+
+# Category 6 before/after screenshots are deliverables, not scratch output: the
+# improvement target (brief p.7) requires "a screenshot or recording" per fix, so
+# this one evidence directory is tracked despite the rules above.
+!docs/audit/evidence/
+!docs/audit/evidence/**

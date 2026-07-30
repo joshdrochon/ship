@@ -9,7 +9,7 @@ import {
   batchLookupIssues,
 } from '../utils/transformIssueLinks.js';
 import { logDocumentChange, getLatestDocumentFieldHistory } from '../utils/document-crud.js';
-import { broadcastToUser } from '../collaboration/index.js';
+import { broadcastToUser, applyTitleToRoom } from '../collaboration/index.js';
 import { extractText } from '../utils/document-content.js';
 
 type RouterType = ReturnType<typeof Router>;
@@ -1152,6 +1152,13 @@ router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
        WHERE id = $${paramIndex} AND workspace_id = $${paramIndex + 1} AND document_type = 'sprint'`,
       [...values, id, req.workspaceId]
     );
+
+    // The title is a Yjs shared type (api/src/collaboration/documentTitle.ts) and
+    // the collaboration server writes it back from the CRDT on every persist, so a
+    // rename made here has to reach any live room or it gets silently reverted.
+    if (data.title !== undefined) {
+      applyTitleToRoom(String(id), data.title);
+    }
 
     // Re-query to get full sprint with owner info
     const result = await pool.query(

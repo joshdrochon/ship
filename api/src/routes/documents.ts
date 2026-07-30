@@ -3,7 +3,7 @@ import { pool } from '../db/client.js';
 import { z } from 'zod';
 import { authMiddleware } from '../middleware/auth.js';
 import { isWorkspaceAdmin } from '../middleware/visibility.js';
-import { handleVisibilityChange, handleDocumentConversion, invalidateDocumentCache, broadcastToUser } from '../collaboration/index.js';
+import { handleVisibilityChange, handleDocumentConversion, invalidateDocumentCache, applyTitleToRoom, broadcastToUser } from '../collaboration/index.js';
 import { extractHypothesisFromContent, extractSuccessCriteriaFromContent, extractVisionFromContent, extractGoalsFromContent, checkDocumentCompleteness } from '../utils/extractHypothesis.js';
 import { loadContentFromYjsState } from '../utils/yjsConverter.js';
 
@@ -1022,6 +1022,14 @@ router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
     // Invalidate collaboration cache when content is updated via API
     if (contentUpdated) {
       invalidateDocumentCache(id);
+    }
+
+    // The title is a Yjs shared type as of the W6-9 fix, and the collaboration
+    // server writes it back from the CRDT on every debounced persist. A rename
+    // that only touched the column would be undone by that write, so push it into
+    // any live room. No-op when nobody has the document open.
+    if (data.title !== undefined) {
+      applyTitleToRoom(id, data.title);
     }
 
     // Notify WebSocket collaboration server to disconnect users who lost access

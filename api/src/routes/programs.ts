@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getVisibilityContext, VISIBILITY_FILTER_SQL } from '../middleware/visibility.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { logAuditEvent } from '../services/audit.js';
+import { applyTitleToRoom } from '../collaboration/index.js';
 
 type RouterType = ReturnType<typeof Router>;
 const router: RouterType = Router();
@@ -291,6 +292,13 @@ router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
        WHERE id = $${paramIndex} AND workspace_id = $${paramIndex + 1} AND document_type = 'program'`,
       [...values, id, req.workspaceId]
     );
+
+    // The title is a Yjs shared type (api/src/collaboration/documentTitle.ts) and
+    // the collaboration server writes it back from the CRDT on every persist, so a
+    // rename made here has to reach any live room or it gets silently reverted.
+    if (data.title !== undefined) {
+      applyTitleToRoom(String(id), data.title);
+    }
 
     // Re-query to get full program with owner info
     const result = await pool.query(

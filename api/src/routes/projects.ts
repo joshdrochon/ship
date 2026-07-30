@@ -6,7 +6,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { DEFAULT_PROJECT_PROPERTIES, computeICEScore } from '@ship/shared';
 import { checkDocumentCompleteness } from '../utils/extractHypothesis.js';
 import { logDocumentChange, getLatestDocumentFieldHistory } from '../utils/document-crud.js';
-import { broadcastToUser } from '../collaboration/index.js';
+import { broadcastToUser, applyTitleToRoom } from '../collaboration/index.js';
 
 type RouterType = ReturnType<typeof Router>;
 const router: RouterType = Router();
@@ -754,6 +754,13 @@ router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
          WHERE id = $${paramIndex} AND workspace_id = $${paramIndex + 1} AND document_type = 'project'`,
         [...values, id, req.workspaceId]
       );
+    }
+
+    // The title is a Yjs shared type (api/src/collaboration/documentTitle.ts) and
+    // the collaboration server writes it back from the CRDT on every persist, so a
+    // rename made here has to reach any live room or it gets silently reverted.
+    if (data.title !== undefined) {
+      applyTitleToRoom(id as string, data.title);
     }
 
     // Broadcast celebration when plan is added

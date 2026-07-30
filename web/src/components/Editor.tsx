@@ -39,6 +39,7 @@ import { CommentDisplayExtension } from './editor/CommentDisplay';
 import { AIScoringDisplayExtension } from './editor/AIScoringDisplay';
 import { PlanReferenceBlockExtension } from './editor/PlanReferenceBlock';
 import { useCommentsQuery, useCreateComment, useUpdateComment } from '@/hooks/useCommentsQuery';
+import { useCollaborativeTitle } from '@/hooks/useCollaborativeTitle';
 import { BubbleMenu } from '@tiptap/react';
 import 'tippy.js/dist/tippy.css';
 
@@ -184,12 +185,7 @@ export function Editor({
   aiScoringAnalysis,
   titleSuffix,
 }: EditorProps) {
-  const [title, setTitle] = useState(initialTitle === 'Untitled' ? '' : initialTitle);
   const titleInputRef = useRef<HTMLTextAreaElement>(null);
-
-  // Track if user has made local changes (to prevent stale server responses from overwriting)
-  const hasLocalChangesRef = useRef(false);
-  const lastSyncedTitleRef = useRef(initialTitle);
 
   // CRITICAL: Create a new Y.Doc for each documentId using useMemo
   // This ensures the Y.Doc is atomically recreated when documentId changes,
@@ -197,25 +193,18 @@ export function Editor({
   // that contains content from a different document (cross-document contamination bug)
   const ydoc = useMemo(() => new Y.Doc(), [documentId]);
 
-  // Sync title when initialTitle prop changes (e.g., from context update)
-  // Only update if user hasn't made local changes (prevents stale responses from overwriting)
-  useEffect(() => {
-    const newTitle = initialTitle === 'Untitled' ? '' : initialTitle;
-    // Only update if this is a genuinely new value from server
-    // AND user hasn't made local changes since
-    if (!hasLocalChangesRef.current && initialTitle !== lastSyncedTitleRef.current) {
-      setTitle(newTitle);
-      lastSyncedTitleRef.current = initialTitle;
-    }
-  }, [initialTitle]);
-
-  // Reset local changes flag after save completes (parent will update initialTitle)
-  useEffect(() => {
-    if (initialTitle === title || (initialTitle === 'Untitled' && title === '')) {
-      hasLocalChangesRef.current = false;
-      lastSyncedTitleRef.current = initialTitle;
-    }
-  }, [initialTitle, title]);
+  // W6-9: the title is a Yjs shared type in the same Y.Doc as the body, so two
+  // people typing in it merge instead of overwriting each other. It used to be
+  // plain React state saved by a debounced PATCH, which meant the last request to
+  // land replaced the whole column and destroyed the other writer's text.
+  // `onTitleChange` is now only a fallback for when no collaboration session
+  // exists — otherwise the collaboration server persists the title from the CRDT.
+  const { title, setTitleFromInput, markSynced: markTitleSynced } = useCollaborativeTitle({
+    ydoc,
+    initialTitle,
+    onFallbackSave: onTitleChange,
+    inputRef: titleInputRef,
+  });
 
   // Auto-resize title textarea when title changes or on mount
   useEffect(() => {
@@ -442,6 +431,9 @@ export function Editor({
         console.log(`[Editor] WebSocket sync: ${isSynced} for ${roomPrefix}:${documentId}`);
         if (isSynced) {
           setSyncStatus('synced');
+          // From here the Y.Doc holds the authoritative title and the server
+          // persists it, so the REST title fallback must stand down (W6-9).
+          markTitleSynced();
         }
       });
 
@@ -500,7 +492,7 @@ export function Editor({
       setProvider(null);
       setConnectedUsers([]);
     };
-  }, [documentId, userName, color, ydoc, roomPrefix, onBack, onDocumentConverted]);
+  }, [documentId, userName, color, ydoc, roomPrefix, onBack, onDocumentConverted, markTitleSynced]);
 
   // Create slash commands extension (memoized to avoid recreation)
   // documentId is in deps to ensure fresh AbortSignal when switching documents
@@ -805,13 +797,11 @@ export function Editor({
     };
   }, [editor, onPlanChange]);
 
-  // Handle title changes
+  // Handle title changes. The hook diffs against the CRDT and applies only the
+  // characters that changed, which is what lets two writers merge (W6-9).
   const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newTitle = e.target.value;
-    hasLocalChangesRef.current = true; // Mark as having local changes to prevent stale overwrites
-    setTitle(newTitle);
-    onTitleChange?.(newTitle);
-  }, [onTitleChange]);
+    setTitleFromInput(e.target.value);
+  }, [setTitleFromInput]);
 
   return (
     <div className="flex h-full flex-col">
