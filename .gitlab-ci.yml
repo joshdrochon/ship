@@ -13,6 +13,31 @@
 # Rule 5 (build/release/run separation) is why `build` runs once, early, and every later
 # job consumes its artifact instead of recompiling. The artifact carries the commit SHA.
 
+# One pipeline per commit, and it is the branch pipeline.
+#
+# Without this, opening a merge request creates a second, *merge request* pipeline
+# alongside the branch one. Every job in this file uses the default `only:
+# [branches, tags]`, which does not match `merge_request_event` — so that second
+# pipeline is created with zero jobs, and GitLab marks a jobless pipeline as failed.
+# Observed directly: MR !1's head pipeline (17395) failed with no jobs while the branch
+# pipeline for the identical SHA (17387) was green on all eight.
+#
+# That matters beyond tidiness because `only_allow_merge_if_pipeline_succeeds` gates on
+# the MR's head pipeline. A phantom failure would have blocked every merge in the project
+# while the real checks passed.
+#
+# Two ways to fix it: give all eight jobs `rules` that match merge_request_event, or stop
+# creating the duplicate. The second is chosen — the branch pipeline already runs every
+# check against the exact SHA being merged, so an MR pipeline would re-run identical work
+# for no additional signal, and Rule 5 (build once, promote) argues against duplicating a
+# build per pipeline source.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
 stages:
   - setup
   - verify
