@@ -12,7 +12,8 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "generate:icon-types": "tsx scripts/generate-icon-types.ts"
+    "generate:icon-types": "tsx scripts/generate-icon-types.ts",
+    "test:coverage": "vitest run --coverage --coverage.reportOnFailure"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
