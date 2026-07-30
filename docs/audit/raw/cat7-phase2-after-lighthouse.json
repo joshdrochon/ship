@@ -1,0 +1,250 @@
+{
+ "desktop": {
+  "/admin": {
+   "name": "admin (super admin)",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 56,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-admin_(super_admin).json"
+  },
+  "/dashboard": {
+   "name": "dashboard",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-dashboard.json"
+  },
+  "/docs": {
+   "name": "docs (documents home)",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 51,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-docs_(documents_home).json"
+  },
+  "/documents/114e6abb-9f9a-4e14-b317-3988759324a2": {
+   "name": "issue document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-issue_document.json"
+  },
+  "/issues": {
+   "name": "issues list",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-issues_list.json"
+  },
+  "/login": {
+   "name": "login",
+   "score": 98,
+   "failed_audits": [
+    "landmark-one-main"
+   ],
+   "n_a": 53,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-login.json"
+  },
+  "/my-week": {
+   "name": "my-week",
+   "score": 96,
+   "failed_audits": [
+    "color-contrast"
+   ],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-my-week.json"
+  },
+  "/programs": {
+   "name": "programs list",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-programs_list.json"
+  },
+  "/documents/e3fb8ef5-8e17-4f74-9c18-6edb141e5f53": {
+   "name": "project document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-project_document.json"
+  },
+  "/projects": {
+   "name": "projects list",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-projects_list.json"
+  },
+  "/documents/c58da6ff-3a85-4d0d-bd2b-f5382b16db77": {
+   "name": "sprint document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 51,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-sprint_document.json"
+  },
+  "/team/allocation": {
+   "name": "team allocation",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-team_allocation.json"
+  },
+  "/team/directory": {
+   "name": "team directory",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-team_directory.json"
+  },
+  "/team/status": {
+   "name": "team status",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-team_status.json"
+  },
+  "/documents/92b10cb3-efd6-440c-8026-97c08d5d3759": {
+   "name": "weekly plan document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-weekly_plan_document.json"
+  },
+  "/documents/69ae3ba6-96f5-48ae-998e-0c16e21cf729": {
+   "name": "wiki document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 51,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-wiki_document.json"
+  },
+  "/settings": {
+   "name": "workspace settings",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-desktop-workspace_settings.json"
+  }
+ },
+ "mobile": {
+  "/admin": {
+   "name": "admin (super admin)",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 56,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-admin_(super_admin).json"
+  },
+  "/dashboard": {
+   "name": "dashboard",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-dashboard.json"
+  },
+  "/docs": {
+   "name": "docs (documents home)",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 51,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-docs_(documents_home).json"
+  },
+  "/documents/114e6abb-9f9a-4e14-b317-3988759324a2": {
+   "name": "issue document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-issue_document.json"
+  },
+  "/issues": {
+   "name": "issues list",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-issues_list.json"
+  },
+  "/login": {
+   "name": "login",
+   "score": 98,
+   "failed_audits": [
+    "landmark-one-main"
+   ],
+   "n_a": 53,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-login.json"
+  },
+  "/my-week": {
+   "name": "my-week",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-my-week.json"
+  },
+  "/programs": {
+   "name": "programs list",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-programs_list.json"
+  },
+  "/documents/e3fb8ef5-8e17-4f74-9c18-6edb141e5f53": {
+   "name": "project document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-project_document.json"
+  },
+  "/projects": {
+   "name": "projects list",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-projects_list.json"
+  },
+  "/documents/c58da6ff-3a85-4d0d-bd2b-f5382b16db77": {
+   "name": "sprint document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 51,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-sprint_document.json"
+  },
+  "/team/allocation": {
+   "name": "team allocation",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-team_allocation.json"
+  },
+  "/team/directory": {
+   "name": "team directory",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-team_directory.json"
+  },
+  "/team/status": {
+   "name": "team status",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-team_status.json"
+  },
+  "/documents/92b10cb3-efd6-440c-8026-97c08d5d3759": {
+   "name": "weekly plan document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-weekly_plan_document.json"
+  },
+  "/documents/69ae3ba6-96f5-48ae-998e-0c16e21cf729": {
+   "name": "wiki document",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 51,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-wiki_document.json"
+  },
+  "/settings": {
+   "name": "workspace settings",
+   "score": 100,
+   "failed_audits": [],
+   "n_a": 55,
+   "report": "/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad/a11y-after/lh-mobile-workspace_settings.json"
+  }
+ }
+}

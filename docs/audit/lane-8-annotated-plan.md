@@ -4,12 +4,24 @@ Requirement 8.7 (brief p.11: *"Annotated terraform plan output with blast radius
 analysis"*) and 8.4 (p.8: *"Run `terraform plan` on each and confirm the output
 matches intent"*).
 
+p.8 says *"each"*, so this covers both configurations:
+
+| Part | Config | Provider | Plan |
+|---|---|---|---|
+| **1** (below) | `terraform/local-config` | `hashicorp/local` 2.9.0 + `hashicorp/random` 3.9.0 | `5 to add, 0 to change, 0 to destroy` |
+| **2** (end of file) | `terraform/render` | `render-oss/render` 1.9.1 | `2 to add, 0 to change, 0 to destroy` |
+
 **This is real plan output**, produced from a clean checkout of the committed
 configuration, not a static annotation. That distinction matters here because the
 Category 8 audit could not obtain plan output for the AWS stack at all — it needs
 state, which needs an SSM lookup and AWS credentials — and substituted `validate`,
 `providers` and `graph` rather than fabricating one. The `hashicorp/local` config
-has no such dependency, so this document quotes the actual thing.
+has no such dependency, so this document quotes the actual thing. Part 2's plan is
+a live call to the Render API, authenticated with a real key.
+
+---
+
+# Part 1 — `terraform/local-config` (`hashicorp/local`)
 
 Reproduce it:
 
@@ -383,3 +395,418 @@ Apply complete! Resources: 5 added, 0 changed, 0 destroyed.
 -rw-r--r--  1 joanmiguel  staff  195  generated/deploy-manifest.json
 drwxr-x---  3 joanmiguel  staff   96  generated/api
 ```
+
+---
+---
+
+# Part 2 — `terraform/render` (`render-oss/render`)
+
+Requirement 8.2 (a second config declaring a Render web service), 8.4 (plan
+output confirmed to match intent) and 8.7 (blast radius) for the Render half.
+Requirements 8.5 and 8.6 are argued in `terraform/render/README.md`; the
+evidence for 8.5 is the two sections below, "From a clean checkout" and
+"Verifying against the live deployment".
+
+Reproduce it:
+
+```bash
+git archive HEAD terraform/render | tar -x -C /tmp/clean
+cd /tmp/clean/terraform/render
+export TF_VAR_render_api_key=rnd_...     # or: set -a; source .env; set +a
+export TF_VAR_render_owner_id=tea_...
+terraform init && terraform plan
+```
+
+Environment: Terraform v1.15.8 (darwin_arm64), `render-oss/render` 1.9.1 —
+exact pin, recorded in the committed `.terraform.lock.hcl`, verified as
+partner-signed on install (key ID `E056C177173659B4`).
+
+**Unlike Part 1, this plan is a live authenticated call to `api.render.com`.**
+It is not obtainable without a working key, which is why it was recorded as
+blocked until one was available. Nothing was applied — see "Why nothing was
+applied" at the end.
+
+## A note on redaction
+
+Render resource identifiers (`srv-…`, `dpg-…`) are replaced with
+`srv-<redacted>` / `dpg-<redacted>` wherever they appear in quoted output
+below. They are account-scoped identifiers, not credentials, and this is the
+same class of value as the AWS account ID that finding **W8-1** leaked through
+a committed `tfplan`. The public service URL is left intact — it is a URL
+anyone can already fetch. Everything else is verbatim.
+
+---
+
+## Summary
+
+```
+Plan: 2 to add, 0 to change, 0 to destroy.
+```
+
+| # | Address | Is | Replaces |
+|---|---|---|---|
+| 1 | `render_postgres.ship` | Managed PostgreSQL 16, `free` plan, oregon | Aurora + the hand-written `/ship/{env}/DATABASE_URL` SSM parameter |
+| 2 | `render_web_service.shipshape` | Docker web service, 1 instance, built from the repo's root `Dockerfile` | Elastic Beanstalk + S3 + CloudFront, i.e. both deploy scripts |
+
+Two resources rather than one because the brief's requirement is that the fork
+is *deployable* from a clean machine, and ShipShape does not boot without a
+database — `api/src/db/client.ts` connects at import and the container runs
+`migrate` then `seed` before `node dist/index.js`. A config that declared only
+the web service would plan cleanly and produce a crash-looping service.
+
+---
+
+## Every resource, and whether the change is safe
+
+Brief p.8 bullet 2: *"for every resource it will create, modify, or destroy,
+write one sentence explaining what it is and whether the change is safe."*
+
+### 1 · `render_postgres.ship` — create
+
+Managed PostgreSQL 16. **Safe to create; the only unrecoverable resource in
+this configuration.** Render deletes the volume with the instance and the
+`free` plan has no backups, which is why it carries `prevent_destroy = true`.
+
+```
+  # render_postgres.ship will be created
+  + resource "render_postgres" "ship" {
+      + connection_info           = (sensitive value)      <-- the whole object, not just the password
+      + database_name             = (known after apply)    <-- deliberately unmanaged; see below
+      + database_user             = (known after apply)
+      + disk_size_gb              = (known after apply)
+      + high_availability_enabled = (known after apply)
+      + id                        = (known after apply)
+      + ip_allow_list             = (known after apply)
+      + log_stream_override       = (known after apply)
+      + name                      = "ship-db"
+      + plan                      = "free"
+      + primary_postgres_id       = (known after apply)
+      + region                    = "oregon"
+      + role                      = (known after apply)
+      + version                   = "16"
+    }
+```
+
+`database_name` and `database_user` show `(known after apply)` because the
+config does not set them, and that is the fix for a measured bug rather than an
+omission. Render disambiguates the database name on create — ask for `ship` and
+you get `ship_<suffix>` — so a literal in the config can never match what comes
+back, and the attribute forces replacement. The transcript of that failure is in
+"Verifying against the live deployment" below. It is the single most dangerous
+thing that can be written in this file, and it looked completely innocuous.
+
+### 2 · `render_web_service.shipshape` — create
+
+The application: one Docker container serving the API, the WebSocket
+collaboration endpoint and the built frontend from one origin. **Safe to
+create.** Nothing pre-exists in this state, so a first apply cannot remove
+anything.
+
+```
+  # render_web_service.shipshape will be created
+  + resource "render_web_service" "shipshape" {
+      + env_vars                      = {
+          + "DATABASE_URL" = {
+              + generate_value = false
+              + value          = (sensitive value)
+            },
+          + "NODE_ENV" = {
+              + generate_value = false
+              + value          = (sensitive value)
+            },
+          + "SESSION_SECRET" = (sensitive value)
+        }
+      + health_check_path             = "/health"
+      + max_shutdown_delay_seconds    = 60
+      + name                          = "shipshape"
+      + num_instances                 = 1
+      + plan                          = "free"
+      + region                        = "oregon"
+      + runtime_source                = {
+          + docker = {
+              + auto_deploy         = false
+              + auto_deploy_trigger = (known after apply)
+              + branch              = "deploy/render"
+              + context             = "."
+              + dockerfile_path     = "./Dockerfile"
+              + repo_url            = "https://github.com/joshdrochon/ship"
+            }
+        }
+      + slug                          = (known after apply)
+      + url                           = (known after apply)
+    }
+```
+
+Three things in that block are worth reading closely.
+
+**`DATABASE_URL` is `(sensitive value)`, not a string.** It is
+`render_postgres.ship.connection_info.internal_connection_string` — a reference
+resolved inside the graph. No connection string is typed by a human, stored in
+a variable, or written to a `tfvars` file. The AWS path solves the same problem
+with an SSM parameter somebody pastes a value into.
+
+**`SESSION_SECRET` renders as a bare `(sensitive value)` rather than an object.**
+That is `generate_value = true`: Render generates it. `api/src/app.ts:43` throws
+at boot if it is missing under `NODE_ENV=production`, so it cannot be skipped,
+and generating it is what keeps a clean-machine apply down to one credential.
+
+**`NODE_ENV` is redacted too, and it is `"production"`.** The provider marks the
+entire `value` attribute sensitive, so the plan cannot be used to review
+non-secret configuration. That is the right default and a real cost: a reviewer
+cannot tell from this plan whether `NODE_ENV` says `production` or `porduction`.
+`terraform console` or the Render dashboard is where that gets checked.
+
+---
+
+## Blast radius
+
+Brief p.8 bullet 3 asks for the worst case. Measured, one variable at a time,
+by planning the committed config against the **live** service and database with
+`import` blocks — so each row is what Terraform actually reported about real
+infrastructure, not a reading of the provider docs.
+
+```bash
+# in a scratch copy, never in the repo
+cat > zz_import.tf <<'EOF'
+import { to = render_postgres.ship,          id = var.adopt_postgres_id }
+import { to = render_web_service.shipshape,  id = var.adopt_service_id }
+variable "adopt_postgres_id" { type = string }
+variable "adopt_service_id"  { type = string }
+EOF
+terraform plan -var <one attribute changed>
+```
+
+| Changed | Verb Terraform reported | Plan line |
+|---|---|---|
+| *(nothing)* | import, one in-place update | `2 to import, 0 to add, 1 to change, 0 to destroy` |
+| `service_plan` `free` → `starter` | update in place | `2 to import, 0 to add, 1 to change, 0 to destroy` |
+| `service_name` | update in place | `2 to import, 0 to add, 1 to change, 0 to destroy` |
+| `branch` → `main` | update in place | `2 to import, 0 to add, 1 to change, 0 to destroy` |
+| `auto_deploy` → `true` | update in place | `2 to import, 0 to add, 1 to change, 0 to destroy` |
+| `app_base_url` set | update in place | `2 to import, 0 to add, 1 to change, 0 to destroy` |
+| `database_plan` → `basic_256mb` | update in place, **both** resources | `2 to import, 0 to add, 2 to change, 0 to destroy` |
+| `postgres_version` `16` → `17` | **must be replaced** | `1 to import, 1 to add, 0 to change, 1 to destroy` — **blocked by `prevent_destroy`** |
+| `render_region` → `ohio` | **both must be replaced** | `2 to import, 2 to add, 0 to change, 2 to destroy` — **blocked by `prevent_destroy`** |
+
+The exact markers, from the region run:
+
+```
+  # render_postgres.ship must be replaced
+      ~ region                    = "oregon" -> "ohio" # forces replacement
+  # render_web_service.shipshape must be replaced
+      ~ region                        = "oregon" -> "ohio" # forces replacement
+Plan: 2 to import, 2 to add, 0 to change, 2 to destroy.
+```
+
+and from the version run:
+
+```
+      ~ version                   = "16" -> "17" # forces replacement
+```
+
+### Per-resource classification
+
+| Class | Attributes | Consequence |
+|---|---|---|
+| **Modified in place** | web service: `plan`, `name`, `branch`, `auto_deploy`, `health_check_path`, `num_instances`, `max_shutdown_delay_seconds`, every `env_vars` entry. Database: `plan`, `disk_size_gb` | A new deploy, or a database resize. The service is briefly rolled; `health_check_path` gates the new instance, so a broken build does not take the old one down. |
+| **Recreated (destroy + create)** | database: `region`, `version`, `database_name`, `database_user` | **Total, unrecoverable data loss.** Render deletes the volume. No `skip_final_snapshot` equivalent exists to argue about — there is no snapshot. |
+| **Recreated** | web service: `region` | New service, new `onrender.com` URL, so every bookmark and any registered OAuth redirect URI breaks. Recoverable; not silent. |
+| **No-op** | everything else, on a converged tree | The baseline import row above is the check: with the config unchanged, the database imports with **zero** planned changes. |
+
+### Worst realistic case
+
+Someone edits `render_region` — a one-word change that reads like a
+relocation — and applies. That destroys the database and every document in it,
+and moves the service to a new URL.
+
+Bounded three ways:
+
+1. **`prevent_destroy = true` on the database turns it into an error, not an
+   outage.** This is not a hypothetical guard. It fired during the development
+   of this configuration and caught a real bug, transcript below.
+2. The apply stops at the first prevented destroy, so the web service is not
+   replaced either — the failure is atomic in the direction that matters.
+3. The blast radius is one Render account with one service and one database.
+   There is no shared state, no other environment reachable from this root, and
+   the AWS production stack is not in this configuration at all.
+
+Compare the same question asked of `terraform/environments/prod`: worst case
+there is `aws_rds_cluster` replacement destroying the Treasury database, with
+`deletion_protection` unset — the audit's finding. Both are `terraform apply`.
+The difference is that this root says `prevent_destroy` and that one does not.
+
+### What the plan does *not* tell you
+
+- **It does not tell you the deploy will succeed.** `plan` validates the Render
+  API's view of the resource. Whether the Dockerfile builds, whether migrations
+  apply, whether the process binds `$PORT` — none of that is visible until
+  `apply`. `wait_for_deploy_completion = true` is what converts that into a
+  failed apply instead of a green apply and a dead service.
+- **Env var values are unreviewable.** All of them, secret or not, print as
+  `(sensitive value)`.
+- **State holds everything in plaintext.** `connection_info`, including the
+  database password, and the generated `SESSION_SECRET`, are written to
+  `terraform.tfstate` unencrypted, and would be written to a saved plan the same
+  way. `*.tfstate*`, `tfplan` and `*.tfplan` are ignored at any depth as of
+  commit `07b640b`. **No plan was ever saved with `-out=` while writing this
+  document**, deliberately: finding W8-1 is what a saved plan in git looks like,
+  and a Render API key is strictly worse than an account ID.
+
+---
+
+## Confirming the output matches intent (8.4)
+
+| Intent | Assertion | Result |
+|---|---|---|
+| A config using the Render provider declaring a web service (p.8) | `render_web_service` resources in the plan | 1 |
+| Nothing destroyed on first apply | `Plan:` line | `2 to add, 0 to change, 0 to destroy` |
+| Provider version exactly pinned | `versions.tf` / lock | `render-oss/render 1.9.1`, `constraints = "1.9.1"` |
+| Builds the repo's real image | `runtime_source.docker.dockerfile_path` | `./Dockerfile` |
+| Deploys this fork | `runtime_source.docker.repo_url` / `branch` | `github.com/joshdrochon/ship` @ `deploy/render` |
+| API key absent from plan output | any `rnd_` string in the plan | none — `sensitive = true` |
+| Database URL absent from plan output | `env_vars["DATABASE_URL"].value` | `(sensitive value)` |
+| Connection string absent from outputs | `outputs.tf` | `connection_info` is not exported |
+| Health gate on rollout | `health_check_path` | `/health` |
+| Single instance, given in-process Yjs state | `num_instances` | `1`, with a `validation` block refusing anything else |
+| Database cannot be casually destroyed | `lifecycle.prevent_destroy` | `Error: Instance cannot be destroyed`, demonstrated twice above |
+
+---
+
+## From a clean checkout (8.5, first half)
+
+The plan above was produced this way — `git archive HEAD`, so only committed
+files exist, in a directory Terraform has never run in, with an environment
+scrubbed down to two variables:
+
+```bash
+git archive HEAD terraform/render | tar -x -C /tmp/clean
+cd /tmp/clean/terraform/render
+env -i PATH="$PATH" HOME="$HOME" \
+    TF_VAR_render_api_key=… TF_VAR_render_owner_id=… \
+    terraform init
+env -i PATH="$PATH" HOME="$HOME" \
+    TF_VAR_render_api_key=… TF_VAR_render_owner_id=… \
+    terraform plan
+```
+
+`env -i` is the point: no `AWS_PROFILE`, no `~/.aws`, no `.env`, no shell
+history, nothing but `PATH` and `HOME`. Result:
+
+```
+- Reusing previous version of render-oss/render from the dependency lock file
+- Installing render-oss/render v1.9.1...
+- Installed render-oss/render v1.9.1 (signed by a HashiCorp partner, key ID E056C177173659B4)
+Terraform has been successfully initialized!
+...
+Plan: 2 to add, 0 to change, 0 to destroy.
+```
+
+"Reusing previous version … from the dependency lock file" is the committed lock
+doing its job: the version is chosen by the file in git, not by whatever the
+registry serves today. Contrast the five AWS roots, four of which have no lock
+file and none of which can `init` at all without the `aws` CLI and an SSM lookup
+to find the backend bucket.
+
+## Verifying against the live deployment (8.5, second half)
+
+A create plan proves the config is *valid*. It does not prove it describes a
+deployment that actually works. That needs a comparison against something
+running.
+
+There is one: this fork is deployed on Render right now, at
+**https://shipshape-70uo.onrender.com**, serving `{"status":"ok"}` on `/health`,
+from commit `6d8c505` — which is an ancestor of this branch. It was deployed by
+hand, through the dashboard, before this configuration existed. That makes it
+exactly the right thing to check the configuration against.
+
+The check is `terraform plan` with `import` blocks: Terraform reads the live
+resources and reports the difference between them and the config. It is
+read-only — nothing is written to state without `apply`.
+
+```
+Plan: 2 to import, 0 to add, 1 to change, 0 to destroy.
+```
+
+**`0 to add, 0 to destroy`** is the claim. Every structural attribute matches
+the running deployment: name, plan, region, repo, branch, Dockerfile path,
+build context, PostgreSQL version. The database imports with no changes at all.
+
+The `1 to change` is the web service, and every line of it is a deliberate
+difference rather than a mismatch:
+
+```
+      ~ health_check_path             = "" -> "/health"
+      + max_shutdown_delay_seconds    = 60
+      + num_instances                 = 1
+      ~ env_vars                      = {
+          - "APP_BASE_URL" = { … } -> null
+          - "CDN_DOMAIN"   = { … } -> null
+          - "CORS_ORIGIN"  = { … } -> null
+          ~ "SESSION_SECRET" = (sensitive value)
+        }
+        url                           = "https://shipshape-70uo.onrender.com"
+        runtime_source                = { docker = { branch = "deploy/render", … } }   # unchanged
+```
+
+| Difference | Why |
+|---|---|
+| `health_check_path "" -> "/health"` | The live service has no health gate. Adding one is the improvement, not a transcription of what exists. |
+| `max_shutdown_delay_seconds = 60` | Lets the collaboration server drain WebSockets instead of dropping them. |
+| `num_instances = 1` | Made explicit so the `validation` block can enforce it. |
+| Three env vars removed | `APP_BASE_URL`, `CORS_ORIGIN` and `CDN_DOMAIN` default to null and are omitted. `app_base_url` is restored on the documented second apply, once `terraform output service_url` exists. **Adopting this config against the live service without that second apply would remove them** — stated here because it is the one genuinely lossy line in the diff. |
+| `SESSION_SECRET` shape change | `generate_value = true` regenerates it, which invalidates every live session at once. Pass `-var session_secret=…` to adopt without that. |
+
+`url` is unchanged, which is the load-bearing detail: adopting this
+configuration does not move the service.
+
+### The bug this found
+
+The first version of this check did not come back clean. It came back like
+this:
+
+```
+  # render_postgres.ship must be replaced
+  # (imported from "dpg-<redacted>")
+  # Warning: this will destroy the imported resource
+-/+ resource "render_postgres" "ship" {
+      ~ database_name             = "ship_<suffix>" -> "ship" # forces replacement
+        …
+    }
+
+Plan: 1 to import, 1 to add, 0 to change, 1 to destroy.
+
+Error: Instance cannot be destroyed
+
+  Resource render_postgres.ship has lifecycle.prevent_destroy set, but the plan
+  calls for this resource to be destroyed.
+```
+
+The config said `database_name = "ship"`. Render had named the database
+`ship_<suffix>`. A three-word line, `terraform validate` clean, `terraform plan`
+clean against an empty state — and a planned destruction of a live database the
+first time it met one. `prevent_destroy` is the only reason that is a paragraph
+in a document rather than an incident. Both attributes are now unset, and the
+comment in `main.tf` records why so the next engineer does not "tidy" them back
+in.
+
+That is also the honest answer to how much a create-only plan is worth: this
+configuration passed one, and was still wrong.
+
+## Why nothing was applied
+
+`terraform apply` was **not** run. Two reasons, in order:
+
+1. It creates infrastructure on someone's account. The plans in this document
+   are `free`-tier, but that is a default in a variable, and the decision to
+   spend belongs to the account owner rather than to whoever is running
+   Terraform.
+2. There is already a healthy deployment of this fork on that account. A create
+   apply would stand up a *second* service and a *second* database next to it,
+   and the `free` Postgres plan is limited per account.
+
+What that leaves unproven is stated plainly: the create path has been verified
+as far as `plan`, and its declared shape has been verified against a live
+service that is serving traffic — but no `terraform apply` in this
+configuration has ever built an image end to end. `terraform apply` against the
+existing service, via the `import` blocks above, is the low-risk way to close
+that gap, and it is a decision for the account owner.
