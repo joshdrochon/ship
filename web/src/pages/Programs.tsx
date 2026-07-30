@@ -334,7 +334,7 @@ function ProgramRowContent({ program, visibleColumns }: ProgramRowContentProps) 
               <span className="truncate">{program.owner.name}</span>
             </div>
           ) : (
-            <span className="text-muted/50">—</span>
+            <span className="text-muted">—</span>
           )}
         </td>
       )}

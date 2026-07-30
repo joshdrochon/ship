@@ -389,7 +389,7 @@ function UsersTab({
                 {u.id !== currentUserId && (
                   <button
                     onClick={() => onImpersonate(u.id)}
-                    className="text-sm text-accent hover:text-accent/80 transition-colors"
+                    className="text-sm text-accent hover:text-accent-hover transition-colors"
                   >
                     Impersonate
                   </button>

@@ -217,7 +217,7 @@ export function MergeProgramDialog({ isOpen, onClose, sourceId, sourceName }: Me
               onChange={(e) => setConfirmText(e.target.value)}
               disabled={isMerging}
               placeholder={sourceName}
-              className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted/50 focus:border-accent focus:outline-none"
+              className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
               autoComplete="off"
             />
           </div>

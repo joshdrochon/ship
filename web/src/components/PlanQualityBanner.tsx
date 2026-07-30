@@ -236,7 +236,7 @@ export function PlanQualityBanner({
             <div className="flex-1 h-2 rounded-full bg-border/20 overflow-hidden max-w-xs">
               <div className="h-full w-1/3 rounded-full bg-border/30 animate-pulse" />
             </div>
-            <span className="text-xs text-muted/50">AI quality check will appear as you write</span>
+            <span className="text-xs text-muted">AI quality check will appear as you write</span>
           </div>
         </div>
       </div>
@@ -479,7 +479,7 @@ export function RetroQualityBanner({
             <div className="flex-1 h-2 rounded-full bg-border/20 overflow-hidden max-w-xs">
               <div className="h-full w-1/3 rounded-full bg-border/30 animate-pulse" />
             </div>
-            <span className="text-xs text-muted/50">AI quality check will appear as you write</span>
+            <span className="text-xs text-muted">AI quality check will appear as you write</span>
           </div>
         </div>
       </div>

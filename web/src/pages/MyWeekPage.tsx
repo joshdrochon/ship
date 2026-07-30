@@ -225,7 +225,7 @@ export function MyWeekPage() {
                   <div className="space-y-0 max-h-[300px] overflow-hidden">
                     {plan.items.map((item, i) => (
                       <div key={i} className="flex items-start gap-2.5 py-1.5">
-                        <span className="text-[11px] font-semibold text-muted/50 w-4 text-right shrink-0 mt-0.5">
+                        <span className="text-[11px] font-semibold text-muted w-4 text-right shrink-0 mt-0.5">
                           {i + 1}.
                         </span>
                         <span className="text-sm text-foreground leading-relaxed">{item.text}</span>
@@ -287,7 +287,7 @@ export function MyWeekPage() {
                   <div className="space-y-0 max-h-[300px] overflow-hidden">
                     {retro.items.map((item, i) => (
                       <div key={i} className="flex items-start gap-2.5 py-1.5">
-                        <span className="text-[11px] font-semibold text-muted/50 w-4 text-right shrink-0 mt-0.5">
+                        <span className="text-[11px] font-semibold text-muted w-4 text-right shrink-0 mt-0.5">
                           {i + 1}.
                         </span>
                         <span className="text-sm text-foreground leading-relaxed">{item.text}</span>

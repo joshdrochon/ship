@@ -29,7 +29,7 @@ export function PlanReferenceBlockComponent({ node }: NodeViewProps) {
           <div className="text-[10px] font-semibold uppercase tracking-wider text-blue-400/60 mb-0.5">
             Planned #{itemIndex + 1}
           </div>
-          <p className="text-sm text-foreground/80 leading-relaxed">
+          <p className="text-sm text-foreground leading-relaxed">
             {planItemText}
           </p>
         </div>

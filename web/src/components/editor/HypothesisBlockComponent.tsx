@@ -56,7 +56,7 @@ export function HypothesisBlockComponent({ node }: NodeViewProps) {
             {/* Show placeholder when empty */}
             {isEmpty && (
               <div
-                className="absolute inset-0 pointer-events-none text-muted/50"
+                className="absolute inset-0 pointer-events-none text-muted"
                 contentEditable={false}
               >
                 {placeholder}

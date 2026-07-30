@@ -73,27 +73,27 @@ export function ContentHistoryPanel({
   const historyCount = history?.length ?? 0;
 
   return (
-    <div className="border-t border-neutral-200 pt-4 mt-4">
+    <div className="border-t border-border pt-4 mt-4">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 w-full text-left text-sm font-medium text-neutral-700 hover:text-neutral-900"
+        className="flex items-center gap-2 w-full text-left text-sm font-medium text-foreground hover:text-foreground"
       >
         {isExpanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
         <ClockIcon />
         <span>Version History</span>
         {!isLoading && historyCount > 0 && (
-          <span className="text-xs text-neutral-500">({historyCount})</span>
+          <span className="text-xs text-muted">({historyCount})</span>
         )}
       </button>
 
       {isExpanded && (
         <div className="mt-3 space-y-2">
           {isLoading && (
-            <div className="text-sm text-neutral-500 italic">Loading history...</div>
+            <div className="text-sm text-muted italic">Loading history...</div>
           )}
 
           {!isLoading && historyCount === 0 && (
-            <div className="text-sm text-neutral-500 italic">
+            <div className="text-sm text-muted italic">
               No version history yet. Changes will be tracked as you edit.
             </div>
           )}
@@ -141,18 +141,18 @@ function HistoryEntry({ entry, isSelected, onSelect }: HistoryEntryProps) {
       onClick={onSelect}
       className={`w-full text-left p-2 rounded text-xs transition-colors ${
         isSelected
-          ? 'bg-accent-100 border border-accent-300'
-          : 'bg-neutral-50 hover:bg-neutral-100 border border-transparent'
+          ? 'bg-accent/20 border border-accent'
+          : 'bg-border/30 hover:bg-border/60 border border-transparent'
       }`}
     >
       <div className="flex items-center gap-2">
-        <span className="text-neutral-400"><ClockIcon /></span>
-        <span className="text-neutral-700">{timeAgo}</span>
+        <span className="text-muted"><ClockIcon /></span>
+        <span className="text-foreground">{timeAgo}</span>
       </div>
       {entry.changed_by && (
         <div className="flex items-center gap-2 mt-1">
           <UserIcon />
-          <span className="text-neutral-500">{entry.changed_by.name}</span>
+          <span className="text-muted">{entry.changed_by.name}</span>
         </div>
       )}
     </button>
@@ -193,12 +193,12 @@ function ContentDiff({ entry, onClose }: ContentDiffProps) {
   const newText = extractText(entry.new_content);
 
   return (
-    <div className="mt-3 p-3 bg-neutral-50 rounded-lg border border-neutral-200">
+    <div className="mt-3 p-3 bg-border/30 rounded-lg border border-border">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-medium text-neutral-700">Content Change</span>
+        <span className="text-xs font-medium text-foreground">Content Change</span>
         <button
           onClick={onClose}
-          className="text-xs text-neutral-500 hover:text-neutral-700"
+          className="text-xs text-muted hover:text-foreground"
         >
           Close
         </button>

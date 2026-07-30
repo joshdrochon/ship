@@ -24,7 +24,7 @@ export function PropertyRow({ label, tooltip, highlighted, children }: PropertyR
           <Tooltip content={tooltip} side="right" delayDuration={200}>
             <button
               type="button"
-              className="text-muted/60 hover:text-muted transition-colors"
+              className="text-muted hover:text-muted transition-colors"
               aria-label={`More info about ${label}`}
             >
               <svg aria-hidden="true" focusable="false" className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">

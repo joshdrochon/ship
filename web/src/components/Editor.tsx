@@ -943,7 +943,7 @@ export function Editor({
               readOnly={titleReadOnly}
               rows={1}
               className={cn(
-                "mb-6 w-full bg-transparent text-3xl font-bold text-foreground placeholder:text-muted/30 focus:outline-none pl-8 resize-none overflow-hidden",
+                "mb-6 w-full bg-transparent text-3xl font-bold text-foreground placeholder:text-muted focus:outline-none pl-8 resize-none overflow-hidden",
                 titleReadOnly && "cursor-default"
               )}
             />
