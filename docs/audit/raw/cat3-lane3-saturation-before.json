@@ -1,0 +1,73 @@
+[
+{
+ "endpoint": "/api/documents",
+ "vus": 10,
+ "rate": 150,
+ "p50": 6.67,
+ "p95": 9.97,
+ "p99": 14.31,
+ "max": 33.24,
+ "requests": 2251,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/documents",
+ "vus": 25,
+ "rate": 150,
+ "p50": 6.58,
+ "p95": 9.04,
+ "p99": 11.25,
+ "max": 18.59,
+ "requests": 2250,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/documents",
+ "vus": 50,
+ "rate": 150,
+ "p50": 6.61,
+ "p95": 9.68,
+ "p99": 11.49,
+ "max": 20.94,
+ "requests": 2250,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/projects",
+ "vus": 10,
+ "rate": 150,
+ "p50": 6.15,
+ "p95": 7.66,
+ "p99": 8.64,
+ "max": 15.05,
+ "requests": 2250,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/projects",
+ "vus": 25,
+ "rate": 150,
+ "p50": 6.19,
+ "p95": 7.91,
+ "p99": 10.25,
+ "max": 26.9,
+ "requests": 2251,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/projects",
+ "vus": 50,
+ "rate": 150,
+ "p50": 6.03,
+ "p95": 12.62,
+ "p99": 118.64,
+ "max": 257.58,
+ "requests": 2251,
+ "fail_rate": 0
+}
+]

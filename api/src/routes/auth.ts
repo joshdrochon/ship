@@ -259,12 +259,47 @@ router.post('/logout', authMiddleware, async (req: Request, res: Response): Prom
 });
 
 // GET /api/auth/me
+//
+// One round trip, not three. This is the single most-requested endpoint in the audit's
+// frontend network trace (9 calls across the common flows), and it used to issue three
+// strictly serialised queries -- the user row, then the user's workspaces, then the
+// current workspace -- each paying its own pool checkout, network round trip and
+// parse/plan cycle, on top of the ~4-query authentication preamble every request already
+// pays. The second and third queries read the same two tables as each other, and the
+// third's answer is a single row the second already had to scan past.
+//
+// Both are now scalar subqueries hanging off the user row, so PostgreSQL answers all three
+// in one execution. Shapes are built with json_build_object so the payload the handler
+// emits is unchanged key-for-key, including the COALESCE(role, 'admin') fallback for a
+// super-admin who holds no membership row in the current workspace.
+const ME_QUERY = `
+  SELECT u.id, u.email, u.name, u.is_super_admin,
+         COALESCE((
+           SELECT json_agg(json_build_object('id', w.id, 'name', w.name, 'role', wm.role)
+                           ORDER BY w.name)
+           FROM workspaces w
+           JOIN workspace_memberships wm ON w.id = wm.workspace_id
+           WHERE wm.user_id = u.id AND w.archived_at IS NULL
+         ), '[]'::json) AS workspaces,
+         (
+           SELECT json_build_object('id', cw.id, 'name', cw.name,
+                                    -- a super-admin can hold no membership row at all
+                                    'role', COALESCE(cwm.role, 'admin'))
+           FROM workspaces cw
+           LEFT JOIN workspace_memberships cwm
+                  ON cwm.workspace_id = cw.id AND cwm.user_id = u.id
+           WHERE cw.id = $2
+         ) AS current_workspace
+  FROM users u
+  WHERE u.id = $1`;
+
 router.get('/me', authMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
-    const result = await pool.query(
-      `SELECT id, email, name, is_super_admin FROM users WHERE id = $1`,
-      [req.userId]
-    );
+    const result = await pool.query({
+      name: 'auth_me',
+      text: ME_QUERY,
+      values: [req.userId, req.workspaceId ?? null],
+    });
 
     const user = result.rows[0];
 
@@ -279,35 +314,6 @@ router.get('/me', authMiddleware, async (req: Request, res: Response): Promise<v
       return;
     }
 
-    // Get user's workspaces
-    const workspacesResult = await pool.query(
-      `SELECT w.id, w.name, wm.role
-       FROM workspaces w
-       JOIN workspace_memberships wm ON w.id = wm.workspace_id
-       WHERE wm.user_id = $1 AND w.archived_at IS NULL
-       ORDER BY w.name`,
-      [req.userId]
-    );
-
-    // Get current workspace info
-    let currentWorkspace = null;
-    if (req.workspaceId) {
-      const currentResult = await pool.query(
-        `SELECT w.id, w.name, wm.role
-         FROM workspaces w
-         LEFT JOIN workspace_memberships wm ON w.id = wm.workspace_id AND wm.user_id = $2
-         WHERE w.id = $1`,
-        [req.workspaceId, req.userId]
-      );
-      if (currentResult.rows[0]) {
-        currentWorkspace = {
-          id: currentResult.rows[0].id,
-          name: currentResult.rows[0].name,
-          role: currentResult.rows[0].role || 'admin', // Super-admin without membership
-        };
-      }
-    }
-
     // Pending accountability items will be fetched via /api/accountability/action-items
     const pendingAccountabilityItems: any[] = [];
 
@@ -320,12 +326,8 @@ router.get('/me', authMiddleware, async (req: Request, res: Response): Promise<v
           name: user.name,
           isSuperAdmin: user.is_super_admin,
         },
-        currentWorkspace,
-        workspaces: workspacesResult.rows.map(w => ({
-          id: w.id,
-          name: w.name,
-          role: w.role,
-        })),
+        currentWorkspace: user.current_workspace ?? null,
+        workspaces: user.workspaces,
         pendingAccountabilityItems,
       },
     });

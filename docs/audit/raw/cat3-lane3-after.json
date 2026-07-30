@@ -1,0 +1,166 @@
+[
+{
+ "endpoint": "/api/auth/me",
+ "vus": 10,
+ "p50": 9.18,
+ "p95": 17.05,
+ "p99": 23.12,
+ "max": 29.42,
+ "requests": 241,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/auth/me",
+ "vus": 25,
+ "p50": 8.31,
+ "p95": 14.55,
+ "p99": 18.33,
+ "max": 20.89,
+ "requests": 241,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/auth/me",
+ "vus": 50,
+ "p50": 9.25,
+ "p95": 15.91,
+ "p99": 21.37,
+ "max": 24.05,
+ "requests": 241,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/documents",
+ "vus": 10,
+ "p50": 18.08,
+ "p95": 25.08,
+ "p99": 30.0,
+ "max": 34.96,
+ "requests": 240,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/documents",
+ "vus": 25,
+ "p50": 17.65,
+ "p95": 23.98,
+ "p99": 27.19,
+ "max": 37.59,
+ "requests": 240,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/documents",
+ "vus": 50,
+ "p50": 16.67,
+ "p95": 23.15,
+ "p99": 28.42,
+ "max": 31.2,
+ "requests": 240,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/documents/2b433672-2ea1-402e-86d4-a936d4b90878/backlinks",
+ "vus": 10,
+ "p50": 11.0,
+ "p95": 15.53,
+ "p99": 19.44,
+ "max": 21.52,
+ "requests": 240,
+ "fail_rate": 1
+}
+,
+{
+ "endpoint": "/api/documents/2b433672-2ea1-402e-86d4-a936d4b90878/backlinks",
+ "vus": 25,
+ "p50": 10.64,
+ "p95": 16.79,
+ "p99": 23.96,
+ "max": 29.42,
+ "requests": 241,
+ "fail_rate": 1
+}
+,
+{
+ "endpoint": "/api/documents/2b433672-2ea1-402e-86d4-a936d4b90878/backlinks",
+ "vus": 50,
+ "p50": 10.33,
+ "p95": 15.95,
+ "p99": 20.83,
+ "max": 26.12,
+ "requests": 240,
+ "fail_rate": 1
+}
+,
+{
+ "endpoint": "/api/team/grid",
+ "vus": 10,
+ "p50": 11.12,
+ "p95": 17.04,
+ "p99": 21.51,
+ "max": 23.44,
+ "requests": 240,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/team/grid",
+ "vus": 25,
+ "p50": 10.6,
+ "p95": 17.1,
+ "p99": 19.78,
+ "max": 24.64,
+ "requests": 240,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/team/grid",
+ "vus": 50,
+ "p50": 9.64,
+ "p95": 15.69,
+ "p99": 18.52,
+ "max": 21.04,
+ "requests": 241,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/projects",
+ "vus": 10,
+ "p50": 12.75,
+ "p95": 19.68,
+ "p99": 21.66,
+ "max": 26.7,
+ "requests": 241,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/projects",
+ "vus": 25,
+ "p50": 13.78,
+ "p95": 18.92,
+ "p99": 21.3,
+ "max": 24.26,
+ "requests": 241,
+ "fail_rate": 0
+}
+,
+{
+ "endpoint": "/api/projects",
+ "vus": 50,
+ "p50": 13.56,
+ "p95": 20.63,
+ "p99": 23.96,
+ "max": 32.42,
+ "requests": 241,
+ "fail_rate": 0
+}
+]
