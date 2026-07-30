@@ -135,3 +135,6 @@ audit-summary.md
 eslint-report.txt
 */junit.xml
 dist-sha.txt
+
+# E2E run logs — large, regenerable; findings are summarised in docs/audit/
+docs/audit/raw/e2e-*.log
