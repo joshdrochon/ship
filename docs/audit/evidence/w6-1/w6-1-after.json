@@ -1,0 +1,125 @@
+{
+  "summary": {
+    "label": "after",
+    "routes_tested": 6,
+    "routes_where_the_throw_rendered": 6,
+    "blank_white_pages": 0,
+    "with_recovery_path": 6
+  },
+  "results": [
+    {
+      "route": "/feedback/00000000-0000-0000-0000-000000000000",
+      "name": "feedback",
+      "as": "anon",
+      "reached": true,
+      "landedOn": "/feedback/00000000-0000-0000-0000-000000000000",
+      "blank_screen": false,
+      "root_text_length": 225,
+      "text_sample": "This page failed to load\n\nSomething went wrong while displaying this page. Nothing you have saved is affected. Reloading usually clears it — if it does not, con",
+      "recovery_affordances": [
+        "Reload the page",
+        "Go to sign-in"
+      ],
+      "has_recovery_path": true,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/login",
+      "name": "login",
+      "as": "anon",
+      "reached": true,
+      "landedOn": "/login",
+      "blank_screen": false,
+      "root_text_length": 225,
+      "text_sample": "This page failed to load\n\nSomething went wrong while displaying this page. Nothing you have saved is affected. Reloading usually clears it — if it does not, con",
+      "recovery_affordances": [
+        "Reload the page",
+        "Go to sign-in"
+      ],
+      "has_recovery_path": true,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/setup",
+      "name": "setup",
+      "as": "anon",
+      "reached": true,
+      "landedOn": "/setup",
+      "blank_screen": false,
+      "root_text_length": 225,
+      "text_sample": "This page failed to load\n\nSomething went wrong while displaying this page. Nothing you have saved is affected. Reloading usually clears it — if it does not, con",
+      "recovery_affordances": [
+        "Reload the page",
+        "Go to sign-in"
+      ],
+      "has_recovery_path": true,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/invite/test-token",
+      "name": "invite",
+      "as": "anon",
+      "reached": true,
+      "landedOn": "/invite/test-token",
+      "blank_screen": false,
+      "root_text_length": 225,
+      "text_sample": "This page failed to load\n\nSomething went wrong while displaying this page. Nothing you have saved is affected. Reloading usually clears it — if it does not, con",
+      "recovery_affordances": [
+        "Reload the page",
+        "Go to sign-in"
+      ],
+      "has_recovery_path": true,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/admin",
+      "name": "admin",
+      "as": "auth",
+      "reached": true,
+      "landedOn": "/admin",
+      "blank_screen": false,
+      "root_text_length": 225,
+      "text_sample": "This page failed to load\n\nSomething went wrong while displaying this page. Nothing you have saved is affected. Reloading usually clears it — if it does not, con",
+      "recovery_affordances": [
+        "Reload the page",
+        "Go to sign-in"
+      ],
+      "has_recovery_path": true,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    },
+    {
+      "route": "/admin/workspaces/00000000-0000-0000-0000-000000000000",
+      "name": "admin-workspace",
+      "as": "auth",
+      "reached": true,
+      "landedOn": "/admin/workspaces/00000000-0000-0000-0000-000000000000",
+      "blank_screen": false,
+      "root_text_length": 225,
+      "text_sample": "This page failed to load\n\nSomething went wrong while displaying this page. Nothing you have saved is affected. Reloading usually clears it — if it does not, con",
+      "recovery_affordances": [
+        "Reload the page",
+        "Go to sign-in"
+      ],
+      "has_recovery_path": true,
+      "page_errors": [
+        "W6-1 injected render error",
+        "W6-1 injected render error"
+      ]
+    }
+  ]
+}
