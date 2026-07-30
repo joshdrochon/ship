@@ -1,4 +1,5 @@
 import { test, expect, Page, Browser } from './fixtures/isolated-env'
+import { expectDocumentTitleSaved } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -103,8 +104,9 @@ test.describe('Race Conditions - Rapid Operations', () => {
       await page.waitForTimeout(200) // Brief delay between changes
     }
 
-    // Wait for final save
-    await page.waitForTimeout(2000)
+    // W6-9: wait for the durable write rather than a fixed sleep sitting exactly
+    // on the 2s debounce boundary.
+    await expectDocumentTitleSaved(page, 'Final Title')
 
     // Reload and verify final title is saved
     await page.reload()

@@ -11,7 +11,7 @@ import {
   TRACKED_FIELDS,
   type BelongsToEntry,
 } from '../utils/document-crud.js';
-import { broadcastToUser } from '../collaboration/index.js';
+import { broadcastToUser, applyTitleToRoom } from '../collaboration/index.js';
 
 type RouterType = ReturnType<typeof Router>;
 const router: RouterType = Router();
@@ -961,6 +961,13 @@ router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
     await client.query('COMMIT');
 
     // Post-commit operations (non-transactional)
+
+    // The title is a Yjs shared type (api/src/collaboration/documentTitle.ts) and
+    // the collaboration server writes it back from the CRDT on every persist, so a
+    // rename made here has to reach any live room or it gets silently reverted.
+    if (data.title !== undefined) {
+      applyTitleToRoom(id, data.title);
+    }
 
     // Check if a NEW sprint association was added and this is the first issue in that sprint
     if (belongsToChanged) {

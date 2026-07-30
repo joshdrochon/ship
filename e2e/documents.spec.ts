@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/isolated-env'
+import { expectDocumentTitleSaved } from './fixtures/test-helpers'
 
 test.describe('Documents', () => {
   test.beforeEach(async ({ page }) => {
@@ -50,11 +51,15 @@ test.describe('Documents', () => {
     await expect(titleInput).toBeVisible({ timeout: 5000 })
     await titleInput.fill('Test Document Title')
 
-    // Wait for save
-    await page.waitForResponse(resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH')
+    // Wait for the save to actually land on the server. This used to wait for a
+    // PATCH; W6-9 moved the title into the CRDT, so we assert the outcome (the
+    // API serves the new title) rather than the transport that carried it.
+    await expectDocumentTitleSaved(page, 'Test Document Title')
 
-    // Verify title was entered
+    // Verify title was entered, and survives a reload
     await expect(titleInput).toHaveValue('Test Document Title')
+    await page.reload()
+    await expect(page.getByPlaceholder('Untitled')).toHaveValue('Test Document Title', { timeout: 10000 })
   })
 
   test('document list updates when new document created', async ({ page }) => {
@@ -75,8 +80,8 @@ test.describe('Documents', () => {
     const titleInput = page.getByPlaceholder('Untitled')
     await titleInput.fill(uniqueTitle)
 
-    // Wait for save to complete
-    await page.waitForResponse(resp => resp.url().includes('/api/documents/') && resp.request().method() === 'PATCH')
+    // Wait for the save to reach the server (outcome, not transport — see above).
+    await expectDocumentTitleSaved(page, uniqueTitle)
 
     // The new document should now appear in sidebar - use longer timeout for context update
     await expect(page.getByText(uniqueTitle).first()).toBeVisible({ timeout: 10000 })

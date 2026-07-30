@@ -44,10 +44,38 @@ function getEventsWsUrl(): string {
     : `${wsProtocol}//${window.location.host}/events`;
 }
 
+/**
+ * Rule 7 (retries with backoff). The reconnect delay used to be a flat 3000 ms
+ * with no cap on attempts and no jitter.
+ *
+ * Failure mode that produced: during an API outage or a deploy, every open tab
+ * reconnects every 3 s indefinitely. The collaboration server rate-limits
+ * connections at 30 per minute per IP
+ * (api/src/collaboration/index.ts RATE_LIMIT.MAX_CONNECTIONS_PER_IP), so a user
+ * with a few tabs open trips their own IP limit within a minute and then keeps it
+ * tripped — the 429s themselves count as attempts. Recovery is delayed by the
+ * client's own retry storm, and an office behind one NAT address does it to
+ * everyone at once.
+ *
+ * Exponential backoff caps the steady-state rate, and jitter keeps tabs from
+ * lining up on the same tick.
+ */
+export const RECONNECT_BASE_MS = 1_000;
+export const RECONNECT_MAX_MS = 30_000;
+
+/** Exported for the Rule 7 test in useRealtimeEvents.test.ts. */
+export function reconnectDelayMs(attempt: number): number {
+  const capped = Math.min(RECONNECT_BASE_MS * 2 ** Math.max(0, attempt - 1), RECONNECT_MAX_MS);
+  // Full jitter over the second half of the window: never faster than half the
+  // backoff, never slower than the cap.
+  return capped / 2 + Math.random() * (capped / 2);
+}
+
 export function RealtimeEventsProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reconnectAttemptsRef = useRef(0);
   const subscribersRef = useRef<Map<RealtimeEventType, Set<EventCallback>>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
 
@@ -75,6 +103,7 @@ export function RealtimeEventsProvider({ children }: { children: ReactNode }) {
 
     ws.onopen = () => {
       console.log('[RealtimeEvents] Connected');
+      reconnectAttemptsRef.current = 0; // a good connection resets the backoff
       setIsConnected(true);
     };
 
@@ -102,12 +131,14 @@ export function RealtimeEventsProvider({ children }: { children: ReactNode }) {
         wsRef.current = null;
       }
 
-      // Reconnect after delay if user is still logged in
+      // Reconnect with capped exponential backoff if user is still logged in
       if (user) {
+        reconnectAttemptsRef.current += 1;
+        const delay = reconnectDelayMs(reconnectAttemptsRef.current);
         reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('[RealtimeEvents] Reconnecting...');
+          console.log(`[RealtimeEvents] Reconnecting (attempt ${reconnectAttemptsRef.current})...`);
           connect();
-        }, 3000);
+        }, delay);
       }
     };
 
@@ -123,6 +154,7 @@ export function RealtimeEventsProvider({ children }: { children: ReactNode }) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+    reconnectAttemptsRef.current = 0;
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
