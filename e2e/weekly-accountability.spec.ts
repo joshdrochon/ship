@@ -75,6 +75,29 @@ async function createTestProject(
 }
 
 test.describe('Weekly Plan API', () => {
+  /**
+   * RISK MITIGATED: POST /weekly-plans must actually create a document and report 201,
+   * not silently return an existing one. The 201-vs-200 distinction is the only signal a
+   * caller has that it got a new plan rather than someone else's, so it has to be
+   * asserted against a person+week that is genuinely unused.
+   *
+   * WHY THE WEEK NUMBER IS NOT 1. Uniqueness in api/src/routes/weekly-plans.ts is keyed on
+   * person + week only — project_id is explicitly ignored ("uniqueness by person+week
+   * only"). This test used week 1 for Dev User, and accountability-week.spec.ts:89 creates
+   * a plan for exactly that person and week. On a worker where that spec ran first, this
+   * one got 200 and failed.
+   *
+   * It stayed hidden because Playwright discards the worker process after any test
+   * failure, and this suite's database is worker-scoped (e2e/fixtures/isolated-env.ts:150)
+   * — so every unrelated failure brought up a fresh seeded container and washed the
+   * collision away. Distinct worker ids per run were always failures + 1. Once the
+   * my-week and heatmap flakes were fixed, the resets stopped and this surfaced.
+   *
+   * Week 803 belongs to this test alone. Creating a fresh project is not enough on its
+   * own, because the API does not key on the project.
+   */
+  const UNIQUE_PLAN_WEEK = 803
+
   test('POST /weekly-plans creates new weekly plan document', async ({ page, apiServer }) => {
     const { csrfToken, userId } = await loginAndGetContext(page, apiServer.url);
     const personId = await getPersonIdForUser(page, apiServer.url, userId);
@@ -86,20 +109,23 @@ test.describe('Weekly Plan API', () => {
       data: {
         person_id: personId,
         project_id: projectId,
-        week_number: 1,
+        week_number: UNIQUE_PLAN_WEEK,
       },
     });
 
-    expect(response.status()).toBe(201);
+    expect(
+      response.status(),
+      `Expected 201 (created). A 200 means a weekly plan already existed for this person in week ${UNIQUE_PLAN_WEEK} — another spec has taken this week number.`
+    ).toBe(201);
     const plan = await response.json();
 
     expect(plan.id).toBeTruthy();
     expect(plan.document_type).toBe('weekly_plan');
-    // API returns computed title with person name (e.g., "Week 1 Plan - Dev User")
+    // API returns computed title with person name (e.g., "Week 803 Plan - Dev User")
     expect(plan.title).toMatch(/^Week \d+ Plan/)
     expect(plan.properties.person_id).toBe(personId);
     expect(plan.properties.project_id).toBe(projectId);
-    expect(plan.properties.week_number).toBe(1);
+    expect(plan.properties.week_number).toBe(UNIQUE_PLAN_WEEK);
     expect(plan.properties.submitted_at).toBeNull();
   });
 
