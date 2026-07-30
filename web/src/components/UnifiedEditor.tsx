@@ -396,10 +396,6 @@ export function UnifiedEditor({
     );
   }, [showTypeSelector, canChangeType, typeSpecificSidebar, document.document_type, handleTypeChange, isChangingType, missingFields]);
 
-  if (!user) {
-    return null;
-  }
-
   // Weekly plans and retros have computed titles (includes person name) - make read-only
   const isTitleReadOnly = document.document_type === 'weekly_plan' || document.document_type === 'weekly_retro';
 
@@ -435,6 +431,14 @@ export function UnifiedEditor({
     if (!weeklyReviewState?.isReviewMode) return undefined;
     return <WeeklyReviewSubNav reviewState={weeklyReviewState} />;
   }, [weeklyReviewState]);
+
+  // Must stay below every hook above. React matches hooks by call order, so an early
+  // return placed before them changes the hook count between renders — the moment
+  // `user` flips from null to loaded, React throws "Rendered more hooks than during
+  // the previous render". Latent today only because ProtectedRoute gates this tree.
+  if (!user) {
+    return null;
+  }
 
   return (
     <Editor

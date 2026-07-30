@@ -32,10 +32,9 @@ export function WeeklyReviewSubNav({ reviewState }: WeeklyReviewSubNavProps) {
     setRatingInput(reviewState.currentRating ?? null);
   }, [open, reviewState.approvalComment, reviewState.currentRating]);
 
-  if (!reviewState.isReviewMode) {
-    return null;
-  }
-
+  // Hoisted above the isReviewMode early return: hooks are matched by call order, so
+  // leaving this below the return changes the hook count as soon as review mode
+  // toggles, and React throws "Rendered more hooks than during the previous render".
   const approveLabel = useMemo(() => {
     if (reviewState.isRetro) {
       return reviewState.approvalState === 'approved'
@@ -51,6 +50,10 @@ export function WeeklyReviewSubNav({ reviewState }: WeeklyReviewSubNavProps) {
         ? 'Re-approve Plan'
         : 'Approve Plan';
   }, [reviewState.approvalState, reviewState.isRetro]);
+
+  if (!reviewState.isReviewMode) {
+    return null;
+  }
 
   const approveDisabled =
     !reviewState.effectiveSprintId ||
