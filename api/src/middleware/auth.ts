@@ -16,6 +16,68 @@ declare global {
   }
 }
 
+/**
+ * The identity `authMiddleware` guarantees once it calls `next()`.
+ *
+ * Both authentication paths read these from NOT NULL columns — `sessions.user_id` /
+ * `sessions.workspace_id` for cookie auth, `api_tokens.user_id` / `api_tokens.workspace_id`
+ * for Bearer auth — so a request that reaches a handler mounted behind the middleware
+ * always carries both. The Express augmentation above still declares them optional,
+ * because a request that has *not* passed the middleware genuinely has neither.
+ *
+ * Derived from the augmentation with `Required<Pick<…>>` so the two cannot drift apart.
+ *
+ * `sessionId`, `isSuperAdmin` and `isApiToken` are deliberately left out: they are set on
+ * only one of the two auth paths and are read as optional everywhere.
+ */
+export type AuthIdentity = Required<Pick<Express.Request, 'userId' | 'workspaceId'>>;
+
+/** An Express request that has passed `authMiddleware`. */
+export type AuthenticatedRequest<
+  P = Request['params'],
+  ResBody = unknown,
+  ReqBody = unknown,
+  ReqQuery = Request['query'],
+> = Request<P, ResBody, ReqBody, ReqQuery> & AuthIdentity;
+
+/** Thrown when a handler asks for an identity the request does not carry. */
+export class MissingAuthContextError extends Error {
+  constructor() {
+    super('Request has no auth context — route is not mounted behind authMiddleware');
+    this.name = 'MissingAuthContextError';
+  }
+}
+
+/**
+ * Type guard: does this request carry the identity `authMiddleware` attaches?
+ *
+ * Generic over the Express request parameters so a narrowed `Request<{ id: string }>`
+ * keeps its `params` typing through the guard.
+ */
+export function isAuthenticated<P, ResBody, ReqBody, ReqQuery>(
+  req: Request<P, ResBody, ReqBody, ReqQuery>
+): req is AuthenticatedRequest<P, ResBody, ReqBody, ReqQuery> {
+  return typeof req.userId === 'string' && typeof req.workspaceId === 'string';
+}
+
+/**
+ * Narrow a request to its authenticated identity.
+ *
+ * Replaces the `req.userId!` / `req.workspaceId!` non-null assertions that used to appear
+ * in every handler. An assertion silently produces `undefined` when the invariant is
+ * violated — typically a route mounted without `authMiddleware` — and that `undefined`
+ * then reaches a SQL parameter, where it reads as "no rows" rather than as an error.
+ * This checks the invariant instead and fails loudly.
+ */
+export function requireAuth<P, ResBody, ReqBody, ReqQuery>(
+  req: Request<P, ResBody, ReqBody, ReqQuery>
+): AuthenticatedRequest<P, ResBody, ReqBody, ReqQuery> {
+  if (!isAuthenticated(req)) {
+    throw new MissingAuthContextError();
+  }
+  return req;
+}
+
 // Hash a token for comparison
 function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');

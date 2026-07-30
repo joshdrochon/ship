@@ -7,7 +7,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireAuth } from '../middleware/auth.js';
 import { analyzePlan, analyzeRetro, isAiAvailable, checkRateLimit } from '../services/ai-analysis.js';
 
 type RouterType = ReturnType<typeof Router>;
@@ -21,7 +21,7 @@ router.get('/status', authMiddleware, (_req: Request, res: Response) => {
 // POST /api/ai/analyze-plan - Analyze weekly plan quality
 router.post('/analyze-plan', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const userId = req.userId!;
+    const { userId } = requireAuth(req);
     const { content } = req.body;
 
     if (!content) {
@@ -46,7 +46,7 @@ router.post('/analyze-plan', authMiddleware, async (req: Request, res: Response)
 // POST /api/ai/analyze-retro - Analyze weekly retro quality
 router.post('/analyze-retro', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const userId = req.userId!;
+    const { userId } = requireAuth(req);
     const { retro_content, plan_content } = req.body;
 
     if (!retro_content) {

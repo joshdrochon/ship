@@ -637,3 +637,89 @@ describe('checkDocumentCompleteness', () => {
     });
   });
 });
+
+/**
+ * These cover the shapes the `content as TipTapDoc` assertion used to wave through.
+ * The column stores whatever the editor last wrote, so a node can be missing `type`,
+ * carry a non-string `text`, or hold a scalar where an array belongs. Under the old
+ * assertion each of these reached `extractText` with the compiler satisfied; the first
+ * three threw or produced a corrupted string at runtime.
+ */
+describe('malformed stored content', () => {
+  it('ignores top-level entries that are not nodes', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        null,
+        'stray string',
+        42,
+        { attrs: { level: 2 } }, // no `type`
+        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Vision' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Ship it' }] },
+      ],
+    };
+
+    expect(extractVisionFromContent(content)).toBe('Ship it');
+  });
+
+  it('skips a text node whose text is not a string instead of concatenating it', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Goals' }] },
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Ship ' },
+            { type: 'text', text: { nested: true } },
+            { type: 'text', text: 'it' },
+          ],
+        },
+      ],
+    };
+
+    expect(extractGoalsFromContent(content)).toBe('Ship it');
+  });
+
+  it('treats a non-array content field as having no children', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Vision' }] },
+        { type: 'paragraph', content: 'not an array' },
+      ],
+    };
+
+    // The paragraph contributes only its trailing newline, so the section is empty.
+    expect(extractVisionFromContent(content)).toBeNull();
+  });
+
+  it('treats a non-object attrs as having no level, so it is not an H2', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: 2, content: [{ type: 'text', text: 'Vision' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Ship it' }] },
+      ],
+    };
+
+    expect(extractVisionFromContent(content)).toBeNull();
+  });
+
+  it('does not match a heading whose level came back as a string', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        { type: 'heading', attrs: { level: '2' }, content: [{ type: 'text', text: 'Vision' }] },
+        { type: 'paragraph', content: [{ type: 'text', text: 'Ship it' }] },
+      ],
+    };
+
+    expect(extractVisionFromContent(content)).toBeNull();
+  });
+
+  it('rejects a doc whose content field is not an array', () => {
+    expect(extractVisionFromContent({ type: 'doc', content: 'nope' })).toBeNull();
+    expect(extractVisionFromContent({ type: 'doc' })).toBeNull();
+  });
+});
