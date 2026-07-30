@@ -16,9 +16,10 @@ Target B, met with room to spare.
 | **Initial load (Target B)** | **2,144,744 B** | **385,118 B** | **−82.0%** |
 | Initial load, gzipped | 599,789 B | 114,910 B | −80.8% |
 | Entry chunk | 2,073,684 B | 65,893 B | −96.8% |
-| Largest chunk | 2,073,684 B | 620,148 B | −70.1% |
+| Largest chunk | 2,073,684 B | 476,475 B | −77.0% |
+| Deferred JS | 176,747 B | 1,968,775 B | +1,015% |
 | JS files in initial load | 1 | 4 | +3 |
-| Total dist (Target A) | 3,431,950 B | 3,459,825 B | +0.8% |
+| Total dist (Target A) | 3,431,950 B | 3,465,762 B | +1.0% |
 
 Target B required ≤ 1,715,795 B. The result is 385,118 B — **77.6% below the
 threshold.**
@@ -28,8 +29,7 @@ verification below exercises each one.
 
 ## Reproducing the numbers
 
-Both scripts, both sides, same commands, run back to back under
-`scripts/measure-lock.sh` so no other lane's build was competing:
+Both scripts, both sides, same commands:
 
 ```bash
 docs/audit/scripts/measure-bundle.py            # total dist size
@@ -63,16 +63,56 @@ i.e. the transitive static closure of the entry), and every stylesheet. Chunks
 reachable only through `import()` are absent from `index.html` by construction,
 which is exactly the deferred set. No hand-maintained list to drift.
 
+### Measurement lock
+
+The before-numbers were taken holding `scripts/measure-lock.sh` (acquired in 0s,
+machine quiet).
+
+The after-numbers were not, and deliberately so. Six lanes share this machine;
+at after-measurement time load average was 10–24 on 10 cores and `lane-3` held
+the lock continuously for over an hour, re-acquiring it faster than a queued
+waiter could take it. Two things follow:
+
+1. **The lock serialises builds, and this measurement did not build.** `web/dist`
+   was already the artifact of the committed tree — `git status` clean, dist
+   newer than every file in `web/src`, `web/vite.config.ts` and
+   `web/package.json`, and all 353 files sharing one mtime. Both scripts were run
+   with `--no-build`, which only stats and gzips existing files. It consumed no
+   build CPU and could not perturb another lane's in-flight benchmark.
+2. **Bundle size is load-independent anyway.** The lock exists so that
+   latency-style benchmarks are not measuring machine load. A byte count is
+   deterministic: the same source produces the same bytes whether the machine is
+   idle or at load 24. Rule 1's "identical conditions" is satisfied here by
+   identical source, identical build command and identical measurement script,
+   none of which the load average touches.
+
+Rebuilding under the lock would have produced the same integers at the cost of
+adding CPU pressure to a machine that was already corrupting other lanes'
+results.
+
+That last claim was then checked rather than asserted. The final `pnpm build`
+gate rebuilt `web/` from scratch at load ~15 and emitted **the same content
+hashes** — `vendor-react-DTmS2JJb`, `vendor-syntax-CJAzNMSb`,
+`vendor-emoji-CKpDoWoY`, `vendor-editor-cnFZDnyj` — and re-measuring gave
+`total 3465762 / initial 385118 / entry 65893`, identical to the digit. Two
+builds, wildly different machine load, byte-identical output.
+
 ### Two measurement notes
 
 - The frozen baseline records 3,431,964 B; the rebuild measured 3,431,950 B, a
   14 B difference. `web/` is byte-identical to the freeze commit `24bf639`
   (`git diff 24bf639..HEAD -- web/` was empty at that point). The delta is
   content-hash filename lengths inside `index.html`, not a code change.
-- **Total dist went up 27,875 B (+0.8%), and that is expected.** Splitting one
+- **Total dist went up 33,812 B (+1.0%), and that is expected.** Splitting one
   chunk into 300+ means per-chunk module wrappers, import statements and less
-  cross-module minification. Target A and Target B pull in opposite directions
-  and the brief asks for either; this lane chose B, see below.
+  cross-module minification. Vite also now emits a second, per-chunk stylesheet
+  (`PropertyRow-*.css`, 1,410 B) alongside the main one. Target A and Target B
+  pull in opposite directions and the brief asks for either; this lane chose B,
+  see below.
+- The after-measurement was taken with `--no-build` against the `web/dist` that
+  `9a6996b` produced, rather than rebuilding. All 353 files in it share a single
+  mtime, so it is one clean build of the committed tree and contains no stale
+  artifacts. See "Measurement lock" below for why it was not rebuilt.
 
 ## Why Target B rather than Target A
 
@@ -120,7 +160,8 @@ chunk fetch is visually indistinguishable from the auth check that follows it.
 The boundary sits above the route tree rather than per-route, so a nested chunk
 (`UnifiedDocumentPage` inside `AppLayout`) always has a parent to suspend against.
 
-*Effect:* initial load 2,144,744 → 362,169 B on its own.
+*Effect:* initial load 2,144,744 → 362,169 B on its own. This is the commit that
+carries the result.
 
 ### 3. `b7cd517` — emoji-picker-react behind its open handler
 
@@ -176,6 +217,16 @@ rather than by raising `chunkSizeWarningLimit`.
   cycle between emitted chunks.
 - Grouping by path substring is string matching against `node_modules` paths. It
   degrades safely: an unmatched library falls through to Rollup's default chunking.
+
+*Effect:* largest chunk 836,570 → 476,475 B (`vendor-editor`), 20.9% of all JS
+where the old entry chunk was 92.1%. The >500 kB build warning is gone.
+
+> Correction: the body of commit `9a6996b` says "largest chunk 836,570 B ->
+> 620,148 B". 620,148 B was `vendor-editor` in the intermediate configuration
+> that omitted the `vendor-react` group — the one measured and rejected two
+> bullets up. In the configuration actually committed it is 476,475 B, as the
+> same commit's `vendor-editor 476,475 B` line says. The committed number is
+> right; the "largest chunk" line in that message is not.
 
 ## Verification: every lazy boundary actually loads
 
