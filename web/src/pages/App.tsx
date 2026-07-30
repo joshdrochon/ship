@@ -646,10 +646,10 @@ function DocumentsTree({ documents, activeId, onSelect }: { documents: WikiDocum
               />
             ))
           ) : (
-            <li className="px-2 py-1 text-sm text-muted">No workspace documents</li>
+            <li role="treeitem" className="px-2 py-1 text-sm text-muted">No workspace documents</li>
           )}
           {workspaceHiddenCount > 0 && (
-            <li>
+            <li role="treeitem">
               <Link
                 to="/docs?filter=workspace"
                 className="block px-2 py-1.5 text-sm text-muted hover:text-foreground hover:bg-border/30 rounded-md transition-colors"
@@ -678,7 +678,7 @@ function DocumentsTree({ documents, activeId, onSelect }: { documents: WikiDocum
               />
             ))}
             {privateHiddenCount > 0 && (
-              <li>
+              <li role="treeitem">
                 <Link
                   to="/docs?filter=private"
                   className="block px-2 py-1.5 text-sm text-muted hover:text-foreground hover:bg-border/30 rounded-md transition-colors"
