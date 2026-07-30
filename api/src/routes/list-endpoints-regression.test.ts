@@ -228,36 +228,45 @@ describe('List endpoints — query-shape regression', () => {
   });
 
   describe('GET /api/projects — pre-aggregated counts and status', () => {
-    const byTitle = (body: Array<{ title: string }>, t: string) =>
-      body.find(p => p.title === t) as Record<string, unknown> | undefined;
+    // Throws rather than returning undefined, so callers do not need `!` and a
+    // missing row reports which title was missing instead of failing later with
+    // "cannot read property of undefined".
+    type ProjectRow = { title: string } & Record<string, unknown>;
+    const byTitle = (body: ProjectRow[], t: string): ProjectRow => {
+      const found = body.find(p => p.title === t);
+      if (!found) {
+        throw new Error(`no project row titled ${JSON.stringify(t)} in ${body.length} rows`);
+      }
+      return found;
+    };
 
     it('counts only sprint and issue associations, not other types', async () => {
       const res = await request(app).get('/api/projects').set('Cookie', memberCookie);
       expect(res.status).toBe(200);
-      const p = byTitle(res.body, 'P Active')!;
+      const p = byTitle(res.body, 'P Active');
       expect(p.issue_count).toBe(2);
       expect(p.sprint_count).toBe(1); // the linked wiki must not be counted
     });
 
     it('reports zero counts for a project with no associations', async () => {
       const res = await request(app).get('/api/projects').set('Cookie', memberCookie);
-      const p = byTitle(res.body, 'P Backlog')!;
+      const p = byTitle(res.body, 'P Backlog');
       expect(p.sprint_count).toBe(0);
       expect(p.issue_count).toBe(0);
     });
 
     it('derives inferred_status from sprint allocation timing', async () => {
       const res = await request(app).get('/api/projects').set('Cookie', memberCookie);
-      expect(byTitle(res.body, 'P Active')!.inferred_status).toBe('active');
-      expect(byTitle(res.body, 'P Planned')!.inferred_status).toBe('planned');
+      expect(byTitle(res.body, 'P Active').inferred_status).toBe('active');
+      expect(byTitle(res.body, 'P Planned').inferred_status).toBe('planned');
       // past allocation and unassigned allocation both fall through to backlog
-      expect(byTitle(res.body, 'P Backlog')!.inferred_status).toBe('backlog');
+      expect(byTitle(res.body, 'P Backlog').inferred_status).toBe('backlog');
     });
 
     it('plan_validated wins over allocation, archived wins over everything', async () => {
       const res = await request(app).get('/api/projects?archived=true').set('Cookie', memberCookie);
-      expect(byTitle(res.body, 'P Completed')!.inferred_status).toBe('completed');
-      expect(byTitle(res.body, 'P Archived')!.inferred_status).toBe('archived');
+      expect(byTitle(res.body, 'P Completed').inferred_status).toBe('completed');
+      expect(byTitle(res.body, 'P Archived').inferred_status).toBe('archived');
     });
 
     it('excludes archived projects unless archived=true', async () => {

@@ -23,6 +23,18 @@ import crypto from 'crypto';
 import { createApp } from '../app.js';
 import { pool } from '../db/client.js';
 
+// Indexing a possibly-empty array under noUncheckedIndexedAccess needs either a
+// `!` at every call site or one helper that fails loudly. The helper also turns
+// "cannot read property of undefined" into a sentence naming what was missing.
+function firstOrThrow<T>(arr: readonly T[], what: string): T {
+  const [head] = arr;
+  if (head === undefined) {
+    throw new Error(`expected at least one ${what}, got ${arr.length}`);
+  }
+  return head;
+}
+
+
 describe('team/grid and auth/me — rewrite regression', () => {
   const app = createApp();
   const runId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -179,10 +191,10 @@ describe('team/grid and auth/me — rewrite regression', () => {
         programs: Array<{ id: string; name: string; emoji: string; color: string; issueCount: number }>;
         issues: Array<{ id: string; title: string; displayId: string; state: string }>;
       }>;
-      const cell = cells[0]!;
+      const cell = firstOrThrow(cells, 'grid cell');
       expect(cell.issues.map(i => i.title)).toContain('Issue One');
-      expect(cell.issues[0]!.state).toBe('in_progress');
-      expect(cell.issues[0]!.displayId).toMatch(/^#/);
+      expect(firstOrThrow(cell.issues, 'issue').state).toBe('in_progress');
+      expect(firstOrThrow(cell.issues, 'issue').displayId).toMatch(/^#/);
       expect(cell.programs[0]).toMatchObject({ id: ids.prog1, name: 'Prog One', emoji: '🚀', color: '#123456', issueCount: 1 });
     });
   });
@@ -208,7 +220,7 @@ describe('team/grid and auth/me — rewrite regression', () => {
       expect(ws.find(w => w.id === wsAId)).toMatchObject({ name: `Alpha ${runId}`, role: 'member' });
       expect(ws.find(w => w.id === wsBId)).toMatchObject({ name: `Beta ${runId}`, role: 'member' });
       // every entry carries exactly the three keys the client reads
-      expect(Object.keys(ws[0]!).sort()).toEqual(['id', 'name', 'role']);
+      expect(Object.keys(firstOrThrow(ws, 'workspace')).sort()).toEqual(['id', 'name', 'role']);
     });
 
     it('excludes archived workspaces from the list', async () => {
