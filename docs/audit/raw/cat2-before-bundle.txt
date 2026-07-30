@@ -1,0 +1,14 @@
+total dist            3,431,950 B (3351.5 kB) across 301 files
+  .js                2,250,431 B (2197.7 kB)     261 files
+  .png               1,065,895 B (1040.9 kB)     31 files
+  .css               66,512 B (65.0 kB)          1 files
+  .ico               28,972 B (28.3 kB)          2 files
+  .svg               13,362 B (13.0 kB)          2 files
+
+gzip (JS+CSS)         697,766 B (681.4 kB)
+chunk count (JS)      261
+largest chunk         index-DtPqXJLf.js
+                      2,073,684 B (2025.1 kB) raw / 585,810 B (572.1 kB) gzip
+                      92.1% of all JS
+
+unused dependencies   ['@tanstack/query-sync-storage-persister']
