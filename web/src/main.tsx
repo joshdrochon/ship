@@ -16,34 +16,61 @@ import { ProjectsProvider } from '@/contexts/ProjectsContext';
 import { ArchivedPersonsProvider } from '@/contexts/ArchivedPersonsContext';
 import { CurrentDocumentProvider } from '@/contexts/CurrentDocumentContext';
 import { UploadProvider } from '@/contexts/UploadContext';
-import { LoginPage } from '@/pages/Login';
-import { AppLayout } from '@/pages/App';
-import { DocumentsPage } from '@/pages/Documents';
-import { IssuesPage } from '@/pages/Issues';
-import { ProgramsPage } from '@/pages/Programs';
-import { TeamModePage } from '@/pages/TeamMode';
-import { TeamDirectoryPage } from '@/pages/TeamDirectory';
-import { PersonEditorPage } from '@/pages/PersonEditor';
-import { FeedbackEditorPage } from '@/pages/FeedbackEditor';
-import { PublicFeedbackPage } from '@/pages/PublicFeedback';
-import { ProjectsPage } from '@/pages/Projects';
-import { DashboardPage } from '@/pages/Dashboard';
-import { MyWeekPage } from '@/pages/MyWeekPage';
-import { AdminDashboardPage } from '@/pages/AdminDashboard';
-import { AdminWorkspaceDetailPage } from '@/pages/AdminWorkspaceDetail';
-import { WorkspaceSettingsPage } from '@/pages/WorkspaceSettings';
-import { ConvertedDocumentsPage } from '@/pages/ConvertedDocuments';
-import { UnifiedDocumentPage } from '@/pages/UnifiedDocumentPage';
-import { StatusOverviewPage } from '@/pages/StatusOverviewPage';
-import { ReviewsPage } from '@/pages/ReviewsPage';
-import { OrgChartPage } from '@/pages/OrgChartPage';
 import { ReviewQueueProvider } from '@/contexts/ReviewQueueContext';
 
-import { InviteAcceptPage } from '@/pages/InviteAccept';
-import { SetupPage } from '@/pages/Setup';
 import { ToastProvider } from '@/components/ui/Toast';
 import { MutationErrorToast } from '@/components/MutationErrorToast';
 import './index.css';
+
+/**
+ * Route-level code splitting.
+ *
+ * Every page below used to be a static import, so a single entry chunk carried
+ * the whole application — TipTap, ProseMirror, Yjs, emoji-picker-react and
+ * highlight.js included — before the browser could render /login. Each page is
+ * now its own `import()`, which Rollup emits as a separate chunk fetched when
+ * its route is first matched.
+ *
+ * These are all named exports, hence the `.then()` unwrap: `React.lazy` requires
+ * a module whose `default` is the component.
+ */
+const LoginPage = React.lazy(() => import('@/pages/Login').then(m => ({ default: m.LoginPage })));
+const AppLayout = React.lazy(() => import('@/pages/App').then(m => ({ default: m.AppLayout })));
+const DocumentsPage = React.lazy(() => import('@/pages/Documents').then(m => ({ default: m.DocumentsPage })));
+const IssuesPage = React.lazy(() => import('@/pages/Issues').then(m => ({ default: m.IssuesPage })));
+const ProgramsPage = React.lazy(() => import('@/pages/Programs').then(m => ({ default: m.ProgramsPage })));
+const TeamModePage = React.lazy(() => import('@/pages/TeamMode').then(m => ({ default: m.TeamModePage })));
+const TeamDirectoryPage = React.lazy(() => import('@/pages/TeamDirectory').then(m => ({ default: m.TeamDirectoryPage })));
+const PersonEditorPage = React.lazy(() => import('@/pages/PersonEditor').then(m => ({ default: m.PersonEditorPage })));
+const FeedbackEditorPage = React.lazy(() => import('@/pages/FeedbackEditor').then(m => ({ default: m.FeedbackEditorPage })));
+const PublicFeedbackPage = React.lazy(() => import('@/pages/PublicFeedback').then(m => ({ default: m.PublicFeedbackPage })));
+const ProjectsPage = React.lazy(() => import('@/pages/Projects').then(m => ({ default: m.ProjectsPage })));
+const DashboardPage = React.lazy(() => import('@/pages/Dashboard').then(m => ({ default: m.DashboardPage })));
+const MyWeekPage = React.lazy(() => import('@/pages/MyWeekPage').then(m => ({ default: m.MyWeekPage })));
+const AdminDashboardPage = React.lazy(() => import('@/pages/AdminDashboard').then(m => ({ default: m.AdminDashboardPage })));
+const AdminWorkspaceDetailPage = React.lazy(() => import('@/pages/AdminWorkspaceDetail').then(m => ({ default: m.AdminWorkspaceDetailPage })));
+const WorkspaceSettingsPage = React.lazy(() => import('@/pages/WorkspaceSettings').then(m => ({ default: m.WorkspaceSettingsPage })));
+const ConvertedDocumentsPage = React.lazy(() => import('@/pages/ConvertedDocuments').then(m => ({ default: m.ConvertedDocumentsPage })));
+const UnifiedDocumentPage = React.lazy(() => import('@/pages/UnifiedDocumentPage').then(m => ({ default: m.UnifiedDocumentPage })));
+const StatusOverviewPage = React.lazy(() => import('@/pages/StatusOverviewPage').then(m => ({ default: m.StatusOverviewPage })));
+const ReviewsPage = React.lazy(() => import('@/pages/ReviewsPage').then(m => ({ default: m.ReviewsPage })));
+const OrgChartPage = React.lazy(() => import('@/pages/OrgChartPage').then(m => ({ default: m.OrgChartPage })));
+const InviteAcceptPage = React.lazy(() => import('@/pages/InviteAccept').then(m => ({ default: m.InviteAcceptPage })));
+const SetupPage = React.lazy(() => import('@/pages/Setup').then(m => ({ default: m.SetupPage })));
+
+/**
+ * Fallback shown while a route chunk is in flight. Deliberately identical to the
+ * loading state `PublicRoute`/`ProtectedRoute` already render while auth
+ * resolves, so a chunk fetch is visually indistinguishable from the auth check
+ * that follows it — no new flash of unstyled or shifting content.
+ */
+function RouteFallback() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-background">
+      <div className="text-muted">Loading...</div>
+    </div>
+  );
+}
 
 /**
  * Redirect component for type-specific routes to canonical /documents/:id
@@ -131,26 +158,32 @@ function SuperAdminRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Routes>
-      {/* Truly public routes - no AuthProvider wrapper */}
-      <Route
-        path="/feedback/:programId"
-        element={<PublicFeedbackPage />}
-      />
-      {/* Routes that need AuthProvider (even if some are public) */}
-      <Route
-        path="/*"
-        element={
-          <WorkspaceProvider>
-            <AuthProvider>
-              <RealtimeEventsProvider>
-                <AppRoutes />
-              </RealtimeEventsProvider>
-            </AuthProvider>
-          </WorkspaceProvider>
-        }
-      />
-    </Routes>
+    // One Suspense boundary above the whole route tree. Placing it here rather
+    // than per-route means a nested page chunk (e.g. UnifiedDocumentPage inside
+    // AppLayout) still has a boundary to suspend against, and no route can throw
+    // "A component suspended while responding to synchronous input".
+    <React.Suspense fallback={<RouteFallback />}>
+      <Routes>
+        {/* Truly public routes - no AuthProvider wrapper */}
+        <Route
+          path="/feedback/:programId"
+          element={<PublicFeedbackPage />}
+        />
+        {/* Routes that need AuthProvider (even if some are public) */}
+        <Route
+          path="/*"
+          element={
+            <WorkspaceProvider>
+              <AuthProvider>
+                <RealtimeEventsProvider>
+                  <AppRoutes />
+                </RealtimeEventsProvider>
+              </AuthProvider>
+            </WorkspaceProvider>
+          }
+        />
+      </Routes>
+    </React.Suspense>
   );
 }
 
