@@ -81,11 +81,19 @@ async function navigateToProgram(page: Page, programName: string = 'Ship Core') 
 
 async function clickSprintsTab(page: Page) {
   // Tabs have role="tab", not role="button"
-  await page.getByRole('tab', { name: 'Weeks' }).click()
-  // Wait for sprints tab to be active
-  await expect(page.getByRole('tab', { name: 'Weeks' })).toHaveAttribute('data-state', 'active', { timeout: 5000 }).catch(() => {
-    // Fallback: just wait for content to load
-  })
+  const tab = page.getByRole('tab', { name: 'Weeks' })
+  await expect(tab).toBeVisible({ timeout: 15000 })
+  await tab.click()
+
+  // Wait for the panel's own content, not just for the tab's data-state.
+  //
+  // The previous version awaited data-state="active" and swallowed the failure in a
+  // .catch(), with the comment "just wait for content to load" — which it then did not
+  // do. So every caller proceeded whether or not the panel had rendered. That was
+  // survivable while this route was in the entry chunk; it is not now that the route is
+  // React.lazy, because the panel mounts strictly later than the tab click resolves.
+  await expect(tab).toHaveAttribute('data-state', 'active', { timeout: 10000 })
+  await expect(page.getByText(/Week of/).first()).toBeVisible({ timeout: 15000 })
 }
 
 async function clickIssuesTab(page: Page) {
@@ -377,9 +385,17 @@ test.describe('Phase 2: Weeks Tab UI', () => {
       await sprintCard.click()
       // Clicking a sprint card navigates to /documents/{id}/sprints/{sprintId}
       // Wait for URL to update which indicates selection worked
-      await expect(page).toHaveURL(/\/documents\/[a-f0-9-]+\/sprints\/[a-f0-9-]+/, { timeout: 5000 })
-      // After navigation, verify a card shows as selected
-      await expect(page.locator('button[data-selected="true"]')).toBeVisible({ timeout: 5000 })
+      await expect(page).toHaveURL(/\/documents\/[a-f0-9-]+\/sprints\/[a-f0-9-]+/, { timeout: 15000 })
+
+      // After navigation, verify a card shows as selected.
+      //
+      // Not `button[data-selected="true"]`. WeekTimeline.tsx:264 falls back to the
+      // *current* week when the URL's sprint id is not in the loaded list, and
+      // WeekTimeline.tsx:122 renders a week window with no sprint document as a <div>
+      // rather than a <button>. So whether the selected element is a button depends on
+      // whether the current week happens to have a sprint in the seed data — which is
+      // not what this test is about.
+      await expect(page.locator('[data-selected="true"]').first()).toBeVisible({ timeout: 15000 })
     } else {
       // No sprint documents - timeline shows empty week windows (divs, not clickable)
       await expect(page.getByText(/Week of/).first()).toBeVisible()
