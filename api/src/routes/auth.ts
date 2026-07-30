@@ -268,9 +268,10 @@ router.post('/logout', authMiddleware, async (req: Request, res: Response): Prom
 // pays. The second and third queries read the same two tables as each other, and the
 // third's answer is a single row the second already had to scan past.
 //
-// Both are now lateral scalar subqueries hanging off the user row, so PostgreSQL answers
-// all three in one execution. Shapes are built with json_build_object so the payload the
-// handler emits is unchanged key-for-key.
+// Both are now scalar subqueries hanging off the user row, so PostgreSQL answers all three
+// in one execution. Shapes are built with json_build_object so the payload the handler
+// emits is unchanged key-for-key, including the COALESCE(role, 'admin') fallback for a
+// super-admin who holds no membership row in the current workspace.
 const ME_QUERY = `
   SELECT u.id, u.email, u.name, u.is_super_admin,
          COALESCE((
