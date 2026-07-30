@@ -22,7 +22,11 @@ export function TabBar({ tabs, activeTab, onTabChange, rightContent }: TabBarPro
             role="tab"
             id={`tab-${tab.id}`}
             aria-selected={activeTab === tab.id}
-            aria-controls={`tabpanel-${tab.id}`}
+            // No aria-controls: this component renders tabs, not panels. It used to point at
+            // `tabpanel-${tab.id}`, and role="tabpanel" appears 0 times in web/src and no
+            // element declares a matching id -- every tab referenced an element that does not
+            // exist (axe aria-valid-attr-value, critical). A dangling reference is worse than
+            // no reference: it tells assistive technology to look for content it will not find.
             onClick={() => onTabChange(tab.id)}
             className={cn(
               'relative px-4 py-3 text-sm font-medium transition-colors',
