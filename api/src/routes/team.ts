@@ -11,44 +11,75 @@ const router: RouterType = Router();
 // Query params:
 //   fromSprint: number - start of range (default: current - 7)
 //   toSprint: number - end of range (default: current + 7)
+// The admin half of the visibility predicate, inline instead of a separate
+// getVisibilityContext() round trip. Uncorrelated with the outer query, so PostgreSQL
+// evaluates it once as an InitPlan. $1 = workspace id, $2 = user id.
+const ADMIN_ROLE_SUBQUERY_SQL =
+  `(SELECT wm.role FROM workspace_memberships wm WHERE wm.workspace_id = $1 AND wm.user_id = $2) = 'admin'`;
+
 router.get('/grid', authMiddleware, async (req: Request, res: Response) => {
   try {
     const userId = req.userId!;
     const workspaceId = req.workspaceId!;
 
-    // Get visibility context for filtering
-    const { isAdmin } = await getVisibilityContext(userId, workspaceId);
-
     // Parse includeArchived query param
     const includeArchived = req.query.includeArchived === 'true';
 
-    // Get all people in workspace via person documents (only visible ones)
-    // Include pending users so they appear in the grid
-    // personId is the document ID (used for allocations), id is the user_id (null for pending users)
-    const usersResult = await pool.query(
-      `SELECT
-         d.id as "personId",
-         d.properties->>'user_id' as id,
-         d.title as name,
-         COALESCE(d.properties->>'email', u.email) as email,
-         CASE WHEN d.archived_at IS NOT NULL THEN true ELSE false END as "isArchived",
-         CASE WHEN d.properties->>'pending' = 'true' THEN true ELSE false END as "isPending",
-         d.properties->>'reports_to' as "reportsTo"
-       FROM documents d
-       LEFT JOIN users u ON u.id = (d.properties->>'user_id')::uuid
-       WHERE d.workspace_id = $1
-         AND d.document_type = 'person'
-         AND ($4 OR d.archived_at IS NULL)
-         AND ${VISIBILITY_FILTER_SQL('d', '$2', '$3')}
-       ORDER BY d.archived_at NULLS FIRST, d.title`,
-      [workspaceId, userId, isAdmin, includeArchived]
-    );
-
-    // Get workspace sprint start date
-    const workspaceResult = await pool.query(
-      `SELECT sprint_start_date FROM workspaces WHERE id = $1`,
-      [workspaceId]
-    );
+    // These three reads are independent of each other and of anything computed below,
+    // so they are issued together instead of one after another. Previously this handler
+    // paid FIVE strictly serialised round trips before it could answer -- the admin
+    // lookup, the people list, the workspace row, a sprint query whose result was never
+    // read (removed below), and the issue list -- even though only the issue list's
+    // post-processing depends on the workspace row. The admin lookup is folded into each
+    // statement's visibility predicate as an uncorrelated subquery, so what is left is
+    // one concurrent batch.
+    //
+    // Cost of the trade: three pooled connections are held briefly per request instead of
+    // one at a time. The pool is 10 (20 in production) and each of these queries is
+    // sub-millisecond, so occupancy goes up by well under a connection at the arrival
+    // rates this endpoint sees.
+    const [usersResult, workspaceResult, issuesResult] = await Promise.all([
+      // Get all people in workspace via person documents (only visible ones)
+      // Include pending users so they appear in the grid
+      // personId is the document ID (used for allocations), id is the user_id (null for pending users)
+      pool.query(
+        `SELECT
+           d.id as "personId",
+           d.properties->>'user_id' as id,
+           d.title as name,
+           COALESCE(d.properties->>'email', u.email) as email,
+           CASE WHEN d.archived_at IS NOT NULL THEN true ELSE false END as "isArchived",
+           CASE WHEN d.properties->>'pending' = 'true' THEN true ELSE false END as "isPending",
+           d.properties->>'reports_to' as "reportsTo"
+         FROM documents d
+         LEFT JOIN users u ON u.id = (d.properties->>'user_id')::uuid
+         WHERE d.workspace_id = $1
+           AND d.document_type = 'person'
+           AND ($3 OR d.archived_at IS NULL)
+           AND (d.visibility = 'workspace' OR d.created_by = $2 OR ${ADMIN_ROLE_SUBQUERY_SQL})
+         ORDER BY d.archived_at NULLS FIRST, d.title`,
+        [workspaceId, userId, includeArchived]
+      ),
+      // Get workspace sprint start date
+      pool.query(
+        `SELECT sprint_start_date FROM workspaces WHERE id = $1`,
+        [workspaceId]
+      ),
+      // Get issues with sprint and assignee info (only visible issues)
+      pool.query(
+        `SELECT i.id, i.title, da_sprint.related_id as sprint_id, i.properties->>'assignee_id' as assignee_id, i.properties->>'state' as state, i.ticket_number,
+                s.properties->>'start_date' as sprint_start, s.properties->>'end_date' as sprint_end,
+                prog_da.related_id as program_id, p.title as program_name, p.properties->>'emoji' as program_emoji, p.properties->>'color' as program_color
+         FROM documents i
+         JOIN document_associations da_sprint ON da_sprint.document_id = i.id AND da_sprint.relationship_type = 'sprint'
+         JOIN documents s ON s.id = da_sprint.related_id
+         LEFT JOIN document_associations prog_da ON i.id = prog_da.document_id AND prog_da.relationship_type = 'program'
+         LEFT JOIN documents p ON prog_da.related_id = p.id AND p.document_type = 'program'
+         WHERE i.workspace_id = $1 AND i.document_type = 'issue' AND i.properties->>'assignee_id' IS NOT NULL
+           AND (i.visibility = 'workspace' OR i.created_by = $2 OR ${ADMIN_ROLE_SUBQUERY_SQL})`,
+        [workspaceId, userId]
+      ),
+    ]);
 
     const rawSprintStartDate = workspaceResult.rows[0]?.sprint_start_date;
     const sprintDurationDays = 7; // 1-week sprints
@@ -101,37 +132,11 @@ router.get('/grid', authMiddleware, async (req: Request, res: Response) => {
       });
     }
 
-    // Get all sprints from database that fall within our date range
-    const minDate = sprints[0]?.startDate || today.toISOString().split('T')[0];
-    const maxDate = sprints[sprints.length - 1]?.endDate || today.toISOString().split('T')[0];
-
-    const dbSprintsResult = await pool.query(
-      `SELECT d.id, d.title as name, d.properties->>'start_date' as start_date, d.properties->>'end_date' as end_date,
-              prog_da.related_id as program_id,
-              p.title as program_name, p.properties->>'emoji' as program_emoji, p.properties->>'color' as program_color
-       FROM documents d
-       LEFT JOIN document_associations prog_da ON d.id = prog_da.document_id AND prog_da.relationship_type = 'program'
-       LEFT JOIN documents p ON prog_da.related_id = p.id AND p.document_type = 'program'
-       WHERE d.workspace_id = $1 AND d.document_type = 'sprint'
-         AND (d.properties->>'start_date')::date >= $2 AND (d.properties->>'end_date')::date <= $3
-         AND ${VISIBILITY_FILTER_SQL('d', '$4', '$5')}`,
-      [workspaceId, minDate, maxDate, userId, isAdmin]
-    );
-
-    // Get issues with sprint and assignee info (only visible issues)
-    const issuesResult = await pool.query(
-      `SELECT i.id, i.title, da_sprint.related_id as sprint_id, i.properties->>'assignee_id' as assignee_id, i.properties->>'state' as state, i.ticket_number,
-              s.properties->>'start_date' as sprint_start, s.properties->>'end_date' as sprint_end,
-              prog_da.related_id as program_id, p.title as program_name, p.properties->>'emoji' as program_emoji, p.properties->>'color' as program_color
-       FROM documents i
-       JOIN document_associations da_sprint ON da_sprint.document_id = i.id AND da_sprint.relationship_type = 'sprint'
-       JOIN documents s ON s.id = da_sprint.related_id
-       LEFT JOIN document_associations prog_da ON i.id = prog_da.document_id AND prog_da.relationship_type = 'program'
-       LEFT JOIN documents p ON prog_da.related_id = p.id AND p.document_type = 'program'
-       WHERE i.workspace_id = $1 AND i.document_type = 'issue' AND i.properties->>'assignee_id' IS NOT NULL
-         AND ${VISIBILITY_FILTER_SQL('i', '$2', '$3')}`,
-      [workspaceId, userId, isAdmin]
-    );
+    // NOTE: a query for "all sprints from the database in this date range" used to run
+    // here -- a four-table join with two ::date casts over JSONB text, on every request.
+    // Its result was assigned to `dbSprintsResult` and never read: the response is built
+    // from `sprints` (computed arithmetically above), `usersResult` and `issuesResult`.
+    // It has been deleted. `minDate`/`maxDate` existed only to parameterise it.
 
     // Build associations: user_id -> sprint_number -> { programs: [...], issues: [...] }
     const associations: Record<string, Record<number, {
