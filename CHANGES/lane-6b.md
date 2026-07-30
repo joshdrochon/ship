@@ -132,10 +132,46 @@ adding a `maxWait` to `schedulePersist` — are product tuning decisions with re
 latency/write-amplification tradeoffs. **That call belongs to the user, not to a
 lane repairing a test regression.** Flagged for the merge decision.
 
-## The finding worth keeping: tests coupled to transport
+## The finding worth keeping: tests coupled to mechanism, not to outcome
 
-Eight spec files waited on `method() === 'PATCH'` as a proxy for "the data was
-saved":
+**This is the most transferable thing this lane produced, and it is larger than
+the regression that exposed it.**
+
+Both failures in this lane have the same shape. A test wanted to assert *"the
+title was saved"* — a statement about user-visible behaviour. Instead each one
+asserted on an incidental detail of *how* the save happened at the moment the
+test was written:
+
+| Variant | What the test actually asserted | Broke when |
+|---|---|---|
+| **Transport** | a `PATCH` verb crossed the wire | the title moved to the CRDT |
+| **Timing** | 1500 ms is long enough | the throttle became a 2 s debounce |
+
+Neither is the thing the test cared about. Both are true of one implementation
+and of no other. That is why a change which preserved behaviour exactly — the
+title still saves, still survives reload, still merges better than before — could
+turn ten tests red and leave four more failing only under parallel load.
+
+The failure modes run in both directions, which is what makes this worth writing
+down rather than filing as a chore. A mechanism-coupled test **fails when the
+behaviour is correct** but the mechanism changed. It also **passes when the
+mechanism is correct but the data never lands** — waiting for a `PATCH` proves a
+request was sent, not that anything was stored. The suite had both bugs
+simultaneously and neither was visible until the mechanism moved.
+
+**Lane 5 hit the same underlying weakness from a different direction:** tests
+coupled to incidental database state rather than to what they were asserting. Two
+lanes, two mechanisms — transport and fixture state — one root cause in how this
+suite was written. That convergence is the signal. The suite has a systemic habit
+of reaching for whatever is easiest to observe (a wire call, a sleep, a row that
+happens to exist) instead of the property under test, and any future change that
+disturbs an implementation detail will keep paying for it. The remedy is a
+convention, not a cleanup pass: **assert the observable outcome — the server
+serves the value back, the element shows it, the row appears — and never the
+route taken to produce it.**
+
+The concrete instance in this lane: eight spec files waited on
+`method() === 'PATCH'` as a proxy for "the data was saved":
 
 ```
 backlinks.spec.ts   documents.spec.ts    data-integrity.spec.ts   weeks.spec.ts
