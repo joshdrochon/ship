@@ -13,16 +13,23 @@ import { reconnectDelayMs, RECONNECT_BASE_MS, RECONNECT_MAX_MS } from './useReal
  */
 describe('/events reconnect backoff (Rule 7)', () => {
   it('backs off exponentially', () => {
-    // Sampled because of the jitter; compare windows, not points.
-    const windows = [1, 2, 3, 4].map((attempt) => {
-      const samples = Array.from({ length: 200 }, () => reconnectDelayMs(attempt));
-      return { min: Math.min(...samples), max: Math.max(...samples) };
-    });
+    // Sampled because of the jitter; compare windows, not points. Walking a
+    // running minimum instead of indexing pairs keeps the assertion identical
+    // (each window's floor strictly above the previous one) without reaching for
+    // `windows[i]!`, which noUncheckedIndexedAccess types as possibly undefined.
+    let previousMin = 0;
 
-    for (let i = 1; i < windows.length; i++) {
-      expect(windows[i]!.min).toBeGreaterThan(windows[i - 1]!.min);
+    for (const attempt of [1, 2, 3, 4]) {
+      const samples = Array.from({ length: 200 }, () => reconnectDelayMs(attempt));
+      const min = Math.min(...samples);
+
+      expect(min).toBeGreaterThan(previousMin);
+      previousMin = min;
     }
-    expect(windows[0]!.min).toBeGreaterThanOrEqual(RECONNECT_BASE_MS / 2);
+
+    // The first window's floor is half the base delay, by construction.
+    const firstMin = Math.min(...Array.from({ length: 200 }, () => reconnectDelayMs(1)));
+    expect(firstMin).toBeGreaterThanOrEqual(RECONNECT_BASE_MS / 2);
   });
 
   it('caps the delay so a long outage settles at a fixed low rate', () => {

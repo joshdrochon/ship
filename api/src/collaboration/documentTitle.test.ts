@@ -96,7 +96,7 @@ describe('collaboration/documentTitle (W6-9 regression)', () => {
   });
 
   describe('readTitleFromDoc', () => {
-    it('returns null for an empty title so the column is left as REST set it', () => {
+    it('returns null for an empty title, so the column keeps whatever REST last set', () => {
       expect(readTitleFromDoc(new Y.Doc())).toBeNull();
     });
 
@@ -140,8 +140,9 @@ describe('collaboration/documentTitle (W6-9 regression)', () => {
         const a = new Y.Doc(); const b = new Y.Doc();
         Y.applyUpdate(a, base); Y.applyUpdate(b, base);
         // Fixed client ids so the tie-break is deterministic across both orders.
-        (a as unknown as { clientID: number }).clientID = 1;
-        (b as unknown as { clientID: number }).clientID = 2;
+        // Y.Doc.clientID is a plain public field, so this needs no cast.
+        a.clientID = 1;
+        b.clientID = 2;
         getTitleText(a).insert(20, 'TitleFromA');
         getTitleText(b).insert(20, 'TitleFromB');
         const updates = order === 'ab'
@@ -186,7 +187,10 @@ describe('collaboration/documentTitle (W6-9 regression)', () => {
       replaceTitleInDoc(server, 'New Name');
 
       expect(relayed).toHaveLength(1);
-      Y.applyUpdate(client, relayed[0]!);
+      // Iterating rather than indexing: `relayed[0]` is `Uint8Array | undefined`
+      // under noUncheckedIndexedAccess, and the length assertion above is what
+      // makes the loop meaningful.
+      for (const update of relayed) Y.applyUpdate(client, update);
       expect(readTitleFromDoc(client)).toBe('New Name');
     });
   });

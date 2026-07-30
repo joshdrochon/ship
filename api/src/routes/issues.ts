@@ -966,7 +966,7 @@ router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
     // the collaboration server writes it back from the CRDT on every persist, so a
     // rename made here has to reach any live room or it gets silently reverted.
     if (data.title !== undefined) {
-      applyTitleToRoom(id!, data.title);
+      applyTitleToRoom(id, data.title);
     }
 
     // Check if a NEW sprint association was added and this is the first issue in that sprint

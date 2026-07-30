@@ -561,6 +561,132 @@ path on idle-client errors, so prefer reverting the retry wrapper alone
 | `docs/audit/scripts/capture-w6-1.mjs` | **new** — visits the six unprotected routes with a render error injected, records blankness and recovery affordances. |
 | `docs/audit/scripts/inject-render-error.mjs` | **new** — applies and reverts that injection. |
 
+## Follow-up — type-safety cleanup of this lane's own new code
+
+Commit `refactor(types): remove all 15 type-safety violations this lane
+introduced`. Category 1's target is a 25% reduction in type-safety
+violations (brief p.3), and p.11 scores TypeScript quality on new code. In a
+three-lane merge rehearsal this lane's new code contributed **15 violations**,
+which pushed the merged total two over Lane 1's ceiling. Cleaned up here rather
+than absorbed by Lane 1: they are mine, and a circuit breaker written with `any`
+loses the p.11 points regardless of anyone else's count.
+
+Measured with the canonical script, same command both sides:
+
+```bash
+python3 docs/audit/scripts/count-type-violations.py            # totals
+python3 docs/audit/scripts/count-type-violations.py --by-file  # per file
+```
+
+| | Before | After |
+|---|---:|---:|
+| Repository total | **1023** | **1008** |
+| `any` | 261 | 258 |
+| `as` | 436 | 429 |
+| `!` | 325 | 320 |
+| Files with any violation | 147 | 143 |
+
+**−15, all of them this lane's.** Per file:
+
+| File | This lane's violations before | After |
+|---|---:|---:|
+| `api/src/db/client.ts` | 6 | **0** |
+| `api/src/collaboration/documentTitle.test.ts` | 4 | **0** |
+| `web/src/hooks/useRealtimeEvents.test.ts` | 2 | **0** |
+| `api/src/services/circuitBreaker.ts` | 1 | **0** |
+| `api/src/routes/issues.ts` | 1 | **0** (file 45 → 44) |
+| `api/src/routes/projects.ts` | 1 | **0** (file 50 → 49) |
+
+Nothing outside those six files was touched.
+
+### What changed, and why the original was worse
+
+**`api/src/db/client.ts` — a typed database surface replaces an `as any` monkey
+patch.** The Rule 7 connection retry had to reach every call site, and the first
+version got there by reassigning `pool.query`. `Pool['query']` is eight overloads
+deep, so the wrapper could only be attached through `as any` — four `any`s and two
+invented shape assertions (`err as { code?: string }`) in the one module every
+route imports, buying no safety at all.
+
+Replaced with a declared `Database` interface covering the three methods this
+codebase actually uses — `query` (1310 call sites), `connect` (14) and `end` —
+implemented as ordinary typed code over a private `Pool`. Error inspection is a
+real narrowing helper (`typeof err === 'object' && 'code' in err`, then a `typeof`
+check on the value) instead of asserting a shape onto `unknown`.
+
+This closed a genuine gap on the way: **the old patch wrapped `query` only, so the
+14 `pool.connect()` transaction sites had no retry.** They do now.
+
+**`api/src/services/circuitBreaker.ts` — `this.openedAt!` removed by making the
+null check narrow.** `run()` read the `state` getter and then re-read `openedAt`,
+which the compiler could not connect, hence the assertion. It is now one private
+`evaluate()` returning a discriminated union, with `retryAfterMs` present only on
+the `open` branch. That also fixes a latent bug the assertion was hiding: state and
+remaining-cooldown were read in two separate calls, so the clock could tick between
+them and the two could disagree.
+
+**`api/src/routes/issues.ts`** — `applyTitleToRoom(id!, …)`: `id` is already
+`string` from `String(req.params.id)` twenty lines up. The assertion was pure noise;
+removed.
+
+**`api/src/routes/projects.ts`** — `applyTitleToRoom(id as string, …)`: here
+`req.params.id` really is `string | string[]`, so the assertion was hiding a case.
+Replaced with `typeof id === 'string'`, which is both honest and correct — a
+repeated parameter would previously have reached the room lookup as an array.
+
+**`api/src/collaboration/documentTitle.test.ts`** — `(a as unknown as { clientID:
+number })` was unnecessary: `Y.Doc.clientID` is a plain public field, so `a.clientID
+= 1` compiles. `relayed[0]!` became a `for…of` over the array, which the preceding
+length assertion makes meaningful. One more was a false positive — the counter's
+`as` pattern matched the prose "left as REST set it" in a test name, reworded.
+
+**`web/src/hooks/useRealtimeEvents.test.ts`** — `windows[i]!.min` became a running
+minimum walked in the loop. Same assertion (each window's floor strictly above the
+previous), no index access.
+
+### One `any` deliberately kept, and why
+
+`QueryRunner.query` declares `<R extends QueryResultRow = any>`, mirroring
+`@types/pg`'s own default. It carries the file's single remaining
+`no-explicit-any` **lint warning** at `client.ts:158`, left visible rather than
+suppressed with a disable comment.
+
+It is load-bearing. Tightening the default to `QueryResultRow` makes
+`result.rows[0].column` a "possibly undefined" error at every untyped call site —
+**728 errors, measured, across ~40 files this lane does not own**. The fix for that
+is per-query row types, one call site at a time, behind the same generic parameter
+this signature already exposes. That is Lane 1-scale work, not a cleanup pass.
+
+Note that the counter does not score `= any` in a default type argument, so this
+one does not appear in the 1008. Flagging it explicitly so the number is not read
+as cleaner than it is.
+
+### Tradeoffs
+
+- **`pool` is now a plain object implementing `Database`, not a `Pool` instance.**
+  Anything reaching for a `Pool` member outside `query`/`connect`/`end`
+  (`totalCount`, the callback forms, a `QueryConfig` object) will fail to compile
+  until it is added to the interface with a type. That is the intended pressure —
+  it was verified that nothing does today — but it is a real constraint on future
+  code, and the interface comment says so.
+- **The retry now also covers `pool.connect()`.** Better coverage, but a
+  transaction that fails to acquire a client now takes up to ~700 ms longer to
+  report failure.
+
+### Verification
+
+`pnpm test` **502 passed**, `pnpm --filter @ship/web exec vitest run` **192
+passed**, `pnpm type-check` **exit 0**, `pnpm lint` **0 errors** (264 warnings, one
+of them the deliberate `any` above), `pnpm build` **exit 0**. Behaviour tests are
+unchanged — the same 502 and 192 as before the cleanup, which is the point: this
+was a typing change, not a behaviour change.
+
+### Rollback
+
+Revert the `refactor(types)` commit. It restores the `as any` patch and the six assertions; Rule 7
+behaviour is unaffected either way, except that reverting also drops the retry from
+the 14 `pool.connect()` sites again.
+
 ## Not done, and why
 
 - **W6-10** (collaboration stops working after the first session per API process,

@@ -759,8 +759,11 @@ router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
     // The title is a Yjs shared type (api/src/collaboration/documentTitle.ts) and
     // the collaboration server writes it back from the CRDT on every persist, so a
     // rename made here has to reach any live room or it gets silently reverted.
-    if (data.title !== undefined) {
-      applyTitleToRoom(id as string, data.title);
+    // `req.params.id` is typed `string | string[]` here, so narrow rather than
+    // assert — a repeated query parameter would otherwise reach the room lookup
+    // as an array and silently match nothing.
+    if (typeof id === 'string' && data.title !== undefined) {
+      applyTitleToRoom(id, data.title);
     }
 
     // Broadcast celebration when plan is added

@@ -1,4 +1,5 @@
 import pg from 'pg';
+import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { config } from 'dotenv';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -14,7 +15,7 @@ const { Pool } = pg;
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-const pool = new Pool({
+const basePool = new Pool({
   connectionString: process.env.DATABASE_URL,
   // Production-ready pool configuration
   max: isProduction ? 20 : 10, // Max connections (default is 10)
@@ -44,15 +45,37 @@ const pool = new Pool({
  * errors on idle clients — a PostgreSQL restart, an RDS failover, an operator
  * running pg_terminate_backend. `error` on an EventEmitter with no listener is
  * rethrown as an uncaught exception, so before this handler existed any of those
- * events took the API process down, even though the pool's own recovery
- * (discard the client, open a fresh one) is exactly the right behaviour.
+ * events took the API process down, even though the pool's own recovery (discard
+ * the client, open a fresh one) is exactly the right behaviour.
  *
  * Failure mode this protects against: the API process dying when the database
  * closes an idle connection.
  */
-pool.on('error', (err) => {
+basePool.on('error', (err: Error) => {
   console.error('[db] Idle client error (connection discarded, pool continues):', err.message);
 });
+
+/**
+ * Read a `code` off an unknown thrown value.
+ *
+ * Both sources of a retryable failure carry one: Node system errors
+ * (`ECONNREFUSED`) put a string there, and pg's `DatabaseError` puts the
+ * five-character SQLSTATE there. Narrowing with `in` rather than asserting a
+ * shape means a thrown string, a thrown null, or an error with a non-string code
+ * all fall through honestly instead of being described to the compiler as
+ * something they are not.
+ */
+function errorCode(err: unknown): string | undefined {
+  if (typeof err === 'object' && err !== null && 'code' in err) {
+    const { code } = err;
+    return typeof code === 'string' ? code : undefined;
+  }
+  return undefined;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 /**
  * Rule 7 (retries). Transient failures where the query provably never reached
@@ -65,7 +88,7 @@ pool.on('error', (err) => {
  *   53300 too_many_connections — server at its connection limit
  *   08001 / 08004 / 08006      — connection could not be established
  */
-const RETRYABLE_CONNECT_ERRORS = new Set([
+const RETRYABLE_CONNECT_ERRORS: ReadonlySet<string> = new Set([
   'ECONNREFUSED', 'ENOTFOUND', 'EHOSTUNREACH', 'ETIMEDOUT',
   '57P03', '53300', '08001', '08004', '08006',
 ]);
@@ -73,56 +96,109 @@ const RETRYABLE_CONNECT_ERRORS = new Set([
 const CONNECT_RETRY_ATTEMPTS = 3;
 const CONNECT_RETRY_BASE_MS = 100;
 
-function isRetryableConnectError(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  const code = (err as { code?: string }).code;
-  if (code && RETRYABLE_CONNECT_ERRORS.has(code)) return true;
-  const message = (err as { message?: string }).message ?? '';
-  return message.includes('timeout exceeded when trying to connect');
+export function isRetryableConnectError(err: unknown): boolean {
+  const code = errorCode(err);
+  if (code !== undefined && RETRYABLE_CONNECT_ERRORS.has(code)) return true;
+  return errorMessage(err).includes('timeout exceeded when trying to connect');
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Retry only connection establishment, transparently, for every existing
- * `pool.query(...)` call site. There are several hundred of them, so wrapping the
- * method is what makes this reachable without touching each one.
+ * Retry an operation that failed before reaching PostgreSQL.
  *
  * Deliberately NOT retried: anything that failed after the statement was sent.
- * `pool.query` cannot tell "the write never ran" from "the write committed and
- * then the socket broke", so a blanket retry would risk applying a document
- * update twice. Statement-level retry belongs at the call site, where
+ * Neither this wrapper nor pg can tell "the write never ran" from "the write
+ * committed and then the socket broke", so a blanket retry would risk applying a
+ * document update twice. Statement-level retry belongs at the call site, where
  * idempotence is known — recorded here rather than left as an unexplained gap.
  *
  * Failure mode this protects against: a PostgreSQL restart, an RDS failover, or
  * a brief connection-limit exhaustion turning into a burst of HTTP 500s for
  * requests that would have succeeded a few hundred milliseconds later.
  */
-const originalQuery = pool.query.bind(pool);
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-pool.query = (async (...args: any[]) => {
+async function withConnectRetry<T>(operation: () => Promise<T>): Promise<T> {
   let lastError: unknown;
+
   for (let attempt = 1; attempt <= CONNECT_RETRY_ATTEMPTS; attempt++) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return await (originalQuery as any)(...args);
+      return await operation();
     } catch (err) {
       lastError = err;
       if (attempt === CONNECT_RETRY_ATTEMPTS || !isRetryableConnectError(err)) throw err;
+
       // Exponential backoff with jitter so N concurrent requests do not all
       // retry on the same tick and re-exhaust the connection limit together.
       const delay = CONNECT_RETRY_BASE_MS * 2 ** (attempt - 1);
       const jittered = delay / 2 + Math.random() * delay;
       console.warn(
         `[db] Connection attempt ${attempt}/${CONNECT_RETRY_ATTEMPTS} failed ` +
-        `(${(err as { code?: string }).code ?? 'unknown'}), retrying in ${Math.round(jittered)}ms`
+        `(${errorCode(err) ?? 'unknown'}), retrying in ${Math.round(jittered)}ms`
       );
       await sleep(jittered);
     }
   }
+
   throw lastError;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-}) as any;
+}
+
+/**
+ * Anything that can run a statement: the pool itself, or a `PoolClient` checked
+ * out for a transaction. Helpers that accept either should take this type rather
+ * than reaching for `typeof pool.query`.
+ */
+export interface QueryRunner {
+  // The default type argument mirrors `@types/pg`, which declares
+  // `query<R extends QueryResultRow = any>`. It is deliberate, not an oversight:
+  // 1310 call sites read `result.rows[0].column` off an untyped row, and
+  // tightening the default here to `QueryResultRow` makes every one of those a
+  // "possibly undefined" error — 728 of them, in files this lane does not own.
+  // Per-query row types are the fix for that, one call site at a time, behind the
+  // same generic parameter this signature already exposes.
+  query<R extends QueryResultRow = any>(
+    text: string,
+    values?: unknown[],
+  ): Promise<QueryResult<R>>;
+}
+
+/**
+ * The database surface this codebase actually uses — `query` (1310 call sites),
+ * `connect` (14, all transactions) and `end` (shutdown).
+ *
+ * Why a declared surface rather than the raw `Pool`: the retry above has to reach
+ * every call site, and the first version of it got there by reassigning
+ * `pool.query`. `Pool['query']` is eight overloads deep, so a wrapper could only
+ * be attached through `as any` — which put four `any`s and two invented shape
+ * assertions into the one module every route imports, for no type safety in
+ * return. Naming the three methods makes the wrapper ordinary typed code, and it
+ * closed a real gap on the way: the old patch wrapped `query` only, so the 14
+ * `pool.connect()` transaction sites had no retry at all.
+ *
+ * If a future call site needs more of `Pool` (`totalCount`, a `QueryConfig`
+ * object, the callback forms), add it here with a type rather than widening this
+ * back out.
+ */
+export interface Database extends QueryRunner {
+  connect(): Promise<PoolClient>;
+  end(): Promise<void>;
+}
+
+const pool: Database = {
+  query<R extends QueryResultRow = QueryResultRow>(
+    text: string,
+    values?: unknown[],
+  ): Promise<QueryResult<R>> {
+    return withConnectRetry(() => basePool.query<R>(text, values));
+  },
+
+  connect(): Promise<PoolClient> {
+    return withConnectRetry(() => basePool.connect());
+  },
+
+  end(): Promise<void> {
+    return basePool.end();
+  },
+};
 
 /**
  * Rule 7 (circuit breakers) — assessed, deliberately not added for the database.
@@ -151,4 +227,4 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-export { pool, isRetryableConnectError };
+export { pool };

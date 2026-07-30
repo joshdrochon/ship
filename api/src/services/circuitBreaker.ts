@@ -45,10 +45,29 @@ export class CircuitBreaker {
     this.now = options.now ?? Date.now;
   }
 
+  /**
+   * The current decision, carrying the data that goes with it.
+   *
+   * A discriminated union rather than a bare state string for two reasons: the
+   * `open` case is the only one with a remaining cooldown, so the type makes that
+   * impossible to read in the other cases; and `run` needs the state and the
+   * remaining time together, which two getter calls could not guarantee — the
+   * clock can tick between them, and the second call can disagree with the first.
+   */
+  private evaluate():
+    | { state: 'closed' }
+    | { state: 'open'; retryAfterMs: number }
+    | { state: 'half-open' } {
+    const openedAt = this.openedAt;
+    if (openedAt === null) return { state: 'closed' };
+
+    const elapsed = this.now() - openedAt;
+    if (elapsed >= this.options.cooldownMs) return { state: 'half-open' };
+    return { state: 'open', retryAfterMs: this.options.cooldownMs - elapsed };
+  }
+
   get state(): CircuitState {
-    if (this.openedAt === null) return 'closed';
-    if (this.now() - this.openedAt >= this.options.cooldownMs) return 'half-open';
-    return 'open';
+    return this.evaluate().state;
   }
 
   /** Diagnostics for a health endpoint or a log line. */
@@ -64,16 +83,13 @@ export class CircuitBreaker {
    *         so a recovering dependency is not hit by every waiting caller at once.
    */
   async run<T>(fn: () => Promise<T>): Promise<T> {
-    const state = this.state;
+    const decision = this.evaluate();
 
-    if (state === 'open') {
-      throw new CircuitOpenError(
-        this.options.name,
-        this.options.cooldownMs - (this.now() - this.openedAt!)
-      );
+    if (decision.state === 'open') {
+      throw new CircuitOpenError(this.options.name, decision.retryAfterMs);
     }
 
-    if (state === 'half-open') {
+    if (decision.state === 'half-open') {
       if (this.halfOpenInFlight) {
         throw new CircuitOpenError(this.options.name, 0);
       }
