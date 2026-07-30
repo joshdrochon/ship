@@ -7,7 +7,13 @@ vi.mock('../db/client.js', () => ({
   },
 }));
 
-import { authMiddleware } from '../middleware/auth.js';
+import {
+  authMiddleware,
+  isAuthenticated,
+  type AuthIdentity,
+  MissingAuthContextError,
+  requireAuth,
+} from '../middleware/auth.js';
 import { pool } from '../db/client.js';
 import { Request, Response, NextFunction } from 'express';
 import { SESSION_TIMEOUT_MS, ABSOLUTE_SESSION_TIMEOUT_MS } from '@ship/shared';
@@ -374,5 +380,47 @@ describe('authMiddleware', () => {
       expect(req.isApiToken).toBe(true);
       expect(next).toHaveBeenCalled();
     });
+  });
+});
+
+describe('requireAuth / isAuthenticated', () => {
+  /** A request carrying only the identity fields authMiddleware would have attached. */
+  function bareRequest(identity: Partial<AuthIdentity> = {}): Request {
+    return Object.assign(createMockReqRes().req, identity);
+  }
+
+  it('returns the request narrowed to its identity when authMiddleware has run', () => {
+    const req = bareRequest({ userId: 'user-1', workspaceId: 'ws-1' });
+
+    const authed = requireAuth(req);
+
+    // Typed as string, not string | undefined — no non-null assertion needed here.
+    const userId: string = authed.userId;
+    const workspaceId: string = authed.workspaceId;
+    expect(userId).toBe('user-1');
+    expect(workspaceId).toBe('ws-1');
+    expect(authed).toBe(req);
+  });
+
+  it('throws instead of yielding undefined when the route is not behind authMiddleware', () => {
+    // This is what `req.userId!` used to hide: the assertion evaluated to undefined
+    // and that undefined was passed straight into a SQL parameter.
+    expect(() => requireAuth(bareRequest())).toThrow(MissingAuthContextError);
+  });
+
+  it('throws when only one half of the identity is present', () => {
+    expect(() => requireAuth(bareRequest({ userId: 'user-1' }))).toThrow(
+      MissingAuthContextError
+    );
+    expect(() => requireAuth(bareRequest({ workspaceId: 'ws-1' }))).toThrow(
+      MissingAuthContextError
+    );
+  });
+
+  it('reports identity presence without throwing', () => {
+    expect(isAuthenticated(bareRequest())).toBe(false);
+    expect(isAuthenticated(bareRequest({ userId: 'user-1', workspaceId: 'ws-1' }))).toBe(
+      true
+    );
   });
 });
