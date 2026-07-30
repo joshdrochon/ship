@@ -12,6 +12,7 @@
 # This gives a lane a way to say "everyone hold still while I measure."
 #
 #   scripts/measure-lock.sh acquire <lane-name> [max-wait-seconds]
+#   scripts/measure-lock.sh renew <lane-name>      # still working, reset the clock
 #   scripts/measure-lock.sh release <lane-name>
 #   scripts/measure-lock.sh status
 #   scripts/measure-lock.sh wait-quiet [max-wait-seconds]
@@ -124,6 +125,28 @@ cmd_release() {
   echo "[measure-lock] $lane released after $(lock_age)s"
 }
 
+# Extend a legitimately long hold.
+#
+# The staleness timeout has to be short enough that a dead lane does not stall everyone,
+# and long enough that a real measurement is never interrupted. Those pull in opposite
+# directions, and a paired before/after run — where the lane applies its change between
+# two measurements, which is the correct way to satisfy Rule 1 — can easily outlast any
+# timeout short enough to be useful.
+#
+# So: a lane that is still working says so. Call this between the halves of a pair, or
+# in a loop alongside a long run. Only the holder may renew.
+cmd_renew() {
+  local lane="${1:?usage: renew <lane-name>}"
+  [[ -d "$LOCK_DIR" ]] || { echo "[measure-lock] not held — nothing to renew" >&2; return 1; }
+  local h; h=$(holder)
+  if [[ "$h" != "$lane" ]]; then
+    echo "[measure-lock] REFUSING: held by '$h', not '$lane'" >&2
+    return 1
+  fi
+  now > "$LOCK_DIR/acquired_at"
+  echo "[measure-lock] $lane renewed — ${STALE_AFTER}s from now"
+}
+
 cmd_status() {
   if [[ -d "$LOCK_DIR" ]]; then
     echo "HELD by $(holder) for $(lock_age)s (acquired by pid $(cat "$LOCK_DIR/pid" 2>/dev/null || echo '?'))"
@@ -158,6 +181,7 @@ cmd_wait_quiet() {
 
 case "${1:-}" in
   acquire)    shift; cmd_acquire "$@" ;;
+  renew)      shift; cmd_renew "$@" ;;
   release)    shift; cmd_release "$@" ;;
   status)     cmd_status ;;
   wait-quiet) shift; cmd_wait_quiet "$@" ;;
