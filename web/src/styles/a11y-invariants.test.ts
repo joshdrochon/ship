@@ -130,12 +130,55 @@ describe('decorative icons are hidden from assistive technology (W7-13)', () => 
         }
         const tag = src.slice(start, i);
         // iconProps is a shared object literal that already carries aria-hidden.
-        if (!tag.includes('aria-hidden') && !tag.includes('iconProps')) {
+        // role="img" with a label is the other correct answer: see the test below.
+        const exposedDeliberately = tag.includes('role="img"') && tag.includes('aria-label');
+        if (!tag.includes('aria-hidden') && !tag.includes('iconProps') && !exposedDeliberately) {
           const line = src.slice(0, start).split('\n').length;
           offenders.push(`${file.replace(WEB_SRC, 'web/src')}:${line}`);
         }
       }
     }
     expect(offenders, 'add aria-hidden="true" focusable="false"').toEqual([]);
+  });
+
+  it('never hides an <svg> whose <text> renders interpolated data', () => {
+    // The other half of the rule, and the half the original sweep got wrong.
+    //
+    // ef29e8b hid all 284 inline SVGs, justified by "web/src has zero <title> children".
+    // That checked for <title> and not for <text>. WeekProgressGraph's burndown chart
+    // draws its axis labels as <text> nodes -- the sprint's start and end dates appear
+    // NOWHERE else on the page -- so aria-hidden deleted real content from the
+    // accessibility tree rather than removing a duplicate node.
+    //
+    // The line this draws is between a glyph and a datum, because both are <text>:
+    //
+    //   <text>H1</text>                    literal -- a drawn letterform. The slash-menu
+    //                                      button beside it is already titled "Heading 1",
+    //                                      so hiding the icon removes a duplicate.
+    //   <text>{formatDate(startDate)}</text>   interpolated -- the value is not knowable
+    //                                      from the source, and nothing else on the page
+    //                                      is guaranteed to state it.
+    //
+    // So: interpolation is the signal. A literal is decoration; a binding is content.
+    const offenders: string[] = [];
+    for (const file of sourceFiles()) {
+      const src = readFileSync(file, 'utf8');
+      for (const m of src.matchAll(/<svg\b[\s\S]*?<\/svg>/g)) {
+        const block = m[0];
+        // <text> the SVG element, not <textarea> and not a JSX identifier.
+        const hasBoundText = [...block.matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/g)].some(
+          (t) => t[1].includes('{')
+        );
+        if (!hasBoundText) continue;
+        if (/aria-hidden=["{]?true/.test(block.slice(0, block.indexOf('>') + 1))) {
+          const line = src.slice(0, m.index ?? 0).split('\n').length;
+          offenders.push(`${file.replace(WEB_SRC, 'web/src')}:${line}`);
+        }
+      }
+    }
+    expect(
+      offenders,
+      'this <svg> draws interpolated data, so it is content: give it role="img" and an aria-label rather than aria-hidden'
+    ).toEqual([]);
   });
 });
