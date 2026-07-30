@@ -40,6 +40,13 @@ import { AIScoringDisplayExtension } from './editor/AIScoringDisplay';
 import { PlanReferenceBlockExtension } from './editor/PlanReferenceBlock';
 import { useCommentsQuery, useCreateComment, useUpdateComment } from '@/hooks/useCommentsQuery';
 import { useCollaborativeTitle } from '@/hooks/useCollaborativeTitle';
+import {
+  effectiveSyncStatus,
+  nextStatusOnDisconnect,
+  syncStatusDetail,
+  syncStatusLabel,
+  type SyncStatus,
+} from '@/lib/syncStatus';
 import { BubbleMenu } from '@tiptap/react';
 import 'tippy.js/dist/tippy.css';
 
@@ -90,8 +97,6 @@ interface EditorProps {
   /** Suffix displayed after the title in the header (e.g., author name) */
   titleSuffix?: string;
 }
-
-type SyncStatus = 'connecting' | 'cached' | 'synced' | 'disconnected';
 
 // Generate a consistent color from a string
 function stringToColor(str: string): string {
@@ -238,6 +243,10 @@ export function Editor({
     localStorage.setItem('ship:rightSidebarCollapsed', String(rightSidebarCollapsed));
   }, [rightSidebarCollapsed]);
 
+  // W6-5: true once this document's collaboration socket has connected at least
+  // once. After that point a drop is a real disconnection, not a startup state.
+  const hasSyncedRef = useRef(false);
+
   // Track browser online status for sync indicator using native browser events
   useEffect(() => {
     const handleOnline = () => setIsBrowserOnline(true);
@@ -249,6 +258,27 @@ export function Editor({
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // W6-5: y-websocket retries on its own exponential backoff (up to 2.5 s per
+  // attempt) and does not watch for the browser coming back online, so after a
+  // network blip the document can sit disconnected for seconds after the network
+  // is fine. Force one attempt immediately when the browser says it is back.
+  // Failure mode this protects against: a short connectivity drop leaving the
+  // editor unsynced — and, before the status fix above, silently so.
+  useEffect(() => {
+    if (!provider) return;
+    const reconnectNow = () => {
+      // shouldConnect is false when the socket was closed deliberately (access
+      // revoked, document converted). Do not undo that.
+      if (provider.wsconnected || !provider.shouldConnect) return;
+      console.log('[Editor] Browser back online, forcing collaboration reconnect');
+      provider.disconnect();
+      provider.connect();
+      setSyncStatus('connecting');
+    };
+    window.addEventListener('online', reconnectNow);
+    return () => window.removeEventListener('online', reconnectNow);
+  }, [provider]);
 
   const color = userColor || stringToColor(userName);
 
@@ -276,6 +306,9 @@ export function Editor({
     let wsProvider: WebsocketProvider | null = null;
     let hasCachedContent = false;
     let cancelled = false;
+    // A different document is a different socket: nothing has synced for it yet.
+    hasSyncedRef.current = false;
+    setSyncStatus('connecting');
     // Store the updateUsers callback so we can properly remove it on cleanup
     let updateUsersCallback: (() => void) | null = null;
 
@@ -375,10 +408,18 @@ export function Editor({
         if (cancelled) return; // Don't update state if effect was cleaned up
         console.log(`[Editor] WebSocket status: ${event.status} for ${roomPrefix}:${documentId}`);
         if (event.status === 'connected') {
+          hasSyncedRef.current = true;
           setSyncStatus('synced');
         } else if (event.status === 'disconnected') {
-          // If we have cached content, show 'cached' instead of 'disconnected'
-          setSyncStatus(hasCachedContent ? 'cached' : 'disconnected');
+          // W6-5: 'cached' means "showing content from the local cache while the
+          // socket comes up" — a startup state. Reusing it for a socket that
+          // dropped AFTER a successful sync reported the benign blue "Cached"
+          // while nothing the user typed was reaching the server. Once we have
+          // been connected, a drop is a disconnection and is reported as one.
+          setSyncStatus(nextStatusOnDisconnect({
+            hasSyncedOnce: hasSyncedRef.current,
+            hasCachedContent,
+          }));
         }
       });
 
@@ -838,14 +879,22 @@ export function Editor({
           {/* Sync status - WCAG 4.1.3 aria-live for status messages */}
           {/* Show 'Offline' when browser is offline, regardless of WebSocket state */}
           {(() => {
-            const effectiveStatus = !isBrowserOnline ? 'disconnected' : syncStatus;
+            // W6-5: "Offline" now also covers a browser that is online while this
+            // document's socket is not, which is the honest reading — the document
+            // is not connected to anything. The tooltip says what that means for
+            // the user's work, without changing the four status words the
+            // accessibility and E2E suites assert on. See lib/syncStatus.ts.
+            const effectiveStatus = effectiveSyncStatus(syncStatus, isBrowserOnline);
+            const detail = syncStatusDetail(effectiveStatus, isBrowserOnline);
             return (
               <div
                 role="status"
                 aria-live="polite"
                 aria-atomic="true"
+                title={detail}
                 className="flex items-center gap-1.5"
                 data-testid="sync-status"
+                data-sync-state={effectiveStatus}
               >
                 <div
                   className={cn(
@@ -858,10 +907,7 @@ export function Editor({
                   aria-hidden="true"
                 />
                 <span className="text-xs text-muted">
-                  {effectiveStatus === 'synced' && 'Saved'}
-                  {effectiveStatus === 'cached' && 'Cached'}
-                  {effectiveStatus === 'connecting' && 'Saving'}
-                  {effectiveStatus === 'disconnected' && 'Offline'}
+                  {syncStatusLabel(effectiveStatus)}
                 </span>
               </div>
             );
