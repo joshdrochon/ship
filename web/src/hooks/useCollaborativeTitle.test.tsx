@@ -61,6 +61,10 @@ function mountTitle(ydoc: Y.Doc, initialTitle: string, onFallbackSave?: (t: stri
 
 const titleOf = (doc: Y.Doc) => doc.getText('title').toString();
 
+/** Put a title into the Y.Doc the way a loaded IndexedDB cache or a server sync would. */
+const seedTitle = (doc: Y.Doc, text: string) =>
+  doc.transact(() => doc.getText('title').insert(0, text));
+
 describe('useCollaborativeTitle (W6-9 regression)', () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -221,6 +225,74 @@ describe('useCollaborativeTitle (W6-9 regression)', () => {
     expect(onFallbackSave.mock.calls[0]?.[0].length).toBeLessThanOrEqual(6);
 
     vi.useRealTimers();
+  });
+
+  describe('markCacheLoaded — durable typing before the WebSocket connects', () => {
+    it('a cache-restored title was already durable, and stays that way', async () => {
+      // Characterisation, not a regression guard: the observer already adopts a non-empty
+      // ytitle on mount, so this case never waited for the socket. Kept so that a future
+      // change to that observer cannot quietly take it away.
+      vi.useFakeTimers();
+      const onFallbackSave = vi.fn();
+      const doc = new Y.Doc();
+      seedTitle(doc, 'Q3 Roadmap');
+
+      const h = mountTitle(doc, 'Q3 Roadmap', onFallbackSave);
+      act(() => { h.result.current.markCacheLoaded(); });
+
+      act(() => { h.result.current.setTitleFromInput('Q3 Roadmap v2'); });
+
+      expect(titleOf(doc)).toBe('Q3 Roadmap v2');
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+      expect(onFallbackSave, 'the CRDT owns the field; REST must stand down').not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('puts a brand-new document on the durable path without waiting for the socket', async () => {
+      // The case markCacheLoaded exists for, and the one the E2E durability test hits.
+      // An empty ytitle is ambiguous, so the observer above cannot adopt it; before this,
+      // a new "Untitled" document waited for the WebSocket and everything typed during the
+      // handshake sat in React state. initialTitle === 'Untitled' comes from the REST
+      // fetch and means the server has no title, so there is nothing to collide with and
+      // the write is safe immediately. Straight into the Y.Doc means IndexeddbPersistence
+      // flushes it per keystroke: no timer, no network.
+      vi.useFakeTimers();
+      const onFallbackSave = vi.fn();
+      const doc = new Y.Doc();
+      const h = mountTitle(doc, 'Untitled', onFallbackSave);
+
+      act(() => { h.result.current.markCacheLoaded(); });
+      act(() => { h.result.current.setTitleFromInput('Fresh doc'); });
+
+      expect(titleOf(doc)).toBe('Fresh doc');
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+      expect(onFallbackSave).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('keeps waiting for the socket when there is a server title but no cache', async () => {
+      // This is the case the gate exists for. The server holds "Q3 Roadmap", the Y.Doc is
+      // empty because nothing has loaded, and Yjs cannot tell "empty because unknown" from
+      // "empty because blank". Writing here would merge as an insert and produce
+      // "XQ3 Roadmap". So markCacheLoaded must decline, and the REST fallback covers it.
+      vi.useFakeTimers();
+      const onFallbackSave = vi.fn();
+      const doc = new Y.Doc();
+      const h = mountTitle(doc, 'Q3 Roadmap', onFallbackSave);
+
+      act(() => { h.result.current.markCacheLoaded(); });
+      act(() => { h.result.current.setTitleFromInput('X'); });
+
+      expect(titleOf(doc), 'must not write into a document whose title is unknown').toBe('');
+      await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+      expect(onFallbackSave, 'the bounded REST fallback still covers this case').toHaveBeenCalled();
+
+      // And when the socket does land, the server's title wins — no concatenation.
+      seedTitle(doc, 'Q3 Roadmap');
+      act(() => { h.result.current.markSynced(); });
+      expect(titleOf(doc)).toBe('Q3 Roadmap');
+      vi.useRealTimers();
+    });
   });
 });
 
