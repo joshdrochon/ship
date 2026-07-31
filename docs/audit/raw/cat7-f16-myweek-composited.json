@@ -1,0 +1,52 @@
+{
+  "generated_at": "2026-07-31T03:53:36.824Z",
+  "base": "http://localhost:5173",
+  "route": "/my-week",
+  "futureRowsRendered": 2,
+  "rowClassName": "flex items-center gap-3 rounded-lg border px-4 py-2.5 border-border/40 bg-surface/40",
+  "pageBackground": "rgb(13, 13, 13)",
+  "labels": [
+    {
+      "text": "Sat",
+      "declaredColor": "rgb(158, 158, 158)",
+      "ancestorOpacityProduct": 1,
+      "paintedColor": "rgb(158, 158, 158)",
+      "contrastVsPageBg": 7.25
+    },
+    {
+      "text": "8/1",
+      "declaredColor": "rgb(158, 158, 158)",
+      "ancestorOpacityProduct": 1,
+      "paintedColor": "rgb(158, 158, 158)",
+      "contrastVsPageBg": 7.25
+    },
+    {
+      "text": "Upcoming",
+      "declaredColor": "rgb(158, 158, 158)",
+      "ancestorOpacityProduct": 1,
+      "paintedColor": "rgb(158, 158, 158)",
+      "contrastVsPageBg": 7.25
+    },
+    {
+      "text": "Sun",
+      "declaredColor": "rgb(158, 158, 158)",
+      "ancestorOpacityProduct": 1,
+      "paintedColor": "rgb(158, 158, 158)",
+      "contrastVsPageBg": 7.25
+    },
+    {
+      "text": "8/2",
+      "declaredColor": "rgb(158, 158, 158)",
+      "ancestorOpacityProduct": 1,
+      "paintedColor": "rgb(158, 158, 158)",
+      "contrastVsPageBg": 7.25
+    },
+    {
+      "text": "Upcoming",
+      "declaredColor": "rgb(158, 158, 158)",
+      "ancestorOpacityProduct": 1,
+      "paintedColor": "rgb(158, 158, 158)",
+      "contrastVsPageBg": 7.25
+    }
+  ]
+}

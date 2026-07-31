@@ -1,0 +1,12 @@
+{
+  "id": 1609,
+  "path_with_namespace": "joshrochon/ship",
+  "default_branch": "main",
+  "visibility": "internal",
+  "merge_method": "merge",
+  "only_allow_merge_if_pipeline_succeeds": true,
+  "only_allow_merge_if_all_discussions_are_resolved": false,
+  "allow_merge_on_skipped_pipeline": null,
+  "container_registry_enabled": true,
+  "builds_access_level": "enabled"
+}

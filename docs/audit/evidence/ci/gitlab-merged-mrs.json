@@ -1,0 +1,47 @@
+[
+  {
+    "iid": 5,
+    "title": "Phase 2 \u2014 measurable improvements across all 8 categories",
+    "source_branch": "integration/phase-2",
+    "target_branch": "main",
+    "merged_at": "2026-07-31T02:14:02.090Z",
+    "sha": "a643310061cecb9dfb93366665ac41e7c5909a4b",
+    "merge_commit_sha": "c43276832cabea468f88aaf511ccf816ed676965"
+  },
+  {
+    "iid": 4,
+    "title": "Phase 2 \u2014 measurable improvements across all 8 categories",
+    "source_branch": "integration/phase-2",
+    "target_branch": "main",
+    "merged_at": "2026-07-31T02:08:40.330Z",
+    "sha": "b8aa3fa9a15ee928119c51d1667eabcb9e5358cb",
+    "merge_commit_sha": "8e908cf1c52a552a6c56ddea90d637db384d63ad"
+  },
+  {
+    "iid": 3,
+    "title": "Phase 2 \u2014 measurable improvements across all 8 categories",
+    "source_branch": "integration/phase-2",
+    "target_branch": "main",
+    "merged_at": "2026-07-31T00:18:37.341Z",
+    "sha": "751305e9bccfb2fae00285bdab689c7cdf319331",
+    "merge_commit_sha": "73d2ee6a45501ce8b49ae8c230a36a40d274debf"
+  },
+  {
+    "iid": 2,
+    "title": "Phase 2 \u2014 measurable improvements across all 8 categories",
+    "source_branch": "integration/phase-2",
+    "target_branch": "main",
+    "merged_at": "2026-07-30T23:49:40.667Z",
+    "sha": "a8489afd312affadcfbcf064cd2a532f6b83df67",
+    "merge_commit_sha": "c2a1fbebb61d7899da494e6cd9d337e1986e98b6"
+  },
+  {
+    "iid": 1,
+    "title": "Phase 2 \u2014 measurable improvements across all 8 categories",
+    "source_branch": "integration/phase-2",
+    "target_branch": "main",
+    "merged_at": "2026-07-30T23:35:59.064Z",
+    "sha": "49aa2e67a4df9391338eef05f2809c7a7c17700a",
+    "merge_commit_sha": "335406f36b632c48376a03c9ddc7859e0baf5893"
+  }
+]

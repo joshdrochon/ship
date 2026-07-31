@@ -19,17 +19,25 @@ dropped.
 | # | Category | Target | Before | After | |
 |---|---|---|---:|---:|:-:|
 | 1 | Type Safety | −25% violations | 1,009 | **741** | ✅ −26.6% |
-| 2 | Bundle Size | −20% initial load | 2,144,744 B | **385,118 B** | ✅ −82.0% |
-| 3 | API Response | −20% P95, ≥2 endpoints | 21.41 / 16.58 ms | **14.90 / 13.24 ms** | ✅ −30.4% / −20.1% |
+| 2 | Bundle Size | −20% initial load | 2,144,744 B | **386,072 B** | ✅ −82.0% |
+| 3 | API Response | −20% P95, ≥2 endpoints | 1275.7 / 899.1 ms | **102.8 / 25.9 ms** | ✅ −91.9% / −97.1% |
 | 4 | DB Queries | −20% on ≥1 flow | 50 queries | **37** | ✅ −26.0% |
 | 5 | Test Coverage | 3 flaky + RCA | 3 flaky | **4 fixed** | ✅ |
 | 6 | Error Handling | 3 gaps, ≥1 data loss | 3 open | **3 fixed** | ✅ |
 | 7 | Accessibility | all Crit/Serious, 3 pages | 69 nodes | **10** | ✅ −85.5% |
 | 8 | Terraform | local + Render, pinned | 0 of 9 pinned | **20 of 20** | ✅ |
 
-**Category 3 is a partial and says so.** `/api/projects` (−8.6%) and `/api/documents`
-(−2.6%) did not clear 20%. The root cause — response payload size rather than SQL — is in
-`docs/audit/raw/cat3-bottleneck-analysis.md`.
+**Category 3's row is at 50 simultaneous connections** — the load p.4 specifies — with both
+builds running at the same instant against one database, 0% failures on either side. At the
+low fixed arrival rate the first measurement used, the same two endpoints read −30.4% and
+−20.1%; the server was ~97% idle there, so the fix barely showed. Both numbers are in
+`docs/improvements.md` §3.
+
+**It is still a partial and says so.** `/api/projects` and `/api/documents` clear 20% at no
+concurrency level. The root cause — response payload size rather than SQL — is in
+`docs/audit/raw/cat3-bottleneck-analysis.md`, whose own headline conclusion is marked
+superseded there: it was drawn from two sequential runs on a loaded machine, and its
+untouched control endpoint had drifted +23% in the same direction.
 
 ---
 
@@ -61,13 +69,18 @@ tradeoffs accepted, and how to roll it back.
 
 ## Reproducing the numbers
 
-Every measurement script is committed. Before-sides are frozen at **`2fbc5a4`**, so any
-figure above can be re-derived from a clean checkout rather than taken on trust.
+Every measurement script is committed. Every lane branches from the frozen commit
+**`2fbc5a4`**, so any figure above can be re-derived from a clean checkout rather than taken
+on trust. Four categories took their before-measurement at a descendant of the freeze that
+adds measurement tooling and no application source — Cat 2 at `ecc2b15`, Cat 3 and Cat 5 at
+`767aa2f`, Cat 4 at `c398a9c`. The per-category table is in
+[`docs/improvements.md`](docs/improvements.md).
 
 ```bash
 docs/audit/scripts/count-type-violations.py     # Cat 1
 docs/audit/scripts/measure-initial-load.py      # Cat 2
-docs/audit/scripts/bench-api-paired.sh          # Cat 3
+docs/audit/scripts/bench-api-concurrency.sh      # Cat 3 at 10/25/50 simultaneous connections
+docs/audit/scripts/bench-api-paired.sh          # Cat 3 at a fixed arrival rate
 docs/audit/scripts/run-cat4-paired.sh           # Cat 4
 docs/audit/scripts/measure-a11y.py              # Cat 7
 docs/audit/scripts/measure-terraform.py         # Cat 8
@@ -164,7 +177,8 @@ re-measured and corrected. Those corrections are left visible in
   ceiling, with type-check, lint, build and 553 unit tests all green — and was restored to
   741 by removing 17 `as any` mocks rather than by editing a count.
 - **Category 4's** baseline is 50, not the 48 in the frozen baseline file, because the pair
-  ran against a different database. −26.0% is computed against what was measured.
+  ran against a different database. −26.0% is computed against what was measured — and 50
+  is the *kinder* denominator of the two, since 48 → 37 is −22.9%. Both clear the 20% bar.
 
 A measured near-miss reported plainly is more useful than a pass that cannot be
 substantiated.

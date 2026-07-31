@@ -477,7 +477,31 @@ the fixes.
 ## What is still open
 
 Reported rather than dropped. **Nothing Critical or Serious remains on any of the 18
-scanned routes.**
+scanned routes** — and "scanned routes" is the load-bearing phrase, since §10 is made
+entirely of defects on routes outside those 18.
+
+Open, with the reasoning:
+
+| Where | Finding | Numbers | Why it is still open |
+|---|---|---|---|
+| `/issues`, `/settings` | **W7-11** heading density | 2,257 accessibility nodes behind **2** headings; **1** heading for **117** controls | Deliberate — see below |
+| `OrgChartPage` chevron | `button-name` | 1 | Deliberate non-fix (§10). Already `aria-hidden` inside a named `treeitem`; naming it adds ~300 identical announcements |
+| `a11y-aria-invariants.test.ts` allowlists | stale entries | 7 | §10 fixed the sites; the entries have to be deleted so the ratchet tightens (§11) |
+
+**W7-11, and why closing it is not a defect fix.** `/issues` exposes 2,257 accessibility
+nodes behind 2 headings; `/settings` has 1 heading for 117 interactive controls. Headings are
+how a screen reader user skips through a page — the rotor lists them and jumps between them —
+and at this density there is nothing to jump to, so navigation degrades to linear traversal
+of hundreds of nodes. Both pages score 100 in Lighthouse and have zero unnamed controls,
+because every tool used here checks that headings are correctly *formed*, not that enough of
+them exist to be useful.
+
+Nothing is technically violating, and that is the point: closing it means **adding headings to
+the UI** — deciding that the issues list has sections and naming them, deciding what 117
+settings controls group into. That is an information-architecture change with a visible design
+consequence on two of the busiest pages in the app, not a defect fix, and not this lane's to
+make unilaterally. Recorded with its numbers so the decision stays available rather than
+getting lost.
 
 Out of this lane's scope, carried over from the audit:
 
@@ -545,6 +569,16 @@ node docs/audit/scripts/verify-myweek-contrast.mjs
 # the regression tests
 pnpm --filter @ship/web exec vitest run src/styles/a11y-invariants.test.ts
 pnpm --filter @ship/web exec vitest run src/styles/a11y-container-opacity.test.ts   # F16
+pnpm --filter @ship/web exec vitest run src/styles/a11y-aria-invariants.test.ts     # §11
+
+# §11 verified red rather than asserted red: point the same scan at a pre-fix checkout
+git worktree add /tmp/ship-767aa2f 767aa2f
+A11Y_SCAN_ROOT=/tmp/ship-767aa2f/web/src \
+  pnpm --filter @ship/web exec vitest run src/styles/a11y-aria-invariants.test.ts
+
+# page titles (§8) — no rule in any scanner here can check these, so read them:
+# visit /my-week, /dashboard, /projects, /documents/<id>, /login and /admin and read
+# the browser tab. None should say "Ship | Ship", and the five editors should differ.
 
 # full gate
 pnpm type-check && pnpm lint && pnpm build

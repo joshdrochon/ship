@@ -1,0 +1,447 @@
+Category 1 — "Top 5 violation-dense files": the unfiltered ranking, and the filtered one
+========================================================================================
+
+WHY THIS FILE EXISTS
+  The Top-5 density table in audit-report.md Category 1 was generated with a
+  production-only filter that the table did not declare. Three of the five genuinely
+  densest files are test files and were therefore absent from it, with no indication to
+  the reader that anything had been removed. This file carries both rankings so the
+  filter is visible rather than implied.
+
+PRODUCED BY
+  docs/audit/scripts/count-type-violations.py --by-file
+  (unmodified; run in each tree, which sets its own REPO root)
+
+RANKING RULES, ALL THREE STATED
+  1. Density = violations per 100 LOC, as emitted by the script's /100 column.
+  2. Files under 200 LOC are excluded from density rankings. This is the report's existing
+     stated rule and it is a real one: a 20-line file with 3 casts scores 15/100 and means
+     nothing. 93 of the 144 files carrying a violation at baseline clear 200 LOC.
+  3. "Production only" excludes any path containing __tests__, .test. or .spec.
+     THIS IS THE RULE THAT WAS APPLIED WITHOUT BEING DECLARED.
+     It reproduces the report's own production/test split exactly — 803 violations in 123
+     production files, 206 in 21 test files at baseline — so it is the same definition the
+     report already uses elsewhere, just never named at the table.
+
+WHY THE DISTINCTION MATTERS
+  A test file's `any` is usually a mock or a fixture: `const req = {} as any` standing in
+  for a request the test does not care about. That is a legitimate use — the alternative
+  is constructing a full object to satisfy a type nothing under test depends on. Production
+  code has no equivalent excuse; there every `any` and every `as` is a claim about real
+  runtime data that the compiler has been told not to check.
+  So the production-only ranking IS the more useful one for deciding what to fix. That was
+  a defensible editorial choice. Publishing it as "the top 5 densest files" without saying
+  so was not, because the reader cannot tell that three rows were removed.
+
+  Note also that the two rankings disagree about kind, not just order: the top two files
+  in the codebase by density are both test files, and both are denser than anything in
+  production. A reader shown only the filtered table would conclude the opposite.
+
+NOTE ON ONE NUMBER IN THE REPORT
+  The report's table gives web/src/components/UnifiedEditor.tsx as 498 LOC. Measured at
+  767aa2f it is 502. Density is 5.2 either way and the ranking does not move; the four
+  other rows reproduce exactly. Recorded because it did not reproduce, not because it
+  matters.
+
+====================================================================================================
+BASELINE 767aa2f
+====================================================================================================
+files with >=1 violation: 144   of those with LOC>=200 (density-eligible): 93
+
+--- TOP 10 BY DENSITY, NO FILTER (all files, LOC>=200) ---
+  # FILE                                                     VIOL   LOC   /100  KIND  COMPOSITION
+  1 api/src/services/accountability.test.ts                    34   366    9.3  TEST  32 `any`, 2 `as`
+  2 api/src/__tests__/auth.test.ts                             33   378    8.7  TEST  24 `any`, 9 `as`
+  3 web/src/components/document-tabs/ProjectDetailsTab.tsx     19   247    7.7  prod  19 `as`
+  4 api/src/__tests__/transformIssueLinks.test.ts              37   560    6.6  TEST  37 `any`
+  5 api/src/utils/yjsConverter.ts                              16   245    6.5  prod  14 `any`, 2 `as`
+  6 api/src/__tests__/activity.test.ts                         24   374    6.4  TEST  21 `any`, 3 `as`
+  7 api/src/routes/issues-history.test.ts                      20   314    6.4  TEST  20 `any`
+  8 web/src/pages/UnifiedDocumentPage.tsx                      32   532    6.0  prod  31 `as`, 1 `!`
+  9 web/src/components/UnifiedEditor.tsx                       26   502    5.2  prod  26 `as`
+ 10 api/src/routes/projects.test.ts                            17   333    5.1  TEST  17 `any`
+
+--- TOP 10 BY DENSITY, PRODUCTION FILES ONLY (LOC>=200) ---
+  1 web/src/components/document-tabs/ProjectDetailsTab.tsx     19   247    7.7  prod  19 `as`
+  2 api/src/utils/yjsConverter.ts                              16   245    6.5  prod  14 `any`, 2 `as`
+  3 web/src/pages/UnifiedDocumentPage.tsx                      32   532    6.0  prod  31 `as`, 1 `!`
+  4 web/src/components/UnifiedEditor.tsx                       26   502    5.2  prod  26 `as`
+  5 api/src/utils/extractHypothesis.ts                         12   306    3.9  prod  4 `as`, 8 `!`
+  6 web/src/components/sidebars/PropertiesPanel.tsx            23   620    3.7  prod  23 `as`
+  7 web/src/components/editor/CommentDisplay.tsx               13   353    3.7  prod  4 `any`, 8 `as`, 1 `!`
+  8 web/src/hooks/useWeeklyReviewActions.ts                    11   334    3.3  prod  11 `as`
+  9 api/src/routes/projects.ts                                 49  1735    2.8  prod  13 `any`, 10 `as`, 26 `!`
+ 10 api/src/routes/comments.ts                                  7   248    2.8  prod  7 `!`
+
+--- TOP 8 BY ABSOLUTE COUNT, NO FILTER (all files, any LOC) ---
+  1 api/src/routes/weeks.ts                                    83  3156    2.6  prod  10 `any`, 25 `as`, 48 `!`
+  2 api/src/routes/projects.ts                                 49  1735    2.8  prod  13 `any`, 10 `as`, 26 `!`
+  3 api/src/routes/issues.ts                                   44  1642    2.7  prod  4 `any`, 6 `as`, 34 `!`
+  4 api/src/__tests__/transformIssueLinks.test.ts              37   560    6.6  TEST  37 `any`
+  5 api/src/services/accountability.test.ts                    34   366    9.3  TEST  32 `any`, 2 `as`
+  6 api/src/__tests__/auth.test.ts                             33   378    8.7  TEST  24 `any`, 9 `as`
+  7 web/src/pages/UnifiedDocumentPage.tsx                      32   532    6.0  prod  31 `as`, 1 `!`
+  8 api/src/db/seed.ts                                         31  1258    2.5  prod  31 `!`
+
+extractHypothesis.ts: unfiltered density rank 11/93; production-only density rank 5/80
+
+====================================================================================================
+HEAD c432768
+====================================================================================================
+files with >=1 violation: 138   of those with LOC>=200 (density-eligible): 91
+
+--- TOP 10 BY DENSITY, NO FILTER (all files, LOC>=200) ---
+  # FILE                                                     VIOL   LOC   /100  KIND  COMPOSITION
+  1 api/src/services/accountability.test.ts                    34   366    9.3  TEST  32 `any`, 2 `as`
+  2 api/src/__tests__/transformIssueLinks.test.ts              37   560    6.6  TEST  37 `any`
+  3 api/src/utils/yjsConverter.ts                              16   245    6.5  prod  14 `any`, 2 `as`
+  4 api/src/routes/issues-history.test.ts                      20   317    6.3  TEST  20 `any`
+  5 api/src/__tests__/activity.test.ts                         23   378    6.1  TEST  20 `any`, 3 `as`
+  6 web/src/pages/UnifiedDocumentPage.tsx                      32   532    6.0  prod  31 `as`, 1 `!`
+  7 web/src/components/UnifiedEditor.tsx                       26   502    5.2  prod  26 `as`
+  8 api/src/routes/projects.test.ts                            17   336    5.1  TEST  17 `any`
+  9 api/src/__tests__/auth.test.ts                             21   515    4.1  TEST  12 `any`, 9 `as`
+ 10 web/src/components/sidebars/PropertiesPanel.tsx            23   620    3.7  prod  23 `as`
+
+--- TOP 10 BY DENSITY, PRODUCTION FILES ONLY (LOC>=200) ---
+  1 api/src/utils/yjsConverter.ts                              16   245    6.5  prod  14 `any`, 2 `as`
+  2 web/src/pages/UnifiedDocumentPage.tsx                      32   532    6.0  prod  31 `as`, 1 `!`
+  3 web/src/components/UnifiedEditor.tsx                       26   502    5.2  prod  26 `as`
+  4 web/src/components/sidebars/PropertiesPanel.tsx            23   620    3.7  prod  23 `as`
+  5 web/src/components/editor/CommentDisplay.tsx               13   353    3.7  prod  4 `any`, 8 `as`, 1 `!`
+  6 web/src/hooks/useWeeklyReviewActions.ts                    11   334    3.3  prod  11 `as`
+  7 api/src/db/seed.ts                                         31  1258    2.5  prod  31 `!`
+  8 web/src/components/editor/AIScoringDisplay.tsx              6   287    2.1  prod  6 `any`
+  9 web/src/hooks/useProjectsQuery.ts                           8   394    2.0  prod  6 `as`, 2 `!`
+ 10 web/src/components/editor/FileAttachment.tsx                7   357    2.0  prod  7 `any`
+
+--- TOP 8 BY ABSOLUTE COUNT, NO FILTER (all files, any LOC) ---
+  1 api/src/__tests__/transformIssueLinks.test.ts              37   560    6.6  TEST  37 `any`
+  2 api/src/routes/weeks.ts                                    35  3141    1.1  prod  10 `any`, 25 `as`
+  3 api/src/services/accountability.test.ts                    34   366    9.3  TEST  32 `any`, 2 `as`
+  4 web/src/pages/UnifiedDocumentPage.tsx                      32   532    6.0  prod  31 `as`, 1 `!`
+  5 api/src/db/seed.ts                                         31  1258    2.5  prod  31 `!`
+  6 web/src/components/UnifiedEditor.tsx                       26   502    5.2  prod  26 `as`
+  7 api/src/__tests__/activity.test.ts                         23   378    6.1  TEST  20 `any`, 3 `as`
+  8 api/src/routes/projects.ts                                 23  1761    1.3  prod  13 `any`, 10 `as`
+
+extractHypothesis.ts: no longer in the density-eligible set
+
+
+====================================================================================================
+FULL PER-FILE RANKING — BASELINE 767aa2f — every file with at least one violation
+====================================================================================================
+FILE                                                  any   as    !  @ts  TOTAL    LOC   /100
+---------------------------------------------------------------------------------------------
+api/src/routes/weeks.ts                                10   25   48    0     83   3156    2.6
+api/src/routes/projects.ts                             13   10   26    0     49   1735    2.8
+api/src/routes/issues.ts                                4    6   34    0     44   1642    2.7
+api/src/__tests__/transformIssueLinks.test.ts          37    0    0    0     37    560    6.6
+api/src/services/accountability.test.ts                32    2    0    0     34    366    9.3
+api/src/__tests__/auth.test.ts                         24    9    0    0     33    378    8.7
+web/src/pages/UnifiedDocumentPage.tsx                   0   31    1    0     32    532    6.0
+api/src/db/seed.ts                                      0    0   31    0     31   1258    2.5
+api/src/routes/team.ts                                  0    3   28    0     31   2195    1.4
+web/src/components/UnifiedEditor.tsx                    0   26    0    0     26    502    5.2
+api/src/routes/admin.ts                                 0   11   14    0     25   1802    1.4
+api/src/__tests__/activity.test.ts                     21    3    0    0     24    374    6.4
+web/src/components/sidebars/PropertiesPanel.tsx         0   23    0    0     23    620    3.7
+api/src/routes/weekly-plans.ts                          0   10   12    0     22   1165    1.9
+api/src/routes/programs.ts                              2    1   18    0     21    892    2.4
+api/src/routes/issues-history.test.ts                  20    0    0    0     20    314    6.4
+web/src/components/document-tabs/ProjectDetailsTab.tsx    0   19    0    0     19    247    7.7
+api/src/routes/projects.test.ts                        17    0    0    0     17    333    5.1
+api/src/utils/yjsConverter.ts                          14    2    0    0     16    245    6.5
+web/src/components/editor/CommentDisplay.tsx            4    8    1    0     13    353    3.7
+api/src/routes/standups.ts                              1    1   10    0     12    499    2.4
+api/src/utils/extractHypothesis.ts                      0    4    8    0     12    306    3.9
+api/src/routes/dashboard.ts                             0    5    6    0     11    731    1.5
+api/src/routes/workspaces.ts                            0    3    8    0     11   1070    1.0
+api/src/types/y-protocols.d.ts                         11    0    0    0     11     39   28.2
+web/src/hooks/useWeeklyReviewActions.ts                 0   11    0    0     11    334    3.3
+api/src/routes/documents.ts                             2    5    3    0     10   1526    0.7
+api/src/mcp/server.ts                                   0    9    0    0      9    524    1.7
+api/src/routes/admin-credentials.ts                     0    1    8    0      9    703    1.3
+api/src/routes/iterations.test.ts                       9    0    0    0      9    183    4.9
+web/src/components/document-tabs/ProgramOverviewTab.tsx    0    9    0    0      9    133    6.8
+web/src/components/document-tabs/WeekOverviewTab.tsx    0    9    0    0      9    145    6.2
+web/src/pages/ReviewsPage.tsx                           0    4    5    0      9   1404    0.6
+api/src/routes/search.ts                                0    4    4    0      8    161    5.0
+web/src/components/DiffViewer.tsx                       0    8    0    0      8    143    5.6
+web/src/hooks/useIssuesQuery.ts                         0    8    0    0      8    435    1.8
+web/src/hooks/useProjectsQuery.ts                       0    6    2    0      8    394    2.0
+web/src/hooks/useWeeksQuery.ts                          0    8    0    0      8    444    1.8
+api/src/routes/comments.ts                              0    0    7    0      7    248    2.8
+web/src/components/editor/FileAttachment.tsx            7    0    0    0      7    357    2.0
+api/src/routes/associations-regression.test.ts          6    0    0    0      6    534    1.1
+api/src/services/caia.ts                                0    5    1    0      6    388    1.5
+web/src/components/editor/AIScoringDisplay.tsx          6    0    0    0      6    287    2.1
+web/src/components/sidebars/ProjectSidebar.tsx          0    6    0    0      6    415    1.4
+web/src/lib/api.ts                                      0    5    1    0      6    536    1.1
+api/src/collaboration/index.ts                          1    1    3    0      5    834    0.6
+api/src/services/ai-analysis.ts                         0    5    0    0      5    386    1.3
+web/src/components/Editor.tsx                           0    2    3    0      5   1106    0.5
+api/src/routes/auth.ts                                  2    0    2    0      4    437    0.9
+api/src/routes/backlinks.ts                             0    0    4    0      4    168    2.4
+api/src/routes/iterations.ts                            0    0    4    0      4    173    2.3
+web/src/components/BulkActionBar.tsx                    0    4    0    0      4    460    0.9
+web/src/components/editor/MentionExtension.ts           0    4    0    0      4    257    1.6
+web/src/components/sidebars/ProgramSidebar.tsx          0    4    0    0      4    154    2.6
+web/src/hooks/useDocumentsQuery.ts                      0    4    0    0      4    240    1.7
+web/src/hooks/useProgramsQuery.ts                       0    4    0    0      4    246    1.6
+web/src/hooks/useUnifiedDocuments.ts                    0    4    0    0      4    201    2.0
+web/src/pages/MyWeekPage.tsx                            0    0    4    0      4    407    1.0
+api/src/collaboration/__tests__/api-content-preservation.test.ts    0    3    0    0      3    762    0.4
+api/src/routes/feedback.ts                              1    2    0    0      3    192    1.6
+api/src/routes/search.test.ts                           3    0    0    0      3    276    1.1
+web/src/components/IssuesList.tsx                       0    3    0    0      3   1548    0.2
+web/src/components/editor/DetailsExtension.ts           0    3    0    0      3    216    1.4
+web/src/components/editor/TableOfContents.test.ts       0    3    0    0      3    256    1.2
+web/src/components/sidebars/IssueSidebar.tsx            0    3    0    0      3    540    0.6
+web/src/hooks/useSessionTimeout.ts                      0    0    3    0      3    332    0.9
+web/src/lib/accountability.test.ts                      0    3    0    0      3    121    2.5
+web/src/lib/queryClient.ts                              0    3    0    0      3    190    1.6
+web/src/pages/Projects.tsx                              2    1    0    0      3    693    0.4
+api/src/app.ts                                          0    2    0    0      2    275    0.7
+api/src/routes/accountability.ts                        0    0    2    0      2    105    1.9
+api/src/routes/ai.ts                                    0    0    2    0      2     76    2.6
+api/src/routes/api-tokens.ts                            0    0    2    0      2    206    1.0
+api/src/routes/circular-reference.test.ts               0    2    0    0      2    149    1.3
+api/src/services/secrets-manager.ts                     0    2    0    0      2    217    0.9
+api/src/utils/document-content.ts                       0    2    0    0      2     44    4.5
+api/src/utils/transformIssueLinks.ts                    0    2    0    0      2    275    0.7
+web/src/components/DashboardSidebar.tsx                 0    2    0    0      2     62    3.2
+web/src/components/KanbanBoard.tsx                      0    2    0    0      2    422    0.5
+web/src/components/document-tabs/WeekPlanningTab.tsx    0    2    0    0      2    148    1.4
+web/src/components/document-tabs/WeekReviewTab.tsx      0    2    0    0      2     43    4.7
+web/src/components/editor/DetailsExtension.test.ts      2    0    0    0      2     94    2.1
+web/src/components/editor/EmojiExtension.ts             0    2    0    0      2    287    0.7
+web/src/components/editor/FileAttachment.test.ts        2    0    0    0      2     75    2.7
+web/src/components/editor/ImageUpload.tsx               0    2    0    0      2    240    0.8
+web/src/components/ui/ScrollFade.test.tsx               0    2    0    0      2     71    2.8
+web/src/contexts/ReviewQueueContext.tsx                 0    0    2    0      2     87    2.3
+web/src/hooks/useContentHistoryQuery.ts                 2    0    0    0      2     44    4.5
+web/src/hooks/useDocumentContextQuery.ts                0    1    1    0      2     66    3.0
+web/src/hooks/useDocumentConversion.ts                  0    2    0    0      2    130    1.5
+web/src/hooks/useRealtimeEvents.tsx                     0    1    1    0      2    184    1.1
+web/src/hooks/useSessionTimeout.test.ts                 0    2    0    0      2    860    0.2
+web/src/hooks/useTeamMembersQuery.ts                    0    2    0    0      2     55    3.6
+web/src/lib/documentTree.ts                             0    0    2    0      2     57    3.5
+web/src/pages/AdminDashboard.tsx                        0    1    1    0      2    476    0.4
+web/src/pages/AdminWorkspaceDetail.tsx                  0    0    2    0      2    509    0.4
+web/src/pages/Dashboard.tsx                             0    2    0    0      2    407    0.5
+web/src/pages/PersonEditor.tsx                          0    2    0    0      2    361    0.6
+web/src/pages/TeamMode.tsx                              0    1    1    0      2    960    0.2
+api/src/collaboration/__tests__/collaboration.test.ts    1    0    0    0      1    821    0.1
+api/src/routes/activity.ts                              0    0    1    0      1    223    0.4
+api/src/routes/associations.ts                          0    1    0    0      1    407    0.2
+api/src/routes/backlinks.test.ts                        1    0    0    0      1    469    0.2
+api/src/routes/caia-auth.ts                             0    1    0    0      1    476    0.2
+api/src/routes/claude.ts                                0    1    0    0      1    691    0.1
+api/src/routes/setup.ts                                 0    0    1    0      1    145    0.7
+api/src/utils/document-crud.ts                          0    0    1    0      1    619    0.2
+web/src/components/AccountabilityGrid.tsx               0    0    1    0      1    518    0.2
+web/src/components/CommandPalette.tsx                   0    1    0    0      1    502    0.2
+web/src/components/ContentHistoryPanel.tsx              0    1    0    0      1    224    0.4
+web/src/components/EmojiPicker.tsx                      0    1    0    0      1     90    1.1
+web/src/components/InlineWeekSelector.tsx               0    1    0    0      1    158    0.6
+web/src/components/document-tabs/ProjectIssuesTab.tsx    0    1    0    0      1     29    3.4
+web/src/components/document-tabs/WeekIssuesTab.tsx      0    1    0    0      1     57    1.8
+web/src/components/editor/DocumentEmbed.tsx             0    1    0    0      1     74    1.4
+web/src/components/editor/DragHandle.tsx                0    1    0    0      1    399    0.3
+web/src/components/editor/HypothesisBlockExtension.ts    0    1    0    0      1    104    1.0
+web/src/components/editor/PlanReferenceBlock.ts         0    1    0    0      1    105    1.0
+web/src/components/editor/ResizableImage.tsx            0    1    0    0      1    143    0.7
+web/src/components/editor/SlashCommands.tsx             1    0    0    0      1    714    0.1
+web/src/components/editor/TableOfContents.tsx           0    1    0    0      1    130    0.8
+web/src/components/icons/uswds/Icon.test.tsx            0    0    0    1      1     95    1.1
+web/src/components/icons/uswds/types.ts                 0    1    0    0      1    513    0.2
+web/src/components/sidebars/DocumentTypeSelector.tsx    0    1    0    0      1    118    0.8
+web/src/components/sidebars/WeekSidebar.tsx             0    1    0    0      1    311    0.3
+web/src/components/sidebars/WikiSidebar.tsx             0    1    0    0      1     98    1.0
+web/src/components/ui/ContextMenu.tsx                   0    1    0    0      1    300    0.3
+web/src/components/ui/MultiAssociationChips.tsx         0    1    0    0      1    216    0.5
+web/src/components/week/WeekTimeline.tsx                0    1    0    0      1    456    0.2
+web/src/contexts/SelectionPersistenceContext.test.tsx    0    1    0    0      1    174    0.6
+web/src/hooks/useAuth.tsx                               0    1    0    0      1    199    0.5
+web/src/hooks/useColumnVisibility.ts                    0    1    0    0      1    107    0.9
+web/src/hooks/useDashboardActionItems.ts                0    1    0    0      1     37    2.7
+web/src/hooks/useDashboardFocus.ts                      0    1    0    0      1     58    1.7
+web/src/hooks/useGlobalListNavigation.ts                0    1    0    0      1    111    0.9
+web/src/hooks/useListFilters.ts                         0    1    0    0      1    111    0.9
+web/src/hooks/useMyWeekQuery.ts                         0    1    0    0      1     70    1.4
+web/src/hooks/useStandupStatusQuery.ts                  0    1    0    0      1     40    2.5
+web/src/lib/document-tabs.tsx                           0    1    0    0      1    246    0.4
+web/src/main.tsx                                        0    0    1    0      1    268    0.4
+web/src/pages/Documents.tsx                             0    1    0    0      1    450    0.2
+web/src/pages/Login.tsx                                 0    1    0    0      1    372    0.3
+web/src/pages/OrgChartPage.tsx                          0    0    1    0      1    758    0.1
+web/src/pages/WorkspaceSettings.tsx                     0    1    0    0      1    750    0.1
+
+====================================================================================================
+FULL PER-FILE RANKING — HEAD c432768 — every file with at least one violation
+====================================================================================================
+FILE                                                  any   as    !  @ts  TOTAL    LOC   /100
+---------------------------------------------------------------------------------------------
+api/src/__tests__/transformIssueLinks.test.ts          37    0    0    0     37    560    6.6
+api/src/routes/weeks.ts                                10   25    0    0     35   3141    1.1
+api/src/services/accountability.test.ts                32    2    0    0     34    366    9.3
+web/src/pages/UnifiedDocumentPage.tsx                   0   31    1    0     32    532    6.0
+api/src/db/seed.ts                                      0    0   31    0     31   1258    2.5
+web/src/components/UnifiedEditor.tsx                    0   26    0    0     26    502    5.2
+api/src/__tests__/activity.test.ts                     20    3    0    0     23    378    6.1
+api/src/routes/projects.ts                             13   10    0    0     23   1761    1.3
+web/src/components/sidebars/PropertiesPanel.tsx         0   23    0    0     23    620    3.7
+api/src/__tests__/auth.test.ts                         12    9    0    0     21    515    4.1
+api/src/routes/issues-history.test.ts                  20    0    0    0     20    317    6.3
+api/src/routes/projects.test.ts                        17    0    0    0     17    336    5.1
+api/src/utils/yjsConverter.ts                          14    2    0    0     16    245    6.5
+api/src/routes/issues.ts                                4    6    3    0     13   1635    0.8
+web/src/components/editor/CommentDisplay.tsx            4    8    1    0     13    353    3.7
+api/src/routes/admin.ts                                 0   11    1    0     12   1802    0.7
+api/src/routes/weekly-plans.ts                          0   10    1    0     11   1163    0.9
+api/src/types/y-protocols.d.ts                         11    0    0    0     11     39   28.2
+web/src/hooks/useWeeklyReviewActions.ts                 0   11    0    0     11    334    3.3
+api/src/mcp/server.ts                                   0    9    0    0      9    524    1.7
+api/src/routes/iterations.test.ts                       9    0    0    0      9    186    4.8
+web/src/components/document-tabs/ProgramOverviewTab.tsx    0    9    0    0      9    133    6.8
+web/src/components/document-tabs/WeekOverviewTab.tsx    0    9    0    0      9    145    6.2
+web/src/pages/ReviewsPage.tsx                           0    4    5    0      9   1404    0.6
+web/src/components/DiffViewer.tsx                       0    8    0    0      8    143    5.6
+web/src/hooks/useIssuesQuery.ts                         0    8    0    0      8    435    1.8
+web/src/hooks/useProjectsQuery.ts                       0    6    2    0      8    394    2.0
+web/src/hooks/useWeeksQuery.ts                          0    8    0    0      8    444    1.8
+api/src/routes/documents.ts                             2    5    0    0      7   1557    0.4
+web/src/components/editor/FileAttachment.tsx            7    0    0    0      7    357    2.0
+api/src/routes/associations-regression.test.ts          6    0    0    0      6    534    1.1
+api/src/routes/team.ts                                  0    3    3    0      6   2188    0.3
+api/src/services/caia.ts                                0    5    1    0      6    388    1.5
+web/src/components/editor/AIScoringDisplay.tsx          6    0    0    0      6    287    2.1
+web/src/components/sidebars/ProjectSidebar.tsx          0    6    0    0      6    415    1.4
+web/src/lib/api.ts                                      0    5    1    0      6    536    1.1
+api/src/collaboration/index.ts                          1    1    3    0      5    901    0.6
+api/src/routes/dashboard.ts                             0    5    0    0      5    728    0.7
+api/src/services/ai-analysis.ts                         0    5    0    0      5    456    1.1
+web/src/components/Editor.tsx                           0    2    3    0      5   1142    0.4
+api/src/routes/search.ts                                0    4    0    0      4    159    2.5
+api/src/routes/team-auth-regression.test.ts             0    4    0    0      4    237    1.7
+web/src/components/BulkActionBar.tsx                    0    4    0    0      4    460    0.9
+web/src/components/editor/MentionExtension.ts           0    4    0    0      4    257    1.6
+web/src/components/sidebars/ProgramSidebar.tsx          0    4    0    0      4    154    2.6
+web/src/hooks/useDocumentsQuery.ts                      0    4    0    0      4    240    1.7
+web/src/hooks/useProgramsQuery.ts                       0    4    0    0      4    246    1.6
+web/src/hooks/useUnifiedDocuments.ts                    0    4    0    0      4    201    2.0
+web/src/pages/MyWeekPage.tsx                            0    0    4    0      4    407    1.0
+api/src/collaboration/__tests__/api-content-preservation.test.ts    0    3    0    0      3    762    0.4
+api/src/routes/admin-credentials.ts                     0    1    2    0      3    703    0.4
+api/src/routes/feedback.ts                              1    2    0    0      3    192    1.6
+api/src/routes/programs.ts                              2    1    0    0      3    891    0.3
+api/src/routes/search.test.ts                           3    0    0    0      3    276    1.1
+api/src/routes/workspaces.ts                            0    3    0    0      3   1070    0.3
+web/src/components/IssuesList.tsx                       0    3    0    0      3   1548    0.2
+web/src/components/editor/DetailsExtension.ts           0    3    0    0      3    216    1.4
+web/src/components/editor/TableOfContents.test.ts       0    3    0    0      3    256    1.2
+web/src/components/sidebars/IssueSidebar.tsx            0    3    0    0      3    540    0.6
+web/src/hooks/useSessionTimeout.ts                      0    0    3    0      3    332    0.9
+web/src/lib/accountability.test.ts                      0    3    0    0      3    121    2.5
+web/src/lib/queryClient.ts                              0    3    0    0      3    190    1.6
+web/src/pages/Projects.tsx                              2    1    0    0      3    693    0.4
+web/src/styles/a11y-invariants.test.ts                  0    2    0    1      3    184    1.6
+api/src/app.ts                                          0    2    0    0      2    305    0.7
+api/src/db/client.ts                                    2    0    0    0      2    253    0.8
+api/src/routes/auth.ts                                  2    0    0    0      2    439    0.5
+api/src/routes/circular-reference.test.ts               0    2    0    0      2    149    1.3
+api/src/routes/standups.ts                              1    1    0    0      2    494    0.4
+api/src/services/secrets-manager.ts                     0    2    0    0      2    217    0.9
+api/src/utils/document-content.ts                       0    2    0    0      2     44    4.5
+api/src/utils/transformIssueLinks.ts                    0    2    0    0      2    275    0.7
+web/src/components/DashboardSidebar.tsx                 0    2    0    0      2     62    3.2
+web/src/components/KanbanBoard.tsx                      0    2    0    0      2    422    0.5
+web/src/components/document-tabs/WeekPlanningTab.tsx    0    2    0    0      2    148    1.4
+web/src/components/document-tabs/WeekReviewTab.tsx      0    2    0    0      2     43    4.7
+web/src/components/editor/DetailsExtension.test.ts      2    0    0    0      2     94    2.1
+web/src/components/editor/EmojiExtension.ts             0    2    0    0      2    287    0.7
+web/src/components/editor/FileAttachment.test.ts        2    0    0    0      2     75    2.7
+web/src/components/editor/ImageUpload.tsx               0    2    0    0      2    240    0.8
+web/src/components/ui/ScrollFade.test.tsx               0    2    0    0      2     71    2.8
+web/src/contexts/ReviewQueueContext.tsx                 0    0    2    0      2     87    2.3
+web/src/hooks/useContentHistoryQuery.ts                 2    0    0    0      2     44    4.5
+web/src/hooks/useDocumentContextQuery.ts                0    1    1    0      2     66    3.0
+web/src/hooks/useDocumentConversion.ts                  0    2    0    0      2    130    1.5
+web/src/hooks/useRealtimeEvents.tsx                     0    1    1    0      2    216    0.9
+web/src/hooks/useSessionTimeout.test.ts                 0    2    0    0      2    860    0.2
+web/src/hooks/useTeamMembersQuery.ts                    0    2    0    0      2     55    3.6
+web/src/lib/documentTree.ts                             0    0    2    0      2     57    3.5
+web/src/pages/AdminDashboard.tsx                        0    1    1    0      2    477    0.4
+web/src/pages/AdminWorkspaceDetail.tsx                  0    0    2    0      2    509    0.4
+web/src/pages/Dashboard.tsx                             0    2    0    0      2    407    0.5
+web/src/pages/PersonEditor.tsx                          0    2    0    0      2    361    0.6
+web/src/pages/TeamMode.tsx                              0    1    1    0      2    960    0.2
+api/src/collaboration/__tests__/collaboration.test.ts    1    0    0    0      1    821    0.1
+api/src/routes/associations.ts                          0    1    0    0      1    407    0.2
+api/src/routes/backlinks.test.ts                        1    0    0    0      1    469    0.2
+api/src/routes/caia-auth.ts                             0    1    0    0      1    476    0.2
+api/src/routes/claude.ts                                0    1    0    0      1    691    0.1
+api/src/routes/list-endpoints-regression.test.ts        0    1    0    0      1    292    0.3
+api/src/routes/setup.ts                                 0    0    1    0      1    145    0.7
+api/src/utils/document-crud.ts                          0    0    1    0      1    619    0.2
+web/src/components/AccountabilityGrid.tsx               0    0    1    0      1    518    0.2
+web/src/components/CommandPalette.tsx                   0    1    0    0      1    502    0.2
+web/src/components/ContentHistoryPanel.tsx              0    1    0    0      1    224    0.4
+web/src/components/EmojiPicker.tsx                      0    1    0    0      1    100    1.0
+web/src/components/InlineWeekSelector.tsx               0    1    0    0      1    158    0.6
+web/src/components/document-tabs/ProjectIssuesTab.tsx    0    1    0    0      1     29    3.4
+web/src/components/document-tabs/WeekIssuesTab.tsx      0    1    0    0      1     57    1.8
+web/src/components/editor/DocumentEmbed.tsx             0    1    0    0      1     74    1.4
+web/src/components/editor/DragHandle.tsx                0    1    0    0      1    399    0.3
+web/src/components/editor/HypothesisBlockExtension.ts    0    1    0    0      1    104    1.0
+web/src/components/editor/PlanReferenceBlock.ts         0    1    0    0      1    105    1.0
+web/src/components/editor/ResizableImage.tsx            0    1    0    0      1    143    0.7
+web/src/components/editor/SlashCommands.tsx             1    0    0    0      1    714    0.1
+web/src/components/editor/TableOfContents.tsx           0    1    0    0      1    130    0.8
+web/src/components/icons/uswds/Icon.test.tsx            0    0    0    1      1     95    1.1
+web/src/components/icons/uswds/types.ts                 0    1    0    0      1    513    0.2
+web/src/components/sidebars/DocumentTypeSelector.tsx    0    1    0    0      1    118    0.8
+web/src/components/sidebars/WeekSidebar.tsx             0    1    0    0      1    316    0.3
+web/src/components/sidebars/WikiSidebar.tsx             0    1    0    0      1     98    1.0
+web/src/components/ui/ContextMenu.tsx                   0    1    0    0      1    300    0.3
+web/src/components/ui/MultiAssociationChips.tsx         0    1    0    0      1    216    0.5
+web/src/components/week/WeekTimeline.tsx                0    1    0    0      1    456    0.2
+web/src/contexts/SelectionPersistenceContext.test.tsx    0    1    0    0      1    174    0.6
+web/src/hooks/useAuth.tsx                               0    1    0    0      1    199    0.5
+web/src/hooks/useColumnVisibility.ts                    0    1    0    0      1    107    0.9
+web/src/hooks/useDashboardActionItems.ts                0    1    0    0      1     37    2.7
+web/src/hooks/useDashboardFocus.ts                      0    1    0    0      1     58    1.7
+web/src/hooks/useGlobalListNavigation.ts                0    1    0    0      1    111    0.9
+web/src/hooks/useListFilters.ts                         0    1    0    0      1    111    0.9
+web/src/hooks/useMyWeekQuery.ts                         0    1    0    0      1     70    1.4
+web/src/hooks/useStandupStatusQuery.ts                  0    1    0    0      1     40    2.5
+web/src/lib/document-tabs.tsx                           0    1    0    0      1    246    0.4
+web/src/pages/Documents.tsx                             0    1    0    0      1    450    0.2
+web/src/pages/Login.tsx                                 0    1    0    0      1    372    0.3
+web/src/pages/OrgChartPage.tsx                          0    0    1    0      1    758    0.1
+web/src/pages/WorkspaceSettings.tsx                     0    1    0    0      1    754    0.1
+
+====================================================================================================
+COUNTER FALSE POSITIVES IN THE #1 FILE
+====================================================================================================
+
+  api/src/services/accountability.test.ts scores 34 violations / 9.3 per 100, the densest file
+  in the codebase. Inspected line by line:
+
+    32 x  { rows: [] } as any      pool.query mock return values (bucket: `any`)
+     2 x  false positive           the AS pattern matching English inside test-name strings:
+                                     108: it('handles workspace start date as Date object', ...
+                                     122: it('handles workspace start date as string', ...
+
+  The counter skips block comments and // lines but does not skip string literals, so prose
+  containing "... as Date ..." or "... as string ..." registers as a type assertion. Its true
+  count is 32.
+
+  This error mode is concentrated in test files, because test names are English sentences
+  stored as string literals. The undisclosed production-only filter was therefore also
+  suppressing the counter's own noise without saying so.
+
+  Not corrected in the counter: changing the pattern would change every number in Category 1
+  and break comparability with the frozen baseline under Implementation Rule 1 (p.9).
+  Recorded here instead.

@@ -148,7 +148,7 @@ describe('tree widgets own treeitems (W7-3)', () => {
     // a clean /docs and reports nothing. Reading the source instead removes the threshold.
     const offenders: string[] = [];
     for (const file of sourceFiles()) {
-      const src = readFileSync(file, 'utf8');
+      const src = readSource(file);
       for (const m of src.matchAll(/role="tree"/g)) {
         const openStart = src.lastIndexOf('<', m.index);
         const tagName = /^<([a-z][a-zA-Z0-9]*)/.exec(src.slice(openStart))?.[1];
@@ -174,7 +174,7 @@ describe('tree widgets own treeitems (W7-3)', () => {
 // =========================================================================================
 
 /** `tabpanel-${tab.id}` and `tabpanel-${x}` are the same shape; only the literal parts can be matched. */
-const shapeOf = (value: string) => value.replace(/\$\{[^}]*\}/g, ' ').trim();
+const shapeOf = (value: string) => value.replace(/\$\{[^}]*\}/g, ' ').trim();
 
 type AttrValue = { raw: string; kind: 'literal' | 'template' | 'identifier'; index: number };
 
@@ -207,7 +207,7 @@ describe('aria-controls references resolve (W7-5)', () => {
     const declaredShapes = new Set<string>();
     const declaredIdentifiers = new Set<string>();
     for (const file of files) {
-      for (const v of attrValues(readFileSync(file, 'utf8'), 'id')) {
+      for (const v of attrValues(readSource(file), 'id')) {
         if (v.kind === 'identifier') declaredIdentifiers.add(v.raw);
         else declaredShapes.add(shapeOf(v.raw));
       }
@@ -215,7 +215,7 @@ describe('aria-controls references resolve (W7-5)', () => {
 
     const offenders: string[] = [];
     for (const file of files) {
-      const src = readFileSync(file, 'utf8');
+      const src = readSource(file);
       for (const v of attrValues(src, 'aria-controls')) {
         const resolves =
           v.kind === 'identifier' ? declaredIdentifiers.has(v.raw) : declaredShapes.has(shapeOf(v.raw));
@@ -247,12 +247,12 @@ describe('controls have an accessible name (W7-4)', () => {
     const files = sourceFiles();
     const labelledIds = new Set<string>();
     for (const file of files) {
-      for (const v of attrValues(readFileSync(file, 'utf8'), 'htmlFor')) labelledIds.add(shapeOf(v.raw));
+      for (const v of attrValues(readSource(file), 'htmlFor')) labelledIds.add(shapeOf(v.raw));
     }
 
     const offenders: string[] = [];
     for (const file of files) {
-      const src = readFileSync(file, 'utf8');
+      const src = readSource(file);
       for (const m of src.matchAll(/<select(?=[\s/>])/g)) {
         const tag = openTagAt(src, m.index);
         if (/aria-label[=\s]|aria-labelledby=/.test(tag)) continue;
@@ -290,7 +290,7 @@ describe('controls have an accessible name (W7-4)', () => {
     // button, and writing the condition this way means it cannot be used to silence one.
     const offenders: string[] = [];
     for (const file of sourceFiles()) {
-      const src = readFileSync(file, 'utf8');
+      const src = readSource(file);
       for (const m of src.matchAll(/<button(?=[\s/>])/g)) {
         const openEnd = endOfOpenTag(src, m.index);
         if (src[openEnd - 1] === '/') continue; // self-closing: renders nothing at all
@@ -335,7 +335,7 @@ describe('controls in a list name their own row (W7-12)', () => {
     // one file away.
     const offenders: string[] = [];
     for (const file of sourceFiles()) {
-      const src = readFileSync(file, 'utf8');
+      const src = readSource(file);
       for (const m of src.matchAll(/<li(?=[\s/>])/g)) {
         const openEnd = endOfOpenTag(src, m.index);
         if (src[openEnd - 1] === '/') continue;
@@ -366,7 +366,7 @@ describe('controls in a list name their own row (W7-12)', () => {
  */
 const APP_NAME = 'Ship';
 
-const readFile = (relative: string) => readFileSync(join(WEB_SRC, relative), 'utf8');
+const readFile = (relative: string) => readSource(join(WEB_SRC, relative));
 
 /** The body of getPageTitle, which is where the route-to-title table lives. */
 function pageTitleFn(): string {
@@ -450,12 +450,12 @@ describe('every page says which page it is (W7-8)', () => {
       // Resolve by export rather than by import statement: the routes were static imports
       // before commit 56ed542 split them into React.lazy calls, and an invariant that only
       // understood one of those two shapes would quietly pass on the tree it could not read.
-      const file = pageFiles.find((f) => new RegExp(`export function ${component}\\b`).test(readFileSync(f, 'utf8')));
+      const file = pageFiles.find((f) => new RegExp(`export function ${component}\\b`).test(readSource(f)));
       if (!file) {
         offenders.push(`${m[1]} -> ${component} (no file exports it)`);
         continue;
       }
-      if (!readFileSync(file, 'utf8').includes('usePageTitle(')) {
+      if (!readSource(file).includes('usePageTitle(')) {
         offenders.push(`${m[1]} -> ${rel(file)}`);
       }
     }
@@ -474,7 +474,7 @@ describe('every page says which page it is (W7-8)', () => {
 function shellFiles(): { file: string; src: string; mains: number[] }[] {
   return sourceFiles()
     .map((file) => {
-      const src = readFileSync(file, 'utf8');
+      const src = readSource(file);
       const mains = [...src.matchAll(/<main(?=[\s/>])/g)].map((m) => m.index);
       return { file, src, mains };
     })

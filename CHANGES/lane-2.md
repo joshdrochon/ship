@@ -11,17 +11,20 @@ Implementation Rule 8; reasoning and tradeoffs per Rule 9.
 
 Target B, met with room to spare.
 
+After-numbers below are re-measured on the integrated tree at `c432768`, not carried over
+from this lane's own branch. See "Two eras of after-number" for why they differ slightly.
+
 | | Before | After | Change |
 |---|---:|---:|---:|
-| **Initial load (Target B)** | **2,144,744 B** | **385,118 B** | **−82.0%** |
-| Initial load, gzipped | 599,789 B | 114,910 B | −80.8% |
-| Entry chunk | 2,073,684 B | 65,893 B | −96.8% |
+| **Initial load (Target B)** | **2,144,744 B** | **386,072 B** | **−82.0%** |
+| Initial load, gzipped | 599,789 B | 115,465 B | −80.7% |
+| Entry chunk | 2,073,684 B | 67,814 B | −96.7% |
 | Largest chunk | 2,073,684 B | 476,475 B | −77.0% |
-| Deferred JS | 176,747 B | 1,968,775 B | +1,015% |
+| Deferred JS | 176,747 B | 1,982,209 B | +1,021% |
 | JS files in initial load | 1 | 4 | +3 |
-| Total dist (Target A) | 3,431,950 B | 3,465,762 B | +1.0% |
+| Total dist (Target A) | 3,431,950 B | 3,480,150 B | +1.4% |
 
-Target B required ≤ 1,715,795 B. The result is 385,118 B — **77.6% below the
+Target B required ≤ 1,715,795 B. The result is 386,072 B — **77.5% below the
 threshold.**
 
 Nothing was removed. Every feature that worked before works after; the browser
@@ -94,8 +97,30 @@ That last claim was then checked rather than asserted. The final `pnpm build`
 gate rebuilt `web/` from scratch at load ~15 and emitted **the same content
 hashes** — `vendor-react-DTmS2JJb`, `vendor-syntax-CJAzNMSb`,
 `vendor-emoji-CKpDoWoY`, `vendor-editor-cnFZDnyj` — and re-measuring gave
-`total 3465762 / initial 385118 / entry 65893`, identical to the digit. Two
-builds, wildly different machine load, byte-identical output.
+`total 3465762 / initial 385118 / entry 65893`, identical to the digit *on this
+lane's tree*. Two builds of the same source, wildly different machine load,
+byte-identical output. That is the claim the paragraph supports, and it does not
+extend to trees with different source in them — see below.
+
+### Two eras of after-number
+
+`385,118 / 65,893` are this lane's numbers, measured on the lane branch. The
+integrated tree at `c432768` measures **`386,072 / 67,814`**, and the difference
+is not measurement noise: other lanes landed after `9a6996b`, and
+`git diff --stat 9a6996b..c432768 -- web/` is **96 files, +2,108 / −509**. Lane 1's
+narrowing helper, lane 6's `useCollaborativeTitle` and `syncStatus`, and lane 7's
+Tailwind token split all ship in the entry and route chunks.
+
+The vendor chunk hashes are unchanged — `vendor-react-DTmS2JJb`,
+`vendor-editor-cnFZDnyj`, `vendor-query-_oxqrmmt`, `vendor-router-Jb59XTrA` are
+byte-for-byte what this lane produced — which is exactly what the grouping is
+supposed to do: application churn does not invalidate library chunks. The entry
+chunk is the one that moved, `index-B8T7TWoG` → `index-CU9fwwxk`, +1,921 B.
+
+Where a number in this file describes an intermediate configuration measured on
+the lane branch (`362,169 B`, the `+22,949 B` grouping cost), it is left at the
+lane-branch value, because both halves of those comparisons were taken there.
+Mixing an old before with a new after would not measure anything.
 
 ### Two measurement notes
 
@@ -103,16 +128,18 @@ builds, wildly different machine load, byte-identical output.
   14 B difference. `web/` is byte-identical to the freeze commit `24bf639`
   (`git diff 24bf639..HEAD -- web/` was empty at that point). The delta is
   content-hash filename lengths inside `index.html`, not a code change.
-- **Total dist went up 33,812 B (+1.0%), and that is expected.** Splitting one
-  chunk into 300+ means per-chunk module wrappers, import statements and less
-  cross-module minification. Vite also now emits a second, per-chunk stylesheet
-  (`PropertyRow-*.css`, 1,410 B) alongside the main one. Target A and Target B
-  pull in opposite directions and the brief asks for either; this lane chose B,
-  see below.
-- The after-measurement was taken with `--no-build` against the `web/dist` that
-  `9a6996b` produced, rather than rebuilding. All 353 files in it share a single
-  mtime, so it is one clean build of the committed tree and contains no stale
-  artifacts. See "Measurement lock" below for why it was not rebuilt.
+- **Total dist went up 48,200 B (+1.4%) on the integrated tree, and that is
+  expected.** Splitting one chunk into 300+ means per-chunk module wrappers,
+  import statements and less cross-module minification. Vite also now emits a
+  second, per-chunk stylesheet (`PropertyRow-*.css`, 1,410 B) alongside the main
+  one. On the lane branch alone the rise was 33,812 B (+1.0%); the extra 14,388 B
+  is the other lanes' source, not this change. Target A and Target B pull in
+  opposite directions and the brief asks for either; this lane chose B, see below.
+- The reported after-numbers come from a clean `pnpm build:web` on `c432768`,
+  then both scripts with `--no-build`. This lane's own after-measurement was taken
+  with `--no-build` against the `web/dist` that `9a6996b` produced; all 353 files
+  in it shared a single mtime, so it was one clean build of the committed tree with
+  no stale artifacts. See "Measurement lock" below for why that one was not rebuilt.
 
 ## Why Target B rather than Target A
 
@@ -201,10 +228,10 @@ rather than by raising `chunkSizeWarningLimit`.
 *Tradeoffs:*
 
 - **+22,949 B raw / +9,944 B gzip on initial load** versus route splitting alone
-  (362,169 → 385,118 B), from inter-chunk boilerplate and cross-module
-  minification Rollup can no longer perform. Bought deliberately: 1.3% of the
-  initial-load budget, still landing 77.6% under target, in exchange for cache
-  granularity.
+  (362,169 → 385,118 B, both halves measured on the lane branch), from inter-chunk
+  boilerplate and cross-module minification Rollup can no longer perform. Bought
+  deliberately: 1.3% of the initial-load budget, still landing 77.5% under target
+  on the integrated tree, in exchange for cache granularity.
 - `vendor-react` / `vendor-router` / `vendor-query` look removable — they are in
   the initial load either way — but removing them is measurably wrong. React is
   imported by both the entry and by modules inside `vendor-editor`. Left unnamed,
@@ -218,8 +245,10 @@ rather than by raising `chunkSizeWarningLimit`.
 - Grouping by path substring is string matching against `node_modules` paths. It
   degrades safely: an unmatched library falls through to Rollup's default chunking.
 
-*Effect:* largest chunk 836,570 → 476,475 B (`vendor-editor`), 20.9% of all JS
-where the old entry chunk was 92.1%. The >500 kB build warning is gone.
+*Effect:* largest chunk 836,570 → 476,475 B (`vendor-editor`), 20.9% of all JS on
+the lane branch and 20.7% on the integrated tree — where the old entry chunk was
+92.1%. `vendor-editor` is byte-identical across both. The >500 kB build warning
+is gone.
 
 > Correction: the body of commit `9a6996b` says "largest chunk 836,570 B ->
 > 620,148 B". 620,148 B was `vendor-editor` in the intermediate configuration
@@ -271,9 +300,10 @@ git revert b7cd517   # emoji picker becomes eager again
 git revert 56ed542   # all routes eager again; restores the single 2 MB chunk
 ```
 
-Reverting only `9a6996b` is safe and keeps most of the win (initial load returns
-to 362,169 B). Reverting `56ed542` gives back the entire improvement — it is the
-commit carrying the result.
+Reverting only `9a6996b` is safe and keeps most of the win (initial load returned
+to 362,169 B when measured on the lane branch; expect roughly 23 kB below the
+current 386,072 B, not that exact figure). Reverting `56ed542` gives back the
+entire improvement — it is the commit carrying the result.
 
 **What to watch after deploy.** The failure mode of code splitting is a chunk
 404 after a redeploy, when a client holding an old `index.html` requests a hashed

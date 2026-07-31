@@ -54,6 +54,173 @@ after every unit run.
 
 ---
 
+## W1-4 — the errors `web/tsconfig.json` hides: 102 → 111
+
+This lane did not touch `web/tsconfig.json`, and the headline number does not cover what that
+file conceals. This section quantifies it, because W1-4 was recorded in the audit report as a
+finding and then never given a number.
+
+`web/tsconfig.json` has no `extends`. It redeclares its compiler options from scratch and so
+misses three the root config sets: `noUncheckedIndexedAccess`, `noImplicitReturns`,
+`noFallthroughCasesInSwitch`. `api/` and `shared/` inherit them.
+
+### Measurement
+
+A temporary config **outside the repo tree** extends `web/tsconfig.json` and adds only those
+three flags. `web/tsconfig.json` itself was not modified and nothing was left in the repo.
+
+```jsonc
+{
+  "extends": "<tree>/web/tsconfig.json",
+  "compilerOptions": {
+    "typeRoots": ["<tree>/web/node_modules/@types", "<tree>/node_modules/@types"],
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true
+  }
+}
+```
+
+```bash
+cd <tree>/web && node_modules/.bin/tsc -p <temp-config> --noEmit --pretty false
+```
+
+`typeRoots` has to be pinned. TypeScript resolves automatic `@types` inclusion from the
+directory of the config being *run*, not the one being extended, so a config outside the repo
+otherwise loses `@types/node` and `@types/react` and reports ~16 phantom TS2307/TS2304 errors.
+That was the first result this measurement produced and it was wrong; pinning `typeRoots`
+removes all of them. Both trees were then re-run from scratch.
+
+The HEAD run was taken in a shared worktree carrying other agents' uncommitted `web/src` edits,
+so `c432768` was also exported clean with `git archive` and both runs repeated against it. The
+error set came back byte-identical — 111 is a property of the commit, not of the working tree.
+
+Full method and raw `tsc` output: `docs/audit/raw/cat1-w1-4-web-strict-flags.txt`.
+
+### Result
+
+| | baseline `767aa2f` | HEAD `c432768` | delta |
+|---|---:|---:|---:|
+| Control — `web/tsconfig.json` exactly as shipped | 0 | 0 | 0 |
+| With the three root flags applied | **102** | **111** | **+9** |
+| Category 1 headline violation count | 1,009 | 741 | −268 |
+
+Both error counts were verified two ways (`grep -c "error TS"` and an anchored
+`^file(line,col): error TSnnnn` match) and agree. The control run at 0 proves all 111 are
+attributable to the three flags and nothing else.
+
+By flag, at HEAD:
+
+| Flag | Errors | Codes |
+|---|---:|---|
+| `noUncheckedIndexedAccess` | 103 | TS2532 (42), TS18048 (34), TS2345 (13), TS2322 (13), TS18047 (1) |
+| `noImplicitReturns` | 8 | TS7030 |
+| `noFallthroughCasesInSwitch` | 0 | — |
+
+### What it means
+
+**The hidden count went up while the headline went down.** The lane eliminated 268 counted
+violations and the number of errors `web/tsconfig.json` suppresses grew by 9 over the same
+interval. Those are not contradictory results, they are two different surfaces: the counter is
+a source-text grep for `any` / `as` / `!` / `@ts`, and these are compiler errors that no
+committed config ever asks for. Neither one can see the other. The 26.3% reduction is real; it
+simply does not reach here.
+
+**Where the +9 came from.** All nine are in a single file that did not exist at baseline —
+`web/src/styles/a11y-invariants.test.ts`, added by the accessibility lane (`63c031c`). A full
+per-file diff of the two error sets produces exactly one line of difference: that file. No
+pre-existing file gained or lost a hidden error during Phase 2.
+
+**The part that matters more than the +9:**
+
+| | baseline | HEAD |
+|---|---:|---:|
+| Hidden errors in production files | 95 | 95 |
+| Hidden errors in test files | 7 | 16 |
+
+The production figure did not move at all. Phase 2 removed 268 counted violations from this
+codebase and zero of the 95 unchecked-index errors sitting in `web/`'s production code. Every
+new `web/` file written during Phase 2 was also written under the weaker ruleset, which is how
+the number grows without anyone doing anything wrong — the growth is a property of the missing
+`extends`, not of the code being added.
+
+Five files hold 61 of the 111: `CommandPalette.tsx` (13), `lib/cn.ts` (12), `useSelection.ts`
+(12), `editor/CommentDisplay.tsx` (12), `editor/AIScoringDisplay.tsx` (12).
+
+### Why `web/tsconfig.json` was not changed here
+
+Three reasons, in order of weight.
+
+1. **It is not this lane's file and the change is not free.** Adding `extends` turns a passing
+   `pnpm type-check` into 111 errors. The lane's gate (`pnpm type-check` exit 0) would fail on
+   the commit that makes the change and stay failing until all 111 are resolved — so it is not
+   a config edit, it is a config edit plus 111 fixes, in files three other lanes were editing
+   concurrently.
+2. **Implementation Rule 1 requires before/after under identical conditions.** Changing the
+   compiler settings mid-lane changes what "identical conditions" means for every other
+   measurement taken against `web/`.
+3. **Rule 10 rules out cosmetic edits.** Silencing 103 index errors with `!` or `?? ''` to make
+   the flag pass would satisfy the compiler and remove exactly zero of the risk, while inflating
+   the very `!` count Category 1 measures. Doing it properly means reading each site.
+
+### Would it be safe and small to fix? Partly — and one third of it is free today
+
+Not one change. Three, with very different costs.
+
+| Flag | Errors | Assessment |
+|---|---:|---|
+| `noFallthroughCasesInSwitch` | 0 | **Free. Enable it now.** No errors in either tree. Pure future protection, zero cost, zero risk. |
+| `noImplicitReturns` | 8 | **Half an hour for 5 of them, care needed on 3.** |
+| `noUncheckedIndexedAccess` | 103 | **Real work — roughly 1–2 days.** This is the one with substance. |
+
+The 8 TS7030 split two ways, and the split is the flag doing its job:
+
+- **5 are `useEffect` callbacks** that return a cleanup on one branch and nothing on another
+  (`ResizableImage.tsx:40`, `SessionTimeoutModal.tsx:33`, `InlineWeekSelector.tsx:43` and `:56`,
+  `TeamMode.tsx:513`). One `return undefined;` each, behaviour-identical — React already treats
+  both as no cleanup.
+- **3 are not.** `AIScoringDisplay.tsx:78` and `:99` are ProseMirror `doc.descendants`
+  callbacks, where the return value is control flow: `false` means "do not descend into this
+  node's children", and both callbacks *do* return `false` on one path (`:85`, `:106`) while
+  falling off the end on another. `EmojiExtension.ts:148` is an input-rule handler returning
+  `null` on one path and nothing on another. Blanket-adding `return undefined` there would be a
+  guess about intended traversal behaviour. These need reading.
+
+The 103 index errors are likewise not uniform:
+
+- **Provably safe, TypeScript just cannot narrow it.** All 12 in `lib/cn.ts` are this:
+  `hex[0..2]` is guarded by `if (hex.length === 3)` and `match[1..3]` by `if (match)` on a regex
+  with three capture groups. Neither can be undefined at runtime; the compiler cannot see it.
+  Cheapest to clear (destructure, or one guard), and no behaviour changes.
+  *(An earlier draft of this section called `cn.ts` a live bug. It is not — the length check is
+  right there on line 18.)*
+- **Genuinely unguarded.** `useSelection.ts:146`, `:150`, `:155` read `itemIds[0]` when the list
+  may be empty and assign the result to a variable declared `string | null`. On an empty list —
+  a filtered view with no matches — the focused id becomes `undefined` rather than `null`. Minor,
+  but it is exactly the case the flag exists to surface, and it is invisible today.
+- **Noise from a `Record` lookup.** `CommandPalette.tsx`'s 10 `groupedDocuments.<type>` errors
+  are one populated-by-construction record; a single `?? []` clears two at a time.
+
+Recommended sequencing, if someone picks this up: `noFallthroughCasesInSwitch` plus the 5
+trivial `useEffect` returns in a first commit, which is genuinely small. The 3 control-flow
+returns second, as a separate reviewed change. Then `noUncheckedIndexedAccess` as its own piece
+of work, five files first for 61 of the 103. The end state is `web/tsconfig.json` extending the
+root and carrying only the genuinely web-specific options (`jsx`, `lib`, `moduleResolution`,
+`paths`), which is what stops the gap silently reopening.
+
+**Not done in this lane.** Recorded, measured, and left to a deliberate decision rather than
+made as a side effect of type-safety work.
+
+### Note on 744 vs 741
+
+This lane's own after-measurement was 744, taken at the end of the lane on its own branch. The
+same counter at merged `main` (`c432768`) reports **741** — api 412, web 329. The 3-violation
+difference is other lanes' work landing after this lane closed, not a re-measurement of it. The
+lane's before/after pair above is the comparable one under Rule 1; 741 is the current state of
+`main` and is the figure the W1-4 comparison above uses.
+
+---
+
 ## Unit 1.1 — request identity: assertion to checked narrowing
 
 **Files:** `api/src/middleware/auth.ts`, 21 route files under `api/src/routes/`, 4 test
