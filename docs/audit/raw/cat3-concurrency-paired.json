@@ -1,0 +1,384 @@
+[
+{
+ "endpoint": "/api/team/grid",
+ "connections": 10,
+ "before": {
+  "p50": 33.24,
+  "p95": 70.87,
+  "p99": 102.01,
+  "max": 232.71,
+  "samples": 12035
+ },
+ "after": {
+  "p50": 8.95,
+  "p95": 22.01,
+  "p99": 32.88,
+  "max": 130.28,
+  "samples": 42172
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p50_pct": -73.1,
+ "delta_p95_pct": -68.9,
+ "delta_p99_pct": -67.8,
+ "valid": true
+}
+,
+{
+ "endpoint": "/api/team/grid",
+ "connections": 25,
+ "before": {
+  "p50": 140.73,
+  "p95": 459.37,
+  "p99": 683.14,
+  "max": 1298.79,
+  "samples": 6246
+ },
+ "after": {
+  "p50": 21.05,
+  "p95": 61.85,
+  "p99": 133.37,
+  "max": 366.31,
+  "samples": 41863
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p50_pct": -85.0,
+ "delta_p95_pct": -86.5,
+ "delta_p99_pct": -80.5,
+ "valid": true
+}
+,
+{
+ "endpoint": "/api/team/grid",
+ "connections": 50,
+ "before": {
+  "p50": 299.26,
+  "p95": 1275.74,
+  "p99": 1964.85,
+  "max": 3741.75,
+  "samples": 5143
+ },
+ "after": {
+  "p50": 34.43,
+  "p95": 102.84,
+  "p99": 180.15,
+  "max": 425.48,
+  "samples": 51644
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p50_pct": -88.5,
+ "delta_p95_pct": -91.9,
+ "delta_p99_pct": -90.8,
+ "valid": true
+}
+,
+{
+ "endpoint": "/api/auth/me",
+ "connections": 10,
+ "before": {
+  "p50": 14.35,
+  "p95": 38.3,
+  "p99": 62.06,
+  "max": 248.81,
+  "samples": 25358
+ },
+ "after": {
+  "p50": 3.13,
+  "p95": 6.23,
+  "p99": 10.32,
+  "max": 127.49,
+  "samples": 124319
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p50_pct": -78.2,
+ "delta_p95_pct": -83.7,
+ "delta_p99_pct": -83.4,
+ "valid": true
+}
+,
+{
+ "endpoint": "/api/auth/me",
+ "connections": 25,
+ "before": {
+  "p50": 56.68,
+  "p95": 241.95,
+  "p99": 374.45,
+  "max": 1081.08,
+  "samples": 13559
+ },
+ "after": {
+  "p50": 5.55,
+  "p95": 12.88,
+  "p99": 21.94,
+  "max": 155.86,
+  "samples": 167514
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p50_pct": -90.2,
+ "delta_p95_pct": -94.7,
+ "delta_p99_pct": -94.1,
+ "valid": true
+}
+,
+{
+ "endpoint": "/api/auth/me",
+ "connections": 50,
+ "before": {
+  "p50": 186.3,
+  "p95": 899.06,
+  "p99": 1373.24,
+  "max": 3017.27,
+  "samples": 7894
+ },
+ "after": {
+  "p50": 10.07,
+  "p95": 25.93,
+  "p99": 58.67,
+  "max": 417.27,
+  "samples": 173888
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p50_pct": -94.6,
+ "delta_p95_pct": -97.1,
+ "delta_p99_pct": -95.7,
+ "valid": true
+}
+,
+{
+ "endpoint": "/api/documents",
+ "connections": 10,
+ "before": {
+  "p50": 61.84,
+  "p95": 100.17,
+  "p99": 140.69,
+  "max": 553.01,
+  "samples": 6833
+ },
+ "after": {
+  "p50": 58.11,
+  "p95": 94.94,
+  "p99": 120.44,
+  "max": 236.06,
+  "samples": 7416
+ },
+ "fail_before": 0,
+ "fail_after": 0,
+ "delta_p50_pct": -6.0,
+ "delta_p95_pct": -5.2,
+ "delta_p99_pct": -14.4,
+ "valid": true
+}
+,
+{
+ "endpoint": "/api/documents",
+ "connections": 25,
+ "before": {
+  "p50": 132.15,
+  "p95": 60000.59,
+  "p99": 60004.41,
+  "max": 60004.99,
+  "samples": 388
+ },
+ "after": {
+  "p50": 149.68,
+  "p95": 2020.87,
+  "p99": 30081.46,
+  "max": 30081.71,
+  "samples": 579
+ },
+ "fail_before": 0.0644,
+ "fail_after": 0.3454,
+ "delta_p50_pct": 13.3,
+ "delta_p95_pct": -96.6,
+ "delta_p99_pct": -49.9,
+ "valid": false,
+ "invalid_reason": "non-200 responses on one or both sides; this row measures the failure path, not endpoint latency. Do not quote it."
+}
+,
+{
+ "endpoint": "/api/documents",
+ "connections": 50,
+ "before": {
+  "p50": 5.71,
+  "p95": 8.56,
+  "p99": 11.2,
+  "max": 169.12,
+  "samples": 378403
+ },
+ "after": {
+  "p50": 4.33,
+  "p95": 6.98,
+  "p99": 9.73,
+  "max": 47.98,
+  "samples": 470408
+ },
+ "fail_before": 1,
+ "fail_after": 1,
+ "delta_p50_pct": -24.2,
+ "delta_p95_pct": -18.5,
+ "delta_p99_pct": -13.1,
+ "valid": false,
+ "invalid_reason": "non-200 responses on one or both sides; this row measures the failure path, not endpoint latency. Do not quote it."
+}
+,
+{
+ "endpoint": "/api/projects",
+ "connections": 10,
+ "before": {
+  "p50": 1.07,
+  "p95": 1.74,
+  "p99": 2.71,
+  "max": 58.99,
+  "samples": 383687
+ },
+ "after": {
+  "p50": 0.79,
+  "p95": 1.57,
+  "p99": 2.57,
+  "max": 72.41,
+  "samples": 471022
+ },
+ "fail_before": 1,
+ "fail_after": 1,
+ "delta_p50_pct": -26.2,
+ "delta_p95_pct": -9.8,
+ "delta_p99_pct": -5.2,
+ "valid": false,
+ "invalid_reason": "non-200 responses on one or both sides; this row measures the failure path, not endpoint latency. Do not quote it."
+}
+,
+{
+ "endpoint": "/api/projects",
+ "connections": 25,
+ "before": {
+  "p50": 2.92,
+  "p95": 4.86,
+  "p99": 6.54,
+  "max": 24.55,
+  "samples": 358246
+ },
+ "after": {
+  "p50": 2.19,
+  "p95": 4.17,
+  "p99": 6.05,
+  "max": 29.53,
+  "samples": 442561
+ },
+ "fail_before": 1,
+ "fail_after": 1,
+ "delta_p50_pct": -25.0,
+ "delta_p95_pct": -14.2,
+ "delta_p99_pct": -7.5,
+ "valid": false,
+ "invalid_reason": "non-200 responses on one or both sides; this row measures the failure path, not endpoint latency. Do not quote it."
+}
+,
+{
+ "endpoint": "/api/projects",
+ "connections": 50,
+ "before": {
+  "p50": 6.17,
+  "p95": 10.18,
+  "p99": 13.72,
+  "max": 50.24,
+  "samples": 341643
+ },
+ "after": {
+  "p50": 4.81,
+  "p95": 9.3,
+  "p99": 14.33,
+  "max": 102.33,
+  "samples": 405902
+ },
+ "fail_before": 1,
+ "fail_after": 1,
+ "delta_p50_pct": -22.0,
+ "delta_p95_pct": -8.6,
+ "delta_p99_pct": 4.4,
+ "valid": false,
+ "invalid_reason": "non-200 responses on one or both sides; this row measures the failure path, not endpoint latency. Do not quote it."
+}
+,
+{
+ "endpoint": "/api/documents/62b77ce3-83d7-43bf-abc3-5bf580ca6991/backlinks",
+ "connections": 10,
+ "before": {
+  "p50": 1.17,
+  "p95": 2.03,
+  "p99": 3.02,
+  "max": 18.45,
+  "samples": 345392
+ },
+ "after": {
+  "p50": 0.85,
+  "p95": 1.91,
+  "p99": 3.04,
+  "max": 42.12,
+  "samples": 425241
+ },
+ "fail_before": 1,
+ "fail_after": 1,
+ "delta_p50_pct": -27.4,
+ "delta_p95_pct": -5.9,
+ "delta_p99_pct": 0.7,
+ "valid": false,
+ "invalid_reason": "non-200 responses on one or both sides; this row measures the failure path, not endpoint latency. Do not quote it."
+}
+,
+{
+ "endpoint": "/api/documents/62b77ce3-83d7-43bf-abc3-5bf580ca6991/backlinks",
+ "connections": 25,
+ "before": {
+  "p50": 3.03,
+  "p95": 4.96,
+  "p99": 6.63,
+  "max": 43.93,
+  "samples": 344895
+ },
+ "after": {
+  "p50": 2.25,
+  "p95": 4.21,
+  "p99": 6.08,
+  "max": 52.3,
+  "samples": 430430
+ },
+ "fail_before": 1,
+ "fail_after": 1,
+ "delta_p50_pct": -25.7,
+ "delta_p95_pct": -15.1,
+ "delta_p99_pct": -8.3,
+ "valid": false,
+ "invalid_reason": "non-200 responses on one or both sides; this row measures the failure path, not endpoint latency. Do not quote it."
+}
+,
+{
+ "endpoint": "/api/documents/62b77ce3-83d7-43bf-abc3-5bf580ca6991/backlinks",
+ "connections": 50,
+ "before": {
+  "p50": 6.22,
+  "p95": 10.18,
+  "p99": 13.96,
+  "max": 46.0,
+  "samples": 342187
+ },
+ "after": {
+  "p50": 4.85,
+  "p95": 9.52,
+  "p99": 15.33,
+  "max": 57.16,
+  "samples": 402247
+ },
+ "fail_before": 1,
+ "fail_after": 1,
+ "delta_p50_pct": -22.0,
+ "delta_p95_pct": -6.5,
+ "delta_p99_pct": 9.8,
+ "valid": false,
+ "invalid_reason": "non-200 responses on one or both sides; this row measures the failure path, not endpoint latency. Do not quote it."
+}
+]

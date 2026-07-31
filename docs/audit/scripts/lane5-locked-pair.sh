@@ -1,11 +1,29 @@
 #!/usr/bin/env bash
-# Locked pre/post pair for lane-5. Run from the lane-5 worktree.
+# Locked pre/post pair for lane-5. Runs against whatever checkout contains this script.
+#
+#   docs/audit/scripts/lane5-locked-pair.sh
+#
+# Logs are written to $LANE5_SCRATCH (default $TMPDIR/ship-lane5).
 # Deliberately bash, not zsh, and no shell variable ever holds a multi-word file list —
 # unquoted $VAR does not word-split in zsh, which silently produced a zero-test run twice.
 set -uo pipefail
 
-D=/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad
-REPO=/Users/joanmiguel/Desktop/Developer/ship-worktrees/ship-lane-5
+# Repo root and log directory are derived, never hardcoded. The original pinned an
+# absolute path under one machine's home directory and one agent's scratch directory,
+# so the script could not be run from a fresh clone at all — which is the whole point
+# of committing a measurement script (Rule 1: the numbers must be re-derivable).
+#
+# Same derivation as run-cat4-paired.sh: the script's own location, which works from a
+# worktree, a clone, or a symlink, and does not require the caller to be inside the
+# repo. `git rev-parse --show-toplevel` is the fallback for the case where this file
+# has been copied somewhere else.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)"
+if [ ! -d "$REPO/.git" ] && [ ! -f "$REPO/.git" ]; then
+  REPO="$(git rev-parse --show-toplevel)"
+fi
+# Logs go to a scratch directory outside the repo so a run never dirties git status.
+D="${LANE5_SCRATCH:-${TMPDIR:-/tmp}/ship-lane5}"
+mkdir -p "$D"
 cd "$REPO"
 
 restore() {

@@ -519,7 +519,7 @@ export function OrgChartPage() {
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search people..."
-            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none"
+            className="flex-1 rounded bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
           />
           {matchCount !== null && (
             <span className="text-xs text-muted">
@@ -578,6 +578,7 @@ export function OrgChartPage() {
               if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
             }}
             className="text-muted hover:text-foreground"
+            aria-label="Dismiss notification"
           >
             <svg aria-hidden="true" focusable="false" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

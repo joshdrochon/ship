@@ -8,6 +8,143 @@ Written for the next engineer who inherits this, not for a grader. Audit finding
 
 ---
 
+## Build once, promote — Rule 5 (closes audit finding F26)
+
+**What was wrong.** Three independent builds of the same source existed and none
+promoted any other, so nothing that ran anywhere was traceable to a commit:
+
+| Build | Fate |
+|---|---|
+| GitLab CI `docker-image` → `$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA` | tag was invalid — **failed every `main` pipeline** |
+| GitHub Actions `docker-image` | `push: false` — built, then discarded |
+| Render, `runtime_source.docker` | cloned the branch and built its **own** image |
+| `scripts/deploy.sh` | compiled on the operator's laptop, `VERSION="v$(date …)"` |
+
+`/health` returned `{"status":"ok"}` with no version, so "which commit is in
+production?" had no answer at all.
+
+The GitLab failure was live, not theoretical. `$CI_REGISTRY_IMAGE` expands to the
+empty string because **the GitLab instance runs no container registry** —
+`labs.gauntletai.com/jwt/auth?service=container_registry` answers
+`{"code":"UNAVAILABLE","message":"registry not enabled"}`, and the project's
+`container_registry_image_prefix` is null. So the job ran
+`docker build -t ":c432768…"` and died with `invalid reference format`, on five
+consecutive `main` commits including HEAD. The other eight jobs were green and
+this job only runs on `main`, so every lane branch looked clean while the default
+branch was red.
+
+**What changed.**
+
+| File | Change |
+|---|---|
+| `Dockerfile` | `ARG GIT_SHA=unknown` → `LABEL org.opencontainers.image.revision` + `ENV GIT_SHA` |
+| `api/src/app.ts` | `/health` returns `{"status":"ok","revision":"<sha>"}` |
+| `api/src/routes/health.test.ts` | regression tests for the field and its `unknown` fallback |
+| `.github/workflows/ci.yml` | **now the publisher** — builds, verifies provenance three ways, pushes `ghcr.io/joshdrochon/ship:<sha>` |
+| `.gitlab-ci.yml` | builds with a valid local tag and asserts the SHA is inside the image; no longer pretends to publish |
+| `terraform/render/main.tf` | `runtime_source.docker` → `runtime_source.image`; optional `render_registry_credential.ghcr` |
+| `terraform/render/variables.tf` | `repo_url`/`branch`/`dockerfile_path`/`auto_deploy` removed; `image_repository`, `image_tag`, registry auth added |
+| `terraform/render/outputs.tf` | `deployed_image`, `verify_deployed_revision` |
+| `scripts/deploy.sh` | version label is `git rev-parse HEAD`; refuses a dirty working tree |
+| `docs/artifact-lifecycle.md` | new — the lifecycle documentation Rule 5 requires |
+
+**Registry: ghcr.io.** Not a preference — the GitLab registry does not exist (above),
+and no credential fixes a service that is not deployed. ghcr.io needs **no credential
+to be provisioned**: Actions issues `GITHUB_TOKEN` with `packages: write` to the job.
+Pushing to ghcr.io *from* GitLab would have needed a long-lived GitHub PAT in a masked
+CI variable, for the same result.
+
+**The substantive fix is the Terraform one.** `runtime_source.image` means Render
+pulls the image CI built instead of building a fourth one. A deploy becomes
+`terraform apply -var image_tag=<sha>`; a rollback is the same command with an older
+SHA. `image_tag` has no default and is validated `^[0-9a-f]{7,40}$`, so `latest` is
+refused — a floating tag would re-open the exact question this change closes.
+
+It also removes a Category 8 qualification. The git source required the Render account
+to hold a GitHub OAuth consent for the private repo, which Terraform cannot create;
+that is why `terraform/render/README.md` said "one credential and one prior consent"
+rather than "deployable using only `terraform apply`". Pulling a published image needs
+no repo connection.
+
+### How to run it
+
+```bash
+# CI publishes on every push. To deploy a published commit:
+cd terraform/render
+terraform apply -var image_tag=<sha>
+
+# Roll back
+terraform apply -var image_tag=<older-sha>
+```
+
+`scripts/deploy.sh` (the AWS path) is unchanged in usage but now refuses to run with
+uncommitted changes — commit or stash first. There is no override flag.
+
+### How to test it
+
+```bash
+# Provenance reaches the image and the wire
+docker build --build-arg GIT_SHA=test -t ship:test .
+docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' ship:test   # test
+docker run -d --name p -p 18080:80 -e SESSION_SECRET=x \
+  -e DATABASE_URL=postgres://unused:unused@127.0.0.1:5432/unused ship:test node dist/index.js
+curl -s localhost:18080/health    # {"status":"ok","revision":"test"}
+docker rm -f p
+
+# Local dev is unaffected — no build arg means no lie
+docker build -t ship:nosha .
+curl -s localhost:18081/health    # {"status":"ok","revision":"unknown"}
+
+# Terraform
+cd terraform/render && terraform validate && terraform fmt -check
+terraform plan -var image_tag=latest    # refused by the validation rule
+
+# Unit
+pnpm --filter @ship/api exec vitest run src/routes/health.test.ts
+```
+
+All of the above were run except the last (the database was under a concurrent
+benchmark). Results are in the report accompanying this change.
+
+### How to roll it back
+
+| To undo | Do this |
+|---|---|
+| Everything | `git revert <sha>` — the change is one commit and touches no schema |
+| Just the Render promotion | Restore `runtime_source.docker` in `terraform/render/main.tf` and the four `repo_url`/`branch`/`dockerfile_path`/`auto_deploy` variables. Reintroduces the fourth build and the OAuth consent step. |
+| Just the `/health` field | Revert the `revision` line in `api/src/app.ts` and the two new cases in `health.test.ts`. Note `terraform output verify_deployed_revision` then has nothing to compare against. |
+| Just the dirty-tree gate | Delete the `git status --porcelain` block in `scripts/deploy.sh`. Keep the SHA version label — it is independent. |
+| Just the ghcr.io push | Set `push: false` on the GitHub job. Render then points at a tag nobody publishes, so pin `image_tag` to a SHA already in the registry first. |
+
+No migration to reverse. Full lifecycle documentation: `docs/artifact-lifecycle.md`.
+
+---
+
+## Accessibility, after Category 7 was closed
+
+Per-category detail lives in `CHANGES/lane-*.md` and is indexed from `SUBMISSION.md`. This
+one gets a line here because it is a **correction to a category that had already been
+reported as done**, and someone reading only the root file should not miss that.
+
+Category 7 scoped its scan and its fixes to *"the 3 most important pages"*, which is what
+p.7 asks for. Five of its own findings sat outside that scope and were never fixed —
+W7-6, W7-7, **W7-8** (eight pages titled "Ship | Ship", WCAG 2.4.2 Level A) and **W7-9**
+(a nested `<main>`, no landmark on `/login`, a missing `<h1>`, an empty `<th>`) — and the
+lane doc's "still open" table did not list them either. W7-8 and W7-9 are now fixed;
+W7-6 and W7-7 are fixed in the e2e suite; **W7-11 is a deliberate non-fix**, recorded with
+its numbers.
+
+Reading every page instead of three then turned up three defect sets the audit never
+recorded at all: 6 unnamed `<select>`s (one set on the page that grants workspace admin),
+8 unnamed icon-only buttons (2 destructive), and an `<li>` in a `role="group"` tree.
+
+**What changed, why the original was worse, the tradeoffs, and how to roll each piece
+back: [`CHANGES/lane-7.md`](CHANGES/lane-7.md), §8–§11.** Audit findings, including the
+three that were never in it and why they were missed: `docs/audit/audit-report.md`,
+Category 7.
+
+---
+
 ## Lane 0 — CI, one-command start, and the test suite that blocks them
 
 **Why this went first.** Rule 2 says *"any change that causes a regression in the CI

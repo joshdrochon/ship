@@ -131,7 +131,21 @@ export function SelectableList<T extends { id: string }>({
         {columns && (
           <thead className="sticky top-0 bg-background z-10">
             <tr className="border-b border-border text-left text-xs text-muted">
-              {selectable && <th className="w-10 px-2 py-2" aria-label="Selection"></th>}
+              {/*
+                W7-9: this was a `th` holding nothing, and axe's `empty-table-header`
+                fired on it four times -- once each on /issues, /projects, /programs and
+                the project document, all four the same source line rendered four times.
+                The `aria-label` did not satisfy the rule and could not: the check is
+                `has-visible-text`, which reads rendered text, not names.
+
+                The honest fix is that this is not a header. It sits above the row
+                checkboxes and there is no column name to give; each checkbox names its
+                own row (`aria-label={`Select item ${itemId}`}` below). A spacer cell in
+                a header row is a `td`, which is valid HTML and drops out of
+                `empty-table-header`'s selector (`th:not([role]), [role=rowheader],
+                [role=columnheader]`) rather than dodging it with a role.
+              */}
+              {selectable && <td className="w-10 px-2 py-2" />}
               {columns.map((col) => (
                 <th key={col.key} className={cn('px-4 py-2 font-medium', col.className)}>
                   {col.label}

@@ -255,7 +255,7 @@ export function CommandPalette({ open, onOpenChange, currentDocument, onConvertD
               value={search}
               onValueChange={setSearch}
               placeholder="Type a command or search..."
-              className="w-full bg-transparent text-base text-foreground placeholder:text-muted focus:outline-none"
+              className="w-full rounded bg-transparent text-base text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
               autoFocus
             />
           </div>

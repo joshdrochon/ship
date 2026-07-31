@@ -19,17 +19,34 @@ is more useful to the next engineer than a pass that cannot be substantiated.
 | Cat | Target (brief) | Before | After | Met? |
 |---|---|---:|---:|:--:|
 | 1 Type Safety | eliminate 25% of violations (≤ 756) | 1009 | **741** | ✅ −26.6% |
-| 2 Bundle Size | −15% total **or** −20% initial | 2,144,744 B initial | **385,118 B** | ✅ −82.0% |
-| 3 API Response | −20% P95 on ≥ 2 endpoints | see §3 | 2 of 4 endpoints | ✅ −30.4% / −20.1% |
+| 2 Bundle Size | −15% total **or** −20% initial | 2,144,744 B initial | **386,072 B** | ✅ −82.0% |
+| 3 API Response | −20% P95 on ≥ 2 endpoints | see §3 | 2 of 4 endpoints | ✅ −68.9% to −97.1% at 10/25/50 conns |
 | 4 DB Queries | −20% query count on ≥ 1 flow | 50 queries | **37** | ✅ −26.0% |
 | 5 Test Coverage | 3 flaky tests fixed with RCA | 3 flaky (of 3 runs) | **4 fixed** | ✅ |
 | 6 Error Handling | 3 gaps, ≥ 1 data loss | 3 gaps open | **3 fixed** | ✅ |
 | 7 Accessibility | all Critical/Serious on 3 pages | 69 Crit+Serious nodes | **10** | ✅ −85.5% |
 | 8 Terraform | local + Render, pinned | 0 of 9 pinned | **20 of 20** | ✅ |
 
-Baseline for every "before" is the frozen commit `2fbc5a4`, not `main`. Freezing it
-mattered: several lanes ran for hours in parallel worktrees, and a moving baseline would
-have made the pairs incomparable.
+**Where each "before" was actually taken.** All eight lanes branch from the frozen commit
+`2fbc5a4`, not from `main` — `git merge-base` confirms it for each. Freezing mattered:
+several lanes ran for hours in parallel worktrees, and a moving baseline would have made
+the pairs incomparable. But four categories took their before-measurement at a descendant of
+the freeze rather than at the freeze itself, so the per-category answer is:
+
+| Cat | Before measured at | Relation to `2fbc5a4` |
+|---|---|---|
+| 1 | `2fbc5a4` (`docs/audit/raw/phase2-baseline.md`) | the frozen tree — `2fbc5a4` is `24bf639` plus that one file |
+| 2 | `ecc2b15` | `git diff 2fbc5a4..ecc2b15 -- web` is empty |
+| 3 | `767aa2f` | adds `.gitignore`, `known-flakes.txt`, `scripts/measure-lock.sh` — nothing else |
+| 4 | `c398a9c` | adds `.gitignore`, three `docs/audit/` files, `scripts/measure-lock.sh` |
+| 5 | `767aa2f` for the pre-fix specs; baseline flake runs on the frozen tree | as Cat 3 |
+| 6 | the lane's own pre-fix working tree, branched at `2fbc5a4` | no separate before-commit was recorded |
+| 7 | the lane's own pre-fix scan, branched at `2fbc5a4`; source invariants re-checked at `767aa2f` | as Cat 3 |
+| 8 | `2fbc5a4` (`git archive 2fbc5a4 terraform`) | the frozen tree |
+
+`767aa2f` and `c398a9c` are **source-identical** to `2fbc5a4`: `git diff --stat` between
+either and the freeze, restricted to `api web shared e2e`, is empty. They add measurement
+tooling and nothing the measurements measure, so those pairs are valid.
 
 ---
 
@@ -72,7 +89,7 @@ reflects work actually done.
 | **Before** | Initial load **2,144,744 B** (599,789 B gzipped) in a single 2,073,684 B entry chunk. `docs/audit/raw/cat2-before-initial-load.txt` |
 | **Root cause** | `web/vite.config.ts` had no `build` block at all — no `manualChunks`, no lazy boundaries. TipTap, Yjs, USWDS and `emoji-picker-react` all landed in the entry chunk and were downloaded before first paint whether or not the user opened an editor. |
 | **Fix** | Route-level `React.lazy` boundaries plus explicit vendor chunking. Nothing was deleted — Target A explicitly does not count feature removal, and every feature is exercised in the browser verification. |
-| **After** | Initial load **385,118 B** — **−82.0%**, against a −20% bar. Entry chunk −96.8%. Total dist rose 1.0%, which is expected and correct. |
+| **After** | Initial load **386,072 B** — **−82.0%**, against a −20% bar. Entry chunk 2,073,684 → 67,814 B, −96.7%. Total dist rose 1.4%, which is expected and correct. Re-measured on the integrated tree at `c432768`, not carried over from the lane. |
 | **Reproduce** | `docs/audit/scripts/measure-bundle.py` (total) and `measure-initial-load.py` (initial). Before-side committed in `ecc2b15` *prior to any source change*, so the pair reconstructs from git history alone. |
 
 **Why two scripts.** Code splitting does not delete bytes, it moves them off the critical
@@ -87,11 +104,27 @@ drift. Detail: `CHANGES/lane-2.md`.
 
 | | |
 |---|---|
-| **Before** | Paired against pre-Lane-3 code at `767aa2f`: `/api/team/grid` P95 21.41 ms · `/api/auth/me` 16.58 ms · `/api/projects` 14.38 ms · `/api/documents` 23.28 ms |
+| **Before** | Paired against pre-Lane-3 code at `767aa2f`. At **50 simultaneous connections**, the concurrency p.4 specifies: `/api/team/grid` P95 **1275.74 ms** · `/api/auth/me` **899.06 ms**. At the 12 req/s arrival rate the original pair used: `/api/team/grid` 21.41 ms · `/api/auth/me` 16.58 ms · `/api/projects` 14.38 ms · `/api/documents` 23.28 ms |
 | **Root cause** | Documented per endpoint in `CHANGES/lane-3.md`, and the bottleneck was not where the audit first guessed. Response payload size, not SQL, dominates the two endpoints that did not clear the bar — see `docs/audit/raw/cat3-bottleneck-analysis.md`. |
 | **Fix** | Four handler rewrites: `GET /api/documents`, `/api/projects`, `/api/team/grid`, `/api/auth/me`. |
-| **After** | `/api/team/grid` **14.90 ms (−30.4%)** and `/api/auth/me` **13.24 ms (−20.1%)** clear the p.5 bar. `/api/projects` −8.6% and `/api/documents` −2.6% do not. |
-| **Reproduce** | `docs/audit/scripts/bench-api-paired.sh`, raw at `docs/audit/raw/cat3-lane3-paired.json`. ~2160 samples per side per endpoint, 0% failures. |
+| **After** | At the concurrency p.4 specifies — **10 / 25 / 50 simultaneous connections** — `/api/team/grid` is **−68.9% / −86.5% / −91.9%** and `/api/auth/me` is **−83.7% / −94.7% / −97.1%** on P95, 0% failures on both sides in all six cells. At the low fixed arrival rate the original pair used, the same two endpoints read −30.4% and −20.1%. `/api/projects` and `/api/documents` clear the bar at neither. |
+| **Reproduce** | `docs/audit/scripts/bench-api-concurrency.sh` (closed loop, both builds running at the same instant), raw at `docs/audit/raw/cat3-concurrency-claim-endpoints.json`. Corroborated by `bench-api-paired.sh` → `cat3-lane3-paired.json`. |
+
+**Two endpoints, measured three ways, and the weakest reading is the one that was
+published.** The −30.4% / −20.1% figures above come from a 12 req/s arrival rate, where
+about 0.16 requests are in flight — so the VU count is not a variable and the fix barely
+shows. Both defects this category addressed (a query whose result was discarded, three reads
+serialised for no reason) cost almost nothing on an idle server and dominate once requests
+queue. Measuring at the brief's own concurrency shows the improvement is roughly three times
+larger than first reported.
+
+**One committed file said the target was missed, and it was wrong.**
+`docs/audit/raw/cat3-bottleneck-analysis.md` concluded *"best achieved is −10.9% on one"*
+from two sequential runs taken minutes apart on a loaded machine, reasoning that a consistent
+direction across three VU levels ruled out noise. It does not — all three levels of a single
+run share that run's conditions. The file's own data refutes it: the untouched control
+endpoint drifted **+14.5% to +23.4%** in the same direction. That conclusion is now marked
+superseded in the file itself rather than left to be found.
 
 **The measurement method is the substantive part of this category.** The mandated
 sequential `bench-api.sh` pair could not resolve a 20% effect on this machine. Its own
@@ -136,12 +169,15 @@ indexing is thorough (13 indexes including a GIN index on `properties` and a par
 expression index at `api/src/db/schema.sql:358`), and the obvious N+1 is already solved by
 `getBelongsToAssociationsBatch`.
 
-**A measurement caveat, and it cuts against the headline.** The frozen baseline recorded 48
-queries for this flow; the paired before-half measured **50**, because the baseline was
-taken against `ship_dev` and the pair runs against `ship_lane_4`. The before-half was run
-twice and returned 32/50/23/14/16 both times, so the pair is internally consistent — which
-is what Rule 1 asks for. The −26.0% is computed against the 50 that was measured, not the
-48 that would have flattered it.
+**A measurement caveat, and the flattering denominator is the one we used.** The frozen
+baseline recorded 48 queries for this flow; the paired before-half measured **50**, because
+the baseline was taken against `ship_dev` and the pair runs against `ship_lane_4`. The
+before-half was run twice and returned 32/50/23/14/16 both times, so the pair is internally
+consistent, which is what Rule 1 asks for. But note which way the two denominators run:
+50 → 37 is **−26.0%**, 48 → 37 is **−22.9%**. The 50 the headline uses is the *kinder*
+number, not the harsher one, and an earlier draft of this file had that backwards. The
+target clears on either — both are past the 20% bar — so nothing rests on the choice; the
+headline is simply the more generous of two passing figures.
 
 ---
 
@@ -149,10 +185,10 @@ is what Rule 1 asks for. The −26.0% is computed against the 50 that was measur
 
 | | |
 |---|---|
-| **Before** | Flake frequencies across three full `PLAYWRIGHT_WORKERS=4 pnpm test:e2e` runs, recorded at `docs/audit/raw/known-flakes.txt` |
+| **Before** | Three full `PLAYWRIGHT_WORKERS=4 pnpm test:e2e` runs: **864 / 865 / 862 passed, 0 failed, 5 / 4 / 7 flaky** (`docs/audit/raw/e2e-run{1,2,3}-summary.txt`). **12 distinct specs** flaked at least once (`known-flakes.txt`). The three targeted: `my-week-stale-data:63` red **3 of 3** runs, `:28` **2 of 3**, `status-overview-heatmap:69` **2 of 3**. |
 | **Root cause** | **One cause behind all of them, and it is not a race inside any test.** Every flake was a dependency on state another spec file owns — a worker-scoped database, seeded once, shared by every spec on that worker, never reset between tests. Run in isolation with `--repeat-each=3`, the specs passed 39 of 39. |
 | **Fix** | Four tests fixed: `my-week-stale-data:28`, `:63`, `status-overview-heatmap:69`, and `weekly-accountability:78` — the fourth surfaced *by* the first three. |
-| **After** | Evidence at `docs/audit/raw/lane5-flake-fix-evidence.txt`, generated from the Playwright logs by `docs/audit/scripts/lane5-gen-evidence.sh`. |
+| **After** | Post-fix full suite under the lock: **866 passed, 0 failed, 3 flaky**, with all three targets **absent**. Controlled pairs, back-to-back in one lock window: seven-spec **3 failed → 2, 2** (a strict subset); six-spec falsification **3 → 1**; `weekly-accountability:78` red→green with the fix stashed then restored. Final integrated tree: **871 executed, 865 passed, 0 failed, 6 flaky** (`docs/audit/raw/cat5-e2e-integration-final.txt`). Evidence at `docs/audit/raw/lane5-flake-fix-evidence.txt`, generated from the Playwright logs by `docs/audit/scripts/lane5-gen-evidence.sh`. |
 | **Reproduce** | `docs/audit/scripts/lane5-*.sh`; gate at `docs/audit/raw/lane5-verification-gate.txt`. |
 
 **The evidence is not uniform and is labelled that way.** Two of the three have a
@@ -165,6 +201,19 @@ weaker, and it is presented as weaker.
 Also recorded, because it changes how the baseline file should be read: `known-flakes.txt`
 counts are **per test** and therefore **undercount a shared cause**. `heatmap:69` and `:88`
 are siblings; the cause fired 3 of 3 even though neither test shows 3.
+
+**The flake count went from 3 to 6, and that is not claimed as an improvement.** The 3 is
+lane 5's own post-fix full suite; the 6 is the final integrated run. Two readings fit and
+one run on each side cannot separate them: the integrated tree may genuinely be flakier, or
+both figures may sit inside ordinary run-to-run variance — the three baseline runs were 5,
+4 and 7 flaky, so 6 is inside that band and 3 is below it. What can be checked is *which*
+tests they are. **None of the six is one of the four fixed here.** Two are baseline flakes
+already on file at 1 of 3 — `inline-comments:118` and `project-weeks:178`. The other four —
+`accessibility-remediation:145`, `document-workflows:143`, `project-weeks:134`,
+`status-overview-heatmap:201` — are not in `known-flakes.txt`. `:201` is a third sibling of
+the `.first()` locator defect described above: it takes
+`getByRole('button', {name: /Weekly Retro/}).first()` against an allocation another spec
+can destroy, the same shape as `:69` and `:88`. The same disclosure is in `SUBMISSION.md`.
 
 ---
 

@@ -2,8 +2,14 @@
 # Generate committable evidence summaries from the raw Playwright logs.
 # Generated, never transcribed: every number below is extracted from the log it names.
 set -uo pipefail
-D=/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad
-OUT=/Users/joanmiguel/Desktop/Developer/ship-worktrees/ship-lane-5/docs/audit/raw
+# Derived, not hardcoded — see the note in lane5-locked-pair.sh. $D must match the
+# scratch directory the lane-5 run scripts wrote their Playwright logs to.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)"
+if [ ! -d "$REPO/.git" ] && [ ! -f "$REPO/.git" ]; then
+  REPO="$(git rev-parse --show-toplevel)"
+fi
+D="${LANE5_SCRATCH:-${TMPDIR:-/tmp}/ship-lane5}"
+OUT="${LANE5_OUT:-$REPO/docs/audit/raw}"
 mkdir -p "$OUT"
 
 emit() { # $1=log tag, $2=label

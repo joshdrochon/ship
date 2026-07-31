@@ -59,6 +59,47 @@ export interface CAIACallbackResult {
 }
 
 /**
+ * Implementation Rule 7, applied to the identity provider — the second third-party
+ * call in the request path, and the only one a user cannot route around: it is the
+ * login button.
+ *
+ * Before this, none of the three OIDC round trips (discovery, token exchange,
+ * userinfo) carried a timeout of ours. openid-client's own default is 30 s per
+ * request, and `getAuthorizationUrl` and `handleCallback` each call `discoverIssuer()`
+ * afresh, so a single sign-in could sit on the Express handler for over a minute
+ * before failing — with the user staring at a dead browser tab the whole time.
+ *
+ * Failure modes these protect against:
+ *
+ *  - DISCOVERY_TIMEOUT_S — a stalled or half-open connection to the CAIA metadata
+ *    endpoint hanging login indefinitely. A load balancer that accepts the connection
+ *    and never answers is indistinguishable from a slow IdP, and without a deadline
+ *    the request holds an Express handler, a socket and (via authMiddleware) a
+ *    database connection until the client gives up. The value is assigned to the
+ *    resolved Configuration, so it also bounds the token exchange and the userinfo
+ *    fetch that follow.
+ *  - DISCOVERY_ATTEMPTS — a single dropped connection or 5xx from the metadata
+ *    endpoint turning into a failed sign-in. Discovery is an idempotent GET of
+ *    `.well-known/openid-configuration`, so retrying it is safe.
+ *
+ * Deliberately NOT retried: `authorizationCodeGrant`. An authorization code is
+ * single-use, and CAIA will reject the second presentation — a retry there converts a
+ * transient network error into a confusing `invalid_grant` and, if the first attempt
+ * actually succeeded server-side, burns the code. Recorded here rather than left as an
+ * unexplained asymmetry. `fetchUserInfo` is already non-fatal (its failure falls back
+ * to ID-token claims), so a retry would only add latency to a path that survives.
+ *
+ * No circuit breaker: unlike the Bedrock banner, which every plan page load reaches
+ * for, this runs only when a human clicks "Sign in with PIV". A breaker would trade a
+ * bounded 10 s failure for locking every user out of the application for the cooldown.
+ */
+const DISCOVERY_TIMEOUT_S = 10;
+const DISCOVERY_ATTEMPTS = 3;
+const DISCOVERY_RETRY_BASE_MS = 200;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
  * Get redirect URI from environment (auto-derived from APP_BASE_URL)
  * Uses /api/auth/piv/callback to match CAIA client registration
  */
@@ -111,6 +152,46 @@ export async function initializeCAIA(): Promise<void> {
 }
 
 /**
+ * `client.discovery` with a deadline and a bounded retry (Rule 7 — see the constants
+ * above for the failure modes).
+ *
+ * `timeout` is seconds, per openid-client's `DiscoveryRequestOptions`, and is carried
+ * onto the returned `Configuration`, so every later request made through it (token
+ * exchange, userinfo) inherits the same deadline. The fourth argument is the client
+ * authentication method, left at the library default.
+ */
+async function discoverWithRetry(
+  issuerUrl: URL,
+  clientId: string,
+  clientSecret: string,
+  attempts: number = DISCOVERY_ATTEMPTS,
+): Promise<client.Configuration> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await client.discovery(issuerUrl, clientId, clientSecret, undefined, {
+        timeout: DISCOVERY_TIMEOUT_S,
+      });
+    } catch (err) {
+      lastError = err;
+      if (attempt === attempts) break;
+
+      // Exponential backoff. Short, because a human is waiting on a login redirect:
+      // the whole retry budget has to stay well inside a user's patience.
+      const delay = DISCOVERY_RETRY_BASE_MS * 2 ** (attempt - 1);
+      console.warn(
+        `[CAIA] Discovery attempt ${attempt}/${attempts} failed ` +
+        `(${err instanceof Error ? err.message : String(err)}), retrying in ${delay}ms`
+      );
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
+
+/**
  * Discover OIDC issuer and create configuration
  * Fetches credentials fresh from Secrets Manager
  */
@@ -121,7 +202,7 @@ async function discoverIssuer(): Promise<client.Configuration> {
   console.log(`[CAIA]   Client ID: ${creds.client_id}`);
 
   try {
-    const config = await client.discovery(
+    const config = await discoverWithRetry(
       new URL(creds.issuer_url),
       creds.client_id,
       creds.client_secret,
@@ -349,11 +430,12 @@ export async function validateIssuerDiscovery(
   console.log(`[CAIA]   Client Secret: ${clientSecret ? '[REDACTED - ' + clientSecret.length + ' chars]' : '[EMPTY]'}`);
 
   try {
-    const config = await client.discovery(
-      new URL(issuerUrl),
-      clientId,
-      clientSecret,
-    );
+    // Rule 7: same deadline as the login path, but a single attempt. This is an admin
+    // pressing "validate" against a URL they just typed, and the useful answer to a
+    // wrong or unreachable issuer is a fast error, not three retries of it.
+    // Failure mode: an admin's browser hanging on a validate request against an issuer
+    // that accepts connections and never responds.
+    const config = await discoverWithRetry(new URL(issuerUrl), clientId, clientSecret, 1);
 
     const issuer = config.serverMetadata().issuer;
     console.log(`[CAIA] Discovery successful! Issuer: ${issuer}`);

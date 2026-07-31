@@ -3,6 +3,8 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/cn';
 import { Icon } from '@/components/icons/uswds';
+import { SkipLink } from '@/components/SkipLink';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
@@ -34,6 +36,10 @@ export function LoginPage() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [caiaAvailable, setCaiaAvailable] = useState(false);
   const [isCaiaLoading, setIsCaiaLoading] = useState(false);
+
+  // W7-8: /login is outside the app shell, so nothing ever set a title and the page kept
+  // index.html's default "Ship - Project Management & Documentation" (WCAG 2.4.2).
+  usePageTitle('Sign in');
 
   // Subscribe to online/offline status changes using native browser events
   useEffect(() => {
@@ -179,7 +185,15 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-[360px]">
+      <SkipLink />
+      {/*
+        W7-9: /login rendered no landmark at all -- axe reported `landmark-one-main`
+        plus five `region` nodes, which was every piece of content on the page sitting
+        outside any landmark. The whole page is the sign-in task, so the whole card is
+        the main landmark. `id`/`tabIndex` match the app shell's `main` so the skip
+        link above moves focus rather than only scrolling.
+      */}
+      <main id="main-content" tabIndex={-1} className="w-full max-w-[360px] focus:outline-none">
         {/* Logo / Brand */}
         <div className="mb-8 text-center">
           <img
@@ -366,7 +380,7 @@ export function LoginPage() {
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

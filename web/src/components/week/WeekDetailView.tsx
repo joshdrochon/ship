@@ -135,6 +135,7 @@ export function WeekDetailView({
           <button
             onClick={onBack}
             className="text-muted hover:text-foreground transition-colors"
+            aria-label="Back to weeks"
           >
             <svg aria-hidden="true" focusable="false" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />

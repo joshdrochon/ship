@@ -290,9 +290,13 @@ export function ProjectRetro({ projectId }: ProjectRetroProps) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-sm text-foreground flex-1">{criterion}</span>
+                    {/* Destructive and icon-only: announced as a bare "button" with no
+                        name (axe button-name, critical). The criterion is interpolated
+                        so the rows do not all announce identically (W7-12). */}
                     <button
                       onClick={() => handleRemoveCriterion(index)}
                       className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500 transition-all"
+                      aria-label={`Remove success criterion: ${criterion}`}
                     >
                       <svg aria-hidden="true" focusable="false" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

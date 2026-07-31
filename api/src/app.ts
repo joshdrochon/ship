@@ -46,6 +46,21 @@ if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
 
 const sessionSecret = process.env.SESSION_SECRET || 'dev-only-secret-do-not-use-in-production';
 
+// The git commit this build came from. Set by the Dockerfile (`ARG GIT_SHA` →
+// `ENV GIT_SHA`), which CI passes as a --build-arg; see docs/artifact-lifecycle.md.
+//
+// Read once at module load, not per request: it cannot change while the process
+// is alive, and a health check that Render polls every few seconds should not do
+// work it does not have to.
+//
+// Falls back to 'unknown' rather than throwing or omitting the field. A missing
+// key would make every consumer write `body.revision ?? '...'`; an explicit
+// 'unknown' means "this build did not record a commit", which is the true and
+// useful answer for `pnpm dev`, `docker build` with no --build-arg, and any
+// artifact that did not come through CI. That last case is the point: a
+// production /health reporting 'unknown' is itself the Rule 5 violation showing.
+const revision = process.env.GIT_SHA || 'unknown';
+
 // CSRF protection setup
 const { csrfSynchronisedProtection, generateToken } = csrfSync({
   getTokenFromRequest: (req) => req.headers['x-csrf-token'] as string,
@@ -175,9 +190,19 @@ export function createApp(corsOrigin: string = 'http://localhost:5173'): express
     res.json({ token: generateToken(req) });
   });
 
-  // Health check (no CSRF needed)
+  // Health check (no CSRF needed).
+  //
+  // Two jobs, not one. Render polls it as the deploy gate
+  // (health_check_path in terraform/render/main.tf), and it is the only way to
+  // ask a *running* deployment which commit it is serving:
+  //
+  //   curl -s https://<host>/health   → {"status":"ok","revision":"<sha>"}
+  //
+  // Unauthenticated, deliberately, because it has to be reachable by Render's
+  // prober before any session exists. The SHA is not a secret — the repository
+  // it names is what controls access to the source.
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
+    res.json({ status: 'ok', revision });
   });
 
   // API documentation (no auth needed)

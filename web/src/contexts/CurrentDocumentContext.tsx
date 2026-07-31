@@ -6,7 +6,21 @@ interface CurrentDocumentContextValue {
   currentDocumentType: DocumentType;
   currentDocumentId: string | null;
   currentDocumentProjectId: string | null;
-  setCurrentDocument: (id: string | null, type: DocumentType, projectId?: string | null) => void;
+  /**
+   * Title of the open document, so the app shell can put it in `document.title`.
+   *
+   * The shell derives every other page title from the path, but every document editor
+   * is `/documents/:id` -- the path cannot tell a project from a wiki, let alone name
+   * it, which is why all five of them announced "Ship | Ship" (W7-8). The page holding
+   * the fetched document is the only place that knows, so it reports it up here.
+   */
+  currentDocumentTitle: string | null;
+  setCurrentDocument: (
+    id: string | null,
+    type: DocumentType,
+    projectId?: string | null,
+    title?: string | null
+  ) => void;
   clearCurrentDocument: () => void;
 }
 
@@ -16,17 +30,25 @@ export function CurrentDocumentProvider({ children }: { children: ReactNode }) {
   const [currentDocumentId, setCurrentDocumentId] = useState<string | null>(null);
   const [currentDocumentType, setCurrentDocumentType] = useState<DocumentType>(null);
   const [currentDocumentProjectId, setCurrentDocumentProjectId] = useState<string | null>(null);
+  const [currentDocumentTitle, setCurrentDocumentTitle] = useState<string | null>(null);
 
-  const setCurrentDocument = useCallback((id: string | null, type: DocumentType, projectId?: string | null) => {
+  const setCurrentDocument = useCallback((
+    id: string | null,
+    type: DocumentType,
+    projectId?: string | null,
+    title?: string | null
+  ) => {
     setCurrentDocumentId(id);
     setCurrentDocumentType(type);
     setCurrentDocumentProjectId(projectId ?? null);
+    setCurrentDocumentTitle(title ?? null);
   }, []);
 
   const clearCurrentDocument = useCallback(() => {
     setCurrentDocumentId(null);
     setCurrentDocumentType(null);
     setCurrentDocumentProjectId(null);
+    setCurrentDocumentTitle(null);
   }, []);
 
   return (
@@ -35,6 +57,7 @@ export function CurrentDocumentProvider({ children }: { children: ReactNode }) {
         currentDocumentType,
         currentDocumentId,
         currentDocumentProjectId,
+        currentDocumentTitle,
         setCurrentDocument,
         clearCurrentDocument,
       }}

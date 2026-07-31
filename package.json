@@ -61,8 +61,8 @@
   },
   "pnpm": {
     "overrides": {
-      "fast-xml-parser": ">=5.3.5",
-      "protobufjs": ">=7.5.5",
+      "fast-xml-parser": "5.10.1",
+      "protobufjs": "8.7.1",
       "vitest": "4.1.10"
     }
   }

@@ -13,8 +13,8 @@
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License"></a>
   <a href="https://github.com/US-Department-of-the-Treasury/ship/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome"></a>
-  <img src="https://img.shields.io/badge/Section_508-Compliant-blue.svg" alt="Section 508 Compliant">
-  <img src="https://img.shields.io/badge/WCAG_2.1-AA-blue.svg" alt="WCAG 2.1 AA">
+  <img src="https://img.shields.io/badge/Section_508-target-lightgrey.svg" alt="Section 508 — target, not a certification">
+  <img src="https://img.shields.io/badge/WCAG_2.1_AA-target-lightgrey.svg" alt="WCAG 2.1 AA — target, not a certification">
 </p>
 
 ---
@@ -174,7 +174,17 @@ Log in with the demo account:
 | API server | http://localhost:3000 | Backend services |
 | Swagger UI | http://localhost:3000/api/docs | Interactive API documentation |
 | OpenAPI spec | http://localhost:3000/api/openapi.json | OpenAPI 3.0 specification |
-| PostgreSQL | localhost:5432 | Database (via Docker) |
+| PostgreSQL | localhost:5433 (`./start.sh`) · localhost:5432 (`docker compose up -d`) | Database (via Docker) |
+| Mock Bedrock | http://localhost:4599 | `./start.sh` only — canned AI analysis responses, skipped with `--no-mocks` |
+
+The two paths deliberately use different ports so they can run side by side.
+`./start.sh` brings up `docker-compose.local.yml`, which maps Postgres to **5433**. The
+host path in the section above uses `docker-compose.yml`, which maps it to **5432** — the
+port `api/.env.example` points at.
+
+`./start.sh` always binds 3000 and 5173. `pnpm dev` does not: `scripts/dev.sh` scans for
+the first free ports from 3000 and 5173 upward so multiple worktrees can run at once, and
+prints the pair it picked. Check that output rather than assuming 3000/5173.
 
 ### Common Commands
 
@@ -184,7 +194,8 @@ pnpm dev:web      # Start just the web app
 pnpm dev:api      # Start just the API
 pnpm db:seed      # Reset database with sample data
 pnpm db:migrate   # Run database migrations
-pnpm test         # Run tests
+pnpm test         # Run API unit tests (vitest)
+pnpm test:e2e     # Run the Playwright end-to-end suite
 ```
 
 ---
@@ -214,7 +225,7 @@ Ship is a monorepo with three packages:
 - **Everything is a document** — Single `documents` table with a `document_type` field
 - **Server is truth** — Offline-tolerant, syncs when reconnected
 - **Boring technology** — Well-understood tools over cutting-edge experiments
-- **E2E testing** — 73+ Playwright tests covering real user flows
+- **E2E testing** — ~870 Playwright tests covering real user flows
 
 See [docs/application-architecture.md](docs/application-architecture.md) for more.
 
@@ -246,17 +257,29 @@ ship/
 ## Testing
 
 ```bash
-# Run all E2E tests
+# Run the API unit tests (vitest)
 pnpm test
 
-# Run tests with UI
-pnpm test:ui
+# Run every package's unit tests (api + web)
+pnpm test:all
 
-# Run specific test file
-pnpm test e2e/documents.spec.ts
+# Run all E2E tests
+pnpm test:e2e
+
+# Run E2E tests in the Playwright UI
+pnpm test:e2e:ui
+
+# Run a specific E2E test file
+pnpm test:e2e e2e/documents.spec.ts
 ```
 
-Ship uses Playwright for end-to-end testing with 73+ tests covering all major functionality.
+Ship uses Playwright for end-to-end testing. The suite is 72 spec files in `e2e/`; the
+last recorded full run executed **871 tests** — see
+`docs/audit/raw/cat5-e2e-integration-final.txt`. `pnpm test` is unit tests only; it does
+not run E2E.
+
+`pnpm test` truncates whatever database `DATABASE_URL` points at. Re-run `pnpm db:seed`
+afterwards if you were using that database for development.
 
 ---
 
@@ -264,29 +287,46 @@ Ship uses Playwright for end-to-end testing with 73+ tests covering all major fu
 
 Ship supports multiple deployment patterns:
 
-| Environment | Recommended Approach |
-|-------------|---------------------|
-| **Development** | Local with Docker Compose |
-| **Staging** | AWS Elastic Beanstalk |
-| **Production** | AWS GovCloud with Terraform |
+| Environment | Approach | Terraform stack |
+|-------------|----------|-----------------|
+| **Local** | Docker Compose via `./start.sh` | — |
+| **Dev** | AWS Elastic Beanstalk + S3/CloudFront | `terraform/environments/dev` |
+| **Shadow (UAT)** | AWS Elastic Beanstalk + S3/CloudFront | `terraform/environments/shadow` |
+| **Production** | AWS Elastic Beanstalk + S3/CloudFront, `us-east-1` commercial | `terraform/environments/prod` |
+
+The AWS environments are Terraform-managed under `terraform/`; a Render stack also exists
+at `terraform/render/`. Deploys run through `./scripts/deploy.sh <env>` (API) and
+`./scripts/deploy-frontend.sh <env>` (web). See [DEPLOYMENT.md](./DEPLOYMENT.md) for the
+full procedure.
 
 ### Docker
 
-```bash
-# Build production images
-docker build -t ship-api ./api
-docker build -t ship-web ./web
+The Dockerfiles live at the repo root, not inside `api/` and `web/`, because both images
+build from the workspace root so they can resolve `shared/`.
 
-# Run with Docker Compose
-docker-compose -f docker-compose.prod.yml up
+```bash
+# Build the production API image (multi-stage, builds from source)
+docker build -f Dockerfile -t ship-api .
+
+# Build the web dev-server image
+docker build -f Dockerfile.web -t ship-web .
+
+# Run the full local stack (postgres + api + web) with Docker Compose
+pnpm docker:up          # docker compose -f docker-compose.local.yml up --build
+pnpm docker:down        # stop
+pnpm docker:clean       # stop and drop the data volume
 ```
+
+`docker-compose.local.yml` uses `Dockerfile.dev` for the API. `Dockerfile` is the
+production image, which is what the Elastic Beanstalk and Render deploys build.
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | Required |
-| `SESSION_SECRET` | Cookie signing secret | Required |
+| `DATABASE_URL` | PostgreSQL connection string | Required (in production, loaded from SSM if unset) |
+| `SESSION_SECRET` | Cookie signing secret | Required in production; dev falls back to an insecure default |
+| `CORS_ORIGIN` | Allowed frontend origin | `http://localhost:5173` |
 | `PORT` | API server port | `3000` |
 
 ---
@@ -294,9 +334,17 @@ docker-compose -f docker-compose.prod.yml up
 ## Security
 
 - **No external telemetry** — No Sentry, PostHog, or third-party analytics
-- **No external CDN** — All assets served from your infrastructure
 - **Session timeout** — 15-minute idle timeout (government standard)
 - **Audit logging** — Track all document operations
+
+**One external request, and it is not optional today.** All application code, styles, and
+images are served from your own infrastructure — there is no CDN-hosted JavaScript and no
+runtime dependency on a third party. The exception is web fonts: `web/index.html` loads
+Inter from `fonts.googleapis.com` (with a `preconnect` to `fonts.gstatic.com`), so every
+page load reaches out to Google. In a closed or air-gapped network the request simply
+fails and the browser falls back to the system font stack declared in
+`web/src/index.css`, but the request is still attempted. Remove the three font `<link>`
+tags in `web/index.html` if that is unacceptable in your environment.
 
 > **Reporting Vulnerabilities:** See [SECURITY.md](./SECURITY.md) for our vulnerability disclosure policy.
 
@@ -304,12 +352,23 @@ docker-compose -f docker-compose.prod.yml up
 
 ## Accessibility
 
-Ship is Section 508 compliant and meets WCAG 2.1 AA standards:
+Ship targets Section 508 and WCAG 2.1 AA. The last full scan
+(`docs/audit/scripts/measure-a11y.py`, 17 pages, axe-core + Lighthouse + Tab traversal)
+measured:
 
-- All color contrasts meet 4.5:1 minimum
-- Full keyboard navigation
-- Screen reader support
-- Visible focus indicators
+- **10 outstanding critical/serious axe nodes** under the WCAG 2.1 AA + Section 508 tag
+  set — 9 `color-contrast` on `/my-week` (worst 2.09:1 against the 4.5:1 threshold) and
+  1 `aria-allowed-attr` on the weekly plan document
+- **Lighthouse accessibility 100 on 15 of 17 pages**, 98 on `/login`, 96 on `/my-week`
+- **Keyboard navigation** — every page exposes a skip link and a `main` landmark, but
+  Tab traversal still leaves some elements unreachable on the docs home, projects list,
+  and document editors
+- **Visible focus indicators** throughout
+
+Raw results are in `docs/audit/raw/cat7-phase2-after.txt`; the full analysis is in
+[docs/audit/audit-report.md](./docs/audit/audit-report.md) under Category 7. The
+conformance claim is not yet clean — treat the badges above as the target, not a
+certification.
 
 ---
 

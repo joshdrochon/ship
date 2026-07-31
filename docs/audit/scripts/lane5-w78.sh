@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -uo pipefail
-D=/private/tmp/claude-501/-Users-joanmiguel-Desktop-Developer-ship/2eeea81e-b929-4df6-ae12-c71fbf14b33b/scratchpad
-cd /Users/joanmiguel/Desktop/Developer/ship-worktrees/ship-lane-5
+# Derived, not hardcoded — see the note in lane5-locked-pair.sh. Logs go to
+# $LANE5_SCRATCH (default $TMPDIR/ship-lane5), where lane5-gen-evidence.sh reads them.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." 2>/dev/null && pwd)"
+if [ ! -d "$REPO/.git" ] && [ ! -f "$REPO/.git" ]; then
+  REPO="$(git rev-parse --show-toplevel)"
+fi
+D="${LANE5_SCRATCH:-${TMPDIR:-/tmp}/ship-lane5}"
+mkdir -p "$D"
+cd "$REPO"
 run() {
   echo "===== $1 $(date +%T) ====="
   PLAYWRIGHT_WORKERS=1 npx playwright test \

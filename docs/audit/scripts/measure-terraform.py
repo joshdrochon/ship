@@ -285,6 +285,12 @@ def satisfies_tilde(version: str, constraint: str) -> bool | None:
 
 
 def git_tracked(paths):
+    # `git ls-files --` with an EMPTY pathspec lists the entire index, not nothing. The
+    # check below asks "which of these saved plan files are committed?" -- so when no plan
+    # files exist, the empty-pathspec call returned all 897 tracked files in the repo and
+    # the check reported every one of them as a committed plan file. Guard the empty case.
+    if not paths:
+        return set()
     try:
         res = subprocess.run(
             ["git", "ls-files", "--"] + [str(p) for p in paths],

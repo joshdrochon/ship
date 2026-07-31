@@ -93,7 +93,7 @@ export function PersonCombobox({
                 value={search}
                 onValueChange={setSearch}
                 placeholder="Search people..."
-                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none"
+                className="w-full rounded bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
 

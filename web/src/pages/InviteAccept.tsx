@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 type InviteStatus = 'loading' | 'valid' | 'invalid' | 'expired' | 'accepted' | 'already_member' | 'error';
 
@@ -24,6 +25,9 @@ export function InviteAcceptPage() {
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+
+  // W7-8: rendered outside the app shell, so nothing ever set a title (WCAG 2.4.2).
+  usePageTitle(inviteInfo ? `Join ${inviteInfo.workspaceName}` : 'Workspace invite');
 
   useEffect(() => {
     if (!token) {

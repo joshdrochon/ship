@@ -231,27 +231,99 @@ license-inventory:
 # ---------------------------------------------------------------------------
 
 # Rule 5: one image, tagged with the commit SHA, promoted between environments rather
-# than rebuilt per environment. It consumes the compiled output from `build` — it does
-# not compile again.
+# than rebuilt per environment.
+#
+# This job VERIFIES the artifact. It does not publish it. .github/workflows/ci.yml
+# does that, to ghcr.io, and terraform/render deploys the tag it pushes. The split is
+# not a preference — this GitLab instance does not run a container registry:
+#
+#   $ curl 'https://labs.gauntletai.com/jwt/auth?service=container_registry'
+#     {"errors":[{"code":"UNAVAILABLE","message":"registry not enabled"}]}   HTTP 404
+#
+#   GET /api/v4/projects/1609            → container_registry_image_prefix: null
+#   GET /api/v4/projects/1609/registry/repositories → []
+#
+# `container_registry_access_level` reads `enabled` on the project, which is misleading:
+# the project setting is on, the instance service is not deployed. So $CI_REGISTRY_IMAGE
+# expands to the empty string here, and the previous version of this job ran
+#
+#   docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" ...
+#     ERROR: invalid tag ":c43276832cabea468f88aaf511ccf816ed676965": invalid reference format
+#
+# which failed every main pipeline for five consecutive commits, up to and including
+# HEAD c432768 — the other eight jobs were green, and this job only runs on main, so
+# every lane and integration branch looked clean while the default branch was red.
+# No credential fixes that; there is nothing to authenticate to.
+#
+# What this job does instead is the part that has value without a registry: build the
+# real image from this commit and prove the commit SHA is inside it. The tag is local
+# and always well-formed, so it cannot reproduce the failure above. Pushing to ghcr.io
+# from here was considered and rejected — it would need a long-lived GitHub PAT stored
+# as a masked CI variable, where GitHub Actions gets a scoped, job-lifetime token for
+# free.
 docker-image:
   stage: package
   needs: ['build', 'lint', 'type-check', 'test']
   image: docker:27
   services:
     - docker:27-dind
+  variables:
+    # Local-only tag. Never pushed, so the name just has to be a valid reference.
+    IMAGE: 'ship:$CI_COMMIT_SHA'
   before_script:
     - docker info
   script:
-    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" -t "$CI_REGISTRY_IMAGE:latest" .
-    - echo "Built $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+    - docker build --build-arg "GIT_SHA=$CI_COMMIT_SHA" -t "$IMAGE" .
+    - echo "Built $IMAGE"
+
+    # Provenance gate — the check that would have caught finding F26. It asserts the
+    # SHA reached the image metadata and the runtime environment, rather than trusting
+    # that the --build-arg above was wired up correctly.
     - |
-      if [ -n "$CI_REGISTRY_USER" ]; then
-        echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
-        docker push "$CI_REGISTRY_IMAGE:latest"
-      else
-        echo "No registry credentials set — image built and verified, not pushed."
-      fi
+      set -eu
+      label=$(docker inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE")
+      echo "label org.opencontainers.image.revision = $label"
+      test "$label" = "$CI_COMMIT_SHA" || { echo "expected $CI_COMMIT_SHA"; exit 1; }
+    - |
+      set -eu
+      env_sha=$(docker inspect --format '{{ range .Config.Env }}{{ println . }}{{ end }}' "$IMAGE" | sed -n 's/^GIT_SHA=//p')
+      echo "runtime env GIT_SHA = $env_sha"
+      test "$env_sha" = "$CI_COMMIT_SHA" || { echo "expected $CI_COMMIT_SHA"; exit 1; }
+
+    # And that it reaches the wire. The image's default CMD runs migrate and seed
+    # against a database that does not exist in this job, so start the server directly:
+    # api/src/app.ts answers /health before it issues any query, so no database is
+    # needed. Both env vars are throwaway values that only satisfy boot-time checks.
+    #
+    # The request is made with `docker exec` from inside the container rather than by
+    # publishing a port. Two reasons, and the first is a correctness bug this avoids:
+    # under docker-in-docker the daemon is a separate service container, so a published
+    # port lands on *that* host and `localhost:8080` from this job reaches nothing.
+    # Second, the runtime image is node:20-slim, which ships neither curl nor wget —
+    # but it does ship node, and node 20 has a global fetch.
+    - |
+      set -eu
+      docker run -d --name ship-provenance \
+        -e SESSION_SECRET=ci-only-not-a-real-secret \
+        -e DATABASE_URL=postgres://unused:unused@127.0.0.1:5432/unused \
+        "$IMAGE" node dist/index.js
+
+      health=""
+      i=0
+      while [ $i -lt 30 ]; do
+        if health=$(docker exec ship-provenance node -e \
+             "fetch('http://127.0.0.1:80/health').then(r=>r.text()).then(t=>process.stdout.write(t))" 2>/dev/null); then
+          break
+        fi
+        i=$((i + 1)); sleep 2
+      done
+
+      docker logs ship-provenance || true
+      echo "GET /health -> $health"
+      echo "$health" | grep -q "\"revision\":\"$CI_COMMIT_SHA\"" \
+        || { echo "expected revision $CI_COMMIT_SHA"; exit 1; }
+      docker rm -f ship-provenance
+    - echo "Provenance verified. Published by .github/workflows/ci.yml as ghcr.io/joshdrochon/ship:$CI_COMMIT_SHA"
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'

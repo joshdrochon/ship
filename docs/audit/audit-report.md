@@ -34,6 +34,19 @@ Every completed category has a single-command measurement script, so Phase 2's b
 runs under identical conditions as Implementation Rule 1 requires (p.9). Numbers quoted in
 prose that a script later contradicted have been superseded and the discrepancy recorded.
 
+### Why eight and not seven
+
+The brief contradicts itself on the count. Pages 3–8 define and specify **eight** numbered
+categories, and p.8's Phase 2 instruction says *"improve all 8."* The submission gate on
+p.11 says *"all 7 categories."* Nothing in the brief reconciles the two.
+
+This report covers all eight. The reasoning is one-way: covering eight satisfies a
+seven-category gate, while covering seven would leave a category that p.8 explicitly
+requires unmeasured, and there is no way to tell from the brief which of the eight p.11
+means to drop. The inconsistency is preserved verbatim in
+[`implementation-rules.md`](./implementation-rules.md) rather than silently normalised, so
+a reader can check the brief against it.
+
 ---
 
 ## Measurement prerequisite — seed volume
@@ -258,28 +271,91 @@ rather than unmeasured.
 ### Top 5 violation-dense files
 
 The brief asks for the most violation-*dense* files, which is a per-line measure, not a raw
-count — so both readings are given. Files under 200 LOC are excluded from density (a 20-line
-file with 3 casts scores 15/100 and means nothing).
+count. Three filters apply, and all three are stated here because each one changes the answer:
+
+1. **Density is violations per 100 LOC**, not a raw count.
+2. **Files under 200 LOC are excluded.** A 20-line file with 3 casts scores 15/100 and means
+   nothing. 93 of the 144 files carrying a violation clear 200 LOC.
+3. **A second ranking excludes test files** — any path containing `__tests__`, `.test.` or
+   `.spec.`. Same definition as the 803/206 production/test split above.
+
+> **Correction — this table used to be filtered without saying so.** An earlier revision of
+> this report printed only the production-only ranking, labelled as the top 5 densest files.
+> Three of the five genuinely densest files in the codebase are test files and had been
+> removed with no indication to the reader. Both rankings are now given. Raw data and full
+> per-file ranking: [`raw/cat1-density-ranking-unfiltered.txt`](raw/cat1-density-ranking-unfiltered.txt).
+
+**By density, no filter** — every file, tests included. This is the literal answer to the brief:
+
+| # | File | Violations | LOC | per 100 | Kind | Composition |
+|---|---|---:|---:|---:|---|---|
+| 1 | `api/src/services/accountability.test.ts` | 34 | 366 | **9.3** | test | 32 `any`, 2 `as` |
+| 2 | `api/src/__tests__/auth.test.ts` | 33 | 378 | **8.7** | test | 24 `any`, 9 `as` |
+| 3 | `web/src/components/document-tabs/ProjectDetailsTab.tsx` | 19 | 247 | **7.7** | prod | 19 `as` |
+| 4 | `api/src/__tests__/transformIssueLinks.test.ts` | 37 | 560 | **6.6** | test | 37 `any` |
+| 5 | `api/src/utils/yjsConverter.ts` | 16 | 245 | **6.5** | prod | 14 `any`, 2 `as` |
 
 **By density, production code only** — the ranking that should drive Phase 2:
 
-| File | Violations | LOC | per 100 | Composition |
+| # | File | Violations | LOC | per 100 | Composition |
+|---|---|---:|---:|---:|---|
+| 1 | `web/src/components/document-tabs/ProjectDetailsTab.tsx` | 19 | 247 | **7.7** | 19 `as` |
+| 2 | `api/src/utils/yjsConverter.ts` | 16 | 245 | **6.5** | 14 `any`, 2 `as` |
+| 3 | `web/src/pages/UnifiedDocumentPage.tsx` | 32 | 532 | **6.0** | 31 `as`, 1 `!` |
+| 4 | `web/src/components/UnifiedEditor.tsx` | 26 | 502 | **5.2** | 26 `as` |
+| 5 | `api/src/utils/extractHypothesis.ts` | 12 | 306 | **3.9** | 4 `as`, 8 `!` |
+
+**Which filter produced which, and why the difference matters.** The unfiltered ranking is
+what the counter emits with no post-processing. The production-only ranking is that list with
+test files dropped. The gap between them is not cosmetic: the two densest files in the whole
+repo are tests, and both are denser than anything in production. Read only the filtered table
+and you would conclude the reverse.
+
+Dropping tests is still the right call for *prioritisation*, and the reason is specific rather
+than a general preference for production code. A test's `any` is usually a fixture or a mock,
+standing in for an object the test does not exercise. `accountability.test.ts`, the densest
+file in the repo, makes the point exactly: **32 of its 34 hits are `{ rows: [] } as any`** on a
+`pool.query` mock — a stub for a `QueryResult` whose other fields no assertion touches. Writing
+those out in full would add noise, not safety. Production code has no such excuse: there, each
+`any` or `as` is a claim about real runtime data that the compiler has been told not to check.
+
+The remaining **2 hits in that file are counter false positives** — the `as` pattern matching
+English inside test names, `it('handles workspace start date as Date object')` and
+`it('handles workspace start date as string')`. Its true count is 32, not 34. The counter skips
+comments but not string literals, and prose reading "… as Date …" is far likelier in a test name
+than in production code, so this error mode is concentrated in exactly the files the production
+filter removes. That is a second, independent reason test density is a weak signal — and a third
+reason the filter needed to be visible, since it was quietly suppressing the counter's own noise.
+
+So test density is a weak signal and production density is a strong one. That is an argument for
+labelling the filter, not for hiding it.
+
+**What `extractHypothesis.ts` is, and why it appears at all.** `api/src/utils/extractHypothesis.ts`
+parses stored TipTap document JSON and pulls out the text under a named H2 heading —
+`extractHypothesisFromContent` and its Success Criteria / Vision / Goals siblings. The
+collaboration server calls it on save (`api/src/collaboration/index.ts:122`) to denormalise
+those sections into document properties. Its 12 violations are 4 × `content as TipTapDoc` (one
+per extractor, asserting a shape onto arbitrary stored JSON) and 8 × `nodes[i]!` from
+hand-rolled index scans.
+
+Those 8 `!` exist *because* `api/` inherits `noUncheckedIndexedAccess` from the root tsconfig:
+under that flag `nodes[i]` is `TipTapNode | undefined`, and the assertions are how the original
+author silenced it. That is the same flag W1-4 shows `web/` is missing — so this file is a
+direct illustration of what the flag costs when it is on, and of what `web/` is not paying.
+
+It ranks 5th in the production-only list but **11th of 93 unfiltered**. It is in the visible
+table only because the undisclosed filter lifted it there, which is exactly why the filter
+needed disclosing.
+
+**By absolute count, no filter** (all files, any LOC):
+
+| File | Violations | LOC | per 100 | Kind |
 |---|---:|---:|---:|---|
-| `web/src/components/document-tabs/ProjectDetailsTab.tsx` | 19 | 247 | **7.7** | 19 `as` |
-| `api/src/utils/yjsConverter.ts` | 16 | 245 | **6.5** | 14 `any`, 2 `as` |
-| `web/src/pages/UnifiedDocumentPage.tsx` | 32 | 532 | **6.0** | 31 `as`, 1 `!` |
-| `web/src/components/UnifiedEditor.tsx` | 26 | 498 | **5.2** | 26 `as` |
-| `api/src/utils/extractHypothesis.ts` | 12 | 306 | **3.9** | 4 `as`, 8 `!` |
-
-**By absolute count** (all files, including tests):
-
-| File | Violations | LOC | per 100 |
-|---|---:|---:|---:|
-| `api/src/routes/weeks.ts` | 83 | 3156 | 2.6 |
-| `api/src/routes/projects.ts` | 49 | 1735 | 2.8 |
-| `api/src/routes/issues.ts` | 44 | 1642 | 2.7 |
-| `api/src/__tests__/transformIssueLinks.test.ts` | 37 | 560 | 6.6 |
-| `api/src/services/accountability.test.ts` | 34 | 366 | 9.3 |
+| `api/src/routes/weeks.ts` | 83 | 3156 | 2.6 | prod |
+| `api/src/routes/projects.ts` | 49 | 1735 | 2.8 | prod |
+| `api/src/routes/issues.ts` | 44 | 1642 | 2.7 | prod |
+| `api/src/__tests__/transformIssueLinks.test.ts` | 37 | 560 | 6.6 | test |
+| `api/src/services/accountability.test.ts` | 34 | 366 | 9.3 | test |
 
 ### Why these are problematic
 
@@ -358,15 +434,35 @@ path for all user content. A malformed conversion writes malformed JSON to `cont
 compile-time or runtime guard. TipTap publishes node type definitions; nothing here uses
 them. **Severity: high** — low violation count, high blast radius.
 
-**W1-4 · The frontend runs under weaker guarantees than the backend, silently.**
-`web/tsconfig.json` has no `extends`. It redeclares compiler options from scratch and drops
-three the root config sets: `noUncheckedIndexedAccess`, `noImplicitReturns`, and
+**W1-4 · The frontend runs under weaker guarantees than the backend, silently — and it hides
+102 errors.** `web/tsconfig.json` has no `extends`. It redeclares compiler options from scratch
+and drops three the root config sets: `noUncheckedIndexedAccess`, `noImplicitReturns`, and
 `noFallthroughCasesInSwitch` (F4). `api/` and `shared/` inherit correctly.
 
-Nothing warns about this. It is invisible unless you diff the four tsconfigs, and it means
-`web/`'s clean type-check result is a weaker claim than `api/`'s. **Severity: medium** —
-turning the flags on will surface new errors, so it is a cost to pay rather than a free win,
-but the asymmetry should be a deliberate choice rather than an accident of copy-paste.
+**Measured, not estimated.** A temporary config outside the repo extends `web/tsconfig.json`
+and adds only those three flags; `tsc --noEmit` then reports **102 errors** at this baseline.
+The same config with the flags removed reports **0**, so all 102 are attributable to the flags
+and nothing else. `web/tsconfig.json` was not modified to obtain this. Method and full raw
+output: [`raw/cat1-w1-4-web-strict-flags.txt`](raw/cat1-w1-4-web-strict-flags.txt).
+
+| Flag | Errors | Codes |
+|---|---:|---|
+| `noUncheckedIndexedAccess` | **94** | TS2532 (41), TS18048 (29), TS2322 (12), TS2345 (11), TS18047 (1) |
+| `noImplicitReturns` | **8** | TS7030 |
+| `noFallthroughCasesInSwitch` | **0** | — |
+
+95 of the 102 are in production files, 7 in tests. Five files hold 61 of them. The third flag
+finds nothing at all, so it is free to enable.
+
+These 102 are invisible to the 1,009 headline count: that counter greps source text for
+`any`/`as`/`!`/`@ts`, while these are errors no committed config ever asks the compiler for.
+Nothing warns about the gap — it is undetectable unless you diff the four tsconfigs — and it
+means `web/`'s clean type-check result is a weaker claim than `api/`'s. `pnpm type-check`
+passing tells you nothing about this surface.
+
+**Severity: medium.** Turning the flags on surfaces 102 real errors, so it is a cost to pay
+rather than a free win, but the asymmetry should be a deliberate choice rather than an accident
+of copy-paste. Phase 2's after-measurement of this number is in `CHANGES/lane-1.md`.
 
 **W1-5 · `api/`'s 232 `any` are mostly one library decision.** The codebase uses raw `pg`
 with no ORM, and `pg` returns `QueryResult<any>`. That is a deliberate, documented choice
@@ -1219,6 +1315,60 @@ This is invisible to the automated scores: `/issues` scores **100** in Lighthous
 enough of them exist to be useful. **Severity: medium** — no violation is technically
 occurring, but the page is impractical to navigate non-visually, which is the actual claim
 Section 508 and WCAG 2.1 AA make.
+
+#### Found after this category was closed — and why they were missed
+
+W7-14, W7-15 and W7-16 were **not in this audit**. They were found while fixing W7-8 and
+W7-9, by scanning the source of the whole frontend rather than a page list.
+
+**Why they were missed, plainly: this category scoped both its scan and its fixes to three
+named pages.** p.7's improvement target is *"all Critical/Serious violations on the 3 most
+important pages"*, and the measurement was built to match it — 17 URLs enumerated by hand,
+fixes applied where the scan reported nodes. Every finding below is the **same defect class
+as one already recorded here**, from the same components, on pages the enumeration did not
+include. A page-scoped scan cannot see a component-scoped defect, and nothing in the
+"How it was measured" section above said so. That is the methodological finding; the three
+below are its evidence.
+
+**W7-14 · Six more unlabeled `<select>`s, including one set on the page that grants
+workspace admin.** W7-4 verbatim, on pages this audit never scanned:
+`AdminWorkspaceDetail.tsx` renders **one unnamed `<select>` per workspace member** for the
+role control, plus an add-user role and an invite role select; `WorkspaceSettings.tsx` has
+two more (invite role, API-token expiry) beyond the member-role control W7-4 named; and
+`MergeProgramDialog.tsx` has one in a destructive dialog. Five of the six sit beside a
+visible `<label>` that is never associated — the same "the design system draws labels
+without connecting them" shape W7-4 identifies. With an empty accessible name a screen
+reader announces the control's *value*, so every row said "Member" and none said whose
+permissions were about to change.
+**Severity: Critical** (axe `select-name`) / **high** — `AdminWorkspaceDetail` is the
+super-admin path to granting workspace admin, and it was never on the scan list.
+
+**W7-15 · Eight more unnamed icon-only buttons, two of them destructive.** `button-name`,
+critical. A button whose entire content is an `<svg>` has no text node to fall back on, so
+its accessible name is empty and it announces as a bare "button". The two destructive ones
+are `MultiPersonCombobox.tsx` (removes a person from an assignment) and `ProjectRetro.tsx`
+(removes a success criterion); the rest are back, clear-filter and dismiss controls in
+`AdminWorkspaceDetail.tsx`, `WeekDetailView.tsx`, `TeamMode.tsx` and `OrgChartPage.tsx`.
+This audit recorded exactly one instance of this defect (`AdminDashboard.tsx:121`, in the
+W7-9/target discussion) because `/admin` happened to be on the page list.
+
+One of the eight is **correctly left unnamed** and is recorded here so it is not "fixed"
+later by mistake: `OrgChartPage`'s expand/collapse chevron already carries
+`aria-hidden="true"` and `tabIndex={-1}` inside a `role="treeitem"` that declares its own
+`aria-expanded`. It is outside the accessibility tree by design, and the treeitem already
+announces the state. Naming it would add roughly 300 identical "Expand" announcements to
+one page — which is W7-12, from the other direction.
+**Severity: Critical** (axe) / **medium-high** — two destructive controls announce as
+unnamed buttons.
+
+**W7-16 · A `role="group"` inside the project tree owns children that are not treeitems.**
+`components/sidebars/ProjectContextSidebar.tsx` renders each person's weeks as
+`<ul role="group">` nested inside a `treeitem` inside the tree. A group in a tree owns
+`treeitem` children exactly as the tree itself does, so those `<li>`s left the widget
+malformed — `aria-required-children`, critical, the same rule and the same failure mode as
+W7-3 one level deeper. The project context sidebar is not on the 17-URL list, so the scan
+never rendered it.
+**Severity: Critical** (axe) / **medium** — same class as W7-3, smaller surface.
 
 ### What this means for the improvement target
 

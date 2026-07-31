@@ -36,31 +36,59 @@ variable "render_region" {
 }
 
 # ---------------------------------------------------------------------------
-# Source
+# Source — a published image, not a git ref
+#
+# `repo_url`, `branch`, `dockerfile_path` and `auto_deploy` used to live here.
+# They are gone because Render no longer builds anything: it pulls the image CI
+# already built and verified. Implementation Rule 5 — the artifact produced in CI
+# must be the artifact that runs in production, and a `branch` here would make
+# Render produce a fourth one.
 # ---------------------------------------------------------------------------
 
-variable "repo_url" {
-  description = "Git repository Render builds from. The Render account must already have this repo connected (GitHub/GitLab OAuth) — see README, 'What a clean machine still needs'."
+variable "image_repository" {
+  description = "Registry path of the published image, without a tag. Pushed by .github/workflows/ci.yml. The GitLab instance runs no container registry (jwt/auth returns 'registry not enabled'), which is why this is ghcr.io."
   type        = string
-  default     = "https://github.com/joshdrochon/ship"
+  default     = "ghcr.io/joshdrochon/ship"
+
+  validation {
+    condition     = !strcontains(var.image_repository, ":")
+    error_message = "image_repository must not include a tag — set the tag with var.image_tag."
+  }
 }
 
-variable "branch" {
-  description = "Branch Render builds. Must contain the Dockerfile at the repo root."
+variable "image_tag" {
+  description = "Git commit SHA of the image to run. No default, deliberately: a deploy is a decision about which commit goes live, and a default would let one happen by omission. Get it from the CI job summary, or `git rev-parse HEAD` for a commit CI has already published."
   type        = string
-  default     = "deploy/render"
+
+  validation {
+    # 7 to 40 lowercase hex — an abbreviated or full commit SHA, matching what
+    # CI tags with ($CI_COMMIT_SHA / github.sha). Floating tags are refused on
+    # purpose: `latest` deploys whatever moved there last, which is exactly the
+    # "what is actually running?" question this whole change exists to answer.
+    condition     = can(regex("^[0-9a-f]{7,40}$", var.image_tag))
+    error_message = "image_tag must be a git commit SHA (7-40 lowercase hex). Floating tags like 'latest' are refused — pin the commit."
+  }
 }
 
-variable "dockerfile_path" {
-  description = "Dockerfile path relative to the build context. The repo's root Dockerfile builds shared, api and web and serves all three from one process."
+# ---------------------------------------------------------------------------
+# Registry authentication — only for a private package
+#
+# Both null by default. A public ghcr.io package pulls anonymously, so the
+# default apply creates no credential and writes no token into state. Set both to
+# keep the package private.
+# ---------------------------------------------------------------------------
+
+variable "registry_username" {
+  description = "GitHub username for pulling a private ghcr.io package. Null (the default) means the package is public and needs no credential. Set TF_VAR_registry_username."
   type        = string
-  default     = "./Dockerfile"
+  default     = null
 }
 
-variable "auto_deploy" {
-  description = "Redeploy automatically when the branch moves. Off by default: a push should not mutate a running deployment without a decision."
-  type        = bool
-  default     = false
+variable "registry_token" {
+  description = "GitHub PAT with read:packages, for a private ghcr.io package. Read scope only — Render pulls, it never pushes. Set TF_VAR_registry_token; never a default, never a committed tfvars file. Lands in terraform.tfstate, which is why the public-package path is the default."
+  type        = string
+  sensitive   = true
+  default     = null
 }
 
 # ---------------------------------------------------------------------------

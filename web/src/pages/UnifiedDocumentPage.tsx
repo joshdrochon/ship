@@ -68,7 +68,7 @@ export function UnifiedDocumentPage() {
       const projectId = (document.document_type === 'weekly_plan' || document.document_type === 'weekly_retro')
         ? (document.properties?.project_id as string | undefined) ?? null
         : null;
-      setCurrentDocument(id, docType, projectId);
+      setCurrentDocument(id, docType, projectId, (document.title as string | null) ?? null);
     }
     return () => {
       clearCurrentDocument();
@@ -480,6 +480,22 @@ export function UnifiedDocumentPage() {
 
     return (
       <div className="flex h-full flex-col">
+        {/*
+          W7-9: the project document page was the only one of seventeen with no <h1>
+          (axe page-has-heading-one). Untabbed documents get theirs from Editor's header
+          bar; a tabbed document replaces that header with the TabBar, so nothing named
+          the page at all and a screen reader user landed on a tablist with no idea what
+          it belonged to.
+
+          Visually hidden rather than drawn: the tab strip is the design here, and the
+          title is already on screen in the properties sidebar and the document tree, so
+          rendering it again would be a layout change for sighted users to fix a defect
+          only non-sighted users have. sr-only is the convention this app already uses
+          for exactly that (Login's field labels, App's skip link), and axe's
+          page-has-heading-one filters on isVisibleToScreenReaders, not on paint.
+        */}
+        <h1 className="sr-only">{document.title || 'Untitled'}</h1>
+
         {/* Tab bar */}
         <div className="border-b border-border px-4">
           <TabBar

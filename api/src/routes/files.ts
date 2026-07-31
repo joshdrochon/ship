@@ -26,11 +26,53 @@ const MAX_FILE_SIZE = 1073741824;
 // Presigned URL expiration: 15 minutes
 const PRESIGNED_URL_EXPIRES_IN = 15 * 60;
 
+/**
+ * Implementation Rule 7, applied to S3 — the third outbound surface in the request
+ * path, and the one a user reaches by dragging a file into a document.
+ *
+ * Before this, the client was constructed with nothing but a region, which means the
+ * SDK defaults: a 0 ms (i.e. unlimited) socket timeout and 3 standard-mode attempts.
+ * `DELETE /api/files/:id` awaits `DeleteObjectCommand` inline before touching the
+ * database, so an S3 partition left that request hanging with no deadline at all.
+ *
+ * Failure modes these protect against:
+ *
+ *  - CONNECT_TIMEOUT_MS — S3 (or a VPC endpoint / NAT in front of it) accepting the
+ *    TCP connection and never completing the handshake. Without it the delete handler
+ *    hangs on an Express handler holding a socket and a pooled database connection
+ *    until the client gives up.
+ *  - REQUEST_TIMEOUT_MS — a request that starts and stalls. Both commands here are
+ *    control-plane sized — a DeleteObject and the signing input for a presigned PUT,
+ *    neither of which streams file bytes through this process — so 10 s is generous;
+ *    past that the call is not coming back.
+ *  - MAX_ATTEMPTS — a single 503 SlowDown or 500 from S3 failing a user's upload or
+ *    delete. Bounded at 3 and left in the SDK's standard retry mode, which already
+ *    backs off and only retries what is safe to retry.
+ *
+ * No circuit breaker: unlike the Bedrock banner, which every plan page load reaches
+ * for, these calls happen only on an explicit user file action. A breaker would trade
+ * a bounded 10 s failure for blocking every upload during the cooldown, and there is
+ * no degraded mode to fall back to — the operation either happens or it does not.
+ */
+const S3_CONNECT_TIMEOUT_MS = 3_000;
+const S3_REQUEST_TIMEOUT_MS = 10_000;
+const S3_MAX_ATTEMPTS = 3;
+
 // Initialize S3 client (only when bucket is configured)
 let s3Client: S3Client | null = null;
 function getS3Client(): S3Client {
   if (!s3Client) {
-    s3Client = new S3Client({ region: AWS_REGION });
+    s3Client = new S3Client({
+      region: AWS_REGION,
+      maxAttempts: S3_MAX_ATTEMPTS,
+      // Handler options, not a handler instance: the SDK constructs the
+      // NodeHttpHandler itself, so this needs no import of @smithy/* — which is a
+      // transitive dependency here and must not become a direct one.
+      requestHandler: {
+        connectionTimeout: S3_CONNECT_TIMEOUT_MS,
+        requestTimeout: S3_REQUEST_TIMEOUT_MS,
+      },
+    });
   }
   return s3Client;
 }

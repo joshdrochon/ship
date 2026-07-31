@@ -38,6 +38,35 @@ locals {
   # as two different shapes because `generate_value` and `value` are mutually
   # exclusive in the provider's env var schema.
   session_env = var.session_secret == null ? { generate_value = true } : { value = var.session_secret }
+
+  # A registry credential exists only when one was asked for. Public ghcr.io
+  # packages are anonymously pullable, so the default path creates no credential
+  # resource at all and stores no token in Terraform state.
+  registry_credential_enabled = var.registry_username != null && var.registry_token != null
+  registry_credential_id      = local.registry_credential_enabled ? render_registry_credential.ghcr[0].id : null
+}
+
+# ---------------------------------------------------------------------------
+# Registry credential — optional
+#
+# Only needed if the ghcr.io package is private. GitHub packages default to
+# private when first published, and making one public is a one-time click in the
+# package settings; do that and this resource is never created.
+#
+# `count` rather than a null-safe expression because the alternative is storing
+# a credential with empty strings, which the API rejects. Note the token lands in
+# terraform.tfstate — the same exposure any provider-managed secret has, and the
+# reason the public-package path is the default rather than the fallback.
+# ---------------------------------------------------------------------------
+resource "render_registry_credential" "ghcr" {
+  count = local.registry_credential_enabled ? 1 : 0
+
+  name     = "${var.service_name}-ghcr"
+  registry = "GITHUB"
+  username = var.registry_username
+
+  # A GitHub PAT with `read:packages`. Read, not write — Render only pulls.
+  auth_token = var.registry_token
 }
 
 # ---------------------------------------------------------------------------
@@ -80,13 +109,42 @@ resource "render_web_service" "shipshape" {
   plan   = var.service_plan
   region = var.render_region
 
+  # Promote, do not rebuild. Implementation Rule 5.
+  #
+  # This was `runtime_source.docker`, which hands Render a repo URL and a branch
+  # and has Render's builder run the Dockerfile itself. That is a third,
+  # independent build of the same source — alongside GitLab CI's and GitHub
+  # Actions' — and none of the three promoted either of the others. Whatever
+  # Render happened to compile is what ran in production, and nothing recorded
+  # which commit that was.
+  #
+  # `runtime_source.image` deploys an image that already exists. The one CI
+  # built, tested and pushed. Render pulls the tag and runs it; there is no
+  # builder, no clone, no second compile, and no way for what runs to differ from
+  # what was verified. A deploy becomes:
+  #
+  #     terraform apply -var image_tag=<sha>
+  #
+  # and `curl $(terraform output -raw service_url)/health` reports that same sha
+  # back, because the Dockerfile baked it in. Rollback is the same command with
+  # an older sha — see docs/artifact-lifecycle.md.
+  #
+  # Second thing this fixes, which is a Category 8 finding rather than a Rule 5
+  # one: the docker source required the Render account to have completed a
+  # GitHub OAuth consent for a private repo, which Terraform cannot do and a
+  # browser must. That is why terraform/render/README.md said "one credential and
+  # one prior consent" instead of the brief's "deployable using only `terraform
+  # apply`". Pulling a published image needs no repo connection at all, so the
+  # qualification goes away.
   runtime_source = {
-    docker = {
-      repo_url        = var.repo_url
-      branch          = var.branch
-      dockerfile_path = var.dockerfile_path
-      context         = "."
-      auto_deploy     = var.auto_deploy
+    image = {
+      image_url = var.image_repository
+      tag       = var.image_tag
+
+      # Null when the package is public, which is the default and needs no
+      # credential. A private ghcr.io package needs a PAT; see
+      # render_registry_credential.ghcr below.
+      registry_credential_id = local.registry_credential_id
     }
   }
 

@@ -102,12 +102,16 @@ Behaviour, in words:
 
 - **Before** — the server ends up with `Concurrent EdiBBBBBBBBt Test`. User A's
   eight characters are gone. Both clients then converge on B's value, so A watches
-  their own typing disappear from their own screen with no explanation, while the
-  status indicator reads a green **"Saved"** throughout.
+  their own typing disappear from their own screen with no explanation, and the
+  status indicator never says otherwise: in the screenshot it reads a blue
+  **"Cached"**. `claimsWorkIsSafe` (`web/src/lib/syncStatus.ts:82-84`) classes
+  "Cached" alongside "Saved" as a state that tells the user their work is safe, so
+  either word is the same lie here. Nothing on screen marks the loss.
   `docs/audit/evidence/w6-9/w6-9-before-user-A.png`
 - **After** — the server ends up with `Concurrent EdiABABABABABABABABt Test`. All
   eight of A's characters and all eight of B's are present, both clients and the
   server agree on the same string, and the pre-existing title text is untouched.
+  The badge reads a green **"Saved"** and both users' avatars are in the header.
   `docs/audit/evidence/w6-9/w6-9-after-user-A.png`
 
 Raw: `docs/audit/raw/cat6-w6-9-before.json`, `cat6-w6-9-after.json`.
@@ -119,8 +123,11 @@ TipTap bound to a Yjs CRDT over the collaboration WebSocket and merged two write
 correctly. The title was plain React state saved by a debounced
 `PATCH /api/documents/:id` (`Editor.tsx:187`), and **nothing reconciled two
 writers** — the last request to land overwrote the whole column. Which user lost
-was not even deterministic: across the audit's 13 runs, A lost 9 times and B 4
-times on identical inputs.
+was not even deterministic. Fourteen concurrent title runs are on record — nine in
+`docs/audit/raw/cat6-concurrent-raw.json`, five in `cat6-w6-9-before.json` — and
+not one of them preserved both edits. Counting the `lost_edit_of` field across
+them: A's characters were destroyed in 11 runs, B's in 6, with three runs
+destroying part of each. Identical inputs, different victim.
 
 The mechanism for doing this properly was already in the codebase. The title
 simply did not use it.
@@ -192,7 +199,8 @@ figures above were produced with the corrected script.
 - **With no collaboration session the title persists only via the REST fallback**,
   and once a session has existed the title lives in the CRDT and IndexedDB until
   the socket returns. That is exactly the guarantee the body has always had, and
-  the badge now tells the user (gap 3) instead of claiming "Saved".
+  the badge now tells the user (gap 3) instead of showing a state that claims the
+  work is safe.
 - **A typed title can duplicate in one narrow window**: type into the title in the
   few hundred milliseconds between mount and first sync, on a document whose server
   title differs from the one the page was rendered with. The value is replayed onto
@@ -347,6 +355,14 @@ audit's marker and once with a neutral one, and evaluates both probes:
 Re-running the audit's own harness reproduces `false` exactly, and
 `docs/audit/raw/cat6-before-lane6.json` records it — the number in the audit report
 is reproducible, its interpretation is not.
+
+The same harness re-run after all four commits is `docs/audit/raw/cat6-after-lane6.json`.
+`ui_recovered_after_reconnect` is still `false` there, for the reason above: it is the
+probe that is wrong, not the app. What did move is the console sweep over the same 11
+routes — **40 entries before, 4 after** — and the offline cycle's `console_delta`, 11 → 3.
+The four that remain are the `/login` 401 and three entries produced by the deliberate
+offline step, all of them the same failed backlinks fetch seen at three levels
+(`requestfailed`, the browser's resource error, and `BacklinksPanel.tsx:41`'s own catch).
 
 ### The defect that is actually there
 

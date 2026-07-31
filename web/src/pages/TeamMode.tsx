@@ -584,6 +584,7 @@ export function TeamModePage() {
               <button
                 onClick={() => setNameFilter('')}
                 className="absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted hover:text-foreground"
+                aria-label="Clear name filter"
               >
                 <svg aria-hidden="true" focusable="false" className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
