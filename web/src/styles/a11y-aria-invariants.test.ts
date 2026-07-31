@@ -78,14 +78,37 @@ const lineOf = (src: string, index: number) => src.slice(0, index).split('\n').l
  * scan that greps for markup has to see past them.
  *
  * Characters are replaced one for one with spaces and newlines are kept, so every index and
- * line number below still refers to the real file. Block comments only: `//` cannot be told
- * from the `//` in a URL without a real lexer, and no line comment in web/src currently
- * contains markup that any of these scans look for.
+ * line number below still refers to the real file.
+ *
+ * String literals are tracked rather than ignored, and that is not defensive coding -- the
+ * catch-all route is `path="/*"`, and a plain regex for block comments treats the `/*` in
+ * that string as the start of one, blanking everything up to the next comment terminator
+ * and taking the whole shell route table with it.
+ *
+ * Block comments only. `//` cannot be told from the `//` in a URL this cheaply, and no line
+ * comment in web/src currently contains markup that any of these scans look for.
  */
 function readSource(file: string): string {
-  return readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, (c) =>
-    c.replace(/[^\n]/g, ' ')
-  );
+  const src = readFileSync(file, 'utf8');
+  const out = src.split('');
+  let i = 0;
+  let quote: string | null = null;
+  while (i < src.length) {
+    const c = src[i];
+    if (quote) {
+      if (c === '\\') i++;
+      else if (c === quote) quote = null;
+    } else if (c === '"' || c === "'" || c === '`') quote = c;
+    else if (c === '/' && src[i + 1] === '*') {
+      const end = src.indexOf('*/', i + 2);
+      const stop = end === -1 ? src.length : end + 2;
+      for (let j = i; j < stop; j++) if (out[j] !== '\n') out[j] = ' ';
+      i = stop;
+      continue;
+    }
+    i++;
+  }
+  return out.join('');
 }
 
 /**

@@ -598,6 +598,19 @@ The F16 changes (§7) roll back independently and are small: `MyWeekPage.tsx` on
 reverted with them. Reverting §7a re-opens 9 serious nodes on `/my-week` and visibly dims
 future days again; reverting §7b re-opens 1 critical node on every document editor route.
 
+§8 through §11 roll back per fix, and only §8 has a dependency chain:
+
+| To undo | Do this | What comes back |
+|---|---|---|
+| Page titles (§8) | `rm web/src/hooks/usePageTitle.ts`, then revert `useFocusOnNavigate.ts`, `CurrentDocumentContext.tsx`, `App.tsx` and the six out-of-shell pages | "Ship \| Ship" on 8 pages, `index.html`'s default on 2. Revert as a unit — the hook is imported by all of them |
+| Landmarks (§9) | Revert the one tag in each of `WorkspaceSettings.tsx`, `Login.tsx`, `UnifiedDocumentPage.tsx`, `SelectableList.tsx`; `rm web/src/components/SkipLink.tsx` and restore the inline anchor in `App.tsx` | 3 landmark rules on `/settings`, `landmark-one-main` + 5 `region` on `/login`, `page-has-heading-one` on tabbed documents, 4 `empty-table-header` |
+| Names (§10) | Revert per file; each is one attribute and they are independent | The named `button-name` / `select-name` node returns |
+| Tree roles (§10) | Revert `ProjectContextSidebar.tsx` | `aria-required-children` on the project sidebar |
+| §11 tests | `rm web/src/styles/a11y-aria-invariants.test.ts` | Nothing — it asserts §1/§3/§4/§10, so revert it *with* whichever of those you undo, or it goes red |
+
+None of this touches the palette, so §8–§11 have no visual blast radius except the `sr-only`
+`<h1>`, which paints nothing.
+
 ### Conditions the F16 scan was taken under (Rule 1)
 
 Same script, same 18 routes, same database (`ship_lane_7`, 257 documents), same discovered

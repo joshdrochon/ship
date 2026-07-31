@@ -120,6 +120,31 @@ No migration to reverse. Full lifecycle documentation: `docs/artifact-lifecycle.
 
 ---
 
+## Accessibility, after Category 7 was closed
+
+Per-category detail lives in `CHANGES/lane-*.md` and is indexed from `SUBMISSION.md`. This
+one gets a line here because it is a **correction to a category that had already been
+reported as done**, and someone reading only the root file should not miss that.
+
+Category 7 scoped its scan and its fixes to *"the 3 most important pages"*, which is what
+p.7 asks for. Five of its own findings sat outside that scope and were never fixed —
+W7-6, W7-7, **W7-8** (eight pages titled "Ship | Ship", WCAG 2.4.2 Level A) and **W7-9**
+(a nested `<main>`, no landmark on `/login`, a missing `<h1>`, an empty `<th>`) — and the
+lane doc's "still open" table did not list them either. W7-8 and W7-9 are now fixed;
+W7-6 and W7-7 are fixed in the e2e suite; **W7-11 is a deliberate non-fix**, recorded with
+its numbers.
+
+Reading every page instead of three then turned up three defect sets the audit never
+recorded at all: 6 unnamed `<select>`s (one set on the page that grants workspace admin),
+8 unnamed icon-only buttons (2 destructive), and an `<li>` in a `role="group"` tree.
+
+**What changed, why the original was worse, the tradeoffs, and how to roll each piece
+back: [`CHANGES/lane-7.md`](CHANGES/lane-7.md), §8–§11.** Audit findings, including the
+three that were never in it and why they were missed: `docs/audit/audit-report.md`,
+Category 7.
+
+---
+
 ## Lane 0 — CI, one-command start, and the test suite that blocks them
 
 **Why this went first.** Rule 2 says *"any change that causes a regression in the CI
