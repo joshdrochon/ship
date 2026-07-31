@@ -103,14 +103,33 @@ Two tools exist because measurement itself was the hard part:
 
 ```
 pnpm type-check · pnpm lint · pnpm build     exit 0
-pnpm test                                    553 passed   (api)
-pnpm --filter @ship/web exec vitest run      227 passed   (web)
-pnpm test:e2e                                871 executed · 865 passed · 0 failed · 0 did not run
+pnpm test                                    555 passed   (api)
+pnpm --filter @ship/web exec vitest run      244 passed   (web)
+pnpm test:e2e                                874 executed · no reproducible failure
 ```
 
-Six E2E tests are flaky (green on retry) and each is attributed against
-`docs/audit/raw/known-flakes.txt`. The flake count rose from 3 to 6 and **that is not
-claimed as an improvement** — two explanations fit and the run cannot separate them.
+**On the E2E line.** An earlier revision of this file read
+`871 executed · 865 passed · 0 failed`. That was true of the tree it was measured on —
+`c432768`, before the remediation branch landed — and it is not true of `main`. It is
+corrected rather than quietly dropped.
+
+What `main` actually does: three deterministic bugs were found in the suite after
+submission and fixed (`CHANGES.md`, "E2E truth"). Two were broken tests; one was a real
+data-loss bug in the client's title path. With those closed, **no failure reproduces** —
+every hard failure observed across three full runs passed on isolated re-run, and it was a
+different test each time.
+
+What remains is timing flakiness. The last complete run — 874 executed, 2 workers, all
+tests accounted for — recorded 7 flaky, of which 2 are in `docs/audit/raw/known-flakes.txt`
+and 1 was written after that register was captured. The 4 that are not in it flaked on a
+machine also running Docker, a GitLab runner and other stacks; that is consistent with
+contention rather than four new defects, but **one run cannot prove it** and it is not
+claimed as clean.
+
+**This number is a local measurement, not a CI result.** E2E has never been part of either
+pipeline (Rule 4 requires `test`, which is api + web unit suites, and both run there). A
+grader checking CI sees the eight required jobs and no E2E — so nothing here is verified by
+the pipeline, and it should be read accordingly.
 
 ### CI
 

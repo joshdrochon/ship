@@ -8,6 +8,185 @@ Written for the next engineer who inherits this, not for a grader. Audit finding
 
 ---
 
+## E2E truth, and the title durability bug it was hiding
+
+Five changes made after the submission commit `b827ddb`. Grouped here because they came
+from one thread: the E2E suite was reporting failures, and running them down turned up two
+broken tests and one real product bug.
+
+**Start here if you are wondering why the suite went red.** Nothing in `api/src` changed
+for the first two items — the tests were wrong, not the product. The third item is a
+genuine data-loss bug and is the reason this section exists at all.
+
+### 1. The Bedrock fake spoke HTTP/1.1; the SDK speaks HTTP/2
+
+**What was wrong.** The in-process Bedrock fake (`e2e/fixtures/mock-bedrock.ts`, added in
+`6ce14b7`) was an HTTP/1.1 listener. `@aws-sdk/client-bedrock-runtime` defaults to
+`NodeHttp2Handler` — Bedrock's streaming operations require h2 and the handler is
+client-wide, so even non-streaming `InvokeModel` goes out over HTTP/2. The server answered
+`ERR_HTTP2_ERROR: Protocol error` before reading a byte, `callBedrock` threw, and both
+analysis routes degraded to `ai_unavailable`.
+
+That degradation is exactly what the strict assertions were added to catch, so the two
+tests failed as designed. Before those assertions existed the check was
+`isAnalysis || isUnavailable` — a tautology that passed whether the AI worked or not, and
+the reason nobody noticed these tests could make **live, billed Bedrock calls** on any
+machine with AWS credentials in its environment.
+
+**What changed.** `createServer` now comes from `http2` with `allowHTTP1: true`, serving
+both protocols through the compat `request` handler. Teardown changed with it:
+`closeAllConnections()` is an `http.Server` method that does not exist on `Http2Server` and
+threw during fixture teardown, so transport sockets are tracked and destroyed directly.
+
+**How to run it.** Nothing to run — it is test infrastructure, exercised by any E2E run.
+
+**How to test it.**
+```bash
+pnpm exec playwright test e2e/ai-analysis-api.spec.ts --workers=1
+# 11 passed. Was 2 failed / 9 passed, plus a teardown error.
+```
+
+**How to roll it back.** `git revert a20b3ab`. The two analysis tests go red again — they
+are correct; the fake would be wrong.
+
+### 2. A test locator matched the same project in two panels
+
+**What was wrong.** `e2e/project-weeks.spec.ts:178` located a project with an unqualified
+`a:has-text("Navigation Test Project")`. In the 4-panel layout that name appears twice —
+the contextual sidebar's project list and the Properties sidebar — both linking the same
+document id. The test passed only in the window where exactly one panel had painted: 0
+matches read as `element(s) not found`, 2 as `strict mode violation`.
+
+Retrying made it *worse*, not better: the second attempt renders both panels from a warm
+cache, so a retry is more likely to see 2 than the first attempt. That is why it surfaced
+as a hard failure rather than a flake.
+
+**What changed.** The locator is scoped to `getByLabel('Document properties')` — the panel
+the test is named for. No application code changed.
+
+**How to run it.** Test-only; it runs as part of any E2E run. To see the behaviour it
+covers, open a project's Weeks tab, click a weekly plan cell, and use the project link in
+the Properties sidebar on the right.
+
+**How to test it.**
+```bash
+pnpm exec playwright test e2e/project-weeks.spec.ts -g "navigates back to project"
+# 3 of 3 consecutive runs green.
+```
+
+**How to roll it back.** `git revert 8cb4987`.
+
+### 3. Unsaved title time is now bounded on the client
+
+**What was wrong — and this one is a real bug.** `6ce14b7` capped the *server's* persist
+debounce (`PERSIST_MAX_WAIT_MS`, `api/src/collaboration/index.ts`). The same defect was
+still live on the client, and the server cap cannot reach it: before a collaboration
+session exists, nothing arrives at the server to schedule a persist at all.
+
+`useCollaborativeTitle`'s fallback timer was cleared on every keystroke, so a user typing
+without a 1.5 s pause never triggered a REST save. The whole run lived in React state until
+something else flushed it; a crash, reload or navigation lost it silently. The window is
+not exotic — it is every slow WebSocket handshake, which means a cold start, a loaded
+machine, or a bad network. Precisely when losing the work is most likely.
+
+**What changed.** `TITLE_FALLBACK_MAX_WAIT_MS` bounds an unbroken run at 3 s, matching the
+server's ceiling so both paths bound the exposure the same way. The debounce still
+collapses bursts.
+
+**How to run it.** No configuration and no flag — it is active in the editor as soon as the
+app runs (`pnpm dev`, or `./start.sh` for the full stack). To exercise the path it fixes,
+create a document and type into the title without pausing; the value reaches the server
+within 3 s instead of waiting for a pause that never comes. Change the ceiling by editing
+`TITLE_FALLBACK_MAX_WAIT_MS` in `web/src/hooks/useCollaborativeTitle.ts`; keep it at or
+below the server's `PERSIST_MAX_WAIT_MS` so the two paths stay consistent.
+
+**How to test it.**
+```bash
+pnpm --filter @ship/web exec vitest run src/hooks/useCollaborativeTitle.test.tsx
+# 20 passed. Stub out the cap and "saves during unbroken typing" goes red.
+```
+
+**How to roll it back.** `git revert c4866df`. Continuous typing becomes unbounded again.
+
+### 4. New documents reach durable storage without waiting for the socket
+
+**What was wrong.** A document's body is durable from the first keystroke: TipTap writes it
+into the Y.Doc and `IndexeddbPersistence` (`Editor.tsx:317`) flushes it with no timer. The
+title was not, for one case — a newly created "Untitled" document. CRDT writes were gated
+on `markTitleSynced()`, which fires only on the WebSocket `sync` event, so everything typed
+during the handshake lived in React state and nowhere else.
+
+**Scope, stated precisely.** A document whose IndexedDB cache carried a title was *already*
+durable — the observer at `useCollaborativeTitle.ts:127` adopts a non-empty `ytitle` on
+mount. It cannot adopt an empty one, because empty is ambiguous. So this closes the
+new-document case only.
+
+**Why the gate could not simply be removed.** It answers "do we know this document's
+title?" With a server title of `"Q3 Roadmap"`, an unloaded empty Y.Doc, and a user typing
+`"X"`, Yjs merges the write as an insert and yields `"XQ3 Roadmap"` — it cannot distinguish
+"empty because unknown" from "empty because blank". Seeding from `initialTitle` does not
+help either: two peers inserting the same characters independently produce duplicates.
+`initialTitle` comes from the REST fetch, so `"Untitled"` means the server has no title and
+nothing can collide. Anything else still waits for `markSynced`, with the 3 s cap as
+backstop.
+
+**What changed.** `useCollaborativeTitle` gained `markCacheLoaded()`, which decides whether
+local state is conclusive and opens the CRDT path if it is. `Editor.tsx` calls it inside
+`waitForCache.then(...)` — after the IndexedDB load, before the WebSocket connects.
+
+**How to run it.** No configuration and no flag — active in the editor whenever the app
+runs. To exercise it, create a new document and type into the title immediately; the
+keystrokes land in the Y.Doc and IndexedDB right away instead of waiting for the socket.
+`Editor.tsx:340` caps the cache wait at 300 ms, so a browser with no cache still proceeds
+promptly.
+
+**How to test it.**
+```bash
+pnpm --filter @ship/web exec vitest run src/hooks/useCollaborativeTitle.test.tsx
+pnpm exec playwright test e2e/autosave-race-conditions.spec.ts --workers=1
+# 20 passed / 8 passed. Regression guard is
+# "puts a brand-new document on the durable path without waiting for the socket".
+```
+
+**How to roll it back.** `git revert 3faae2a`. New documents wait for the WebSocket again;
+item 3's 3 s cap still bounds the loss.
+
+### 5. Uploads can survive a deploy — Render persistent disk
+
+**What was wrong.** `api/src/routes/files.ts:421` writes to S3 only when `NODE_ENV=production`
+**and** `S3_UPLOADS_BUCKET` are both set; otherwise it falls through to `UPLOADS_DIR`
+(`/app/api/uploads` in the container). On Render that filesystem is ephemeral, discarded on
+every deploy, restart and instance move — while the `files` rows persist in Postgres. The
+UI keeps listing attachments whose bytes are gone, and nothing reports a failure. Same
+class as W6-9: silent loss behind an interface that says the work is safe.
+
+Not in the audit; found while documenting what Render replaced in the AWS stack.
+
+**What changed.** An optional `disk` on `render_web_service`. A disk rather than turning on
+the S3 path because the difference is the credential: S3 means a long-lived AWS key pair in
+Render's environment, unrotated, for one feature, on a repo where W8-1 is a leaked AWS
+account identifier. Full reasoning and tradeoffs: [`CHANGES/lane-8.md`](CHANGES/lane-8.md) §6.
+
+**How to run it.**
+```bash
+cd terraform/render
+terraform plan -var uploads_disk_size_gb=1   # requires the `starter` plan or above
+```
+
+**How to test it.**
+```bash
+terraform validate && terraform fmt -check   # both clean
+```
+
+**How to roll it back.** Omit the variable — it defaults to `null` and plans no disk, which
+is the committed state. Or `git revert 6324d6c`.
+
+> **Not applied.** The committed config plans no disk and the live free-plan service is
+> unchanged. Render disks require `starter` or above, so attaching one costs money and is
+> the account owner's decision.
+
+---
+
 ## Build once, promote — Rule 5 (closes audit finding F26)
 
 **What was wrong.** Three independent builds of the same source existed and none
