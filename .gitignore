@@ -139,6 +139,7 @@ __pycache__/
 # Internal work tracking — not a PRD deliverable
 docs/audit/audit-checklist.md
 docs/audit/early-submission-checklist.md
+AI-interview-prep.md
 
 # CI-generated reports (regenerable; produced by .gitlab-ci.yml / .github/workflows/ci.yml)
 # audit-baseline.json is deliberately NOT here — it is the committed record of known

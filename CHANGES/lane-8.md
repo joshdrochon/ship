@@ -335,6 +335,69 @@ live database it reported `1 to import, 1 to add, 0 to change, 1 to destroy`, an
 incident. Both `database_name` and `database_user` are now unset, with the reason
 written into `main.tf` so nobody tidies them back in.
 
+## 6 · Storage — a Render disk rather than S3
+
+### What is needed, and why
+
+Ship accepts file uploads. `api/src/routes/files.ts:421` writes them to S3 only when
+`NODE_ENV=production` **and** `S3_UPLOADS_BUCKET` is set; with either missing it falls
+through to `UPLOADS_DIR`, which resolves to `/app/api/uploads` inside the container.
+
+On Render that filesystem is ephemeral — discarded on every deploy, restart and instance
+move. The `files` rows are in Postgres and survive, so **the UI keeps listing attachments
+whose bytes are gone**. The user sees the file, clicks it, and gets nothing. Nothing
+reports a failure.
+
+That is the same class as W6-9: silent loss where the interface asserts the work is safe.
+It is not in the audit — it was found while writing up what Render replaced in the AWS
+stack — and it is recorded here rather than left for someone to hit.
+
+The requirement is narrow. Uploaded bytes must survive a deploy and a restart, and the app
+must not need a second cloud account to run. Not required: CDN edges, lifecycle rules,
+cross-region replication, or public presigned URLs at volume. Attachments are served to
+authenticated users of one workspace, through Express, from a single instance.
+
+### Why the disk and not the bucket
+
+The deciding factor is the credential, not the storage.
+
+S3 is already implemented — that code path ships and works. Enabling it means putting a
+long-lived AWS access key and secret into Render's environment, unrotated, for one feature.
+W8-1 in this audit is a leaked AWS account identifier committed through a saved Terraform
+plan. Introducing real credentials raises the cost of the next mistake of that shape.
+
+A Render disk needs no credential. It is three attributes on a resource this config already
+manages, and it keeps the property Category 8 was for: the app runs on Render without an
+AWS account. Reaching back to S3 for uploads would mean the deployment moved off AWS but
+the application still cannot start without it.
+
+```hcl
+disk = var.uploads_disk_size_gb == null ? null : {
+  name       = "${var.service_name}-uploads"
+  mount_path = "/app/api/uploads"
+  size_gb    = var.uploads_disk_size_gb
+}
+```
+
+### What it costs
+
+- **One instance, permanently.** A Render disk attaches to a single instance, so the
+  service cannot scale horizontally. Here that is free: `num_instances` is already
+  validated to exactly 1, because the collaboration server keeps Yjs document state in
+  module-level `Map`s (`api/src/collaboration/index.ts`) and two instances would serve
+  divergent documents. The disk constraint and the application constraint are the same
+  constraint. If that Yjs state is ever externalised, the disk becomes the next blocker and
+  S3 becomes the right answer.
+- **Not available on `free`.** Render disks require `starter` or above. The variable
+  therefore defaults to `null`, so a free-plan apply from a clean machine still works and
+  Rule 6 is unaffected. Attaching is opt-in: `-var uploads_disk_size_gb=1`.
+- **No CDN.** Every read goes through the Express process. S3 with CloudFront would offload
+  it. At this read volume that is not a cost worth an AWS dependency; at a volume where it
+  is, it is the same migration as the horizontal-scale one.
+
+**Not applied.** The variable defaults to `null`, so the committed config plans no disk and
+the live free-plan service is unchanged. Attaching one is a plan the account owner runs.
+
 ## 8.5, precisely
 
 The brief says *"deployable from a clean machine using only `terraform apply`"*.
@@ -398,6 +461,8 @@ A public repo or a published container image would each remove it.
 | `wait_for_deploy_completion = true` | Return as soon as the API accepts | Makes a failed build fail the apply. Costs several minutes per apply, buys the one safety property `scripts/deploy.sh` never had — it returns on acceptance and prints a `describe-environments` command for you to run yourself. |
 | `connection_info` not exported as an output | Output it for convenience | Every output lands in `terraform.tfstate` in plaintext and prints unredacted unless marked sensitive — and marking it sensitive still leaves it plaintext in state. Nothing downstream needs it; the web service reads it through a graph reference that never surfaces the value. |
 | Render IDs redacted in the audit document | Quote the plan byte-for-byte | Same class of value as the AWS account ID in W8-1. The public service URL is left intact because anyone can already fetch it. The redaction is stated at the top of the section rather than done silently. |
+| **Uploads on a Render persistent disk** | Set `S3_UPLOADS_BUCKET` and use the S3 path that already ships | S3 costs a long-lived AWS key pair in Render's environment, unrotated, for one feature — on a repo where W8-1 is a leaked AWS account identifier. A disk needs no credential and keeps the property this lane exists for: the app runs on Render without an AWS account. The price is single-instance forever, which `num_instances` already enforces for an unrelated reason (Yjs state in module-level Maps), so it costs nothing today. Section 6. |
+| `uploads_disk_size_gb` defaults to `null` | Attach a disk by default | Render disks need `starter` or above. A default disk would make a clean-machine free-plan `apply` fail, which is the Rule 6 property. Opt in with `-var uploads_disk_size_gb=1`. |
 | No `terraform apply` run | Apply to prove 8.5 end to end | It spends someone else's money on someone else's account, and there is already a healthy deployment there to duplicate. The gap this leaves is stated in "8.5, precisely" rather than papered over. |
 
 ## Rules that do not apply to this lane, and why

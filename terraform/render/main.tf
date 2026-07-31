@@ -157,6 +157,26 @@ resource "render_web_service" "shipshape" {
 
   num_instances = var.num_instances
 
+  # File uploads need durable storage. `api/src/routes/files.ts:421` writes to S3 only
+  # when `S3_UPLOADS_BUCKET` is set *and* NODE_ENV=production; otherwise it falls through
+  # to the container filesystem at /app/api/uploads. On Render that filesystem is
+  # ephemeral, so without this the bytes are discarded on every deploy while the `files`
+  # rows persist in Postgres — the UI lists attachments that 404. That is silent data
+  # loss of exactly the W6-9 class: the user is never told.
+  #
+  # A disk rather than S3 because the alternative is a long-lived AWS key pair in Render's
+  # environment for one feature, on a repo that has already leaked an account identifier
+  # once (W8-1). See CHANGES/lane-8.md, "Storage".
+  #
+  # null on the `free` plan, which does not support disks. A disk also pins the service to
+  # a single instance, which costs nothing here: `num_instances` is already validated to
+  # exactly 1 because the collaboration server holds Yjs state in module-level Maps.
+  disk = var.uploads_disk_size_gb == null ? null : {
+    name       = "${var.service_name}-uploads"
+    mount_path = "/app/api/uploads"
+    size_gb    = var.uploads_disk_size_gb
+  }
+
   # Give the process time to drain WebSocket connections. The collaboration
   # server holds long-lived sockets (api/src/collaboration/index.ts); the
   # default kills them at once, so an editor mid-keystroke loses the buffered
