@@ -201,7 +201,15 @@ test.describe('Project Weeks Tab', () => {
     await expect(page.locator('text=Weekly Plan')).toBeVisible({ timeout: 10000 });
 
     // Click the project link to navigate back
-    const projectLink = page.locator('a:has-text("Navigation Test Project")');
+    // Scoped to the Properties sidebar, which is the panel this test is named for. An
+    // unqualified `a:has-text(...)` matches the same project twice in the 4-panel layout
+    // -- once in the contextual sidebar's projects list, once here -- so it passed only in
+    // the window where exactly one of the two panels had painted: 0 matches read as
+    // "element(s) not found", 2 as a strict mode violation. A retry made it worse rather
+    // than better, because the second attempt renders both panels from a warm cache.
+    const projectLink = page
+      .getByLabel('Document properties')
+      .getByRole('link', { name: 'Navigation Test Project' });
     await expect(projectLink).toBeVisible();
     await projectLink.click();
 
