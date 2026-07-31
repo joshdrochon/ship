@@ -19,6 +19,24 @@ export const TITLE_LOCAL_ORIGIN = 'ship:title-local';
  */
 export const TITLE_FALLBACK_SAVE_MS = 1500;
 
+/**
+ * Ceiling on how long an unbroken typing run can go unsaved on the fallback path.
+ *
+ * The debounce above is cleared on every keystroke, so a user typing without a 1.5 s pause
+ * never triggered a save at all — the timer was always cancelled before it fired. Whatever
+ * they typed since focusing the field was held only in React state, and a crash, a reload
+ * or a navigation lost all of it silently.
+ *
+ * This is the same defect the collaboration server had (`PERSIST_MAX_WAIT_MS`,
+ * api/src/collaboration/index.ts) and the server-side cap cannot cover this path: when no
+ * collaboration session is up, nothing reaches the server to schedule a persist. It shows
+ * up whenever the WebSocket handshake is slow — a cold start, a loaded machine, a bad
+ * network — which is exactly when losing the work is most likely.
+ *
+ * 3 s to match the server's ceiling, so the two paths bound the exposure the same way.
+ */
+export const TITLE_FALLBACK_MAX_WAIT_MS = 3000;
+
 interface UseCollaborativeTitleOptions {
   /** The editor's Y.Doc. The title lives in `ydoc.getText('title')`. */
   ydoc: Y.Doc;
@@ -65,12 +83,15 @@ export function useCollaborativeTitle({
   const crdtReadyRef = useRef(false);
   const userTypedRef = useRef(false);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** When the current unbroken typing run began, for TITLE_FALLBACK_MAX_WAIT_MS. */
+  const fallbackRunStartedAtRef = useRef<number | null>(null);
   const caretRef = useRef<number | null>(null);
 
   // A new Y.Doc means a different document: drop all per-document state.
   useEffect(() => {
     crdtReadyRef.current = false;
     userTypedRef.current = false;
+    fallbackRunStartedAtRef.current = null;
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;
@@ -130,11 +151,21 @@ export function useCollaborativeTitle({
     // REST — but re-check on fire, because if the session came up in the meantime
     // the CRDT owns the field and a REST write would clobber other writers.
     if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+
+    const now = Date.now();
+    const runStart = fallbackRunStartedAtRef.current ?? now;
+    fallbackRunStartedAtRef.current = runStart;
+
+    // Whichever comes first: quiet for the debounce, or the ceiling since this unbroken
+    // run began. Without the ceiling, continuous typing cancels the timer forever.
+    const remainingMaxWait = Math.max(0, TITLE_FALLBACK_MAX_WAIT_MS - (now - runStart));
+
     fallbackTimerRef.current = setTimeout(() => {
       fallbackTimerRef.current = null;
+      fallbackRunStartedAtRef.current = null;
       if (crdtReadyRef.current) return;
       onFallbackSave?.(titleRef.current);
-    }, TITLE_FALLBACK_SAVE_MS);
+    }, Math.min(TITLE_FALLBACK_SAVE_MS, remainingMaxWait));
   }, [ytitle, onFallbackSave]);
 
   /**
@@ -157,6 +188,7 @@ export function useCollaborativeTitle({
     }
 
     crdtReadyRef.current = true;
+    fallbackRunStartedAtRef.current = null;
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;

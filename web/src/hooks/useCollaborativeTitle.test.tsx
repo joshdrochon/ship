@@ -191,6 +191,37 @@ describe('useCollaborativeTitle (W6-9 regression)', () => {
     expect(titleOf(doc)).toBe('Draft');
     vi.useRealTimers();
   });
+
+  it('saves during unbroken typing, instead of waiting for a pause that never comes', async () => {
+    // The fallback debounce is cleared on every keystroke. Without a ceiling, a user who
+    // types steadily with no 1.5 s gap never triggers a save at all: every timer is
+    // cancelled before it fires, and the whole session lives only in React state until
+    // something flushes it. This is the path taken whenever the collaboration handshake is
+    // slow, which is exactly when a crash or reload is most likely.
+    vi.useFakeTimers();
+    const onFallbackSave = vi.fn();
+    const doc = new Y.Doc();
+    const h = mountTitle(doc, 'Untitled', onFallbackSave);
+
+    // 20 keystrokes, 500 ms apart — never quiet for the 1500 ms debounce.
+    let typed = '';
+    for (let i = 0; i < 20; i++) {
+      typed += 'q';
+      const next = typed;
+      act(() => { h.result.current.setTitleFromInput(next); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(500); });
+    }
+
+    expect(
+      onFallbackSave,
+      'nothing was saved during 10 s of unbroken typing — the run would be lost'
+    ).toHaveBeenCalled();
+
+    // And it happened within the ceiling, not merely at some point before the end.
+    expect(onFallbackSave.mock.calls[0]?.[0].length).toBeLessThanOrEqual(6);
+
+    vi.useRealTimers();
+  });
 });
 
 describe('applyTextDiff', () => {
