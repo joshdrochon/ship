@@ -19,6 +19,13 @@
 
 ---
 
+> **Reviewing the ShipShape audit and improvements?** Start at
+> **[SUBMISSION.md](SUBMISSION.md)** — it maps every deliverable to its file, lists the
+> measured before/after for all eight categories, and shows how to reproduce each number.
+> This README describes the product; that file describes the work done to it.
+
+---
+
 ## What is Ship?
 
 Ship is a project management tool that combines documentation, issue tracking, and plan-driven weekly workflows in one place. Instead of switching between a wiki, a task tracker, and a spreadsheet, everything lives together.
