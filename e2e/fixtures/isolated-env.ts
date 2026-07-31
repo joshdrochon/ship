@@ -23,6 +23,7 @@ import path from 'path';
 import getPort, { portNumbers } from 'get-port';
 import bcrypt from 'bcryptjs';
 import os from 'os';
+import { startMockBedrock, type MockBedrock } from './mock-bedrock';
 
 /**
  * Get port for a worker with collision avoidance.
@@ -80,9 +81,56 @@ if (availableMem < 4) {
   console.warn(`⚠️  Low memory (${availableMem.toFixed(1)}GB). Consider reducing workers.`);
 }
 
+/**
+ * Build the API child process environment with every ambient AWS credential removed.
+ *
+ * Implementation Rule 3 (stable fakes, not live external calls). The API's one outbound
+ * third-party dependency is AWS Bedrock (`api/src/services/ai-analysis.ts`). This
+ * fixture used to spread `process.env` straight into the child, so a developer with
+ * `AWS_ACCESS_KEY_ID`/`AWS_PROFILE` exported — or a CI runner with an instance role —
+ * gave the API under test working credentials and `e2e/ai-analysis-api.spec.ts` made
+ * real, billed InvokeModel calls against `bedrock-runtime.us-east-1.amazonaws.com`.
+ *
+ * Two independent guards, because either one alone can be defeated:
+ *
+ *  1. Every `AWS_*` variable is dropped, then only dummy values are put back. That
+ *     removes exported keys, `AWS_PROFILE`, `AWS_SESSION_TOKEN`,
+ *     `AWS_CONTAINER_CREDENTIALS_*`, `AWS_WEB_IDENTITY_TOKEN_FILE` and
+ *     `AWS_ENDPOINT_URL*` in one sweep, rather than listing names that will drift.
+ *     `AWS_SHARED_CREDENTIALS_FILE`/`AWS_CONFIG_FILE` point at /dev/null so the SDK
+ *     cannot fall back to `~/.aws`, and IMDS lookups are disabled so it cannot fall
+ *     back to an instance role.
+ *  2. `BEDROCK_ENDPOINT` points at the in-process mock, so even if a credential did
+ *     survive, the request goes to loopback and never leaves the machine.
+ *
+ * Note that the dummy credentials are required, not belt-and-braces: the SDK still
+ * SigV4-signs requests to an overridden endpoint and throws
+ * `CredentialsProviderError` if it cannot resolve any. The mock ignores the signature.
+ */
+function apiChildEnv(extra: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.toUpperCase().startsWith('AWS_')) continue;
+    env[key] = value;
+  }
+
+  return {
+    ...env,
+    AWS_ACCESS_KEY_ID: 'e2e-mock-access-key',
+    AWS_SECRET_ACCESS_KEY: 'e2e-mock-secret-key',
+    AWS_REGION: 'us-east-1',
+    AWS_DEFAULT_REGION: 'us-east-1',
+    AWS_SHARED_CREDENTIALS_FILE: '/dev/null',
+    AWS_CONFIG_FILE: '/dev/null',
+    AWS_EC2_METADATA_DISABLED: 'true',
+    ...extra,
+  };
+}
+
 // Types for our worker-scoped fixtures
 type WorkerFixtures = {
   dbContainer: StartedPostgreSqlContainer;
+  bedrockMock: MockBedrock;
   apiServer: { url: string; process: ChildProcess };
   webServer: { url: string; process: ChildProcess };
 };
@@ -148,10 +196,25 @@ export const test = base.extend<
     { scope: 'worker' },
   ],
 
+  // Mock AWS Bedrock - one per worker, on its own ephemeral loopback port.
+  // Rule 3: the AI analysis paths must be exercised against a stable fake, never
+  // against the real (billed) service. See apiChildEnv above and mock-bedrock.ts.
+  bedrockMock: [
+    async ({}, use) => {
+      const mock = await startMockBedrock();
+      try {
+        await use(mock);
+      } finally {
+        await mock.close();
+      }
+    },
+    { scope: 'worker' },
+  ],
+
   // API server - one per worker
   // CRITICAL: Use try-finally to ensure process cleanup even on errors
   apiServer: [
-    async ({ dbContainer }, use, workerInfo) => {
+    async ({ dbContainer, bedrockMock }, use, workerInfo) => {
       const workerTag = `[Worker ${workerInfo.workerIndex}]`;
       const debug = process.env.DEBUG === '1';
       // Use worker-specific port range to avoid collisions between parallel workers
@@ -163,15 +226,17 @@ export const test = base.extend<
       // Use the built API (faster than dev server)
       const proc = spawn('node', ['dist/index.js'], {
         cwd: path.join(PROJECT_ROOT, 'api'),
-        env: {
-          ...process.env,
+        env: apiChildEnv({
           PORT: String(port),
           DATABASE_URL: dbUrl,
           CORS_ORIGIN: '*', // Allow any origin during tests
           NODE_ENV: 'test',
           // Prevent dotenv from overriding our DATABASE_URL
           DOTENV_CONFIG_PATH: '/dev/null',
-        },
+          // Rule 3: pin the only outbound third-party call to the in-process fake.
+          // Set last so it also wins over anything api/.env.local might carry.
+          BEDROCK_ENDPOINT: bedrockMock.url,
+        }),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
@@ -769,10 +834,33 @@ async function seedMinimalTestData(pool: Pool): Promise<void> {
   }
 
   // Create additional top-level wiki documents for tests that require multiple documents
-  // (e.g., content-caching tests that toggle between documents)
+  // (e.g., content-caching tests that toggle between documents).
+  //
+  // W7-6: the count here is load-bearing, not padding. `DocumentsTree` in
+  // web/src/pages/App.tsx caps the sidebar at SIDEBAR_ITEM_LIMIT = 10 root documents and
+  // only then renders the "N more..." row (App.tsx:651-659). This fixture used to create
+  // 3 workspace root documents, so that branch never rendered, so the axe scans in
+  // e2e/accessibility.spec.ts never saw its markup and reported zero violations on a page
+  // that has them at real scale. The suite was not passing because the app conformed; it
+  // was passing because the fixture was too small to reach the code under test.
+  //
+  // 'Welcome to Ship' above is root #1, so the 12 below give 13 workspace roots: 10 shown
+  // plus a "3 more..." row. That clears the limit by more than the N+2 margin CLAUDE.md
+  // asks for, so an off-by-one in the limit cannot silently switch the branch back off.
+  // Anything that raises SIDEBAR_ITEM_LIMIT above 11 must raise this list with it.
   const additionalWikiDocs = [
     { title: 'Project Overview', content: 'Overview of the Ship project and its goals.' },
     { title: 'Architecture Guide', content: 'Technical architecture and design decisions.' },
+    { title: 'API Reference', content: 'REST endpoints, request shapes and error codes.' },
+    { title: 'Onboarding Checklist', content: 'What a new engineer does in their first week.' },
+    { title: 'Release Process', content: 'How a change gets from a branch to production.' },
+    { title: 'Incident Runbook', content: 'Paging, triage and rollback steps for an outage.' },
+    { title: 'Testing Strategy', content: 'Unit, integration and end-to-end coverage rules.' },
+    { title: 'Security Practices', content: 'Session handling, secrets and dependency review.' },
+    { title: 'Design System', content: 'Tokens, spacing scale and component conventions.' },
+    { title: 'Data Model Notes', content: 'The unified document model and its associations.' },
+    { title: 'Deployment Topology', content: 'Environments, regions and the CDN in front of web.' },
+    { title: 'Glossary', content: 'Terms this workspace uses and what they mean here.' },
   ];
 
   for (let i = 0; i < additionalWikiDocs.length; i++) {

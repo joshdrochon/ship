@@ -247,6 +247,117 @@ test.describe('Auto-Save Race Conditions - Throttle Behavior', () => {
       timeout: 10000,
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // CONTINUOUS TYPING. Restored coverage — read this before editing either test.
+  //
+  // The test above types in two bursts with a pause between them. That pause is
+  // exactly what makes it a weaker test than the one it replaced: `schedulePersist`
+  // (api/src/collaboration/index.ts:189) is a pure trailing debounce with no maximum
+  // wait, so every keystroke clears the pending timer and restarts it. A pause lets
+  // the timer fire; continuous typing never does. The whole exposure lives in the
+  // window the paused test steps over — measured at 13,862 ms of unsaved work during
+  // continuous typing versus 2,026 ms when idle.
+  //
+  // So both cases are kept: the paused one above, and the two below, which never let
+  // the keyboard go quiet inside the measured window.
+  // ---------------------------------------------------------------------------
+
+  const CONTINUOUS_TITLE = 'continuous typing with no pause at all until the very end';
+  const KEYSTROKE_GAP_MS = 60;
+
+  test('continuous typing: the whole value survives an unbroken typing session', async ({ page }) => {
+    await createNewDocument(page);
+    const docId = documentIdFromUrl(page.url());
+
+    const titleInput = page.locator('textarea[placeholder="Untitled"]');
+    await titleInput.focus();
+    await expect(titleInput).toBeFocused({ timeout: 2000 });
+
+    // No waitForTimeout longer than a keystroke gap anywhere in this loop: the point
+    // is that the debounce is never allowed to fire mid-session.
+    for (const ch of CONTINUOUS_TITLE) {
+      await page.keyboard.type(ch);
+      await page.waitForTimeout(KEYSTROKE_GAP_MS);
+    }
+
+    // Only now does typing stop, which is the first moment the trailing debounce can
+    // fire. The complete value must land — not a truncated prefix from some
+    // intermediate flush racing the last keystrokes.
+    await expectDocumentTitleSaved(page, CONTINUOUS_TITLE, docId);
+    await expect(titleInput).toHaveValue(CONTINUOUS_TITLE);
+
+    await page.reload();
+    await expect(page.locator('.ProseMirror')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('textarea[placeholder="Untitled"]')).toHaveValue(CONTINUOUS_TITLE, {
+      timeout: 10000,
+    });
+  });
+
+  // The exposure itself, pinned as a number. This was written as a `test.fail()` against
+  // the un-capped debounce and went green once `PERSIST_MAX_WAIT_MS` landed in
+  // `api/src/collaboration/index.ts` — it is the regression test for that fix (Rule 3), and
+  // it goes red again if the ceiling is ever removed.
+  //
+  // The guarantee being asserted is the user-facing one: during a long unbroken
+  // typing session, work must become durable at some bounded point rather than only
+  // when the user stops. Before the fix nothing was written until typing ended, so a
+  // browser crash, a laptop lid, or a server restart mid-sentence lost the entire session.
+  test('continuous typing: work becomes durable before the typing session ends', async ({ page }) => {
+    // The typing session alone is 14 s; the suite default (60 s) leaves too little
+    // room for login plus document creation on a loaded machine, and a timeout would
+    // satisfy test.fail() for the wrong reason.
+    test.setTimeout(90_000);
+
+    await createNewDocument(page);
+    const docId = documentIdFromUrl(page.url());
+
+    const titleInput = page.locator('textarea[placeholder="Untitled"]');
+    await titleInput.focus();
+    await expect(titleInput).toBeFocused({ timeout: 2000 });
+
+    // A correct implementation flushes at least once inside a window this long even
+    // if the keyboard never goes quiet. 5 s is deliberately generous against the 2 s
+    // debounce — this is asserting "bounded", not a specific cadence.
+    const DURABILITY_BUDGET_MS = 5000;
+    const TYPING_SESSION_MS = 14_000;
+
+    const serverTitle = async (): Promise<string> => {
+      const resp = await page.request.get(`/api/documents/${docId}`);
+      expect(resp.ok(), `GET /api/documents/${docId} should succeed`).toBeTruthy();
+      return (await resp.json()).title ?? '';
+    };
+
+    // A character that does not occur in "Untitled", so "the server has our typing"
+    // cannot be confused with "the server still has the default title".
+    const MARK = 'q';
+    expect('Untitled', 'marker must not occur in the default title').not.toContain(MARK);
+
+    const started = Date.now();
+    let firstDurableAt: number | null = null;
+
+    // Type without ever pausing, polling the server between keystrokes. The poll is a
+    // network round trip, not a sleep, so the keyboard is never idle for the debounce
+    // window — which is the condition under test.
+    while (Date.now() - started < TYPING_SESSION_MS) {
+      await page.keyboard.type(MARK);
+      await page.waitForTimeout(KEYSTROKE_GAP_MS);
+
+      if ((await serverTitle()).includes(MARK)) {
+        firstDurableAt = Date.now();
+        break;
+      }
+    }
+
+    const exposureMs = firstDurableAt === null ? Date.now() - started : firstDurableAt - started;
+    expect(
+      exposureMs,
+      firstDurableAt === null
+        ? `Nothing was persisted during ${TYPING_SESSION_MS}ms of unbroken typing — the ` +
+          'entire session would be lost to a crash. schedulePersist has no maximum wait.'
+        : `First durable write took ${exposureMs}ms of unbroken typing.`
+    ).toBeLessThanOrEqual(DURABILITY_BUDGET_MS);
+  });
 });
 
 test.describe('Auto-Save Race Conditions - Error Recovery', () => {

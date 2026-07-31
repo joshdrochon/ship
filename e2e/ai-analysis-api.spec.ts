@@ -9,9 +9,16 @@ import { test, expect } from './fixtures/isolated-env';
  * 3. POST /api/ai/analyze-retro — requires retro_content and plan_content fields
  * 4. Rate limiting: endpoint returns 429 after 10 requests
  *
- * Note: Actual Bedrock calls will return { error: 'ai_unavailable' } in test env
- * since there are no AWS credentials. These tests verify endpoint structure and
- * validation, not the AI output.
+ * Bedrock is faked, not skipped. `e2e/fixtures/isolated-env.ts` starts an in-process
+ * mock InvokeModel endpoint per worker, points the API at it with `BEDROCK_ENDPOINT`,
+ * and strips every ambient `AWS_*` variable out of the API child process so a
+ * developer's real credentials cannot turn this suite into billed Bedrock traffic
+ * (Rule 3: stable fakes, not live external calls).
+ *
+ * Because the fake is deterministic and echoes the submitted plan items back, the
+ * analysis assertions below are exact. They must NOT be relaxed to
+ * `analysis || ai_unavailable`: that form passes whether the feature works or is
+ * entirely unavailable, which is what this suite previously did.
  */
 
 // Helper to get CSRF token for API requests
@@ -49,6 +56,14 @@ const samplePlanContent = {
   ],
 };
 
+// What `extractPlanItems` pulls out of samplePlanContent, in order: every paragraph
+// longer than 10 characters. The mock echoes these back, so the assertions can check
+// that the analysis corresponds to the plan that was actually submitted.
+const samplePlanItems = [
+  'Complete the API integration and write unit tests for the auth module.',
+  'Deploy staging environment and verify monitoring dashboards.',
+];
+
 const sampleRetroContent = {
   type: 'doc',
   content: [
@@ -72,7 +87,11 @@ test.describe('AI Status API', () => {
 
     const data = await response.json();
     expect(data, 'Response should have available property').toHaveProperty('available');
-    expect(typeof data.available, 'available should be a boolean').toBe('boolean');
+    expect(
+      data.available,
+      'AI should report available: the fixture wires BEDROCK_ENDPOINT to the mock. ' +
+      'false here means the API child process did not get the endpoint override.'
+    ).toBe(true);
   });
 
   test('GET /api/ai/status requires authentication', async ({ page, apiServer }) => {
@@ -97,7 +116,7 @@ test.describe('AI Analyze Plan API', () => {
     expect(result.error, 'Error should mention content').toContain('content');
   });
 
-  test('POST /api/ai/analyze-plan accepts valid content', async ({ page, apiServer }) => {
+  test('POST /api/ai/analyze-plan returns an analysis of the submitted plan', async ({ page, apiServer }) => {
     const { csrfToken } = await loginAsAdmin(page, apiServer.url);
 
     const response = await page.request.post(`${apiServer.url}/api/ai/analyze-plan`, {
@@ -105,20 +124,44 @@ test.describe('AI Analyze Plan API', () => {
       data: { content: samplePlanContent },
     });
 
-    // In test env without AWS credentials, we expect either:
-    // - 200 with { error: 'ai_unavailable' } (Bedrock not configured)
-    // - 200 with analysis result (if somehow AI is available)
-    // Either way, the endpoint should not return 400/500
-    expect(response.ok(), 'Endpoint should return 200 even if AI is unavailable').toBe(true);
-
+    expect(response.ok(), 'analyze-plan should return 200').toBe(true);
     const result = await response.json();
-    // The response should be either a valid analysis or an error indicator
-    const isAnalysis = result.overall_score !== undefined;
-    const isUnavailable = result.error === 'ai_unavailable';
+
+    // Strict: `ai_unavailable` is a failure here, not an acceptable outcome. The mock
+    // Bedrock is always up, so this can only mean the endpoint override, the dummy
+    // credentials or the response parsing broke.
     expect(
-      isAnalysis || isUnavailable,
-      'Response should be either an analysis result or ai_unavailable error'
-    ).toBe(true);
+      result.error,
+      `analyze-plan degraded instead of analysing: ${JSON.stringify(result)}`
+    ).toBeUndefined();
+
+    expect(typeof result.overall_score, 'overall_score should be a number').toBe('number');
+    expect(result.overall_score).toBeGreaterThanOrEqual(0);
+    expect(result.overall_score).toBeLessThanOrEqual(1);
+
+    // The analysis must correspond to the plan that was submitted, one entry per
+    // extracted plan item, in order — not merely be well-shaped.
+    expect(Array.isArray(result.items), 'items should be an array').toBe(true);
+    expect(
+      result.items.map((item: { text: string }) => item.text),
+      'items should mirror the submitted plan items'
+    ).toEqual(samplePlanItems);
+
+    for (const item of result.items) {
+      expect(typeof item.score).toBe('number');
+      expect(item.score).toBeGreaterThanOrEqual(0);
+      expect(item.score).toBeLessThanOrEqual(1);
+      expect(typeof item.feedback).toBe('string');
+      expect(Array.isArray(item.issues)).toBe(true);
+    }
+
+    expect(
+      ['light', 'moderate', 'heavy', 'excessive'],
+      'workload_assessment should be one of the documented values'
+    ).toContain(result.workload_assessment);
+    expect(typeof result.workload_feedback).toBe('string');
+    // Present only on the Bedrock path — the cache-invalidation hash.
+    expect(typeof result.content_hash, 'content_hash should be returned').toBe('string');
   });
 
   test('POST /api/ai/analyze-plan requires authentication', async ({ page, apiServer }) => {
@@ -169,7 +212,7 @@ test.describe('AI Analyze Retro API', () => {
     expect(response.status(), 'Should return 400 when both fields are missing').toBe(400);
   });
 
-  test('POST /api/ai/analyze-retro accepts valid content', async ({ page, apiServer }) => {
+  test('POST /api/ai/analyze-retro returns coverage of the submitted plan', async ({ page, apiServer }) => {
     const { csrfToken } = await loginAsAdmin(page, apiServer.url);
 
     const response = await page.request.post(`${apiServer.url}/api/ai/analyze-retro`, {
@@ -180,16 +223,32 @@ test.describe('AI Analyze Retro API', () => {
       },
     });
 
-    // Same as analyze-plan: expect 200 with either result or ai_unavailable
-    expect(response.ok(), 'Endpoint should return 200 even if AI is unavailable').toBe(true);
-
+    expect(response.ok(), 'analyze-retro should return 200').toBe(true);
     const result = await response.json();
-    const isAnalysis = result.overall_score !== undefined;
-    const isUnavailable = result.error === 'ai_unavailable';
+
     expect(
-      isAnalysis || isUnavailable,
-      'Response should be either an analysis result or ai_unavailable error'
-    ).toBe(true);
+      result.error,
+      `analyze-retro degraded instead of analysing: ${JSON.stringify(result)}`
+    ).toBeUndefined();
+
+    expect(typeof result.overall_score, 'overall_score should be a number').toBe('number');
+    expect(result.overall_score).toBeGreaterThanOrEqual(0);
+    expect(result.overall_score).toBeLessThanOrEqual(1);
+
+    expect(Array.isArray(result.plan_coverage), 'plan_coverage should be an array').toBe(true);
+    expect(
+      result.plan_coverage.map((row: { plan_item: string }) => row.plan_item),
+      'plan_coverage should cover every submitted plan item, in order'
+    ).toEqual(samplePlanItems);
+
+    for (const row of result.plan_coverage) {
+      expect(typeof row.addressed).toBe('boolean');
+      expect(typeof row.has_evidence).toBe('boolean');
+      expect(typeof row.feedback).toBe('string');
+    }
+
+    expect(Array.isArray(result.suggestions), 'suggestions should be an array').toBe(true);
+    expect(typeof result.content_hash, 'content_hash should be returned').toBe('string');
   });
 
   test('POST /api/ai/analyze-retro requires authentication', async ({ page, apiServer }) => {

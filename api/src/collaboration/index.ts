@@ -186,14 +186,39 @@ async function persistDocument(docName: string, doc: Y.Doc) {
   }
 }
 
+const PERSIST_DEBOUNCE_MS = 2000;
+// Ceiling on how long an unbroken edit session can go unwritten. The debounce below is
+// cleared on every update, so before this existed a user who typed without pausing was
+// never persisted at all -- measured at 13,862 ms of continuous typing with nothing durable,
+// against 2,026 ms when they paused. A crash, a disconnect or a server restart in that window
+// lost the entire session silently, which is the same failure class as W6-9. The debounce
+// still collapses bursts; this only guarantees the wait is bounded.
+// 3 s rather than 5 s so the E2E assertion (durable within 5 s) has real margin on a loaded
+// machine instead of racing the ceiling it is checking. Cost is one UPDATE per 3 s per
+// actively-edited document, which is well inside what the debounce was already permitting
+// for a user who pauses.
+const PERSIST_MAX_WAIT_MS = 3000;
+
+// When the current unbroken edit run began, per document. Cleared on every write.
+const persistRunStartedAt = new Map<string, number>();
+
 function schedulePersist(docName: string, doc: Y.Doc) {
   const existing = pendingSaves.get(docName);
   if (existing) clearTimeout(existing);
 
-  pendingSaves.set(docName, setTimeout(() => {
-    persistDocument(docName, doc);
+  const now = Date.now();
+  const runStart = persistRunStartedAt.get(docName) ?? now;
+  persistRunStartedAt.set(docName, runStart);
+
+  const flush = () => {
     pendingSaves.delete(docName);
-  }, 2000));
+    persistRunStartedAt.delete(docName);
+    persistDocument(docName, doc);
+  };
+
+  // Whichever comes first: quiet for the debounce, or the max wait since this run began.
+  const remainingMaxWait = Math.max(0, PERSIST_MAX_WAIT_MS - (now - runStart));
+  pendingSaves.set(docName, setTimeout(flush, Math.min(PERSIST_DEBOUNCE_MS, remainingMaxWait)));
 }
 
 // Track which docs were loaded fresh from JSON (not from yjs_state)
