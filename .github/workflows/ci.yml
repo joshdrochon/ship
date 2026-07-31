@@ -256,18 +256,175 @@ jobs:
             licenses.json
 
   # Rule 5: one image, tagged with the commit SHA, promoted rather than rebuilt.
+  #
+  # This job is the publisher. It produces THE artifact — the one Render runs —
+  # and pushes it to ghcr.io. Nothing downstream rebuilds it; terraform/render
+  # points `runtime_source.image` at the tag this job pushes. Full lifecycle in
+  # docs/artifact-lifecycle.md.
+  #
+  # Why ghcr.io and not the GitLab registry, given that .gitlab-ci.yml is the
+  # pipeline that gates merges: the GitLab instance does not run a registry.
+  # `labs.gauntletai.com/jwt/auth?service=container_registry` answers
+  # `{"code":"UNAVAILABLE","message":"registry not enabled"}` (HTTP 404), the
+  # project's `container_registry_image_prefix` is null, and its registry
+  # repository list is empty. `$CI_REGISTRY_IMAGE` therefore expands to the empty
+  # string in a job, which is what made `docker build -t ":$CI_COMMIT_SHA"` fail
+  # with `invalid reference format` on five consecutive main pipelines. There is
+  # no credential that fixes that — the service is not deployed. ghcr.io is
+  # reachable and is backed by the GitHub remote this repo already has.
+  #
+  # Credential: none to provision. GITHUB_TOKEN with `packages: write` is issued
+  # to the job by Actions itself, which is the whole reason to publish from this
+  # side rather than pushing to ghcr.io from GitLab with a long-lived PAT.
   docker-image:
     runs-on: ubuntu-latest
     needs: [build, lint, type-check, test]
+
+    # Least privilege, and not the default. Without `packages: write` the token
+    # can read ghcr.io but not push; `contents: read` is all the rest of the job
+    # needs. Declaring the block at all drops every other scope to none.
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      # ghcr.io requires a lowercase path. `joshdrochon/ship` already is, so
+      # ${{ github.repository }} is used directly rather than lowercased at
+      # runtime — if the repo is ever renamed to something with capitals, the
+      # push fails loudly here rather than pushing to a surprising path.
+      IMAGE: ghcr.io/${{ github.repository }}
+
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+
+      # Build once, into the local daemon, so the next step can inspect and run
+      # the exact image that will be pushed. `load: true` and `push: true` are
+      # mutually exclusive in buildx, and verifying-then-pushing the same local
+      # image is worth more than saving a layer export: a push of an image whose
+      # provenance was never checked is how the SHA silently stops propagating.
+      - name: Build image
+        uses: docker/build-push-action@v6
         with:
           context: .
+          load: true
           push: false
-          tags: |
-            ship:${{ github.sha }}
-            ship:latest
+          tags: ${{ env.IMAGE }}:${{ github.sha }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # The provenance gate. Rule 5 says "tag each artifact with the git commit
+      # SHA" — this proves the SHA actually reached the image, rather than
+      # trusting that a --build-arg was wired correctly. It is the check that
+      # would have caught the whole finding.
+      - name: Verify the image carries this commit SHA
+        run: |
+          set -euo pipefail
+          expected='${{ github.sha }}'
+
+          label=$(docker inspect --format \
+            '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+            "$IMAGE:$expected")
+          echo "label org.opencontainers.image.revision = $label"
+          [ "$label" = "$expected" ] || {
+            echo "::error::image label is '$label', expected '$expected'"
+            exit 1
+          }
+
+          env_sha=$(docker inspect --format \
+            '{{ range .Config.Env }}{{ println . }}{{ end }}' \
+            "$IMAGE:$expected" | sed -n 's/^GIT_SHA=//p')
+          echo "runtime env GIT_SHA = $env_sha"
+          [ "$env_sha" = "$expected" ] || {
+            echo "::error::runtime GIT_SHA is '$env_sha', expected '$expected'"
+            exit 1
+          }
+
+      # And that the value reaches the wire, not just the image metadata. The
+      # container's default CMD runs migrate and seed against a database that
+      # does not exist here, so start the server directly — /health is served by
+      # api/src/app.ts before any query is issued, so no database is needed to
+      # answer it. DATABASE_URL and SESSION_SECRET are throwaway values that only
+      # have to satisfy the boot-time checks.
+      #
+      # Requested via `docker exec` from inside the container rather than through
+      # a published port, matching .gitlab-ci.yml. It is not needed here — this
+      # runner has a local daemon — but keeping the two identical means the check
+      # cannot pass on one platform and fail on the other, and the docker-in-
+      # docker case genuinely breaks with a published port. node:20-slim ships
+      # neither curl nor wget; it does ship node, which has a global fetch.
+      - name: Verify /health reports the SHA
+        run: |
+          set -euo pipefail
+          docker run -d --name ship-provenance \
+            -e SESSION_SECRET=ci-only-not-a-real-secret \
+            -e DATABASE_URL=postgres://unused:unused@127.0.0.1:5432/unused \
+            "$IMAGE:${{ github.sha }}" node dist/index.js
+
+          health=""
+          for _ in $(seq 1 30); do
+            if health=$(docker exec ship-provenance node -e \
+                 "fetch('http://127.0.0.1:80/health').then(r=>r.text()).then(t=>process.stdout.write(t))" 2>/dev/null); then
+              break
+            fi
+            sleep 2
+          done
+
+          docker logs ship-provenance || true
+          echo "GET /health -> $health"
+          echo "$health" | grep -q "\"revision\":\"${{ github.sha }}\"" || {
+            echo "::error::/health did not report ${{ github.sha }}"
+            exit 1
+          }
+          docker rm -f ship-provenance
+
+      # Fork pull requests get a read-only GITHUB_TOKEN, so a push from one
+      # cannot succeed — it is not a policy choice. Everything above still runs
+      # on a PR, so the artifact is built and its provenance verified on every
+      # commit; only the publish waits for the branch push. There is no
+      # "credentials missing, skipping" path left: when this step runs, it pushes
+      # or it fails the pipeline.
+      - name: Log in to ghcr.io
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push ${{ env.IMAGE }}:${{ github.sha }}
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE:${{ github.sha }}"
+          echo "pushed $IMAGE:${{ github.sha }}"
+
+      # `latest` is a convenience pointer for humans, never a deploy target —
+      # terraform/render takes an explicit SHA (var.image_tag) precisely so that
+      # what is deployed cannot change because someone moved a floating tag.
+      # Only the default branch moves it.
+      - name: Move :latest (default branch only)
+        if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          set -euo pipefail
+          docker tag "$IMAGE:${{ github.sha }}" "$IMAGE:latest"
+          docker push "$IMAGE:latest"
+
+      - name: Summary
+        if: github.event_name == 'push'
+        run: |
+          {
+            echo "### Artifact published"
+            echo
+            echo '| | |'
+            echo '|---|---|'
+            echo "| Image | \`$IMAGE:${{ github.sha }}\` |"
+            echo "| Revision | \`${{ github.sha }}\` |"
+            echo
+            echo 'Deploy it:'
+            echo '```'
+            echo "cd terraform/render && terraform apply -var image_tag=${{ github.sha }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

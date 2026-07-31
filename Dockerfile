@@ -56,6 +56,27 @@ RUN test -f api/dist/index.js || (echo "api build produced no dist/index.js" && 
 # ---------------------------------------------------------------------------
 FROM public.ecr.aws/docker/library/node:20-slim
 
+# Provenance. Implementation Rule 5: "Tag each artifact with the git commit SHA."
+#
+# A registry tag alone is not enough — a tag is a pointer someone can move, and
+# it is invisible from inside a running container. This bakes the SHA into the
+# image three ways so the question "which commit is actually running?" has an
+# answer at every layer:
+#
+#   LABEL org.opencontainers.image.revision  → `docker inspect`, without running it
+#   ENV GIT_SHA                              → the process, and therefore /health
+#   the registry tag                         → set by CI, see .github/workflows/ci.yml
+#
+# The default is literally `unknown`, not empty. `docker build .` with no
+# --build-arg — local dev, scripts/deploy.sh before this change, anyone poking at
+# the Dockerfile — still produces a working image; it just reports honestly that
+# nobody told it what commit it came from. A blank value would be
+# indistinguishable from a value that failed to propagate.
+ARG GIT_SHA=unknown
+LABEL org.opencontainers.image.revision="$GIT_SHA"
+LABEL org.opencontainers.image.source="https://github.com/joshdrochon/ship"
+ENV GIT_SHA=$GIT_SHA
+
 WORKDIR /app
 
 RUN npm config set strict-ssl false

@@ -65,10 +65,66 @@ else
   ENV_NAME="ship-api-${ENV}"
 fi
 
+# ---------------------------------------------------------------------------
+# Identify the artifact — Implementation Rule 5, "tag each artifact with the git
+# commit SHA".
+#
+# The version label used to be `v$(date +%Y%m%d%H%M%S)`. A timestamp says when
+# somebody ran this script and nothing else: given a version label in the
+# Elastic Beanstalk console there was no way to recover what source it was built
+# from, and two deploys of the same commit produced two unrelated labels while
+# one deploy of a half-finished working tree produced a label indistinguishable
+# from a clean one.
+#
+# The commit SHA is the label now. It matches the tag CI pushes to ghcr.io and
+# the `revision` field /health reports, so all three environments name the
+# artifact the same way.
+#
+# The dirty-tree check is what makes the label true. This script compiles from
+# the working tree (`pnpm build:shared && pnpm build:api` below), so with
+# uncommitted edits the SHA names a commit that is NOT what gets deployed — a
+# label that lies is worse than a timestamp that merely says nothing. Refuse
+# instead. There is deliberately no --force flag: the fix is to commit or stash,
+# which takes seconds, and an override would be used every time.
+#
+# This does not make the AWS path Rule 5-compliant on its own — it still builds
+# per-deploy on the operator's machine rather than promoting the CI artifact.
+# The compliant path is terraform/render, which pulls the published image. See
+# docs/artifact-lifecycle.md, "The Elastic Beanstalk path".
+# ---------------------------------------------------------------------------
+if ! git -C "$PROJECT_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "ERROR: $PROJECT_ROOT is not a git repository."
+  echo "This script tags the deployment with the commit SHA and cannot do that here."
+  exit 1
+fi
+
+if [ -n "$(git -C "$PROJECT_ROOT" status --porcelain)" ]; then
+  echo ""
+  echo "============================================"
+  echo "ERROR: working tree is dirty"
+  echo "============================================"
+  echo "This script compiles from the working tree and labels the result with"
+  echo "the current commit SHA. With uncommitted changes that label would name a"
+  echo "commit that is not what gets deployed."
+  echo ""
+  git -C "$PROJECT_ROOT" status --short
+  echo ""
+  echo "Commit or stash, then re-run."
+  echo "============================================"
+  exit 1
+fi
+
+GIT_SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+
+# Elastic Beanstalk version labels must be unique per application, so a second
+# deploy of the same commit collides with the first. That is correct behaviour —
+# the artifact for a commit already exists and should be redeployed, not
+# rebuilt — but it means this script fails on a re-run rather than silently
+# producing a second, differently-labelled build of identical source.
+VERSION="$GIT_SHA"
+
 # Sync terraform config from SSM (source of truth for this environment)
 "$SCRIPT_DIR/sync-terraform-config.sh" "$ENV"
-
-VERSION="v$(date +%Y%m%d%H%M%S)"
 
 # Get S3 bucket from Terraform outputs
 if [ -d "$TF_DIR" ] && command -v terraform &> /dev/null; then
@@ -127,7 +183,7 @@ echo "✓ SQL files verified ($DIST_COUNT migrations)"
 # CRITICAL: Test Docker build BEFORE deploying
 # This catches dependency issues that only manifest in production (--prod install)
 echo "Testing Docker build locally..."
-if ! docker build -t ship-api:pre-deploy-test . --quiet 2>/dev/null; then
+if ! docker build --build-arg "GIT_SHA=$GIT_SHA" -t ship-api:pre-deploy-test . --quiet 2>/dev/null; then
   echo ""
   echo "============================================"
   echo "ERROR: Docker build FAILED"

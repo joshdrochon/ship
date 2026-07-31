@@ -12,6 +12,16 @@ output "service_url" {
   value       = render_web_service.shipshape.url
 }
 
+output "deployed_image" {
+  description = "The exact artifact this service runs. Rule 5's audit trail: compare it against `curl $(terraform output -raw service_url)/health`, which reports the SHA the running process was built from. If the two disagree, the apply has not finished or something deployed out of band."
+  value       = "${var.image_repository}:${var.image_tag}"
+}
+
+output "verify_deployed_revision" {
+  description = "Copy-paste check that the running container is the artifact this configuration names."
+  value       = "curl -sf ${render_web_service.shipshape.url}/health   # expect {\"status\":\"ok\",\"revision\":\"${var.image_tag}\"}"
+}
+
 output "service_id" {
   description = "Render service id (srv-...). What `terraform import` needs to adopt an existing service."
   value       = render_web_service.shipshape.id

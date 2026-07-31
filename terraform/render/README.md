@@ -1,14 +1,21 @@
 # `terraform/render` — ShipShape on Render
 
 One `terraform apply` stands up the whole deployment: a managed PostgreSQL 16
-instance, a web service built from the repo's root `Dockerfile`, and the wiring
+instance, a web service running the container image CI published, and the wiring
 between them. Requirements 8.2, 8.5 and 8.6 of the Category 8 improvement target.
+
+**This directory does not build anything.** It deploys
+`ghcr.io/joshdrochon/ship:<commit-sha>`, which `.github/workflows/ci.yml` built,
+verified and pushed. That is Implementation Rule 5 — the artifact produced in CI
+is the artifact that runs. Full lifecycle, including rollback, in
+[`docs/artifact-lifecycle.md`](../../docs/artifact-lifecycle.md).
 
 | | |
 |---|---|
 | Provider | `render-oss/render` **1.9.1**, exact `=` pin |
-| Resources | `render_postgres.ship`, `render_web_service.shipshape` |
-| Credentials | one: a Render API key, from the environment |
+| Resources | `render_postgres.ship`, `render_web_service.shipshape`, optional `render_registry_credential.ghcr` |
+| Credentials | one: a Render API key, from the environment (plus a `read:packages` PAT only if the image is private) |
+| Source | a published image tag, not a git branch |
 | State | local. No backend block, no S3, no SSM lookup |
 
 ---
@@ -20,11 +27,25 @@ cd terraform/render
 export TF_VAR_render_api_key=rnd_...          # Render dashboard → Account → API Keys
 export TF_VAR_render_owner_id=tea_...         # or usr_..., the owning team/user
 terraform init
-terraform plan       # 2 to add, 0 to change, 0 to destroy
-terraform apply
+terraform plan  -var image_tag=<commit-sha>   # 2 to add, 0 to change, 0 to destroy
+terraform apply -var image_tag=<commit-sha>
 ```
 
-The repo root `.env` already exports both under those names, so
+`image_tag` has no default and must be a git commit SHA — 7 to 40 lowercase hex.
+Terraform refuses `latest` and every other floating tag:
+
+```
+image_tag must be a git commit SHA (7-40 lowercase hex). Floating tags like
+'latest' are refused — pin the commit.
+```
+
+Both are deliberate. A deploy should be an explicit statement about which commit
+goes live rather than something that happens by omission, and a floating tag
+would make "which commit is running?" unanswerable — the question this whole
+arrangement exists to answer. Use any SHA whose CI run published an image; the
+job summary in Actions prints the exact command.
+
+The repo root `.env` already exports the two credentials under those names, so
 `set -a; source .env; set +a` is equivalent. `.env` is gitignored.
 
 Then, once, to fill in the URL that only exists after the first apply:
@@ -40,12 +61,21 @@ second apply — it is required only for the CAIA login path.
 ## How to test it
 
 ```bash
-terraform fmt -check                 # clean
-terraform validate                   # Success
-terraform plan                       # 2 to add, 0 to change, 0 to destroy
-curl -sf "$(terraform output -raw service_url)/health"   # {"status":"ok"}
-terraform plan                       # No changes, after an apply
+terraform fmt -check                              # clean
+terraform validate                                # Success
+terraform plan -var image_tag=<sha>               # 2 to add, 0 to change, 0 to destroy
+terraform output -raw deployed_image              # ghcr.io/joshdrochon/ship:<sha>
+curl -sf "$(terraform output -raw service_url)/health"
+# {"status":"ok","revision":"<sha>"}
+terraform plan -var image_tag=<sha>               # No changes, after an apply
 ```
+
+The `revision` in that `/health` response and the tag in `deployed_image` must be
+the same string. That is the end-to-end check that the artifact was promoted
+rather than rebuilt: the SHA is baked into the image by the `Dockerfile`, so the
+running process can only report it if it *is* the image CI built.
+`terraform output verify_deployed_revision` prints the `curl` with the expected
+answer already filled in.
 
 `terraform plan` reaches the real Render API and fails on a bad key, so a clean
 plan is also an authentication check.
@@ -55,6 +85,28 @@ fidelity test described under 8.5 below — see
 `docs/audit/lane-8-annotated-plan.md`, "Verifying against the live deployment".
 
 ## How to roll it back
+
+Two different things are called "roll back". Usually you want the first.
+
+**Roll the app back to an earlier commit** — keep the service and database:
+
+```bash
+terraform apply -var image_tag=<older-sha>
+```
+
+That is the whole procedure. Nothing is rebuilt, so it cannot fail the way a
+redeploy can: the image already exists, was already verified in CI, and already
+ran. Confirm with `curl "$(terraform output -raw service_url)/health"`.
+
+Caveat that belongs to the app, not to this configuration: **migrations do not
+roll back.** The container runs `node dist/db/migrate.js` at start and there are
+no down migrations, so reverting to an image from before a schema change leaves
+the new schema in place. Fine for additive migrations, not for destructive ones.
+
+Render's dashboard can also redeploy a previous deploy. Prefer the `apply` — the
+dashboard route leaves the live service disagreeing with Terraform state.
+
+**Tear the whole deployment down:**
 
 ```bash
 terraform destroy
@@ -86,14 +138,14 @@ order against infrastructure that already exists.
 | Manual step | `scripts/…` | Replaced by |
 |---|---|---|
 | Pull environment config from SSM | `deploy.sh:69` → `sync-terraform-config.sh` | Terraform variables, resolved from the graph |
-| `pnpm build:shared && pnpm build:api` on the operator's laptop | `deploy.sh:106` | `Dockerfile` stage 1, on Render's builder |
+| `pnpm build:shared && pnpm build:api` on the operator's laptop | `deploy.sh:106` | `Dockerfile` stage 1, in CI — once, not per environment |
 | Verify `schema.sql` and migration counts survived the build | `deploy.sh:110-127` | `Dockerfile` `RUN test -f …` assertions, at build time |
-| Local Docker build + container smoke test | `deploy.sh:129-174` | Render's build; `health_check_path = "/health"` gates the rollout |
-| `zip -r /tmp/api-$VERSION.zip …` | `deploy.sh:179` | none — Render builds from the git ref |
+| Local Docker build + container smoke test | `deploy.sh:129-174` | the CI `docker-image` job builds and smoke-tests it; `health_check_path = "/health"` gates the rollout |
+| `zip -r /tmp/api-$VERSION.zip …` | `deploy.sh:179` | none — the container image *is* the bundle, pulled by tag |
 | `aws s3 cp` the bundle | `deploy.sh:205` | none |
 | `aws elasticbeanstalk create-application-version` | `deploy.sh:207` | Render deploy, created by the provider |
 | `aws elasticbeanstalk update-environment` | `deploy.sh:213` | same apply |
-| `pnpm build:web` | `deploy-frontend.sh:52` | `Dockerfile` stage 1 |
+| `pnpm build:web` | `deploy-frontend.sh:52` | `Dockerfile` stage 1, same single CI build |
 | `aws s3 sync web/dist/ s3://…` | `deploy-frontend.sh:56` | none — `api/src/app.ts:250-258` serves `web/dist` from the same process |
 | `aws s3 cp index.html` with a shorter cache header | `deploy-frontend.sh:59` | same |
 | CloudFront invalidation | `deploy-frontend.sh:63` | none — no CDN in front of it |
@@ -103,11 +155,19 @@ order against infrastructure that already exists.
 
 Four things change in kind, not just in tooling:
 
-1. **The artifact is built from the git ref, not from the operator's working
-   tree.** `deploy.sh` compiles locally and zips `api/dist`, so what reaches
-   production is whatever was on that laptop. Render builds the Dockerfile at a
-   named branch. That is implementation rule 5 — the artifact that runs in
-   production is the one built from the commit, not a rebuild of it.
+1. **The artifact is not built here at all — it is promoted.** `deploy.sh`
+   compiles locally and zips `api/dist`, so what reaches production is whatever
+   was on that laptop. This directory deploys
+   `ghcr.io/joshdrochon/ship:<sha>`, the image CI already built and verified.
+
+   Note the earlier draft of this file claimed the win was that Render "builds
+   the Dockerfile at a named branch… built from the git ref, not the operator's
+   working tree." That is a genuine improvement over `deploy.sh` but it is **not
+   Implementation Rule 5.** Building from a ref is still rebuilding per
+   environment: Render's builder and CI's builder can produce different images
+   from the same commit, and nothing ever compared them. Rule 5 asks for the CI
+   artifact to *be* the production artifact, which needs an image source, not a
+   git source.
 2. **The frontend is not deployed separately.** One image, one origin, one
    deploy. There is no window in which the S3 bundle and the API disagree about
    the API contract, and no CloudFront invalidation to forget. Same-origin is
@@ -142,17 +202,36 @@ has made.
    `aws configure`, no `~/.aws/credentials`. Compare the AWS roots, which cannot
    even `terraform init` without the `aws` CLI and an SSM lookup to discover the
    backend bucket name.
-2. **The git repository connected to that Render account.** `joshdrochon/ship`
-   is private, so Render needs its GitHub OAuth connection already authorised
-   for the owner. Terraform cannot create that — it is a browser consent flow.
-   A public repo, or a `runtime_source.image` pointing at a published container
-   image, would both remove this step; neither is what this fork does today.
+2. **A published image to point at.** `terraform apply -var image_tag=<sha>`
+   needs that tag to exist in `ghcr.io/joshdrochon/ship`, which
+   `.github/workflows/ci.yml` pushes on every branch push. If the package is
+   public, that is all — Render pulls it anonymously.
 3. **Nothing else.** No Docker daemon, no `pnpm`, no `zip`, no network path to
    an S3 bucket.
 
-Point 2 is the reason this README says "one credential and one prior consent"
-rather than "only `terraform apply`". The brief's phrasing is the goal; that is
-the distance still between here and it.
+This section used to carry a different point 2: "the git repository connected to
+that Render account — `joshdrochon/ship` is private, so Render needs its GitHub
+OAuth connection already authorised for the owner. Terraform cannot create that,
+it is a browser consent flow." True of `runtime_source.docker`, and the reason
+this README said "one credential and one prior consent" rather than the brief's
+"deployable using only `terraform apply`".
+
+It is gone. Pulling a published image needs no repository connection at all, so
+with a public package the qualification disappears: a Render API key, an owner
+id, and `terraform apply`.
+
+If the ghcr.io package is kept private, Render needs a GitHub PAT with
+`read:packages`:
+
+```bash
+export TF_VAR_registry_username=joshdrochon
+export TF_VAR_registry_token=ghp_...        # read:packages only — Render never pushes
+```
+
+That creates `render_registry_credential.ghcr`. Both variables default to null
+and the resource is not created unless both are set. The token lands in
+`terraform.tfstate` in plaintext, which is why the public-package path is the
+default rather than the fallback.
 
 ---
 
