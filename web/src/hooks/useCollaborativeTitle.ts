@@ -19,6 +19,24 @@ export const TITLE_LOCAL_ORIGIN = 'ship:title-local';
  */
 export const TITLE_FALLBACK_SAVE_MS = 1500;
 
+/**
+ * Ceiling on how long an unbroken typing run can go unsaved on the fallback path.
+ *
+ * The debounce above is cleared on every keystroke, so a user typing without a 1.5 s pause
+ * never triggered a save at all — the timer was always cancelled before it fired. Whatever
+ * they typed since focusing the field was held only in React state, and a crash, a reload
+ * or a navigation lost all of it silently.
+ *
+ * This is the same defect the collaboration server had (`PERSIST_MAX_WAIT_MS`,
+ * api/src/collaboration/index.ts) and the server-side cap cannot cover this path: when no
+ * collaboration session is up, nothing reaches the server to schedule a persist. It shows
+ * up whenever the WebSocket handshake is slow — a cold start, a loaded machine, a bad
+ * network — which is exactly when losing the work is most likely.
+ *
+ * 3 s to match the server's ceiling, so the two paths bound the exposure the same way.
+ */
+export const TITLE_FALLBACK_MAX_WAIT_MS = 3000;
+
 interface UseCollaborativeTitleOptions {
   /** The editor's Y.Doc. The title lives in `ydoc.getText('title')`. */
   ydoc: Y.Doc;
@@ -61,16 +79,25 @@ export function useCollaborativeTitle({
   const titleRef = useRef(title);
   titleRef.current = title;
 
+  // Read inside markCacheLoaded, which is called from the Editor's WebSocket effect. Kept
+  // in a ref so that effect does not have to list `initialTitle` as a dependency — doing
+  // so would tear down and rebuild the collaboration session on every rename.
+  const initialTitleRef = useRef(initialTitle);
+  initialTitleRef.current = initialTitle;
+
   /** True once the Y.Doc — not the `initialTitle` prop — owns the value. */
   const crdtReadyRef = useRef(false);
   const userTypedRef = useRef(false);
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** When the current unbroken typing run began, for TITLE_FALLBACK_MAX_WAIT_MS. */
+  const fallbackRunStartedAtRef = useRef<number | null>(null);
   const caretRef = useRef<number | null>(null);
 
   // A new Y.Doc means a different document: drop all per-document state.
   useEffect(() => {
     crdtReadyRef.current = false;
     userTypedRef.current = false;
+    fallbackRunStartedAtRef.current = null;
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;
@@ -130,11 +157,21 @@ export function useCollaborativeTitle({
     // REST — but re-check on fire, because if the session came up in the meantime
     // the CRDT owns the field and a REST write would clobber other writers.
     if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+
+    const now = Date.now();
+    const runStart = fallbackRunStartedAtRef.current ?? now;
+    fallbackRunStartedAtRef.current = runStart;
+
+    // Whichever comes first: quiet for the debounce, or the ceiling since this unbroken
+    // run began. Without the ceiling, continuous typing cancels the timer forever.
+    const remainingMaxWait = Math.max(0, TITLE_FALLBACK_MAX_WAIT_MS - (now - runStart));
+
     fallbackTimerRef.current = setTimeout(() => {
       fallbackTimerRef.current = null;
+      fallbackRunStartedAtRef.current = null;
       if (crdtReadyRef.current) return;
       onFallbackSave?.(titleRef.current);
-    }, TITLE_FALLBACK_SAVE_MS);
+    }, Math.min(TITLE_FALLBACK_SAVE_MS, remainingMaxWait));
   }, [ytitle, onFallbackSave]);
 
   /**
@@ -157,15 +194,53 @@ export function useCollaborativeTitle({
     }
 
     crdtReadyRef.current = true;
+    fallbackRunStartedAtRef.current = null;
     if (fallbackTimerRef.current) {
       clearTimeout(fallbackTimerRef.current);
       fallbackTimerRef.current = null;
     }
   }, [ydoc, ytitle]);
 
+  /**
+   * Call once the local IndexedDB cache has loaded into the Y.Doc, before the WebSocket
+   * connects.
+   *
+   * What this adds, precisely: **new documents**.
+   *
+   * A document whose cache carried a title was already on the durable path — the observer
+   * above adopts a non-empty `ytitle` on mount and sets `crdtReadyRef` itself. What it
+   * could not do is adopt an *empty* one, because empty is ambiguous. So a freshly created
+   * "Untitled" document waited for the WebSocket before any keystroke reached the Y.Doc,
+   * and everything typed during that handshake lived in React state and nowhere else. A
+   * reload or a crash took all of it. That is the exact shape of
+   * e2e/autosave-race-conditions.spec.ts:306: create a document, start typing at once.
+   *
+   * The ambiguity is why the gate cannot simply be removed. It answers one question — *do
+   * we know this document's current title?* If the server holds "Q3 Roadmap", our Y.Doc is
+   * empty because nothing has loaded, and the user types "X", Yjs merges that as an
+   * insert: it cannot tell "empty because unknown" from "empty because deliberately
+   * blank", and the result is "XQ3 Roadmap". Seeding the local doc from `initialTitle`
+   * does not help either — two peers independently inserting the same characters produce
+   * duplicates, not a match.
+   *
+   * `initialTitle` resolves it. It comes from the REST document fetch, so an "Untitled"
+   * value means the server genuinely has no title and there is nothing to collide with.
+   * Any other value means the first visit to an already-titled document on a browser with
+   * no cache, which still waits for `markSynced` with TITLE_FALLBACK_MAX_WAIT_MS as the
+   * backstop.
+   */
+  const markCacheLoaded = useCallback(() => {
+    if (crdtReadyRef.current) return;
+
+    const initial = initialTitleRef.current;
+    const serverHasNoTitle = initial === '' || initial === 'Untitled';
+
+    if (ytitle.length > 0 || serverHasNoTitle) markSynced();
+  }, [ytitle, markSynced]);
+
   useEffect(() => () => {
     if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
   }, []);
 
-  return { title, setTitleFromInput, markSynced };
+  return { title, setTitleFromInput, markSynced, markCacheLoaded };
 }

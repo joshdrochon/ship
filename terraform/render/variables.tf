@@ -112,6 +112,26 @@ variable "service_plan" {
   }
 }
 
+variable "uploads_disk_size_gb" {
+  description = <<-EOT
+    Size of the persistent disk mounted at the uploads directory, in GB. `null` (the
+    default) attaches no disk, which is the only thing the `free` plan supports —
+    Render disks require `starter` or above.
+
+    With no disk, `api/src/routes/files.ts` writes uploads to the container filesystem
+    (`UPLOADS_DIR`, resolving to /app/api/uploads), which Render discards on every
+    deploy, restart and instance move. The `files` rows survive in Postgres, so the UI
+    keeps listing attachments whose bytes are gone. Set this to attach a disk instead.
+  EOT
+  type        = number
+  default     = null
+
+  validation {
+    condition     = var.uploads_disk_size_gb == null || var.uploads_disk_size_gb >= 1
+    error_message = "uploads_disk_size_gb must be null (no disk) or at least 1 GB."
+  }
+}
+
 variable "num_instances" {
   description = "Instance count. Pinned to 1: the collaboration server keeps Yjs document state in module-level Maps (api/src/collaboration/index.ts), so two instances would serve divergent documents. See README, 'What this does not solve'."
   type        = number
