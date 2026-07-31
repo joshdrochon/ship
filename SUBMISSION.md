@@ -106,16 +106,33 @@ source-code inventory. **All eight run and pass on both platforms.**
 
 | | |
 |---|---|
-| [`.gitlab-ci.yml`](.gitlab-ci.yml) | 8 jobs / 4 stages — the gate on the submitted repo |
-| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | the same 8 checks, on the platform Rule 4 names |
+| [`.gitlab-ci.yml`](.gitlab-ci.yml) | **primary** — 8 jobs / 4 stages, the gate on this repo |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | the same 8 checks, on the platform Rule 4 names literally |
 
-Merge requests are gated: `only_allow_merge_if_pipeline_succeeds` is enabled, and both MRs
+Merge requests are gated: `only_allow_merge_if_pipeline_succeeds` is enabled, and every MR
 into `main` waited for green.
+
+### On the GitLab runner
+
+**This instance has shared runners disabled**, so no pipeline could execute at all —
+they queued as `pending` indefinitely. Enabling shared runners was attempted through the
+API with Owner rights and the setting does not persist; it is controlled at the instance
+level.
+
+The project therefore registers **its own project-scoped runner** (Docker executor,
+`node:22-bookworm`), which is ordinary GitLab practice rather than a workaround. That is
+what makes Rule 4 satisfiable here: a pipeline definition that has never executed is a
+claim, not a result.
+
+Pipeline history in GitLab is permanent, so the green runs remain visible whether or not
+that runner is currently connected.
 
 **Documented deviations** (Rule 4 permits these with written justification):
 
-- GitLab is primary because p.10 requires a GitLab repository, while Rule 4 names GitHub
-  Actions. Both exist rather than one being traded away.
+- **Platform.** Rule 4 names GitHub Actions; p.10 requires a GitLab repository. Both
+  pipelines exist rather than one being traded away — GitLab is the gate on the submitted
+  repo, GitHub satisfies the rule as literally written. If the two ever disagree,
+  `.gitlab-ci.yml` wins.
 - `comply` is not installable in the CI image; `gitleaks` is substituted. It scans full
   history — 617 commits, no leaks.
 - High/moderate advisories are recorded but not gated. Only **critical** blocks, and that
