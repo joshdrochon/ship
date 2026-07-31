@@ -73,10 +73,16 @@ export function MultiPersonCombobox({
                     {getInitials(person.name)}
                   </span>
                   <span className="truncate max-w-[80px]">{person.name}</span>
+                  {/* Destructive and icon-only: with no aria-label its accessible name
+                      was empty and it announced as a bare "button" (axe button-name,
+                      critical). The person's name is interpolated so the chips do not
+                      all announce identically (W7-12) -- the whole point of this control
+                      is which person it removes. */}
                   <button
                     type="button"
                     onClick={(e) => removePerson(person.user_id, e)}
                     className="ml-0.5 hover:text-red-400"
+                    aria-label={`Remove ${person.name}`}
                   >
                     <XIcon className="h-3 w-3" />
                   </button>
@@ -113,7 +119,7 @@ export function MultiPersonCombobox({
                 value={search}
                 onValueChange={setSearch}
                 placeholder="Search people..."
-                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none"
+                className="w-full rounded bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
 

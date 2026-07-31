@@ -149,10 +149,15 @@ export function MergeProgramDialog({ isOpen, onClose, sourceId, sourceName }: Me
 
         {/* Target selection */}
         <div className="mb-4">
-          <label className="mb-1 block text-xs font-medium text-muted uppercase tracking-wider">
+          {/* W7-4: the label was drawn but never associated, so the only control in a
+              destructive dialog announced its value ("Select target program...") with no
+              name. htmlFor/id rather than aria-label -- the label is already correct and
+              already on screen; it just was not wired to anything. */}
+          <label htmlFor="merge-program-target" className="mb-1 block text-xs font-medium text-muted uppercase tracking-wider">
             Merge into
           </label>
           <select
+            id="merge-program-target"
             value={targetId || ''}
             onChange={(e) => setTargetId(e.target.value || null)}
             disabled={isMerging}

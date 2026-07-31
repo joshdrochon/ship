@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/cn';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
@@ -12,6 +13,9 @@ export function SetupPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+
+  // W7-8: rendered outside the app shell, so nothing ever set a title (WCAG 2.4.2).
+  usePageTitle('Set up Ship');
   const [needsSetup, setNeedsSetup] = useState(false);
   const [csrfToken, setCsrfToken] = useState('');
 

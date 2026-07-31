@@ -333,10 +333,16 @@ export function MyWeekPage() {
               const isToday = isDateToday(slot.date);
               const isFuture = !isPast && !isToday;
 
+              // Future days are de-emphasised through the row *chrome* (border and
+              // background) only. `opacity-40` on the container used to do this, but CSS
+              // opacity composites the whole subtree: it dragged the muted label colour
+              // from #9e9e9e down to an effective #474747 and every date/day/"Upcoming"
+              // span inside failed contrast at 2.09:1 against the required 4.5:1 (F16,
+              // 9 serious axe nodes). Text stays at full strength; only the chrome dims.
               const rowClass = cn(
                 'flex items-center gap-3 rounded-lg border px-4 py-2.5',
                 isToday ? 'border-accent/30 bg-accent/5' : 'border-border bg-surface',
-                isFuture && 'opacity-40',
+                isFuture && 'border-border/40 bg-surface/40',
                 !isFuture && 'hover:border-accent/50 transition-colors'
               );
 

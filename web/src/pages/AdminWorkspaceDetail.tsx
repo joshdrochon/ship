@@ -4,6 +4,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { formatDate } from '@/lib/date-utils';
+import { SkipLink } from '@/components/SkipLink';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 interface Member {
   userId: string;
@@ -57,6 +59,10 @@ export function AdminWorkspaceDetailPage() {
   const [addingUser, setAddingUser] = useState(false);
   const [addUserError, setAddUserError] = useState<string | null>(null);
   const [showSearchResults, setShowSearchResults] = useState(false);
+
+  // W7-8: top-level route outside the app shell, so nothing set a title (WCAG 2.4.2).
+  // The workspace name is what distinguishes one of these pages from another.
+  usePageTitle(workspace ? `${workspace.name} workspace` : 'Workspace');
 
   useEffect(() => {
     if (!isSuperAdmin) {
@@ -219,11 +225,16 @@ export function AdminWorkspaceDetailPage() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
+      {/* W7-9: renders its own chrome instead of the app shell, so it never inherited
+          the shell's skip link. */}
+      <SkipLink />
+
       {/* Header */}
       <header className="flex h-14 items-center border-b border-border px-6 gap-4">
         <button
           onClick={() => navigate('/admin')}
           className="text-muted hover:text-foreground transition-colors"
+          aria-label="Back to admin dashboard"
         >
           <BackIcon />
         </button>
@@ -233,7 +244,7 @@ export function AdminWorkspaceDetailPage() {
       </header>
 
       {/* Content */}
-      <main className="flex-1 overflow-auto p-6 space-y-8">
+      <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-6 space-y-8 focus:outline-none">
         {/* Members Section */}
         <section>
           <h2 className="text-sm font-medium text-foreground mb-3">
@@ -262,7 +273,13 @@ export function AdminWorkspaceDetailPage() {
                       </td>
                       <td className="px-4 py-3 text-sm text-muted">{member.email}</td>
                       <td className="px-4 py-3 text-sm">
+                        {/* W7-4 verbatim, on the page that grants workspace admin: one
+                            `select` per member with no accessible name. With an empty name a
+                            screen reader announces the control's *value*, so every row said
+                            "Member" and none said whose permissions were about to change.
+                            The member's name is interpolated so no two rows collide (W7-12). */}
                         <select
+                          aria-label={`Workspace role for ${member.name}`}
                           value={member.role}
                           onChange={(e) => handleUpdateRole(member.userId, e.target.value as 'admin' | 'member')}
                           className="px-2 py-1 bg-background border border-border rounded text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
@@ -365,6 +382,7 @@ export function AdminWorkspaceDetailPage() {
                       setUserSearch('');
                     }}
                     className="ml-auto text-muted hover:text-foreground"
+                    aria-label={`Clear selected user ${selectedUser.name}`}
                   >
                     <svg aria-hidden="true" focusable="false" className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -412,7 +430,10 @@ export function AdminWorkspaceDetailPage() {
                 </>
               )}
             </div>
+            {/* No visible <label> exists anywhere on this page, so aria-label is the only
+                thing that can name these two. Both change privileges. */}
             <select
+              aria-label="Role for the user being added"
               value={addUserRole}
               onChange={(e) => setAddUserRole(e.target.value as 'admin' | 'member')}
               className="px-3 py-2 bg-background border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
@@ -450,6 +471,7 @@ export function AdminWorkspaceDetailPage() {
                 )}
               />
               <select
+                aria-label="Role for the invited member"
                 value={inviteRole}
                 onChange={(e) => setInviteRole(e.target.value as 'admin' | 'member')}
                 className="px-3 py-2 bg-background border border-border rounded-md text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-accent"

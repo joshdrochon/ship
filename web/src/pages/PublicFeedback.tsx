@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
@@ -19,6 +20,9 @@ export function PublicFeedbackPage() {
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  // W7-8: rendered outside the app shell, so nothing ever set a title (WCAG 2.4.2).
+  usePageTitle(program ? `Feedback for ${program.name}` : 'Submit feedback');
 
   // Fetch program info
   useEffect(() => {

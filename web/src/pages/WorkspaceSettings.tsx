@@ -189,8 +189,14 @@ export function WorkspaceSettingsPage() {
         </nav>
       </div>
 
-      {/* Content */}
-      <main className="flex-1 overflow-auto p-6 pb-20">
+      {/*
+        W7-9: this used to be a second `main`. The route renders inside AppLayout, whose
+        `main id="main-content"` already wraps the Outlet, so /settings shipped two main
+        landmarks -- one nested in the other (axe landmark-no-duplicate-main,
+        landmark-unique and landmark-main-is-top-level, all three from this one tag).
+        A document has exactly one main and the shell owns it, so this is a plain <div>.
+      */}
+      <div className="flex-1 overflow-auto p-6 pb-20">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <div className="text-muted">Loading...</div>
@@ -236,7 +242,7 @@ export function WorkspaceSettingsPage() {
             )}
           </>
         )}
-      </main>
+      </div>
     </div>
   );
 }
@@ -421,7 +427,10 @@ function InvitesTab({
             className="flex-1 max-w-md px-3 py-2 bg-background border border-border rounded-md text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
             required
           />
+          {/* Same defect as the member-role select above, on the same page: no visible
+              label exists here, so aria-label is the only thing that can name it. */}
           <select
+            aria-label="Role for the invited member"
             value={inviteRole}
             onChange={(e) => setInviteRole(e.target.value as 'admin' | 'member')}
             className="px-3 py-2 bg-background border border-border rounded-md text-foreground"
@@ -589,9 +598,16 @@ function ApiTokensTab({
         </div>
 
         <form onSubmit={handleCreate} className="flex gap-3 items-end">
+          {/* W7-4's general shape: "the design system draws labels without connecting
+              them". Both labels were already on screen and already correct -- they just
+              had no htmlFor, so neither control had an accessible name and the `select`
+              announced its value ("30 days") instead of "Expires". Associating the
+              existing label beats bolting on an aria-label: one name, visible and
+              announced, that cannot drift from the other. */}
           <div className="flex-1 max-w-xs">
-            <label className="block text-xs text-muted mb-1">Token Name</label>
+            <label htmlFor="api-token-name" className="block text-xs text-muted mb-1">Token Name</label>
             <input
+              id="api-token-name"
               type="text"
               value={tokenName}
               onChange={(e) => setTokenName(e.target.value)}
@@ -601,8 +617,9 @@ function ApiTokensTab({
             />
           </div>
           <div className="w-32">
-            <label className="block text-xs text-muted mb-1">Expires</label>
+            <label htmlFor="api-token-expires" className="block text-xs text-muted mb-1">Expires</label>
             <select
+              id="api-token-expires"
               value={expiresInDays}
               onChange={(e) => setExpiresInDays(e.target.value)}
               className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground"

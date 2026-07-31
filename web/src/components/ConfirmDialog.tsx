@@ -31,6 +31,11 @@ export function ConfirmDialog({
     <Dialog.Root open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-[100] bg-black/60" />
+        {/* focus:outline-none is deliberate here and at the other four Dialog.Content
+            sites. Radix renders this container with tabindex="-1" and focuses it when the
+            dialog opens; it is not in the tab sequence, so WCAG 2.4.7 does not apply to it,
+            and the modal appearing over a dimmed overlay is itself the state change. The
+            focusable controls inside carry their own focus:ring. */}
         <Dialog.Content
           className="fixed left-1/2 top-1/2 z-[101] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg border border-border bg-background p-6 shadow-xl focus:outline-none"
           onEscapeKeyDown={onCancel}

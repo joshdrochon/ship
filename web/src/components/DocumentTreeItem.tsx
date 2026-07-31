@@ -113,13 +113,21 @@ export function DocumentTreeItem({
           {document.title || 'Untitled'}
         </Link>
 
-        {/* Delete button - visible on hover */}
+        {/* Delete button - visible on hover, and on keyboard focus.
+            The reveal used to be `isHovered ? 'opacity-100' : 'opacity-0'` and nothing
+            else. isHovered is React state fed by onMouseEnter/onMouseLeave, so a keyboard
+            user tabbing through the tree landed on a destructive control rendered at
+            opacity 0 with no way to tell it had focus. `focus:opacity-100` is a real CSS
+            state so it reveals the button without the pointer, and it outranks
+            `opacity-0` on specificity (0,2,0 vs 0,1,0). The ring is the same
+            focus:ring-2 focus:ring-accent the rest of web/src uses. */}
         {onDelete && (
           <Tooltip content="Delete">
             <button
               type="button"
               className={cn(
                 'flex-shrink-0 p-0.5 rounded hover:bg-red-100 hover:text-red-600 transition-opacity',
+                'focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-accent',
                 isHovered ? 'opacity-100' : 'opacity-0'
               )}
               onClick={(e) => {

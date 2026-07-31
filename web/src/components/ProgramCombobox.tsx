@@ -69,7 +69,7 @@ export function ProgramCombobox({
               onClick={handleProgramClick}
               className={cn(
                 'flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-sm overflow-hidden',
-                'focus:outline-none',
+                'rounded focus:outline-none focus:ring-2 focus:ring-accent',
                 onNavigate && 'cursor-pointer hover:underline'
               )}
             >
@@ -89,7 +89,10 @@ export function ProgramCombobox({
                 onClick={handleCaretClick}
                 className={cn(
                   'flex h-full shrink-0 items-center px-2 transition-opacity',
-                  'hover:bg-border/50 rounded-r focus:outline-none',
+                  // focus:opacity-100 is not decoration: isHovered is React state driven by
+                  // onMouseEnter, so without a CSS focus state this control is a tab stop
+                  // rendered at opacity 0 for anyone not using a mouse.
+                  'hover:bg-border/50 rounded-r focus:outline-none focus:ring-2 focus:ring-accent focus:opacity-100',
                   isHovered ? 'opacity-100' : 'opacity-0'
                 )}
                 aria-label="Change program assignment"
@@ -103,7 +106,7 @@ export function ProgramCombobox({
           <Popover.Trigger asChild>
             <button
               type="button"
-              className="flex h-full w-full items-center justify-center text-sm focus:outline-none"
+              className="flex h-full w-full items-center justify-center rounded text-sm focus:outline-none focus:ring-2 focus:ring-accent"
             >
               <span className="text-muted">{placeholder}</span>
             </button>
@@ -133,7 +136,7 @@ export function ProgramCombobox({
                 value={search}
                 onValueChange={setSearch}
                 placeholder="Search programs..."
-                className="w-full bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none"
+                className="w-full rounded bg-transparent text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent"
               />
             </div>
 

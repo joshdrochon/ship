@@ -4,6 +4,8 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { useFocusOnNavigate } from '@/hooks/useFocusOnNavigate';
+import { documentPageTitle } from '@/hooks/usePageTitle';
+import { SkipLink } from '@/components/SkipLink';
 import { useRealtimeEvent } from '@/hooks/useRealtimeEvents';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { ArchiveIcon } from '@/components/icons/ArchiveIcon';
@@ -124,9 +126,6 @@ export function AppLayout() {
     }
   }, [actionItemsModalShownOnLoad, hasActionItems, actionItemsData?.items]);
 
-  // Accessibility: focus management on navigation
-  useFocusOnNavigate();
-
   // Persist sidebar state
   useEffect(() => {
     localStorage.setItem('ship:leftSidebarCollapsed', String(leftSidebarCollapsed));
@@ -145,7 +144,16 @@ export function AppLayout() {
   }, []);
 
   // Get current document type and ID for /documents/:id routes
-  const { currentDocumentType, currentDocumentId, currentDocumentProjectId } = useCurrentDocument();
+  const { currentDocumentType, currentDocumentId, currentDocumentProjectId, currentDocumentTitle } = useCurrentDocument();
+
+  // Accessibility: focus management on navigation, and the page title (WCAG 2.4.2).
+  // Every document editor shares the route `/documents/:id`, so the path alone produced
+  // one title for five different pages -- W7-8's "Ship | Ship". The open document's own
+  // title is what identifies it, and only the editor page knows it, so it arrives here
+  // through CurrentDocumentContext.
+  useFocusOnNavigate(
+    currentDocumentId ? documentPageTitle(currentDocumentTitle, currentDocumentType) : null
+  );
 
   // Determine active mode from path or document type
   const getActiveMode = (): Mode => {
@@ -261,12 +269,7 @@ export function AppLayout() {
     <SelectionPersistenceProvider>
     <div className="flex h-screen flex-col overflow-hidden bg-background">
       {/* Skip link for keyboard/screen reader users - Section 508 compliance */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-4 focus:py-2 focus:bg-accent focus:text-white focus:rounded-md focus:outline-none focus:ring-2 focus:ring-accent-foreground"
-      >
-        Skip to main content
-      </a>
+      <SkipLink />
 
       {/* Cache corruption alert */}
       <CacheCorruptionAlert />

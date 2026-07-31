@@ -194,7 +194,7 @@ export function ActionItemsModal({ open, onClose }: ActionItemsModalProps) {
             </div>
             <button
               onClick={onClose}
-              className="rounded-md p-1 text-muted hover:bg-border hover:text-foreground focus:outline-none"
+              className="rounded-md p-1 text-muted hover:bg-border hover:text-foreground focus:outline-none focus:ring-2 focus:ring-accent"
               aria-label="Close"
             >
               <svg aria-hidden="true" focusable="false" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

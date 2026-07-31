@@ -3,6 +3,8 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { api, Workspace, AuditLog, UserInfo } from '@/lib/api';
 import { cn } from '@/lib/cn';
+import { SkipLink } from '@/components/SkipLink';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 type Tab = 'workspaces' | 'users' | 'audit';
 
@@ -35,6 +37,10 @@ export function AdminDashboardPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState('');
   const [creating, setCreating] = useState(false);
+
+  // W7-8: /admin is a top-level route outside the app shell, so nothing set a title and
+  // it kept index.html's default (WCAG 2.4.2).
+  usePageTitle('Admin');
 
   useEffect(() => {
     if (!isSuperAdmin) {
@@ -102,6 +108,11 @@ export function AdminDashboardPage() {
 
   return (
     <div className="flex h-screen flex-col bg-background">
+      {/* W7-9: this route renders its own chrome instead of the app shell, so it never
+          inherited the shell's skip link — a keyboard user had to tab the whole header
+          and tab strip on every visit. */}
+      <SkipLink />
+
       {/* Impersonation banner */}
       {impersonating && (
         <div className="bg-yellow-500 text-black px-4 py-2 flex items-center justify-between">
@@ -148,7 +159,7 @@ export function AdminDashboardPage() {
       </div>
 
       {/* Content */}
-      <main className="flex-1 overflow-auto p-6 pb-20">
+      <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-6 pb-20 focus:outline-none">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <div className="text-muted">Loading...</div>

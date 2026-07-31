@@ -1027,7 +1027,17 @@ export function Editor({
                   if ($from.parent.type.name === 'codeBlock') return false;
                   return true;
                 }}
-                tippyOptions={{ placement: 'top', duration: 150 }}
+                // `aria.expanded: false` is load-bearing, not a style choice. Tippy's
+                // default is 'auto', which resolves to `props.interactive` -- and
+                // TipTap's BubbleMenu plugin hard-codes `interactive: true` and uses the
+                // EditorContent wrapper as the tippy *reference*. Tippy therefore stamped
+                // `aria-expanded="false"` onto that plain `<div>`, which has an implicit
+                // role of `generic` and does not permit the attribute: 1 critical
+                // axe `aria-allowed-attr` node (F16). The div is not a disclosure
+                // control -- the bubble menu is triggered by a text selection, not by
+                // activating an expandable widget -- so the correct fix is to stop
+                // emitting the attribute rather than to invent a role that allows it.
+                tippyOptions={{ placement: 'top', duration: 150, aria: { expanded: false } }}
               >
                 <button
                   onClick={() => editor.commands.addComment()}

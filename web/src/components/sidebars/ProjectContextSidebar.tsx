@@ -286,7 +286,12 @@ export function ProjectContextSidebar({ projectId, activeDocumentId }: ProjectCo
               const hasWeeks = person.weeks && person.weeks.length > 0;
 
               return (
-                <li key={person.id} role="treeitem">
+                <li
+                  key={person.id}
+                  role="treeitem"
+                  aria-level={1}
+                  aria-expanded={hasWeeks ? isExpanded : undefined}
+                >
                   {/* Person row */}
                   <button
                     onClick={() => togglePerson(person.id)}
@@ -305,11 +310,20 @@ export function ProjectContextSidebar({ projectId, activeDocumentId }: ProjectCo
                     )}
                   </button>
 
-                  {/* Weeks for this person */}
+                  {/*
+                    Weeks for this person.
+
+                    W7-3, same defect class: a role="group" inside a tree owns treeitems
+                    exactly as the tree itself does, so an `li` here with no role left the
+                    tree malformed (axe aria-required-children, critical). The user is told
+                    "tree, N items" and then handed rows that are not items.
+                    aria-level continues the tree's depth: the person rows above are
+                    level 1, so these week rows are level 2.
+                  */}
                   {isExpanded && hasWeeks && (
                     <ul className="ml-4 space-y-0.5" role="group">
                       {person.weeks.map(week => (
-                        <li key={week.week_number} className="space-y-0.5">
+                        <li key={week.week_number} role="treeitem" aria-level={2} className="space-y-0.5">
                           <div className="px-2 py-1 text-xs font-medium text-muted">
                             Week {week.week_number}
                           </div>
