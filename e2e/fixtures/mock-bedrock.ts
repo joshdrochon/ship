@@ -27,7 +27,14 @@
  * container the Playwright config does not manage.
  */
 
-import { createServer, type Server, type IncomingMessage } from 'http';
+// HTTP/2, not HTTP/1.1. `@aws-sdk/client-bedrock-runtime` defaults to `NodeHttp2Handler`
+// -- Bedrock's streaming operations require it, and the handler is client-wide, so even
+// the non-streaming `InvokeModel` is sent over h2. An HTTP/1.1 listener answers that with
+// `ERR_HTTP2_ERROR: Protocol error` before any body is read, `callBedrock` throws, and the
+// route degrades to `ai_unavailable` -- which is indistinguishable from "no credentials"
+// unless someone reads the API log. `allowHTTP1: true` keeps the server usable from curl
+// or any future HTTP/1.1 caller; the compat `request` event serves both protocols.
+import { createServer, type Http2Server, type Http2ServerRequest } from 'http2';
 import type { AddressInfo } from 'net';
 
 export interface MockBedrock {
@@ -106,7 +113,7 @@ function analysisJson(body: InvokeBody): string {
   });
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
+function readBody(req: Http2ServerRequest): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     req.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -124,7 +131,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 export async function startMockBedrock(): Promise<MockBedrock> {
   let invocations = 0;
 
-  const server: Server = createServer((req, res) => {
+  const server: Http2Server = createServer({ allowHTTP1: true }, (req, res) => {
     void (async () => {
       const path = req.url ?? '';
 
@@ -166,6 +173,17 @@ export async function startMockBedrock(): Promise<MockBedrock> {
     })();
   });
 
+  // The SDK holds its h2 session open between calls, so `server.close()` alone waits for a
+  // connection that never ends and the worker teardown hangs until Playwright's timeout.
+  // `closeAllConnections()` is a `http.Server` method and does not exist on `Http2Server`,
+  // so track the transport sockets and destroy them directly -- one path that covers both
+  // the h2 sessions and any HTTP/1.1 connection `allowHTTP1` admits.
+  const sockets = new Set<import('net').Socket>();
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.once('close', () => sockets.delete(socket));
+  });
+
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const { port } = server.address() as AddressInfo;
 
@@ -174,9 +192,8 @@ export async function startMockBedrock(): Promise<MockBedrock> {
     invocations: () => invocations,
     close: () =>
       new Promise<void>((resolve, reject) => {
-        // The SDK keeps sockets alive; without this, close() never fires its callback
-        // and the worker teardown hangs until Playwright's timeout.
-        server.closeAllConnections();
+        for (const socket of sockets) socket.destroy();
+        sockets.clear();
         server.close((err) => (err ? reject(err) : resolve()));
       }),
   };
