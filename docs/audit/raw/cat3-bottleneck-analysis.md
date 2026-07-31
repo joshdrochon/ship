@@ -1,5 +1,36 @@
 # Category 3 — where the time actually goes
 
+> **Superseded in part, 2026-07-30.** The conclusion below — *"Target is −20% on two
+> endpoints; best achieved is −10.9% on one"* — **is wrong, and this file was the only
+> place it was ever written.** It was derived from two *sequential* benchmark runs taken
+> minutes apart on a machine running ten agents, and it survived because "consistent
+> direction across three VU levels" was mistaken for a control. It is not one: all three
+> levels of the after-run share the same machine conditions, so a machine that was busier
+> during that run moves all three the same way.
+>
+> This file's own data refutes it. `/api/documents/:id/backlinks` was **not touched by
+> lane 3** and drifted +14.5% to +23.4% across the same three levels, in the same
+> direction. A control endpoint that "regresses" 20% is a measurement of the machine.
+>
+> The endpoints were re-measured on 2026-07-30 with both builds running **at the same
+> instant** against one database, in a closed loop at the concurrency p.4 actually
+> specifies. Both claim endpoints clear −20% at every level, with 0% failures on both
+> sides:
+>
+> | P95 | 10 conns | 25 conns | 50 conns |
+> |---|---:|---:|---:|
+> | `/api/team/grid` | −68.9% | −86.5% | −91.9% |
+> | `/api/auth/me` | −83.7% | −94.7% | −97.1% |
+>
+> Method and raw data: `docs/audit/scripts/bench-api-concurrency.sh`,
+> `docs/audit/raw/cat3-concurrency-claim-endpoints.json`.
+>
+> **What below still stands, unchanged:** the prepared-statement hypothesis really was
+> refuted; the database really is ~2% of the response time; `GET /api/documents` really
+> does return 600 rows and 246 kB uncompressed with no pagination, and that really is why
+> it did not move. The payload analysis was right. Only the verdict on the two endpoints
+> that *did* move was wrong, and it was wrong because of how it was measured.
+
 Written by the coordinator on a quiet machine after all lanes stalled on a session
 limit. Lane 3 never saw its own results; this is the analysis it would have done.
 

@@ -15,10 +15,20 @@ const { Pool } = pg;
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+// DB_POOL_MAX overrides the pool ceiling. Category 3 (p.4) requires benchmarking at 10, 25
+// and 50 simultaneous connections; a 10-connection pool cannot serve 50 in-flight requests,
+// so every request past the tenth waits out connectionTimeoutMillis and fails. A benchmark
+// run that way measures pool starvation, not the endpoint -- P50 pins to exactly 2,005 ms
+// (the 2 s connect timeout) at a 100% failure rate. Both sides of a before/after pair must
+// set this identically. Unset, behaviour is byte-for-byte what it was.
+const poolMaxOverride = Number.parseInt(process.env.DB_POOL_MAX ?? '', 10);
+
 const basePool = new Pool({
   connectionString: process.env.DATABASE_URL,
   // Production-ready pool configuration
-  max: isProduction ? 20 : 10, // Max connections (default is 10)
+  max: Number.isFinite(poolMaxOverride) && poolMaxOverride > 0
+    ? poolMaxOverride
+    : isProduction ? 20 : 10, // Max connections (default is 10)
   idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
   connectionTimeoutMillis: 2000, // Fail fast if can't connect in 2 seconds
   maxUses: 7500, // Recycle connections after 7500 queries to prevent memory leaks

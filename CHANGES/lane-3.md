@@ -25,6 +25,66 @@ Raw output: `docs/audit/raw/cat3-lane3-paired.json`.
 **Two endpoints clear the p.5 bar. Two do not, and the reason is worth more than the
 number** — see *Why `/api/documents` and `/api/projects` stop where they do* below.
 
+### The measurement p.4 actually asks for: 10, 25 and 50 simultaneous connections
+
+The table above is taken at a fixed 12 req/s per side. That is the right way to compare
+service time, but at ~13 ms it leaves about **0.16 requests in flight** — so it is not the
+concurrency p.4 specifies, and for a long time nothing in this repo was. Both prior
+harnesses missed it from opposite sides: `bench-api.sh` holds the arrival rate so low that
+the VU count is not a variable at all, and `bench-api-saturation.sh` raises the rate but
+uses an **open** loop, where in-flight count is an emergent property of rate × latency
+rather than the thing being set — and it runs one server at a time, so before and after are
+minutes apart.
+
+`docs/audit/scripts/bench-api-concurrency.sh` closes both gaps. It uses `constant-vus`, a
+**closed** loop in which each of N virtual users holds exactly one request open at all
+times, so "10 simultaneous connections" is literally true rather than inferred. And it runs
+both builds **concurrently** — `767aa2f` on `:3103`, this tree on `:3104`, one database, one
+machine — so Rule 1's "identical conditions" is satisfied by simultaneity rather than by
+hoping the machine did not change between runs.
+
+Measured 2026-07-30, 45 s per cell, `DB_POOL_MAX=60` and the rate limiter lifted identically
+on both sides. Raw: `docs/audit/raw/cat3-concurrency-claim-endpoints.json`.
+
+| Endpoint | | 10 conns | 25 conns | 50 conns |
+|---|---|---:|---:|---:|
+| `GET /api/team/grid` | P95 before → after | 70.87 → 22.01 ms | 459.37 → 61.85 ms | 1275.74 → 102.84 ms |
+| | **ΔP95** | **−68.9%** | **−86.5%** | **−91.9%** |
+| `GET /api/auth/me` | P95 before → after | 38.30 → 6.23 ms | 241.95 → 12.88 ms | 899.06 → 25.93 ms |
+| | **ΔP95** | **−83.7%** | **−94.7%** | **−97.1%** |
+
+0% failures on both sides in all six cells; 5,143–25,358 samples per before-side cell and
+41,863–173,888 per after-side cell.
+
+**The improvement grows with concurrency, and that is the point.** Both defects this lane
+fixed — a query in the grid handler whose result was discarded, and three reads in
+`/api/auth/me` serialised for no reason — cost almost nothing on an idle server and dominate
+once requests queue behind each other. Measuring at 12 req/s understated the fix by roughly
+a factor of three; measuring at the concurrency the brief specifies shows what it is
+actually worth.
+
+### Two ways this measurement was wrong before it was right
+
+Both are recorded because the first version of this script produced numbers that looked
+clean and were not.
+
+**Pool starvation read as latency.** The first sweep put P50 at exactly **2,005 ms** on
+several cells. That is `connectionTimeoutMillis: 2000` in `api/src/db/client.ts` — the dev
+pool is `max: 10`, so at 50 simultaneous connections every request past the tenth waited out
+the connect timeout and failed. Two endpoints ran at a **100% failure rate** and still
+printed a percentage. `DB_POOL_MAX` now exists so the pool can be sized to the concurrency
+under test, identically on both sides.
+
+**A 429 read as a win.** With the limiter at 100,000/min, the after side of `/api/auth/me`
+was fast enough to issue **531,908 requests in 45 s** — past the ceiling, so 88% of its
+responses were 429s, which are fast. That produced a flattering −94% on an endpoint that was
+mostly failing. The limiter is now lifted far enough that neither side can reach it.
+
+Neither was caught by inspection. Both were caught because the harness records the failure
+rate per cell — and it now stamps `valid: false` on any cell with a non-200 and exits 3
+rather than printing a summary. A percentage computed over failed requests is not a
+measurement, and it looks exactly like one.
+
 ### Against the lane's absolute targets, and why that comparison is weaker
 
 The lane brief sets `/api/documents` ≤ 28.88 ms and `/api/projects` ≤ 19.39 ms, derived from
