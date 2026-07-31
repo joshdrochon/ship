@@ -312,9 +312,10 @@ all, and `SelectableList.tsx:134` still rendered the empty `<th>`. None of the f
 in "What is still open" either, which is the part that matters: work that is not done and not
 written down is indistinguishable from work that is done.
 
-W7-8 and W7-9 are closed in §8 and §9. W7-6 and W7-7 are the e2e suite's own defects and are
-closed on their branch (`e2e/accessibility.spec.ts`, `e2e/fixtures/isolated-env.ts`). W7-11
-is a deliberate non-fix and stays in the table below.
+W7-8 and W7-9 are closed in §8 and §9. W7-6 and W7-7 are the e2e suite's own defects — a
+fixture below the data threshold and a test whose condition is always true — and are closed
+in `e2e/accessibility.spec.ts` and `e2e/fixtures/isolated-env.ts`. W7-11 is a deliberate
+non-fix and stays in the table below.
 
 Closing W7-8 and W7-9 meant reading every page rather than three, and that turned up **three
 defect sets the audit never recorded at all** — same blind spot, same cause. They are §10.
@@ -450,27 +451,31 @@ rows above them declare `aria-level={1}` and their own `aria-expanded`.
 `web/src/styles/a11y-aria-invariants.test.ts`, sibling to §6's `a11y-invariants.test.ts` and
 §7c's `a11y-container-opacity.test.ts`. Source-level invariants for **W7-3, W7-4, W7-5 and
 W7-12** — the four Critical/high ARIA findings that §1, §3 and §4 fixed with no test behind
-them. Every assertion is verified red against the pre-fix tree at `767aa2f` and green now,
-and the file carries an `A11Y_SCAN_ROOT` override whose only purpose is to point the same
-scan at a pre-fix checkout so that claim can be re-run rather than believed.
+them — and, since §8 and §9 landed, for **W7-8 and W7-9** as well. Every assertion is verified
+red against the pre-fix tree at `767aa2f` and green now, and the file carries an
+`A11Y_SCAN_ROOT` override whose only purpose is to point the same scan at a pre-fix checkout
+so that claim can be re-run rather than believed.
 
-Source-level for the reason §6 gives, with one addition specific to these four: two of them —
-the tree overflow row and the 52 identical delete labels — only exist above a data threshold,
-which is W7-6's whole mechanism. A source invariant has no threshold to fall under.
+Source-level for the reason §6 gives, with one addition specific to these: two of them — the
+tree overflow row and the 52 identical delete labels — only exist above a data threshold,
+which is W7-6's whole mechanism. A source invariant has no threshold to fall under. W7-8 is a
+second case no runtime rule can reach at all: axe's `document-title` passes on "Ship | Ship".
 
-**Tradeoff, and the reason it is worth stating.** Three of the four defects survive elsewhere
-in `web/src`, so asserting zero offenders would be red on both trees, and a test that cannot
-pass is not coverage either. Those three assert against a frozen allowlist of the sites still
-open, checked from both sides: a new offender fails immediately, and an entry that no longer
-matches anything also fails, so a fix cannot silently widen the list. **That allowlist is how
-§10 was found** — it scans the whole frontend instead of three pages, which is exactly what
-this category lacked.
+**The scan is how §10 was found.** It reads every file in `web/src` rather than a page list,
+which is exactly what this category lacked, and it named the six selects, the eight icon-only
+buttons and the tree child before any of them were fixed.
 
-*Consequence, at the time of writing.* §10's fixes make **7 allowlist entries stale** — all
-six selects and the `ProjectContextSidebar` week row — so the two "holds the still-open sites
-to exactly the list above" assertions are red until those entries are deleted. That is the
-ratchet working as designed rather than a broken test, but the entries have to come out with
-the fixes.
+**Tradeoff, and how it was resolved.** Those sites were open when the file was written, so
+asserting zero offenders would have been red on both trees, and a test that cannot pass is not
+coverage either. The first version froze them in allowlists keyed on the first 60 characters
+of the offending element's source. That was the wrong key: it asserts "this markup still
+exists", not "this markup still offends", and §10 appended `aria-label` **after** the existing
+attributes on the icon buttons, so the frozen prefix still matched and real fixes went
+unnoticed. The allowlists are gone — every assertion is now `toEqual([])` against the scan's
+own output, and the `OrgChartPage` chevron is handled by an `aria-hidden` branch in the
+scanner rather than by an exception, because "removed from the accessibility tree" is
+something the scan can decide for itself. If a future defect genuinely cannot be driven to
+zero, key its allowlist on what the scan *flags*, never on a substring of the source.
 
 ---
 
@@ -485,8 +490,7 @@ Open, with the reasoning:
 | Where | Finding | Numbers | Why it is still open |
 |---|---|---|---|
 | `/issues`, `/settings` | **W7-11** heading density | 2,257 accessibility nodes behind **2** headings; **1** heading for **117** controls | Deliberate — see below |
-| `OrgChartPage` chevron | `button-name` | 1 | Deliberate non-fix (§10). Already `aria-hidden` inside a named `treeitem`; naming it adds ~300 identical announcements |
-| `a11y-aria-invariants.test.ts` allowlists | stale entries | 7 | §10 fixed the sites; the entries have to be deleted so the ratchet tightens (§11) |
+| `OrgChartPage` chevron | `button-name` | 1 | Deliberate non-fix (§10). Already `aria-hidden` inside a named `treeitem`; naming it would add ~300 identical announcements. Recorded so it is not "fixed" later by mistake |
 
 **W7-11, and why closing it is not a defect fix.** `/issues` exposes 2,257 accessibility
 nodes behind 2 headings; `/settings` has 1 heading for 117 interactive controls. Headings are
@@ -606,7 +610,7 @@ future days again; reverting §7b re-opens 1 critical node on every document edi
 | Landmarks (§9) | Revert the one tag in each of `WorkspaceSettings.tsx`, `Login.tsx`, `UnifiedDocumentPage.tsx`, `SelectableList.tsx`; `rm web/src/components/SkipLink.tsx` and restore the inline anchor in `App.tsx` | 3 landmark rules on `/settings`, `landmark-one-main` + 5 `region` on `/login`, `page-has-heading-one` on tabbed documents, 4 `empty-table-header` |
 | Names (§10) | Revert per file; each is one attribute and they are independent | The named `button-name` / `select-name` node returns |
 | Tree roles (§10) | Revert `ProjectContextSidebar.tsx` | `aria-required-children` on the project sidebar |
-| §11 tests | `rm web/src/styles/a11y-aria-invariants.test.ts` | Nothing — it asserts §1/§3/§4/§10, so revert it *with* whichever of those you undo, or it goes red |
+| §11 tests | `rm web/src/styles/a11y-aria-invariants.test.ts` | Nothing — it asserts §1, §3, §4 and §8–§10, so revert it *with* whichever of those you undo, or it goes red |
 
 None of this touches the palette, so §8–§11 have no visual blast radius except the `sr-only`
 `<h1>`, which paints nothing.

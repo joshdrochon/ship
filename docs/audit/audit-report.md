@@ -1316,6 +1316,60 @@ enough of them exist to be useful. **Severity: medium** — no violation is tech
 occurring, but the page is impractical to navigate non-visually, which is the actual claim
 Section 508 and WCAG 2.1 AA make.
 
+#### Found after this category was closed — and why they were missed
+
+W7-14, W7-15 and W7-16 were **not in this audit**. They were found while fixing W7-8 and
+W7-9, by scanning the source of the whole frontend rather than a page list.
+
+**Why they were missed, plainly: this category scoped both its scan and its fixes to three
+named pages.** p.7's improvement target is *"all Critical/Serious violations on the 3 most
+important pages"*, and the measurement was built to match it — 17 URLs enumerated by hand,
+fixes applied where the scan reported nodes. Every finding below is the **same defect class
+as one already recorded here**, from the same components, on pages the enumeration did not
+include. A page-scoped scan cannot see a component-scoped defect, and nothing in the
+"How it was measured" section above said so. That is the methodological finding; the three
+below are its evidence.
+
+**W7-14 · Six more unlabeled `<select>`s, including one set on the page that grants
+workspace admin.** W7-4 verbatim, on pages this audit never scanned:
+`AdminWorkspaceDetail.tsx` renders **one unnamed `<select>` per workspace member** for the
+role control, plus an add-user role and an invite role select; `WorkspaceSettings.tsx` has
+two more (invite role, API-token expiry) beyond the member-role control W7-4 named; and
+`MergeProgramDialog.tsx` has one in a destructive dialog. Five of the six sit beside a
+visible `<label>` that is never associated — the same "the design system draws labels
+without connecting them" shape W7-4 identifies. With an empty accessible name a screen
+reader announces the control's *value*, so every row said "Member" and none said whose
+permissions were about to change.
+**Severity: Critical** (axe `select-name`) / **high** — `AdminWorkspaceDetail` is the
+super-admin path to granting workspace admin, and it was never on the scan list.
+
+**W7-15 · Eight more unnamed icon-only buttons, two of them destructive.** `button-name`,
+critical. A button whose entire content is an `<svg>` has no text node to fall back on, so
+its accessible name is empty and it announces as a bare "button". The two destructive ones
+are `MultiPersonCombobox.tsx` (removes a person from an assignment) and `ProjectRetro.tsx`
+(removes a success criterion); the rest are back, clear-filter and dismiss controls in
+`AdminWorkspaceDetail.tsx`, `WeekDetailView.tsx`, `TeamMode.tsx` and `OrgChartPage.tsx`.
+This audit recorded exactly one instance of this defect (`AdminDashboard.tsx:121`, in the
+W7-9/target discussion) because `/admin` happened to be on the page list.
+
+One of the eight is **correctly left unnamed** and is recorded here so it is not "fixed"
+later by mistake: `OrgChartPage`'s expand/collapse chevron already carries
+`aria-hidden="true"` and `tabIndex={-1}` inside a `role="treeitem"` that declares its own
+`aria-expanded`. It is outside the accessibility tree by design, and the treeitem already
+announces the state. Naming it would add roughly 300 identical "Expand" announcements to
+one page — which is W7-12, from the other direction.
+**Severity: Critical** (axe) / **medium-high** — two destructive controls announce as
+unnamed buttons.
+
+**W7-16 · A `role="group"` inside the project tree owns children that are not treeitems.**
+`components/sidebars/ProjectContextSidebar.tsx` renders each person's weeks as
+`<ul role="group">` nested inside a `treeitem` inside the tree. A group in a tree owns
+`treeitem` children exactly as the tree itself does, so those `<li>`s left the widget
+malformed — `aria-required-children`, critical, the same rule and the same failure mode as
+W7-3 one level deeper. The project context sidebar is not on the 17-URL list, so the scan
+never rendered it.
+**Severity: Critical** (axe) / **medium** — same class as W7-3, smaller surface.
+
 ### What this means for the improvement target
 
 p.7 sets the bar at: *"Achieve a Lighthouse accessibility score improvement of 10+
