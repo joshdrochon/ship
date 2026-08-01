@@ -101,6 +101,16 @@ jobs:
       - run: pnpm build:shared
       - run: pnpm type-check
 
+  # `pnpm type-check` proves the code compiles. It does not observe how much of that
+  # compilation was bought with `any`, `as` and `!` — which is what Category 1 is measured
+  # on, and which has already regressed here unnoticed while every other check was green.
+  # No `needs: build`: this reads source text and does not want a compiled tree.
+  type-violations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/check-type-violations.sh
+
   test:
     runs-on: ubuntu-latest
     needs: build

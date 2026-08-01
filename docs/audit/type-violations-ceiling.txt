@@ -1,0 +1,22 @@
+# Type-safety violation ceiling, enforced by scripts/check-type-violations.sh in CI.
+#
+# The number below is the maximum total that `docs/audit/scripts/count-type-violations.py`
+# may report. Exceeding it fails the pipeline.
+#
+# WHY THIS EXISTS. Category 1's improvement target is a whole-repo aggregate: -25% of the
+# 1009-violation baseline, so a hard ceiling of 756. That target was met, then silently
+# lost at 758 when Category 4's merge added 17 `as any` in new test mocks, and nothing
+# reported it -- type-check, lint, build and 553 unit tests were all green at 758. It was
+# caught by re-measuring by hand. Any change can break this target; only the integrated
+# number counts; nothing was watching. This file is what watches.
+#
+# THIS RATCHETS. When the count drops, lower it in the same commit:
+#
+#     scripts/check-type-violations.sh --update
+#
+# The script refuses to raise it. Raising is a deliberate edit here, justified in the
+# commit message -- never a quiet adjustment to turn a pipeline green.
+#
+# The -25% grading ceiling is 756. This number should stay at or below that; the gap
+# between them is the headroom a future merge can spend before the *target* is at risk.
+742
