@@ -153,8 +153,18 @@ test.describe('Phase 1: Critical Violations', () => {
       await issueLink.click()
       await page.waitForLoadState('networkidle')
 
+      // Scoped to the properties sidebar, which is what this test says it covers.
+      // Unscoped, `.first()` could resolve against the /issues page before the navigation
+      // settled — `networkidle` does not guarantee the new route has rendered. It then
+      // read `aria-controls="issues-program-filter-listbox"`, a control that does not
+      // exist in web/src at all, clicked an element the navigation was about to remove,
+      // and waited for a listbox that could never appear. 2 passes in 5 when run alone.
+      await expect(page).toHaveURL(/\/documents\/[a-f0-9-]+/, { timeout: 10000 })
+      const properties = page.getByLabel('Document properties')
+      await expect(properties).toBeVisible({ timeout: 5000 })
+
       // MUST have at least one combobox (status, assignee, etc.)
-      const combobox = page.locator('[aria-haspopup="listbox"], [role="combobox"]').first()
+      const combobox = properties.locator('[aria-haspopup="listbox"], [role="combobox"]').first()
       await expect(combobox).toBeVisible({ timeout: 5000 })
 
       // MUST have aria-controls pointing to the listbox
