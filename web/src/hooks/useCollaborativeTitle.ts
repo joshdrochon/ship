@@ -79,12 +79,6 @@ export function useCollaborativeTitle({
   const titleRef = useRef(title);
   titleRef.current = title;
 
-  // Read inside markCacheLoaded, which is called from the Editor's WebSocket effect. Kept
-  // in a ref so that effect does not have to list `initialTitle` as a dependency — doing
-  // so would tear down and rebuild the collaboration session on every rename.
-  const initialTitleRef = useRef(initialTitle);
-  initialTitleRef.current = initialTitle;
-
   /** True once the Y.Doc — not the `initialTitle` prop — owns the value. */
   const crdtReadyRef = useRef(false);
   const userTypedRef = useRef(false);
@@ -201,46 +195,9 @@ export function useCollaborativeTitle({
     }
   }, [ydoc, ytitle]);
 
-  /**
-   * Call once the local IndexedDB cache has loaded into the Y.Doc, before the WebSocket
-   * connects.
-   *
-   * What this adds, precisely: **new documents**.
-   *
-   * A document whose cache carried a title was already on the durable path — the observer
-   * above adopts a non-empty `ytitle` on mount and sets `crdtReadyRef` itself. What it
-   * could not do is adopt an *empty* one, because empty is ambiguous. So a freshly created
-   * "Untitled" document waited for the WebSocket before any keystroke reached the Y.Doc,
-   * and everything typed during that handshake lived in React state and nowhere else. A
-   * reload or a crash took all of it. That is the exact shape of
-   * e2e/autosave-race-conditions.spec.ts:306: create a document, start typing at once.
-   *
-   * The ambiguity is why the gate cannot simply be removed. It answers one question — *do
-   * we know this document's current title?* If the server holds "Q3 Roadmap", our Y.Doc is
-   * empty because nothing has loaded, and the user types "X", Yjs merges that as an
-   * insert: it cannot tell "empty because unknown" from "empty because deliberately
-   * blank", and the result is "XQ3 Roadmap". Seeding the local doc from `initialTitle`
-   * does not help either — two peers independently inserting the same characters produce
-   * duplicates, not a match.
-   *
-   * `initialTitle` resolves it. It comes from the REST document fetch, so an "Untitled"
-   * value means the server genuinely has no title and there is nothing to collide with.
-   * Any other value means the first visit to an already-titled document on a browser with
-   * no cache, which still waits for `markSynced` with TITLE_FALLBACK_MAX_WAIT_MS as the
-   * backstop.
-   */
-  const markCacheLoaded = useCallback(() => {
-    if (crdtReadyRef.current) return;
-
-    const initial = initialTitleRef.current;
-    const serverHasNoTitle = initial === '' || initial === 'Untitled';
-
-    if (ytitle.length > 0 || serverHasNoTitle) markSynced();
-  }, [ytitle, markSynced]);
-
   useEffect(() => () => {
     if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
   }, []);
 
-  return { title, setTitleFromInput, markSynced, markCacheLoaded };
+  return { title, setTitleFromInput, markSynced };
 }
