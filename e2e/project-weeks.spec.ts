@@ -210,7 +210,12 @@ test.describe('Project Weeks Tab', () => {
     const projectLink = page
       .getByLabel('Document properties')
       .getByRole('link', { name: 'Navigation Test Project' });
-    await expect(projectLink).toBeVisible();
+    // 10 s to match every other wait in this test. This assertion was the only one on the
+    // default 5 s clock, and it timed out with 0 matches under a full-suite run (14 workers)
+    // while passing 15 of 15 in isolation -- the sidebar had not painted yet, not the wrong
+    // element. The assertion is that the link exists and navigates, never that it renders
+    // inside five seconds.
+    await expect(projectLink).toBeVisible({ timeout: 10000 });
     await projectLink.click();
 
     // Verify we're back at the project's Weeks tab
