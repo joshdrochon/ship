@@ -8,6 +8,62 @@ Written for the next engineer who inherits this, not for a grader. Audit finding
 
 ---
 
+## A gate for the target that was already lost once
+
+**What was wrong.** Category 1's target is a whole-repo aggregate — −25% of the
+1009-violation baseline, so a hard ceiling of **756**. It was met, then **silently lost at
+758** when Category 4's merge added 17 `as any` in new test mocks. −25.4% had become
+−24.9%, the category had failed, and every gate said pass: `pnpm type-check`, `pnpm lint`,
+`pnpm build` and 553 unit tests were all green at 758. It was found by re-measuring by hand.
+
+That is a structural problem, not a slip. Any lane can break an aggregate target, only the
+integrated number counts, and the lane that breaks it has no idea it is spending another
+lane's budget. `docs/improvements.md` §1 named it — *"a thin margin on such a target is not
+a near-miss, it is an unowned liability"* — and then nothing was built to own it.
+
+Current count is **742**, which leaves **14** of headroom against the grading ceiling.
+Fourteen is roughly one merge's worth of test mocks.
+
+**What was added.** `scripts/check-type-violations.sh`, wired as a `type-violations` job on
+**both** pipelines. It parses the total out of the existing
+`docs/audit/scripts/count-type-violations.py` rather than recomputing it, so the gate and
+the audit can never disagree about what a violation is.
+
+The ceiling lives in `docs/audit/type-violations-ceiling.txt` and **ratchets**: the script
+lowers it on request and *refuses to raise it*. Raising is a deliberate edit to a tracked
+file, justified in a commit message — never a quiet adjustment to turn a pipeline green.
+
+**How to run it.**
+```bash
+scripts/check-type-violations.sh            # check against the committed ceiling
+scripts/check-type-violations.sh --update   # lower the ceiling to the current count
+python3 docs/audit/scripts/count-type-violations.py --by-file -n 20   # find what moved
+```
+
+**How to test it.** All four behaviours were verified before this was committed:
+
+| Scenario | Expected | Result |
+|---|---|---|
+| clean tree | pass, exit 0 | `PASS 742, exactly at the ceiling` |
+| 3 `as any` added in a test mock (the 758 shape) | fail, exit 1 | `FAIL 745, ceiling 742 (+3)` |
+| counter script missing | **exit 2**, not 1 | `counter not found` |
+| `--update` asked to raise the ceiling | refuse, exit 1 | `refusing to raise the ceiling: 700 -> 742` |
+
+Exit **2** is deliberately distinct from 1, so *"we could not measure"* can never be read as
+*"we measured and it was fine"* — the same reasoning as `scripts/assert-tests-ran.sh`.
+
+**How to roll it back.** Delete the `type-violations` job from `.gitlab-ci.yml` and
+`.github/workflows/ci.yml`. The script and ceiling file are inert on their own — nothing
+else calls them. Or revert the commit.
+
+**Tradeoff.** This blocks merges on a metric that is a proxy, not a truth: a `as unknown as
+Foo` double-cast scores the same as an honest narrowing, and legitimate assertions (parsing
+external JSON, DOM APIs) are counted as violations. The alternative was continuing to trust
+that nobody adds mocks, which has already failed once. A proxy that fails loudly beats an
+aggregate nobody watches.
+
+---
+
 ## E2E truth, and the title durability bug it was hiding
 
 Five changes made after the submission commit `b827ddb`. Grouped here because they came

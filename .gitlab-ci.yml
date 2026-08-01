@@ -125,6 +125,21 @@ type-check:
   script:
     - pnpm type-check
 
+# `pnpm type-check` proves the code compiles. It does NOT observe how much of that
+# compilation was bought with `any`, `as` and `!`, which is what Category 1 is measured
+# on. Those are two different questions, and the second one has already gone wrong here:
+# the target was met, then silently lost at 758 when another lane's test mocks added 17
+# `as any` -- with type-check, lint, build and 553 unit tests all green.
+#
+# `needs: []` so this starts immediately rather than waiting on build. It reads source
+# text; it does not need a compiled tree. python3 is 3.11.2 in node:22-bookworm.
+type-violations:
+  stage: verify
+  needs: []
+  script:
+    - scripts/check-type-violations.sh
+  allow_failure: false
+
 test:
   stage: verify
   needs: ['build']
