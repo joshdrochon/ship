@@ -18,7 +18,7 @@ import { test as base } from '@playwright/test';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { spawn, ChildProcess } from 'child_process';
 import { Pool } from 'pg';
-import { readdirSync, readFileSync, existsSync } from 'fs';
+import { readdirSync, readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
 import getPort, { portNumbers } from 'get-port';
 import bcrypt from 'bcryptjs';
@@ -133,12 +133,18 @@ type WorkerFixtures = {
   bedrockMock: MockBedrock;
   apiServer: { url: string; process: ChildProcess };
   webServer: { url: string; process: ChildProcess };
+  /** Resets the database to freshly-seeded state when the spec file changes. */
+  resetDatabaseForFile: (specFile: string) => Promise<void>;
 };
 
 // Extend the base test with our isolated environment
 // Worker fixtures are accessible in tests but live at worker scope
 export const test = base.extend<
-  { apiServer: { url: string; process: ChildProcess } },
+  {
+    apiServer: { url: string; process: ChildProcess };
+    /** Auto fixture; no test references it directly. See `freshState` below. */
+    freshState: void;
+  },
   WorkerFixtures
 >({
   // Override context to disable action items modal for ALL pages (including multi-page tests)
@@ -333,7 +339,95 @@ export const test = base.extend<
   baseURL: async ({ webServer }, use) => {
     await use(webServer.url);
   },
+
+  // Restores the seeded state at each spec-file boundary.
+  //
+  // Every worker gets one Postgres container with one workspace, seeded once. Before this,
+  // all 72 spec files shared it with no reset, so a file inherited whatever the previous
+  // files left behind — extra documents, renamed projects, consumed sprint slots. Triage
+  // measured the cost: of 20 tests observed flaking across three full runs, 16 passed 5/5
+  // when run alone and only failed inside the suite. Ordering also shifts with machine
+  // load, which is why the flake set changed shape between a quiet baseline and a
+  // contended run and looked like new defects.
+  //
+  // Per FILE, deliberately not per test. Specs routinely build across tests within a file
+  // (create a document in one, assert on it in the next); resetting per test would break
+  // far more than it fixes. The file boundary is where ownership actually changes.
+  resetDatabaseForFile: [
+    async ({ dbContainer }, use, workerInfo) => {
+      const dbUrl = dbContainer.getConnectionUri();
+      const debug = process.env.DEBUG === '1';
+
+      // The marker lives on disk, not in a closure. Playwright restarts a worker after
+      // certain failures, which rebuilds this fixture and would reset an in-memory value
+      // to null -- so the next test, still inside the same spec file, would truncate and
+      // destroy setup its own earlier tests created. That is the exact opposite of the
+      // per-file contract, and it fires precisely when a run is already going badly.
+      //
+      // outputDir is wiped by Playwright at the start of every run, so markers cannot
+      // leak between runs and no cleanup is needed.
+      const markerPath = path.join(
+        workerInfo.project.outputDir,
+        `.reseed-worker-${workerInfo.workerIndex}`
+      );
+
+      const lastPrepared = (): string | null =>
+        existsSync(markerPath) ? readFileSync(markerPath, 'utf8').trim() || null : null;
+
+      await use(async (specFile: string) => {
+        if (specFile === lastPrepared()) return;
+
+        const started = Date.now();
+        await resetToSeededState(dbUrl);
+        mkdirSync(path.dirname(markerPath), { recursive: true });
+        writeFileSync(markerPath, specFile, 'utf8');
+
+        if (debug) {
+          console.log(
+            `[Worker ${workerInfo.workerIndex}] reseeded for ${specFile} in ${Date.now() - started}ms`
+          );
+        }
+      });
+    },
+    { scope: 'worker' },
+  ],
+
+  // `auto` so no spec file has to opt in — all 72 keep working unchanged. It runs before
+  // every test but only does work when the file changes, so the cost is one reseed per
+  // file per worker rather than one per test.
+  freshState: [
+    async ({ resetDatabaseForFile }, use, testInfo) => {
+      await resetDatabaseForFile(testInfo.file);
+      await use(undefined);
+    },
+    { auto: true },
+  ],
 });
+
+/**
+ * Truncate every application table and re-seed.
+ *
+ * `schema_migrations` is preserved — the schema is already applied and re-running
+ * migrations per file would be slow and pointless. TRUNCATE ... CASCADE in one statement
+ * so foreign keys never block, and RESTART IDENTITY so sequence-derived values do not
+ * drift upward across files and make row ids depend on test order.
+ */
+async function resetToSeededState(dbUrl: string): Promise<void> {
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    const { rows } = await pool.query<{ tablename: string }>(
+      `SELECT tablename FROM pg_tables
+       WHERE schemaname = 'public' AND tablename <> 'schema_migrations'`
+    );
+    if (rows.length > 0) {
+      const list = rows.map((r) => `"${r.tablename}"`).join(', ');
+      await pool.query(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+    }
+    await seedMinimalTestData(pool);
+  } finally {
+    await pool.end();
+  }
+}
 
 /**
  * Run database schema, migrations, and seed minimal test data
