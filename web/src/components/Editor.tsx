@@ -204,12 +204,7 @@ export function Editor({
   // land replaced the whole column and destroyed the other writer's text.
   // `onTitleChange` is now only a fallback for when no collaboration session
   // exists — otherwise the collaboration server persists the title from the CRDT.
-  const {
-    title,
-    setTitleFromInput,
-    markSynced: markTitleSynced,
-    markCacheLoaded: markTitleCacheLoaded,
-  } = useCollaborativeTitle({
+  const { title, setTitleFromInput, markSynced: markTitleSynced } = useCollaborativeTitle({
     ydoc,
     initialTitle,
     onFallbackSave: onTitleChange,
@@ -351,14 +346,6 @@ export function Editor({
     // Connect WebSocket AFTER cache loads (or timeout)
     waitForCache.then(() => {
       if (cancelled) return;
-
-      // The local cache is now in the Y.Doc, so the title can start using the same
-      // durable path the body has always had: written into the Y.Doc per keystroke and
-      // flushed to IndexedDB with no timer. Gating this on the WebSocket sync below meant
-      // everything typed during the handshake lived only in React state, and a reload or
-      // crash lost it. The hook decides whether the local state is actually conclusive —
-      // see markCacheLoaded — and falls back to the WebSocket when it is not.
-      markTitleCacheLoaded();
 
       // In production, use current host with wss:// (through CloudFront)
       // In development, Vite proxy handles /collaboration WebSocket (see vite.config.ts)
@@ -546,7 +533,7 @@ export function Editor({
       setProvider(null);
       setConnectedUsers([]);
     };
-  }, [documentId, userName, color, ydoc, roomPrefix, onBack, onDocumentConverted, markTitleSynced, markTitleCacheLoaded]);
+  }, [documentId, userName, color, ydoc, roomPrefix, onBack, onDocumentConverted, markTitleSynced]);
 
   // Create slash commands extension (memoized to avoid recreation)
   // documentId is in deps to ensure fresh AbortSignal when switching documents
