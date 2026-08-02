@@ -214,7 +214,11 @@ e2e:
   services:
     - name: postgres:16
       alias: postgres
-  timeout: 60m
+  # 150m, not the default. Measured on this project's runner: 266 of 874 tests in
+  # 30 minutes at 2 workers, with zero failures -- so roughly 100 minutes for a clean
+  # run. The suite is correct here; it was simply not being allowed to finish, and a
+  # job killed at the timeout reports as a failure indistinguishable from a real one.
+  timeout: 150m
   variables:
     E2E_DATABASE_URL: 'postgresql://ship:ship_test_password@postgres:5432/postgres'
     # Pinned, not derived. playwright.config.ts otherwise picks the worker count from
