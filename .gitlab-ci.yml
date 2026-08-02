@@ -226,11 +226,19 @@ e2e:
     # one machine, the second leaving 47 tests unexecuted. A gate whose parallelism
     # depends on the runner's spare RAM cannot compare two commits.
     #
-    # 2 rather than 4: each worker carries an API server, a Vite preview and a Chromium.
-    # Four of each was killed by the OOM reaper at test 510 of 874 inside a 7.8 GB Docker
-    # VM, which is the size this project's runner has. Halving it costs roughly 15 minutes
-    # of wall clock and stays well inside the 60-minute job timeout.
-    PLAYWRIGHT_WORKERS: '2'
+    # 1 here, 2 on GitHub. Not an oversight -- the two runners have different capacity and
+    # the number is set to what each can actually carry.
+    #
+    # This project's GitLab runner is a container inside a 7.8 GB Docker VM on a laptop,
+    # shared with everything else on that machine. Four workers were OOM-killed at test 510
+    # of 874. Two workers left 1.3 GB free and produced 26 failures whose signature is
+    # starvation rather than defect: 47 tests timed out in `waitForEvent`, and the browser
+    # logged `Failed to fetch` 23 times because the API server it was talking to had stopped
+    # answering. The same commit on GitHub's 16 GB runner failed one test.
+    #
+    # One worker roughly doubles wall clock -- 43.5 min at two, so expect ~85 -- which the
+    # 150m timeout accommodates.
+    PLAYWRIGHT_WORKERS: '1'
   before_script:
     - corepack enable
     - corepack prepare pnpm@10.27.0 --activate
