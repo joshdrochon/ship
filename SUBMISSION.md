@@ -138,20 +138,32 @@ unexecuted. Set `PLAYWRIGHT_WORKERS` explicitly, and treat any run reporting
 872 passed · 2 failed · 0 did not run
 ```
 
-Both failures are pre-existing entries in `docs/audit/raw/known-flakes.txt` —
-`drag-handle.spec.ts:300` and `team-mode.spec.ts:408`, the latter hit at `:434`, an adjacent
-test in the same describe block. Re-run at the same worker count with `--repeat-each=3`,
-those two spec files went **3 failed / 117**, so the rate is real and roughly 2.6% rather
-than zero. That is timing flakiness in two known specs, not a regression, and it is not
-claimed as clean.
+Both failures were `drag-handle.spec.ts:300` and `team-mode.spec.ts:408`, already in
+`docs/audit/raw/known-flakes.txt`. Both are now fixed at the cause rather than retried
+past:
 
-`pnpm test:e2e` sets `retries: 1` locally and `2` in CI, so the documented command passes.
-The figures above use `--retries=0` deliberately, because retries hide exactly this.
+| | cause | before | after |
+|---|---|---|---|
+| `team-mode` | the seed left exactly **one** person unassigned, and sibling tests assign `.first()` unassigned row under `fullyParallel` — assign that one and the group header stops existing | 6 failed / 195 | **0 / 195** |
+| `drag-handle` | `expect(handle).toBeVisible()` followed by `page.$`, a one-shot query, on an element that exists only while hovered | (same run) | |
 
-**This number is a local measurement, not a CI result.** E2E has never been part of either
-pipeline (Rule 4 requires `test`, which is api + web unit suites, and both run there). A
-grader checking CI sees the eight required jobs and no E2E — so nothing here is verified by
-the pipeline, and it should be read accordingly.
+A third surfaced only under the CI configuration: `document-workflows.spec.ts` set a title
+and slept a fixed 1 s. The client's fallback debounce on a new document is 1.5 s, so the
+sleep expired before anything was written — the editor showed the title, the database did
+not, and any assertion reading server data failed. It now waits on
+`expectDocumentTitleSaved`, which polls the API. 20 of 20 on re-run.
+
+`pnpm test:e2e` sets `retries: 1` locally and `2` in CI. The figures above use
+`--retries=0` deliberately, because retries hide exactly this class of defect.
+
+**E2E is now a blocking gate on both pipelines**, in the `verify` stage alongside `test`
+and `coverage`. It runs against an ordinary Postgres service rather than testcontainers:
+testcontainers needs a Docker daemon, reaching one inside a CI job means
+docker-in-docker, and that needs a runner granting privileged mode — which made the gate a
+property of one machine's configuration rather than of the commit. `E2E_DATABASE_URL`
+switches `e2e/fixtures/isolated-env.ts` onto a database per worker; unset locally, so a
+developer's run is unchanged. The job is wrapped in `scripts/assert-tests-ran.sh 874`, so a
+worker that drops tests exits 2 instead of reading as a pass.
 
 ### CI
 
