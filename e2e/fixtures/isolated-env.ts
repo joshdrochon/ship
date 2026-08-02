@@ -552,6 +552,42 @@ async function seedMinimalTestData(pool: Pool): Promise<void> {
     [workspaceId, JSON.stringify({ user_id: memberId, email: 'bob.martinez@ship.local' }), userId]
   );
 
+  // Bench: people deliberately left out of every sprint allocation below.
+  //
+  // The assignments grid renders an "Unassigned" group only while at least one person
+  // has no current-sprint allocation. Before this, exactly one person qualified — Bob,
+  // since the allocation sprint further down carries `assignee_ids: [personId]` and
+  // names only Dev User. `fullyParallel: true` runs the tests of one spec file across
+  // workers, and several of them assign a project to `.first()` unassigned row. When one
+  // of those landed on the only unassigned person, the group header stopped existing and
+  // every Collapse/Expand test failed with `element(s) not found` rather than a
+  // meaningful assertion. Measured at 5 failures in 195 attempts.
+  //
+  // Four, not one, so the invariant survives concurrent mutation: CLAUDE.md asks for
+  // N+2 rows where a test needs N, and the group needs only one survivor to render.
+  // Nothing else may allocate these people.
+  const benchNames = ['Casey Bench', 'Devon Bench', 'Emery Bench', 'Frankie Bench'];
+  for (const name of benchNames) {
+    const slug = name.toLowerCase().replace(/\s+/g, '.');
+    const benchUser = await pool.query(
+      `INSERT INTO users (email, password_hash, name, is_super_admin, last_workspace_id)
+       VALUES ($1, $2, $3, false, $4)
+       RETURNING id`,
+      [`${slug}@ship.local`, passwordHash, name, workspaceId]
+    );
+    const benchId = benchUser.rows[0].id;
+    await pool.query(
+      `INSERT INTO workspace_memberships (workspace_id, user_id, role)
+       VALUES ($1, $2, 'member')`,
+      [workspaceId, benchId]
+    );
+    await pool.query(
+      `INSERT INTO documents (workspace_id, document_type, title, properties, created_by)
+       VALUES ($1, 'person', $2, $3, $4)`,
+      [workspaceId, name, JSON.stringify({ user_id: benchId, email: `${slug}@ship.local` }), userId]
+    );
+  }
+
   // Create programs (matching full seed)
   // 'key' is used for test referencing only, not stored in database
   const programs = [
