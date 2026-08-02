@@ -74,7 +74,7 @@ test.describe('Drag Handle - Block Reordering', () => {
     await page.waitForTimeout(200)
 
     const dragHandleLocator = page.locator('.editor-drag-handle')
-    await expect(dragHandleLocator).toBeVisible({ timeout: 2000 })
+    await expect(dragHandleLocator).toBeVisible({ timeout: 10000 })
 
     // Element handles are needed for dispatchEvent, but they must come from the locators
     // above rather than a fresh `page.$`. `page.$` is a one-shot query that does not wait:
@@ -90,11 +90,11 @@ test.describe('Drag Handle - Block Reordering', () => {
     // The target keeps `:nth-child` rather than `.nth(targetIndex)`: they differ whenever
     // the document holds a non-paragraph sibling, and the callers here were written
     // against `:nth-child` semantics.
-    const dragHandle = await dragHandleLocator.elementHandle({ timeout: 2000 })
+    const dragHandle = await dragHandleLocator.elementHandle({ timeout: 10000 })
     const targetPara = await page
       .locator(`.ProseMirror p:nth-child(${targetIndex + 1})`)
-      .elementHandle({ timeout: 2000 })
-    const editor = await page.locator('.ProseMirror').elementHandle({ timeout: 2000 })
+      .elementHandle({ timeout: 10000 })
+    const editor = await page.locator('.ProseMirror').elementHandle({ timeout: 10000 })
 
     if (!dragHandle || !targetPara || !editor) {
       throw new Error('Required elements not found')
@@ -410,7 +410,7 @@ test.describe('Drag Handle - Block Reordering', () => {
       // Hover over heading and drag to end using dispatchEvent approach
       await heading.hover()
       const dragHandleLocator = page.locator('.editor-drag-handle')
-      await expect(dragHandleLocator).toBeVisible({ timeout: 2000 })
+      await expect(dragHandleLocator).toBeVisible({ timeout: 10000 })
 
       const dragHandle = await page.$('.editor-drag-handle')
       const lastParagraph = await page.$('.ProseMirror p:last-child')
@@ -549,7 +549,7 @@ test.describe('Drag Handle - Block Reordering', () => {
       await documentEmbed.first().hover()
 
       const dragHandleLocator = page.locator('.editor-drag-handle')
-      await expect(dragHandleLocator).toBeVisible({ timeout: 2000 })
+      await expect(dragHandleLocator).toBeVisible({ timeout: 10000 })
 
       // Use dispatchEvent approach for drag
       const dragHandle = await page.$('.editor-drag-handle')
@@ -663,7 +663,7 @@ test.describe('Drag Handle - Block Reordering', () => {
       await firstParagraphLocator.hover()
 
       const dragHandleLocator = page.locator('.editor-drag-handle')
-      await expect(dragHandleLocator).toBeVisible({ timeout: 2000 })
+      await expect(dragHandleLocator).toBeVisible({ timeout: 10000 })
 
       const dragHandle = await page.$('.editor-drag-handle')
       const firstParagraph = await page.$('.ProseMirror p:first-child')

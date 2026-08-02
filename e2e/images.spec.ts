@@ -1,4 +1,5 @@
-import { test, expect, Page } from './fixtures/isolated-env';
+import { test, expect, Page } from './fixtures/isolated-env'
+import { waitForSlashMenu } from './fixtures/test-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -219,7 +220,7 @@ test.describe('Images', () => {
 
     // Type /image to trigger slash command
     await page.keyboard.type('/image');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Create test image file
     const tmpPath = createTestImageFile();

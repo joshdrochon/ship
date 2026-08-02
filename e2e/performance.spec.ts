@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
+import { waitForSlashMenu } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -400,7 +401,7 @@ test.describe('Performance - Many Images', () => {
         await page.keyboard.press('Backspace')
         await page.keyboard.press('Backspace')
         await page.keyboard.type('/image')
-        await page.waitForTimeout(1000)
+        await waitForSlashMenu(page)
       }
       expect(dropdownVisible, `Slash command dropdown not visible for image ${i + 1}`).toBe(true)
 
@@ -480,7 +481,7 @@ test.describe('Performance - Many Images', () => {
         await page.keyboard.press('Backspace')
         await page.keyboard.press('Backspace')
         await page.keyboard.type('/image')
-        await page.waitForTimeout(1000)
+        await waitForSlashMenu(page)
       }
       expect(dropdownVisible, `Slash command dropdown not visible for image ${i + 1}`).toBe(true)
 

@@ -1,4 +1,5 @@
-import { test, expect, Page } from './fixtures/isolated-env';
+import { test, expect, Page } from './fixtures/isolated-env'
+import { waitForSlashMenu } from './fixtures/test-helpers';
 import path from 'path';
 import fs from 'fs';
 
@@ -158,7 +159,7 @@ test.describe('TIER 1: Image Upload - REAL TESTS', () => {
 
     // Use /image command
     await page.keyboard.type('/image');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     // File chooser should appear
@@ -190,7 +191,7 @@ test.describe('TIER 1: Image Upload - REAL TESTS', () => {
 
     // Upload image
     await page.keyboard.type('/image');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     const [fileChooser] = await Promise.all([
@@ -259,7 +260,7 @@ test.describe('TIER 2: File Attachments - REAL TESTS', () => {
     await loginAndCreateDoc(page);
 
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     const [fileChooser] = await Promise.all([
@@ -293,7 +294,7 @@ test.describe('TIER 2: Tables - REAL TESTS', () => {
     await loginAndCreateDoc(page);
 
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
 
@@ -333,7 +334,7 @@ test.describe('TIER 2: Tables - REAL TESTS', () => {
 
     // Try to insert table via slash command
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Wait for dropdown to appear, if it doesn't the slash command isn't triggering
     const dropdown = page.locator('[data-tippy-root], [role="listbox"], .suggestion-dropdown');
@@ -366,7 +367,7 @@ test.describe('TIER 2: Toggle/Collapsible - REAL TESTS', () => {
     await loginAndCreateDoc(page);
 
     await page.keyboard.type('/toggle');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(1000);
 
@@ -454,7 +455,7 @@ test.describe('TIER 3: Syntax Highlighting - REAL TESTS', () => {
 
     // Create code block using / command which is more reliable
     await page.keyboard.type('/code');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
     await page.waitForTimeout(500);
 

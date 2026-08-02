@@ -1,4 +1,5 @@
-import { test, expect, Page } from './fixtures/isolated-env';
+import { test, expect, Page } from './fixtures/isolated-env'
+import { waitForSlashMenu } from './fixtures/test-helpers';
 
 // Helper to create a new document using the available buttons
 async function createNewDocument(page: Page) {
@@ -56,7 +57,7 @@ test.describe('Toggle (Collapsible)', () => {
 
     // Type /toggle to trigger slash command
     await page.keyboard.type('/toggle');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Should show toggle option
     const toggleOption = page.getByRole('button', { name: /Toggle|Collapsible/i });
@@ -78,7 +79,7 @@ test.describe('Toggle (Collapsible)', () => {
 
     // Insert toggle
     await page.keyboard.type('/toggle');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     // Wait for toggle to appear
@@ -129,7 +130,7 @@ test.describe('Toggle (Collapsible)', () => {
 
     // Insert toggle
     await page.keyboard.type('/toggle');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     // Wait for toggle to appear
@@ -157,7 +158,7 @@ test.describe('Toggle (Collapsible)', () => {
 
     // Insert toggle
     await page.keyboard.type('/toggle');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     // Wait for toggle to appear
@@ -197,7 +198,7 @@ test.describe('Toggle (Collapsible)', () => {
 
     // Insert toggle
     await page.keyboard.type('/toggle');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     // Wait for toggle to appear
@@ -242,7 +243,7 @@ test.describe('Toggle (Collapsible)', () => {
 
     // Insert toggle
     await page.keyboard.type('/toggle');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     // Wait for toggle to appear
@@ -279,7 +280,7 @@ test.describe('Toggle (Collapsible)', () => {
 
     // Insert toggle
     await page.keyboard.type('/toggle');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     // Wait for toggle to appear
@@ -318,7 +319,7 @@ test.describe('Toggle (Collapsible)', () => {
 
     // Insert toggle
     await page.keyboard.type('/toggle');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.keyboard.press('Enter');
 
     // Wait for toggle to appear

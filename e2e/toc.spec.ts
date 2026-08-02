@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
+import { waitForSlashMenu } from './fixtures/test-helpers'
 
 /**
  * Table of Contents (TOC) E2E Tests
@@ -55,7 +56,7 @@ test.describe('Table of Contents (TOC)', () => {
 
     // Type /toc to trigger slash command
     await page.keyboard.type('/toc')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     // Look for TOC option in menu - use button role to be specific
     const tocOption = page.getByRole('button', { name: /Table of Contents/i })
@@ -85,7 +86,7 @@ test.describe('Table of Contents (TOC)', () => {
     await page.keyboard.press('End')
     await page.keyboard.press('Enter')
     await page.keyboard.type('/toc')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tocOption = page.getByRole('button', { name: /Table of Contents/i })
     await expect(tocOption).toBeVisible({ timeout: 3000 })
@@ -115,7 +116,7 @@ test.describe('Table of Contents (TOC)', () => {
     // Add TOC
     await page.keyboard.press('Enter')
     await page.keyboard.type('/toc')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tocOption = page.getByRole('button', { name: /Table of Contents/i })
     await expect(tocOption).toBeVisible({ timeout: 3000 })
@@ -153,7 +154,7 @@ test.describe('Table of Contents (TOC)', () => {
     // Add TOC
     await page.keyboard.press('Enter')
     await page.keyboard.type('/toc')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tocOption = page.getByRole('button', { name: /Table of Contents/i })
     await expect(tocOption).toBeVisible({ timeout: 3000 })
@@ -199,7 +200,7 @@ test.describe('Table of Contents (TOC)', () => {
     // Add TOC
     await page.keyboard.press('Enter')
     await page.keyboard.type('/toc')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tocOption = page.getByRole('button', { name: /Table of Contents/i })
     await expect(tocOption).toBeVisible({ timeout: 3000 })
@@ -265,7 +266,7 @@ test.describe('Table of Contents (TOC)', () => {
     await firstHeading.click()
     await page.keyboard.press('ArrowUp')
     await page.keyboard.type('/toc')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tocOption = page.getByRole('button', { name: /Table of Contents/i })
     await expect(tocOption).toBeVisible({ timeout: 3000 })
@@ -309,7 +310,7 @@ test.describe('Table of Contents (TOC)', () => {
     await page.keyboard.press('End')
     await page.keyboard.press('Enter')
     await page.keyboard.type('/toc')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tocOption = page.getByRole('button', { name: /Table of Contents/i })
     await expect(tocOption).toBeVisible({ timeout: 3000 })
@@ -354,7 +355,7 @@ test.describe('Table of Contents (TOC)', () => {
     // Add TOC
     await page.keyboard.press('Enter')
     await page.keyboard.type('/toc')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tocOption = page.getByRole('button', { name: /Table of Contents/i })
     await expect(tocOption).toBeVisible({ timeout: 3000 })
@@ -397,7 +398,7 @@ test.describe('Table of Contents (TOC)', () => {
 
     // Add TOC without any headings
     await page.keyboard.type('/toc')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tocOption = page.getByRole('button', { name: /Table of Contents/i })
     await expect(tocOption).toBeVisible({ timeout: 3000 })

@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { expectDocumentTitleSaved } from './fixtures/test-helpers'
+import { expectDocumentTitleSaved, waitForSlashMenu } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -214,7 +214,7 @@ test.describe('Data Integrity - Images', () => {
 
     // Upload image
     await page.keyboard.type('/image')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tmpPath = createTestImageFile()
     const fileChooserPromise = page.waitForEvent('filechooser')
@@ -266,7 +266,7 @@ test.describe('Data Integrity - Images', () => {
     await page.keyboard.type('Image 1:')
     await page.keyboard.press('Enter')
     await page.keyboard.type('/image')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tmpPath1 = createTestImageFile()
     let fileChooserPromise = page.waitForEvent('filechooser')
@@ -282,7 +282,7 @@ test.describe('Data Integrity - Images', () => {
     await page.keyboard.type('Image 2:')
     await page.keyboard.press('Enter')
     await page.keyboard.type('/image')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     const tmpPath2 = createTestImageFile()
     fileChooserPromise = page.waitForEvent('filechooser')

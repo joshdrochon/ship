@@ -1,5 +1,5 @@
 import { test, expect, Page, Browser } from './fixtures/isolated-env'
-import { expectDocumentTitleSaved } from './fixtures/test-helpers'
+import { expectDocumentTitleSaved, waitForSlashMenu } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -196,7 +196,7 @@ test.describe('Race Conditions - Image Upload', () => {
 
     // Trigger image upload via slash command
     await page.keyboard.type('/image')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     // Click the Image option specifically
     const imageOption = page.getByRole('button', { name: /^Image Upload an image/i })
@@ -237,7 +237,7 @@ test.describe('Race Conditions - Image Upload', () => {
 
     for (let i = 0; i < 3; i++) {
       await page.keyboard.type('/image')
-      await page.waitForTimeout(500)
+      await waitForSlashMenu(page)
 
       // Click the Image option specifically
       const imageOption = page.getByRole('button', { name: /^Image Upload an image/i })
