@@ -76,10 +76,25 @@ test.describe('Drag Handle - Block Reordering', () => {
     const dragHandleLocator = page.locator('.editor-drag-handle')
     await expect(dragHandleLocator).toBeVisible({ timeout: 2000 })
 
-    // Use $ to get element handles for dispatchEvent
-    const dragHandle = await page.$('.editor-drag-handle')
-    const targetPara = await page.$(`.ProseMirror p:nth-child(${targetIndex + 1})`)
-    const editor = await page.$('.ProseMirror')
+    // Element handles are needed for dispatchEvent, but they must come from the locators
+    // above rather than a fresh `page.$`. `page.$` is a one-shot query that does not wait:
+    // it returns whatever is in the DOM at that instant, or null. The drag handle is
+    // rendered on hover and removed when the pointer leaves, so between the assertion
+    // above and a re-query below it can legitimately disappear -- a check-then-use race
+    // that surfaced as `Required elements not found`, which reads like a selector bug
+    // rather than a timing one. Measured at 1 failure in 195 attempts.
+    //
+    // `elementHandle()` waits for the element the locator describes, so the handle that
+    // gets dispatched is the one that was just asserted visible.
+    //
+    // The target keeps `:nth-child` rather than `.nth(targetIndex)`: they differ whenever
+    // the document holds a non-paragraph sibling, and the callers here were written
+    // against `:nth-child` semantics.
+    const dragHandle = await dragHandleLocator.elementHandle({ timeout: 2000 })
+    const targetPara = await page
+      .locator(`.ProseMirror p:nth-child(${targetIndex + 1})`)
+      .elementHandle({ timeout: 2000 })
+    const editor = await page.locator('.ProseMirror').elementHandle({ timeout: 2000 })
 
     if (!dragHandle || !targetPara || !editor) {
       throw new Error('Required elements not found')
