@@ -248,9 +248,12 @@ jobs:
       # Connects to the `postgres` database, not `ship_test`: the fixture needs somewhere
       # to issue CREATE DATABASE from, and POSTGRES_USER is the image's superuser.
       E2E_DATABASE_URL: postgresql://ship:ship_test_password@localhost:5432/postgres
-      # 4 matches the config's own CI default and the count every local before/after
-      # measurement on this repo was taken at.
-      PLAYWRIGHT_WORKERS: '4'
+      # 2, not the config's CI default of 4. Each worker runs an API server, a Vite
+      # preview and a Chromium — four of each was killed by the OOM reaper at test 510 of
+      # 874 in a 7.8 GB container, and `ubuntu-latest` is only 2 vCPU, so four also
+      # oversubscribes the CPU and tightens every timeout in the suite. Halving it trades
+      # roughly 15 minutes of wall clock for a run that finishes.
+      PLAYWRIGHT_WORKERS: '2'
       SESSION_SECRET: ci-only-not-a-real-secret
     steps:
       - uses: actions/checkout@v4

@@ -221,7 +221,12 @@ e2e:
     # free memory at launch — the same tree ran at 1 worker and at 10 within an hour on
     # one machine, the second leaving 47 tests unexecuted. A gate whose parallelism
     # depends on the runner's spare RAM cannot compare two commits.
-    PLAYWRIGHT_WORKERS: '4'
+    #
+    # 2 rather than 4: each worker carries an API server, a Vite preview and a Chromium.
+    # Four of each was killed by the OOM reaper at test 510 of 874 inside a 7.8 GB Docker
+    # VM, which is the size this project's runner has. Halving it costs roughly 15 minutes
+    # of wall clock and stays well inside the 60-minute job timeout.
+    PLAYWRIGHT_WORKERS: '2'
   before_script:
     - corepack enable
     - corepack prepare pnpm@10.27.0 --activate
