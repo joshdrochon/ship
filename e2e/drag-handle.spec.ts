@@ -38,8 +38,17 @@ test.describe('Drag Handle - Block Reordering', () => {
       }
     }
 
-    // Wait for content to be rendered
-    await page.waitForTimeout(300)
+    // Wait for the typing to actually land, not for 300 ms to elapse.
+    //
+    // `dragBlockToPosition` then looks up `.ProseMirror p:nth-child(N)`. If the last
+    // paragraph had not been created yet, that selector matches nothing and the lookup
+    // times out -- reported as `locator.elementHandle: Timeout exceeded`, which reads like
+    // a slow element rather than a missing one. Raising that timeout did not help, because
+    // the paragraph was never coming: the test had moved on before the editor caught up.
+    // Seen on CI, where typing into ProseMirror is far slower than on a laptop.
+    await expect(page.locator('.ProseMirror')).toContainText(texts[texts.length - 1], {
+      timeout: 15000,
+    })
   }
 
   // Helper to get paragraph texts in order (excludes collaboration cursor labels and empty paragraphs)
