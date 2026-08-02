@@ -88,7 +88,7 @@ test.describe('Icon Tooltips', () => {
     await page.waitForLoadState('networkidle')
 
     // Open command palette with keyboard shortcut
-    await page.keyboard.press('Meta+k')
+    await page.keyboard.press('ControlOrMeta+k')
 
     // Wait for command palette to appear
     await page.waitForSelector('[role="dialog"][aria-label="Command palette"]', { timeout: 3000 })

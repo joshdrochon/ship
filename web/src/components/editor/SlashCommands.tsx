@@ -110,8 +110,16 @@ const CommandList = forwardRef<CommandListRef, CommandListProps>(
       return null;
     }
 
+    // `data-testid` below so tests can wait for this menu to exist rather than sleeping a
+    // fixed number of milliseconds after typing "/". The menu renders asynchronously, and
+    // on a slow CI runner it had not appeared when the test pressed Enter, so the keystroke
+    // reached nothing -- 47 tests timed out waiting for a file chooser that was never
+    // opened. There is no other stable hook: the container carries only utility classes.
     return (
-      <div className="z-50 min-w-[200px] overflow-hidden rounded-lg border border-border bg-background shadow-lg">
+      <div
+        data-testid="slash-menu"
+        className="z-50 min-w-[200px] overflow-hidden rounded-lg border border-border bg-background shadow-lg"
+      >
         {items.map((item, index) => (
           <button
             key={item.title}

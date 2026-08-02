@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
+import { waitForSlashMenu } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -382,7 +383,7 @@ test.describe('Performance - Many Images', () => {
       await page.keyboard.press('Enter')
       await page.keyboard.type('/image')
       // Wait for slash command dropdown to appear - give extra time under load
-      await page.waitForTimeout(1000)
+      await waitForSlashMenu(page)
 
       // Retry if dropdown didn't appear (slash menu items are buttons, not options)
       const optionLocator = page.getByRole('button', { name: /Image.*Upload/i })
@@ -400,7 +401,7 @@ test.describe('Performance - Many Images', () => {
         await page.keyboard.press('Backspace')
         await page.keyboard.press('Backspace')
         await page.keyboard.type('/image')
-        await page.waitForTimeout(1000)
+        await waitForSlashMenu(page)
       }
       expect(dropdownVisible, `Slash command dropdown not visible for image ${i + 1}`).toBe(true)
 
@@ -462,7 +463,7 @@ test.describe('Performance - Many Images', () => {
 
       await page.keyboard.type('/image')
       // Wait for slash command dropdown to appear - give extra time under load
-      await page.waitForTimeout(1000)
+      await waitForSlashMenu(page)
 
       // Retry if dropdown didn't appear (slash menu items are buttons, not options)
       const optionLocator = page.getByRole('button', { name: /Image.*Upload/i })
@@ -480,7 +481,7 @@ test.describe('Performance - Many Images', () => {
         await page.keyboard.press('Backspace')
         await page.keyboard.press('Backspace')
         await page.keyboard.type('/image')
-        await page.waitForTimeout(1000)
+        await waitForSlashMenu(page)
       }
       expect(dropdownVisible, `Slash command dropdown not visible for image ${i + 1}`).toBe(true)
 

@@ -18,7 +18,7 @@ import { test as base } from '@playwright/test';
 import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { spawn, ChildProcess } from 'child_process';
 import { Pool } from 'pg';
-import { readdirSync, readFileSync, existsSync } from 'fs';
+import { readdirSync, readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import path from 'path';
 import getPort, { portNumbers } from 'get-port';
 import bcrypt from 'bcryptjs';
@@ -127,18 +127,38 @@ function apiChildEnv(extra: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   };
 }
 
+/**
+ * All a worker needs from its database is a connection string.
+ *
+ * Locally that comes from a testcontainers Postgres. In CI it comes from a plain
+ * service container, because testcontainers needs a Docker daemon and reaching one
+ * from inside a CI job means docker-in-docker, which means a runner willing to grant
+ * privileged mode. Depending on that made the E2E gate a property of how one machine
+ * happens to be configured rather than a property of the commit.
+ *
+ * Set `E2E_DATABASE_URL` to a server the job can reach and each worker gets its own
+ * database on it. Leave it unset and nothing changes: testcontainers as before.
+ */
+type TestDatabase = { getConnectionUri: () => string };
+
 // Types for our worker-scoped fixtures
 type WorkerFixtures = {
-  dbContainer: StartedPostgreSqlContainer;
+  dbContainer: TestDatabase;
   bedrockMock: MockBedrock;
   apiServer: { url: string; process: ChildProcess };
   webServer: { url: string; process: ChildProcess };
+  /** Resets the database to freshly-seeded state when the spec file changes. */
+  resetDatabaseForFile: (specFile: string) => Promise<void>;
 };
 
 // Extend the base test with our isolated environment
 // Worker fixtures are accessible in tests but live at worker scope
 export const test = base.extend<
-  { apiServer: { url: string; process: ChildProcess } },
+  {
+    apiServer: { url: string; process: ChildProcess };
+    /** Auto fixture; no test references it directly. See `freshState` below. */
+    freshState: void;
+  },
   WorkerFixtures
 >({
   // Override context to disable action items modal for ALL pages (including multi-page tests)
@@ -157,6 +177,46 @@ export const test = base.extend<
     async ({}, use, workerInfo) => {
       const workerTag = `[Worker ${workerInfo.workerIndex}]`;
       const debug = process.env.DEBUG === '1';
+
+      // CI path: a Postgres the job can already reach, one database per worker.
+      //
+      // Isolation is what matters here, not who owns the server. Testcontainers gives a
+      // whole instance per worker; a named database per worker gives the same guarantee
+      // that no two workers share tables, which is the property every fixture below
+      // relies on. `DROP ... IF EXISTS` first so a re-run on a reused service container
+      // starts from nothing rather than inheriting the previous run's rows.
+      //
+      // The name is derived from the worker index, so it is stable and collision-free
+      // without coordination between workers.
+      const external = process.env.E2E_DATABASE_URL;
+      if (external) {
+        const dbName = `ship_e2e_w${workerInfo.workerIndex}`;
+        if (debug) console.log(`${workerTag} Using external Postgres, database ${dbName}`);
+
+        const admin = new Pool({ connectionString: external });
+        try {
+          // Identifier, not a value — it cannot be parameterised, so it is built from
+          // the worker index alone and never from anything caller-supplied.
+          await admin.query(`DROP DATABASE IF EXISTS ${dbName}`);
+          await admin.query(`CREATE DATABASE ${dbName}`);
+        } finally {
+          await admin.end();
+        }
+
+        const url = new URL(external);
+        url.pathname = `/${dbName}`;
+        const dbUrl = url.toString();
+
+        await runMigrations(dbUrl);
+        if (debug) console.log(`${workerTag} Migrations complete`);
+
+        // Deliberately not dropped on teardown. The server is a throwaway service
+        // container in CI, and dropping while the API child process still holds a
+        // connection fails noisily for no benefit.
+        await use({ getConnectionUri: () => dbUrl });
+        return;
+      }
+
       if (debug) console.log(`${workerTag} Starting PostgreSQL container...`);
 
       // Retry container startup to handle intermittent Docker port binding failures
@@ -293,7 +353,16 @@ export const test = base.extend<
 
       // Use vite preview instead of vite dev - much lighter weight
       // We pass the API port via env var so vite.config.ts can set up the proxy
-      const proc = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+      //
+      // `--host 127.0.0.1` is load-bearing, not tidying. Left to itself `vite preview`
+      // binds the IPv6 loopback only (`::1`), while Node's `fetch('http://localhost:...')`
+      // resolves to `127.0.0.1` -- so nothing is listening where `waitForServer` looks and
+      // every worker dies with "did not start within 30000ms". It reproduces in
+      // `node:22-bookworm`, which is the CI image, and not on macOS, which is why the
+      // suite was green locally and failed every test in CI. Measured inside the image:
+      // `curl [::1]:PORT` 200, `curl 127.0.0.1:PORT` refused; with this flag, both the
+      // curl and the Node fetch return 200.
+      const proc = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'], {
         cwd: path.join(PROJECT_ROOT, 'web'),
         env: {
           ...process.env,
@@ -333,7 +402,95 @@ export const test = base.extend<
   baseURL: async ({ webServer }, use) => {
     await use(webServer.url);
   },
+
+  // Restores the seeded state at each spec-file boundary.
+  //
+  // Every worker gets one Postgres container with one workspace, seeded once. Before this,
+  // all 72 spec files shared it with no reset, so a file inherited whatever the previous
+  // files left behind — extra documents, renamed projects, consumed sprint slots. Triage
+  // measured the cost: of 20 tests observed flaking across three full runs, 16 passed 5/5
+  // when run alone and only failed inside the suite. Ordering also shifts with machine
+  // load, which is why the flake set changed shape between a quiet baseline and a
+  // contended run and looked like new defects.
+  //
+  // Per FILE, deliberately not per test. Specs routinely build across tests within a file
+  // (create a document in one, assert on it in the next); resetting per test would break
+  // far more than it fixes. The file boundary is where ownership actually changes.
+  resetDatabaseForFile: [
+    async ({ dbContainer }, use, workerInfo) => {
+      const dbUrl = dbContainer.getConnectionUri();
+      const debug = process.env.DEBUG === '1';
+
+      // The marker lives on disk, not in a closure. Playwright restarts a worker after
+      // certain failures, which rebuilds this fixture and would reset an in-memory value
+      // to null -- so the next test, still inside the same spec file, would truncate and
+      // destroy setup its own earlier tests created. That is the exact opposite of the
+      // per-file contract, and it fires precisely when a run is already going badly.
+      //
+      // outputDir is wiped by Playwright at the start of every run, so markers cannot
+      // leak between runs and no cleanup is needed.
+      const markerPath = path.join(
+        workerInfo.project.outputDir,
+        `.reseed-worker-${workerInfo.workerIndex}`
+      );
+
+      const lastPrepared = (): string | null =>
+        existsSync(markerPath) ? readFileSync(markerPath, 'utf8').trim() || null : null;
+
+      await use(async (specFile: string) => {
+        if (specFile === lastPrepared()) return;
+
+        const started = Date.now();
+        await resetToSeededState(dbUrl);
+        mkdirSync(path.dirname(markerPath), { recursive: true });
+        writeFileSync(markerPath, specFile, 'utf8');
+
+        if (debug) {
+          console.log(
+            `[Worker ${workerInfo.workerIndex}] reseeded for ${specFile} in ${Date.now() - started}ms`
+          );
+        }
+      });
+    },
+    { scope: 'worker' },
+  ],
+
+  // `auto` so no spec file has to opt in — all 72 keep working unchanged. It runs before
+  // every test but only does work when the file changes, so the cost is one reseed per
+  // file per worker rather than one per test.
+  freshState: [
+    async ({ resetDatabaseForFile }, use, testInfo) => {
+      await resetDatabaseForFile(testInfo.file);
+      await use(undefined);
+    },
+    { auto: true },
+  ],
 });
+
+/**
+ * Truncate every application table and re-seed.
+ *
+ * `schema_migrations` is preserved — the schema is already applied and re-running
+ * migrations per file would be slow and pointless. TRUNCATE ... CASCADE in one statement
+ * so foreign keys never block, and RESTART IDENTITY so sequence-derived values do not
+ * drift upward across files and make row ids depend on test order.
+ */
+async function resetToSeededState(dbUrl: string): Promise<void> {
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    const { rows } = await pool.query<{ tablename: string }>(
+      `SELECT tablename FROM pg_tables
+       WHERE schemaname = 'public' AND tablename <> 'schema_migrations'`
+    );
+    if (rows.length > 0) {
+      const list = rows.map((r) => `"${r.tablename}"`).join(', ');
+      await pool.query(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+    }
+    await seedMinimalTestData(pool);
+  } finally {
+    await pool.end();
+  }
+}
 
 /**
  * Run database schema, migrations, and seed minimal test data
@@ -457,6 +614,42 @@ async function seedMinimalTestData(pool: Pool): Promise<void> {
      VALUES ($1, 'person', 'Bob Martinez', $2, $3)`,
     [workspaceId, JSON.stringify({ user_id: memberId, email: 'bob.martinez@ship.local' }), userId]
   );
+
+  // Bench: people deliberately left out of every sprint allocation below.
+  //
+  // The assignments grid renders an "Unassigned" group only while at least one person
+  // has no current-sprint allocation. Before this, exactly one person qualified — Bob,
+  // since the allocation sprint further down carries `assignee_ids: [personId]` and
+  // names only Dev User. `fullyParallel: true` runs the tests of one spec file across
+  // workers, and several of them assign a project to `.first()` unassigned row. When one
+  // of those landed on the only unassigned person, the group header stopped existing and
+  // every Collapse/Expand test failed with `element(s) not found` rather than a
+  // meaningful assertion. Measured at 5 failures in 195 attempts.
+  //
+  // Four, not one, so the invariant survives concurrent mutation: CLAUDE.md asks for
+  // N+2 rows where a test needs N, and the group needs only one survivor to render.
+  // Nothing else may allocate these people.
+  const benchNames = ['Casey Bench', 'Devon Bench', 'Emery Bench', 'Frankie Bench'];
+  for (const name of benchNames) {
+    const slug = name.toLowerCase().replace(/\s+/g, '.');
+    const benchUser = await pool.query(
+      `INSERT INTO users (email, password_hash, name, is_super_admin, last_workspace_id)
+       VALUES ($1, $2, $3, false, $4)
+       RETURNING id`,
+      [`${slug}@ship.local`, passwordHash, name, workspaceId]
+    );
+    const benchId = benchUser.rows[0].id;
+    await pool.query(
+      `INSERT INTO workspace_memberships (workspace_id, user_id, role)
+       VALUES ($1, $2, 'member')`,
+      [workspaceId, benchId]
+    );
+    await pool.query(
+      `INSERT INTO documents (workspace_id, document_type, title, properties, created_by)
+       VALUES ($1, 'person', $2, $3, $4)`,
+      [workspaceId, name, JSON.stringify({ user_id: benchId, email: `${slug}@ship.local` }), userId]
+    );
+  }
 
   // Create programs (matching full seed)
   // 'key' is used for test referencing only, not stored in database

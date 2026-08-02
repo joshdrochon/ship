@@ -1,4 +1,5 @@
-import { test, expect, Page } from './fixtures/isolated-env';
+import { test, expect, Page } from './fixtures/isolated-env'
+import { waitForSlashMenu } from './fixtures/test-helpers';
 
 // Helper to create a new document using the available buttons
 async function createNewDocument(page: Page) {
@@ -56,7 +57,7 @@ test.describe('Tables', () => {
 
     // Type /table to trigger slash command
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Should show table option (not "Table of Contents")
     const tableOption = page.getByRole('button', { name: /^Table Insert a table/i });
@@ -78,7 +79,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -118,7 +119,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -159,7 +160,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -201,7 +202,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -244,7 +245,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -281,7 +282,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -309,7 +310,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -336,7 +337,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -352,7 +353,7 @@ test.describe('Tables', () => {
 
     // Click on table cell and select all in document
     await firstCell.click();
-    await page.keyboard.press('Meta+a');
+    await page.keyboard.press('ControlOrMeta+a');
     await page.waitForTimeout(200);
 
     // Verify table has cells with selectedCell class OR table wrapper has selection
@@ -381,7 +382,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -406,7 +407,7 @@ test.describe('Tables', () => {
       await expect(table).toBeHidden({ timeout: 3000 });
     } else {
       // Alternative: Select table and press Delete/Backspace
-      await page.keyboard.press('Meta+a'); // Select all in table
+      await page.keyboard.press('ControlOrMeta+a'); // Select all in table
       await page.keyboard.press('Backspace');
       await page.waitForTimeout(300);
 
@@ -424,7 +425,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -461,7 +462,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear
@@ -506,7 +507,7 @@ test.describe('Tables', () => {
 
     // Insert table (click specific option to avoid "Table of Contents")
     await page.keyboard.type('/table');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
     await page.getByRole('button', { name: /^Table Insert a table/i }).click();
 
     // Wait for table to appear

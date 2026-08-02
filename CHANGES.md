@@ -66,13 +66,12 @@ aggregate nobody watches.
 
 ## E2E truth, and the title durability bug it was hiding
 
-Five changes made after the submission commit `b827ddb`. Grouped here because they came
-from one thread: the E2E suite was reporting failures, and running them down turned up two
-broken tests and one real product bug.
+Changes made after the submission commit `b827ddb`, from one thread: the E2E suite was
+reporting failures, and running them down turned up two broken tests and one real product
+bug.
 
-**Start here if you are wondering why the suite went red.** Nothing in `api/src` changed
-for the first two items — the tests were wrong, not the product. The third item is a
-genuine data-loss bug and is the reason this section exists at all.
+Items 1 and 2 are test-only — nothing in `api/src` changed. Item 3 bounds a data-loss
+window and ships. **Item 4 was shipped and then reverted; it is not in the product.**
 
 ### 1. The Bedrock fake spoke HTTP/1.1; the SDK speaks HTTP/2
 
@@ -164,48 +163,42 @@ pnpm --filter @ship/web exec vitest run src/hooks/useCollaborativeTitle.test.tsx
 
 **How to roll it back.** `git revert c4866df`. Continuous typing becomes unbounded again.
 
-### 4. New documents reach durable storage without waiting for the socket
+### 4. Reverted: opening the CRDT path at cache load (`3faae2a`)
 
-**What was wrong.** A document's body is durable from the first keystroke: TipTap writes it
-into the Y.Doc and `IndexeddbPersistence` (`Editor.tsx:317`) flushes it with no timer. The
-title was not, for one case — a newly created "Untitled" document. CRDT writes were gated
-on `markTitleSynced()`, which fires only on the WebSocket `sync` event, so everything typed
-during the handshake lived in React state and nowhere else.
+**Status: reverted in `0e76b00`. It is not in the product.** Recorded here because it was
+shipped to `main` and claimed as a fix, and Rule 8 covers what was removed as well as what
+was added.
 
-**Scope, stated precisely.** A document whose IndexedDB cache carried a title was *already*
-durable — the observer at `useCollaborativeTitle.ts:127` adopts a non-empty `ytitle` on
-mount. It cannot adopt an empty one, because empty is ambiguous. So this closes the
-new-document case only.
+**What it did.** `markCacheLoaded()` opened the CRDT title path at the IndexedDB cache load
+rather than at WebSocket `sync`, to make a brand-new document's title durable during the
+handshake.
 
-**Why the gate could not simply be removed.** It answers "do we know this document's
-title?" With a server title of `"Q3 Roadmap"`, an unloaded empty Y.Doc, and a user typing
-`"X"`, Yjs merges the write as an insert and yields `"XQ3 Roadmap"` — it cannot distinguish
-"empty because unknown" from "empty because blank". Seeding from `initialTitle` does not
-help either: two peers inserting the same characters independently produce duplicates.
-`initialTitle` comes from the REST fetch, so `"Untitled"` means the server has no title and
-nothing can collide. Anything else still waits for `markSynced`, with the 3 s cap as
-backstop.
+**Outcome.** It replaced a bounded exposure with an unbounded one. Cache load precedes the
+socket, so flipping the flag there disarmed the REST fallback and sent keystrokes into a
+client-only `Y.Doc`. Measured on a document titled through that window: the client `Y.Doc`
+held the title, the server persisted the same document with `title = null`, and no REST
+fallback fired. The title existed only in the browser.
 
-**What changed.** `useCollaborativeTitle` gained `markCacheLoaded()`, which decides whether
-local state is conclusive and opens the CRDT path if it is. `Editor.tsx` calls it inside
-`waitForCache.then(...)` — after the IndexedDB load, before the WebSocket connects.
+| | with `3faae2a` | reverted |
+|---|---|---|
+| 4 affected specs, `--workers=4 --repeat-each=3`, `--retries=0` | 6 failed / 72 | **0 / 72** |
 
-**How to run it.** No configuration and no flag — active in the editor whenever the app
-runs. To exercise it, create a new document and type into the title immediately; the
-keystrokes land in the Y.Doc and IndexedDB right away instead of waiting for the socket.
-`Editor.tsx:340` caps the cache wait at 300 ms, so a browser with no cache still proceeds
-promptly.
+**Current behaviour.** A new document's title waits for `markSynced`. Item 3's 3 s ceiling
+bounds the unsaved window; that is the durability guarantee the product ships with.
+
+**Known gap.** The pre-socket window on a brand-new document is bounded, not eliminated, and
+the revert removed the unit tests that covered `markCacheLoaded`. No test currently asserts
+behaviour inside that window.
 
 **How to test it.**
 ```bash
 pnpm --filter @ship/web exec vitest run src/hooks/useCollaborativeTitle.test.tsx
-pnpm exec playwright test e2e/autosave-race-conditions.spec.ts --workers=1
-# 20 passed / 8 passed. Regression guard is
-# "puts a brand-new document on the durable path without waiting for the socket".
+pnpm exec playwright test e2e/title-persistence.spec.ts e2e/autosave-race-conditions.spec.ts \
+  --workers=4 --repeat-each=3 --retries=0
 ```
 
-**How to roll it back.** `git revert 3faae2a`. New documents wait for the WebSocket again;
-item 3's 3 s cap still bounds the loss.
+**How to roll it back.** `git revert 0e76b00` reinstates `3faae2a` and the data-loss path
+above. There is no reason to.
 
 ### 5. Uploads can survive a deploy — Render persistent disk
 
@@ -240,6 +233,235 @@ is the committed state. Or `git revert 6324d6c`.
 > **Not applied.** The committed config plans no disk and the live free-plan service is
 > unchanged. Render disks require `starter` or above, so attaching one costs money and is
 > the account owner's decision.
+
+---
+
+## E2E isolation and clocks
+
+Three changes to the suite itself. None touches product source.
+
+### Database state is reset at each spec-file boundary (`7f9b22e`)
+
+**What was wrong.** The Postgres container is worker-scoped and was seeded once, so every
+spec sharing a worker inherited the writes of every spec before it. Test outcomes depended
+on file ordering.
+
+**What changed.** A worker-scoped fixture resets to the seeded state the first time a given
+spec file runs on that worker, tracked by a marker file under the worker's output
+directory. An `auto: true` test fixture invokes it, so no spec has to remember to.
+
+**How to test it.** Any full run exercises it. To see the isolation directly, run two specs
+that write conflicting data in either order and confirm both pass.
+
+**How to roll it back.** `git revert 7f9b22e`.
+
+### Two tests were failing deterministically, not flaking (`b9b26d6`)
+
+**Outcome.** `inline-comments.spec.ts` pressed Escape before the comment input had focus,
+and the handler only acts on a focused field. `accessibility-remediation.spec.ts` queried a
+combobox before navigation completed and without scoping to a panel. Both now wait on the
+condition they depend on. No product source changed.
+
+**How to roll it back.** `git revert b9b26d6`.
+
+### One assertion ran on a different clock than its siblings (`11b4935`)
+
+**Outcome.** `project-weeks.spec.ts:213` had no explicit timeout, so it took Playwright's
+5 s default while the four waits around it — including the two gating the same page load —
+all specify 10 s. There is no `expect.timeout` in `playwright.config.ts` to close the gap.
+It now matches its siblings.
+
+Raising a timeout cannot be proven to remove a flake, only to make it less likely. The
+assertion's subject is that the link exists and navigates, never that it renders within five
+seconds.
+
+**How to roll it back.** `git revert 11b4935`.
+
+### The assignments grid had exactly one unassigned person (`isolated-env.ts`)
+
+**What was wrong.** The grid renders an "Unassigned" group only while at least one person
+has no current-sprint allocation. The seed created two people and allocated one, so the
+group had a population of exactly one — Bob Martinez. Several tests in
+`team-mode.spec.ts` assign a project to the `.first()` unassigned row, and `fullyParallel:
+true` spreads one spec file's tests across workers. When one of those landed on the only
+unassigned person, the group header stopped existing and every Collapse/Expand test failed
+with `element(s) not found`.
+
+**Outcome.** Four people are seeded onto a bench and never allocated, so the invariant
+survives concurrent mutation. CLAUDE.md already asks for N+2 rows where a test needs N;
+this was at N.
+
+| | before | after |
+|---|---|---|
+| `drag-handle` + `team-mode`, `--repeat-each=5 --workers=4 --retries=0` | 6 failed / 195 | see run below |
+
+**How to roll it back.** Remove the `benchNames` loop in `e2e/fixtures/isolated-env.ts`.
+
+### A hover-dependent element was queried without waiting (`drag-handle.spec.ts`)
+
+**Outcome.** `dragBlockToPosition` asserted the drag handle visible with a polling
+`expect`, then re-queried it with `page.$` — a one-shot lookup that returns whatever is in
+the DOM at that instant. The handle is rendered on hover and removed when the pointer
+leaves, so it could vanish in the gap, and the failure read as `Required elements not
+found`, which looks like a selector bug rather than a race. The handles now come from
+`locator.elementHandle()`, which waits.
+
+`:nth-child` is kept for the target rather than `.nth(index)`; the two differ when the
+document holds a non-paragraph sibling and the callers were written against `:nth-child`.
+
+**How to roll it back.** Restore the three `page.$` calls.
+
+### E2E is now a blocking CI gate
+
+**What was wrong.** The 874 Playwright tests were local-only. Everything the unit suites
+cannot see — the 4-panel layout, the collaboration socket, session expiry, the editor —
+was unguarded on every merge to main. Two real bugs reached main that way.
+
+**What changed.** An `e2e` job in both `.gitlab-ci.yml` and `.github/workflows/ci.yml`, in
+the `verify` stage alongside `test` and `coverage`, so a red suite blocks the merge.
+
+Three details that are not incidental:
+
+- **A `postgres` service, not testcontainers.** The suite provisions a database per
+  worker. Locally that is a testcontainers instance, which needs a Docker daemon —
+  and reaching one from inside a CI job means docker-in-docker, which means a runner
+  willing to grant privileged mode. The runner this project has sets
+  `privileged = false`, so that design made the gate a property of one machine's
+  configuration rather than of the commit. `E2E_DATABASE_URL` now switches
+  `e2e/fixtures/isolated-env.ts` onto a database-per-worker on an ordinary service
+  container. Isolation is unchanged — no two workers share tables either way — and the
+  variable is unset locally, so a developer's run still uses testcontainers.
+- **`PLAYWRIGHT_WORKERS` is pinned to 4.** Otherwise the count is derived from free memory
+  at launch, which is not a property of the commit.
+- **The run is wrapped in `scripts/assert-tests-ran.sh 874`.** A crashed worker that drops
+  tests exits 2 rather than reading as a pass.
+
+**Tradeoff.** `retries: 2` on the CI path lets a known timing flake through. A
+deterministic failure still fails all three attempts, so the gate keeps its teeth; the
+untried flake rate is measured separately at `--retries=0` and published rather than
+hidden by the retry setting.
+
+**Known risk.** The GitLab job needs a runner that permits privileged mode. If the shared
+runners do not, it fails at an explicit `docker info` preflight with a named reason, and
+the GitHub workflow carries the same gate on runners that do.
+
+**How to roll it back.** Delete the `e2e` job from either file.
+
+### Four things that only broke in CI
+
+The suite was green on a laptop and red on a runner. None of the four causes was
+flakiness, and each was found by reproducing inside `node:22-bookworm` -- the CI image
+-- rather than by guessing across pipeline runs. Recorded because every one of them is
+invisible from a macOS checkout.
+
+**1. The preview server bound where nothing was looking (`d50b27d`).**
+`vite preview` binds the IPv6 loopback only. Node's `fetch('http://localhost:PORT')`
+resolves to `127.0.0.1`, so `waitForServer` polled an address with no listener, every
+worker's web server timed out at 30 s, and all 874 tests failed identically. Measured in
+the image: `curl [::1]` 200, `curl 127.0.0.1` refused. `--host 127.0.0.1` fixes it and
+macOS is unaffected either way.
+
+**2. Four workers did not fit (`974a016`).**
+Each worker carries an API server, a Vite preview and a Chromium. Four of each was killed
+by the OOM reaper at test 510 of 874 in a 7.8 GB container, with no test failures logged
+first -- SIGKILL, so the run is void rather than red. 7.8 GB is the Docker VM this
+project's GitLab runner lives in. Two workers fit.
+
+Raising Docker Desktop's memory would also have worked, and was rejected: it fixes one
+machine and puts the gate back to passing only where someone configured it that way,
+which is the same objection that moved this job off testcontainers.
+
+**3. Sixty minutes was less than a clean run costs (`5a013af`).**
+Measured at 2 workers on the project's runner: 266 of 874 tests in 30 minutes with zero
+failures, so roughly 100 minutes end to end. The job would have been killed around test
+530 and reported as a failure indistinguishable from a real one. Raised to 150m.
+
+**4. Six tests pressed a key that does not exist on Linux (`360e1f7`).**
+Editor shortcuts were sent as `Meta+...` -- Cmd on macOS, the Super key on Linux. TipTap
+binds `Mod-`, which ProseMirror resolves to Ctrl off macOS, so the presses reached nothing
+and the following assertion failed on every attempt. The comment above one of them already
+described the correct behaviour while the code did the Mac half only:
+
+```
+await page.keyboard.press('Meta+a'); // Use Meta for Mac, Control for Windows/Linux
+```
+
+`ControlOrMeta` resolves per platform. 49 occurrences across 17 spec files.
+
+| | before | after |
+|---|---|---|
+| `backlinks` `edge-cases` `inline-code` `inline-comments` `tables` `toc`, Linux, 2 workers, `--retries=0` | 6 failed every attempt | **57 passed of 57** |
+
+**How to test any of these.** Reproduce the runner rather than trusting a macOS run:
+
+```bash
+docker network create cinet
+docker run -d --name cipg --network cinet --network-alias postgres \
+  -e POSTGRES_DB=ship_test -e POSTGRES_USER=ship -e POSTGRES_PASSWORD=ship_test_password postgres:16
+git archive HEAD | tar -x -C /tmp/cirepro
+docker run -d --name cijob --network cinet -v /tmp/cirepro:/builds/ship -w /builds/ship \
+  -e E2E_DATABASE_URL='postgresql://ship:ship_test_password@postgres:5432/postgres' \
+  -e SESSION_SECRET=ci-only -e NODE_ENV=test -e CI=true node:22-bookworm sleep infinity
+docker exec cijob bash -lc 'cd /builds/ship && git init -q && corepack enable &&
+  pnpm config set store-dir /root/.pnpm-store && pnpm install --frozen-lockfile &&
+  pnpm exec playwright install --with-deps chromium &&
+  PLAYWRIGHT_WORKERS=2 pnpm exec playwright test --retries=0'
+```
+
+Two traps in that harness, both hit here and neither a pipeline problem: pnpm cannot
+hardlink across a bind mount (`system error -116`), so the store must live outside it; and
+`postinstall` runs `git config`, which exits 128 in a tarball extraction without a `.git`.
+
+**How to roll any of them back.** `git revert` the SHA named in each item. Reverting 1 or 4
+returns the suite to failing in CI while still passing locally.
+
+### Three more that only appear on a runner
+
+**Sleeping instead of waiting, in 59 places.** Specs typed a `/` command and then slept
+300-500 ms before pressing Enter to pick an item. If the menu had not rendered, Enter
+reached nothing, no file chooser opened, and the test sat until its 60 s timeout. The menu
+now carries `data-testid="slash-menu"` -- it had no other stable hook, only utility classes
+-- and `waitForSlashMenu` in `e2e/fixtures/test-helpers.ts` waits for it.
+
+**`addParagraphs` slept 300 ms after typing** (`drag-handle.spec.ts`). The drag then looked
+up `.ProseMirror p:nth-child(N)`, which matched nothing because the paragraph did not exist
+yet. It reported as `locator.elementHandle: Timeout exceeded`, so the first attempt at a fix
+raised that timeout from 2 s to 10 s -- and it failed again at 10 s. That was the useful
+result: a longer clock cannot produce an element that is never created. It now waits for the
+typed text to be in the editor.
+
+**A link named by data that arrives later** (`project-weeks.spec.ts`). The Properties panel
+renders the project link immediately with `projectId.substring(0, 8) + '...'` as its label
+and only swaps in the real title once a separate fetch returns
+(`PropertiesPanel.tsx:251`, `useWeeklyReviewActions.ts:167`). The test matched on the name
+and raced that fetch; it now matches the `href`, which is correct from first paint. A link
+whose accessible name is a truncated UUID is also a real accessibility defect and is *not*
+fixed here.
+
+**Measured on GitHub across five runs**, each adding one fix:
+
+| | passed | failed |
+|---|---:|---:|
+| baseline | 862 | 6 |
+| + `ControlOrMeta` | 868 | 1 |
+| + href locator | 870 | 2 |
+| + slash-menu waits | 863 | 1 |
+| + paragraph wait | **862** | **0** |
+
+The passed column moves around because tests shift between failed and flaky; the failed
+column is the one that matters. 12 remain flaky and are not claimed as passing.
+
+**How to roll back.** Revert the SHA named in each item. Reverting the slash-menu change
+also removes `data-testid="slash-menu"`, which is the only product change among them.
+
+### Reading an E2E run
+
+Two ways a run can look clean without being one:
+
+- **`did not run` is not zero failures.** Any run reporting it is void.
+- **Worker count drifts.** `playwright.config.ts` derives it from free memory at launch, so
+  the same command on the same tree ran at 1 worker and at 10 within an hour. Pin
+  `PLAYWRIGHT_WORKERS` before comparing two runs.
 
 ---
 

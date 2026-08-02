@@ -101,6 +101,23 @@ export async function waitForTableData(
 }
 
 /**
+ * Wait for the editor's slash-command menu to be on screen.
+ *
+ * Replaces `await page.waitForTimeout(500)` after typing a `/` command. The menu renders
+ * asynchronously; 500 ms is enough on a developer laptop and not enough on a CI runner,
+ * where the same suite takes five times as long. When the menu was late, the `Enter` that
+ * follows reached nothing — so no file chooser opened and the test sat until its 60 s
+ * timeout. That single pattern accounted for most of one CI run's failures, concentrated
+ * in the specs that upload files.
+ *
+ * `data-testid="slash-menu"` exists on the container for this; nothing else about it is
+ * stable, since it carries only utility classes.
+ */
+export async function waitForSlashMenu(page: Page): Promise<void> {
+  await expect(page.getByTestId('slash-menu')).toBeVisible({ timeout: 15000 });
+}
+
+/**
  * Extract the document UUID from a `/documents/:id` URL.
  */
 export function documentIdFromUrl(url: string): string {

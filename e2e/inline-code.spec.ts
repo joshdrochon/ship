@@ -77,13 +77,13 @@ test.describe('Inline Code', () => {
     await page.keyboard.type('format this');
 
     // Select the text (Cmd+A or Ctrl+A)
-    await page.keyboard.press('Meta+a'); // Use Meta for Mac, Control for Windows/Linux
+    await page.keyboard.press('ControlOrMeta+a'); // ControlOrMeta resolves per platform: Meta on macOS, Control elsewhere
 
     // Wait a moment
     await page.waitForTimeout(200);
 
     // Press Cmd+E or Ctrl+E to toggle code
-    await page.keyboard.press('Meta+e');
+    await page.keyboard.press('ControlOrMeta+e');
 
     // Wait for formatting
     await page.waitForTimeout(300);
@@ -94,7 +94,7 @@ test.describe('Inline Code', () => {
     await expect(codeElement).toContainText('format this');
 
     // Press Cmd+E again to remove formatting
-    await page.keyboard.press('Meta+e');
+    await page.keyboard.press('ControlOrMeta+e');
     await page.waitForTimeout(300);
 
     // Code element should be gone (text should still exist)
@@ -220,18 +220,18 @@ test.describe('Inline Code', () => {
 
     // Use actual formatting commands instead of markdown syntax
     // First, type and format as bold
-    await page.keyboard.press('Meta+b'); // Start bold
+    await page.keyboard.press('ControlOrMeta+b'); // Start bold
     await page.keyboard.type('Bold and ');
-    await page.keyboard.press('Meta+b'); // End bold
+    await page.keyboard.press('ControlOrMeta+b'); // End bold
 
     // Then add inline code using backticks (TipTap auto-converts)
     await page.keyboard.type('`code`');
     await page.waitForTimeout(500);
 
     // Continue with more bold text
-    await page.keyboard.press('Meta+b');
+    await page.keyboard.press('ControlOrMeta+b');
     await page.keyboard.type(' together');
-    await page.keyboard.press('Meta+b');
+    await page.keyboard.press('ControlOrMeta+b');
     await page.waitForTimeout(500);
 
     // Should have bold text

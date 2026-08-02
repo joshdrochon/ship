@@ -282,7 +282,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
     await expect(emailField).toBeFocused({ timeout: 2000 })
 
     // In dev mode, fields are pre-filled, so clear and type fresh values
-    await page.keyboard.press('Meta+a')
+    await page.keyboard.press('ControlOrMeta+a')
     await page.keyboard.type('dev@ship.local')
 
     // Tab to password field
@@ -291,7 +291,7 @@ test.describe('Accessibility - Keyboard Navigation', () => {
     await expect(passwordField).toBeFocused()
 
     // Clear and type password
-    await page.keyboard.press('Meta+a')
+    await page.keyboard.press('ControlOrMeta+a')
     await page.keyboard.type('admin123')
 
     // Tab to submit button

@@ -11,6 +11,7 @@
  */
 
 import { test, expect, Page } from './fixtures/isolated-env'
+import { expectDocumentTitleSaved } from './fixtures/test-helpers'
 
 // Tests run in isolated containers with fresh database per worker
 
@@ -46,11 +47,21 @@ async function createIssue(page: Page, title: string) {
   await page.getByRole('button', { name: 'New Issue', exact: true }).click()
   await expect(page).toHaveURL(/\/documents\/[a-f0-9-]+/, { timeout: 20000 })
 
-  // Set title and wait for save indicator
+  // Set the title and wait for the server to actually hold it.
+  //
+  // This used to be `fill()` followed by a fixed 1 s sleep. One second is shorter than
+  // the client's 1.5 s fallback debounce on a brand-new document
+  // (TITLE_FALLBACK_SAVE_MS, web/src/hooks/useCollaborativeTitle.ts), so the sleep
+  // routinely expired before anything was written. The editor still showed the title --
+  // it is React state -- while the database still held "Untitled", and any later
+  // assertion that read server data instead of the editor failed.
+  //
+  // `expectDocumentTitleSaved` polls `GET /api/documents/:id` until the title is really
+  // there, which is correct whether the value travels by REST fallback or by the
+  // collaboration socket, and needs no knowledge of either timer.
   const titleInput = page.getByPlaceholder('Untitled')
   await titleInput.fill(title)
-  // Wait for title to be saved
-  await page.waitForTimeout(1000)
+  await expectDocumentTitleSaved(page, title)
 }
 
 // =============================================================================

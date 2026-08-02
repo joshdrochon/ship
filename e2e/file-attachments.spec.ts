@@ -1,4 +1,5 @@
-import { test, expect, Page } from './fixtures/isolated-env';
+import { test, expect, Page } from './fixtures/isolated-env'
+import { waitForSlashMenu } from './fixtures/test-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -73,7 +74,7 @@ test.describe('File Attachments', () => {
 
     // Type /file to trigger slash command
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Should show file attachment option
     const fileOption = page.getByRole('button', { name: /^File Upload a file attachment/i });
@@ -106,7 +107,7 @@ test.describe('File Attachments', () => {
 
     // Type /file
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Create a larger test file to see progress
     const tmpPath = createTestFile('large-file.zip', 'x'.repeat(10000));
@@ -134,7 +135,7 @@ test.describe('File Attachments', () => {
 
     // Insert file via slash command
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     const tmpPath = createTestFile('download-test.txt', 'Test content');
 
@@ -167,7 +168,7 @@ test.describe('File Attachments', () => {
 
     // Type /file
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Create a potentially restricted file type (e.g., .exe)
     const tmpPath = createTestFile('potentially-dangerous.exe', 'Not really an exe');
@@ -199,7 +200,7 @@ test.describe('File Attachments', () => {
 
     // Insert file
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     const tmpPath = createTestFile('persist-test.pdf', 'Persistent content');
 
@@ -245,7 +246,7 @@ test.describe('File Attachments', () => {
 
     // Insert PDF file
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     const tmpPath = createTestFile('icon-test.pdf', 'PDF content');
 
@@ -275,7 +276,7 @@ test.describe('File Attachments', () => {
 
     // Insert file
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Create file with known size
     const content = 'x'.repeat(1024 * 5); // ~5KB
@@ -313,7 +314,7 @@ test.describe('File Attachments', () => {
 
     // Insert file via slash command
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Create a .docx test file
     // Note: Real .docx is a ZIP archive, but for MIME detection we just need the extension
@@ -354,7 +355,7 @@ test.describe('File Attachments', () => {
     await page.waitForTimeout(300);
 
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     const tmpPath = createTestFile('legacy-document.doc', 'Legacy Word document');
 
@@ -391,7 +392,7 @@ test.describe('File Attachments', () => {
     await page.waitForTimeout(300);
 
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Create a .psd file (was NOT in old allowlist)
     const tmpPath = createTestFile('design-file.psd', 'Photoshop file content');
@@ -428,7 +429,7 @@ test.describe('File Attachments', () => {
     await page.waitForTimeout(300);
 
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Create an .exe file (should be blocked)
     const tmpPath = createTestFile('malware.exe', 'Not really an executable');
@@ -466,7 +467,7 @@ test.describe('File Attachments', () => {
     await page.waitForTimeout(300);
 
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Create a small file (we can't actually create a 1GB+ file in tests)
     // Instead, we'll use a mock approach - create a file object with a large size
@@ -515,7 +516,7 @@ test.describe('File Attachments', () => {
     // We'll use a timeout to catch the navigation attempt during upload
 
     await page.keyboard.type('/file');
-    await page.waitForTimeout(500);
+    await waitForSlashMenu(page);
 
     // Create a slightly larger file to give time for navigation attempt
     const tmpPath = createTestFile('nav-warning-test.txt', 'x'.repeat(50000));

@@ -150,7 +150,7 @@ test.describe('Issue Display IDs', () => {
     await page.waitForTimeout(500)
 
     // Open command palette with Cmd+K (or Ctrl+K on non-Mac)
-    await page.keyboard.press('Meta+k')
+    await page.keyboard.press('ControlOrMeta+k')
     await page.waitForTimeout(300)
 
     // If command palette didn't open, try Ctrl+K

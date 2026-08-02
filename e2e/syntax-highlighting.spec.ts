@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
+import { waitForSlashMenu } from './fixtures/test-helpers'
 
 /**
  * Syntax Highlighting E2E Tests
@@ -52,7 +53,7 @@ test.describe('Syntax Highlighting - Code Blocks', () => {
 
     // Type /code to trigger slash command menu
     await page.keyboard.type('/code')
-    await page.waitForTimeout(500)
+    await waitForSlashMenu(page)
 
     // Click the Code Block option (use specific button selector)
     const codeOption = page.getByRole('button', { name: /^Code Block Capture a code snippet/i })
@@ -199,7 +200,7 @@ test.describe('Syntax Highlighting - Code Blocks', () => {
     await page.waitForTimeout(300)
 
     // Navigate after code block using arrow keys and Cmd+End to go to document end
-    await page.keyboard.press('Meta+End')
+    await page.keyboard.press('ControlOrMeta+End')
     await page.keyboard.press('Enter')
     await page.waitForTimeout(300)
 

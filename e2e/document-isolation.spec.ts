@@ -243,8 +243,8 @@ test.describe('Document Isolation - Critical Data Integrity', () => {
       }).toPass({ timeout: 15000 });
       await page.locator('.ProseMirror').click();
       await page.waitForTimeout(100); // Let editor focus settle
-      // Move cursor to end of content (Ctrl+End on Windows/Linux, Meta+End on Mac)
-      await page.keyboard.press('Meta+End');
+      // Move cursor to end of content (Ctrl+End on Windows/Linux, ControlOrMeta+End on Mac)
+      await page.keyboard.press('ControlOrMeta+End');
       await page.keyboard.press('Control+End');
       // Use type with delay for reliable character-by-character typing
       await page.keyboard.type(`-DOC1-ITER${i}`, { delay: 80 });
@@ -270,7 +270,7 @@ test.describe('Document Isolation - Critical Data Integrity', () => {
       await page.locator('.ProseMirror').click();
       await page.waitForTimeout(100); // Let editor focus settle
       // Move cursor to end of content
-      await page.keyboard.press('Meta+End');
+      await page.keyboard.press('ControlOrMeta+End');
       await page.keyboard.press('Control+End');
       // Use type with delay for reliable character-by-character typing
       await page.keyboard.type(`-DOC2-ITER${i}`, { delay: 80 });

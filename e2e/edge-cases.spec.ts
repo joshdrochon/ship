@@ -166,7 +166,7 @@ test.describe('Edge Cases', () => {
     await page.waitForTimeout(500)
 
     // Undo - should remove "Added later" (Yjs batches by transaction boundaries)
-    await page.keyboard.press('Meta+z')
+    await page.keyboard.press('ControlOrMeta+z')
     await page.waitForTimeout(300)
 
     // After undo, "Added later" should be gone
@@ -174,7 +174,7 @@ test.describe('Edge Cases', () => {
     const contentAfterUndo = await editor.textContent() || ''
 
     // Redo
-    await page.keyboard.press('Meta+Shift+z')
+    await page.keyboard.press('ControlOrMeta+Shift+z')
     await page.waitForTimeout(300)
 
     // After redo, content should be restored
@@ -355,13 +355,13 @@ test.describe('Edge Cases', () => {
     await page.keyboard.type('Bold and italic text')
 
     // Select all
-    await page.keyboard.press('Meta+a')
+    await page.keyboard.press('ControlOrMeta+a')
 
     // Apply bold
-    await page.keyboard.press('Meta+b')
+    await page.keyboard.press('ControlOrMeta+b')
 
     // Apply italic
-    await page.keyboard.press('Meta+i')
+    await page.keyboard.press('ControlOrMeta+i')
 
     // Wait for formatting to apply
     await page.waitForTimeout(500)

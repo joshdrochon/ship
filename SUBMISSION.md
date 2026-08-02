@@ -103,33 +103,124 @@ Two tools exist because measurement itself was the hard part:
 
 ```
 pnpm type-check · pnpm lint · pnpm build     exit 0
-pnpm test                                    555 passed   (api)
-pnpm --filter @ship/web exec vitest run      244 passed   (web)
-pnpm test:e2e                                874 executed · no reproducible failure
+pnpm test                                    555 passed   (api, needs PostgreSQL)
+pnpm --filter @ship/web exec vitest run      241 passed   (web)
+scripts/check-type-violations.sh             742, at ceiling
+pnpm test:e2e                                874 executed · see below
 ```
+
+**`pnpm test` skips rather than fails without PostgreSQL.** With no database reachable it
+reports `555 skipped` and exits non-zero on setup, which is easy to misread. Treat any run
+that does not report `555 passed` as void.
 
 **On the E2E line.** An earlier revision of this file read
 `871 executed · 865 passed · 0 failed`. That was true of the tree it was measured on —
 `c432768`, before the remediation branch landed — and it is not true of `main`. It is
 corrected rather than quietly dropped.
 
-What `main` actually does: three deterministic bugs were found in the suite after
-submission and fixed (`CHANGES.md`, "E2E truth"). Two were broken tests; one was a real
-data-loss bug in the client's title path. With those closed, **no failure reproduces** —
-every hard failure observed across three full runs passed on isolated re-run, and it was a
-different test each time.
+Four post-submission changes are in `CHANGES.md` ("E2E truth"). Two were broken tests. One
+bounds an unsaved-title window at 3 s and ships. **The fourth was shipped, measured, and
+reverted** — it opened the CRDT path before the WebSocket connected, which sent a new
+document's title into a client-only `Y.Doc` while the server stored `title = null`. On the
+four specs that cover that path, `--workers=4 --repeat-each=3 --retries=0`: 6 failed / 72
+with it, 0 / 72 without.
 
-What remains is timing flakiness. The last complete run — 874 executed, 2 workers, all
-tests accounted for — recorded 7 flaky, of which 2 are in `docs/audit/raw/known-flakes.txt`
-and 1 was written after that register was captured. The 4 that are not in it flaked on a
-machine also running Docker, a GitLab runner and other stacks; that is consistent with
-contention rather than four new defects, but **one run cannot prove it** and it is not
-claimed as clean.
+**Worker count must be pinned to compare two E2E runs.** `playwright.config.ts` derives it
+from free memory at launch, so the same command ran at 1 worker and at 10 on the same tree
+within an hour — a 24.5-minute serial run against a 6-minute run that left 47 tests
+unexecuted. Set `PLAYWRIGHT_WORKERS` explicitly, and treat any run reporting
+`did not run` as void.
 
-**This number is a local measurement, not a CI result.** E2E has never been part of either
-pipeline (Rule 4 requires `test`, which is api + web unit suites, and both run there). A
-grader checking CI sees the eight required jobs and no E2E — so nothing here is verified by
-the pipeline, and it should be read accordingly.
+**GitHub Actions, the E2E gate, green:**
+
+```
+874 executed · 862 passed · 0 failed · 12 flaky      exit 0
+```
+
+**GitLab CI, the same commit, not green:**
+
+```
+874 executed · 844 passed · 26 failed ·  4 flaky     exit 1
+```
+
+Both numbers are real and neither is dropped. What separates them is below.
+
+### Seven defects the suite carried, and one pattern
+
+Every one was found by reading a CI log or reproducing inside the CI image, and none was
+visible from a macOS checkout:
+
+| | what was wrong |
+|---|---|
+| `vite preview` bound the IPv6 loopback while the fixture polled `127.0.0.1` | every worker's web server "failed to start"; all 874 tests died identically |
+| `Meta+` is Cmd on macOS and the Super key on Linux; TipTap binds `Mod-` | 6 tests pressed a key that does not exist there |
+| the project link's accessible name is a truncated UUID until a fetch lands | matching on the name raced that fetch |
+| `waitForTimeout(500)` after typing a `/` command | if the menu was late, `Enter` reached nothing and no file chooser opened |
+| `waitForTimeout(300)` after typing paragraphs | the drag target did not exist yet, and a longer timeout cannot conjure it |
+| `waitForTimeout(1000)` after setting a title, against a 1.5 s debounce | the editor showed the title, the database did not |
+| the seed left exactly one unassigned person | a sibling test assigning them away deleted the group under test |
+
+**Six of the seven are the same mistake: sleeping a fixed number of milliseconds instead of
+waiting for the condition.** Those sleeps are correct on a laptop and wrong on a runner,
+which is precisely why a suite can be green locally and red in CI for reasons that have
+nothing to do with the code under test.
+
+### The 12 flaky are not zero
+
+They pass on retry, and `retries: 2` is what makes the gate usable — a deterministic
+failure still fails all three attempts, so the gate keeps its teeth. But twelve tests that
+only pass on a second or third try are debt, not a clean suite, and are reported as such
+rather than folded into "862 passed".
+
+### GitLab's 26, stated plainly
+
+They did not move. The identical 30 tests fail before and after every fix above, and
+**24 of the 30 are file or image uploads** whose file chooser never opens — 50 timeouts
+waiting for an event GitHub raises without trouble. Ruled out by measurement: parallelism
+(4, 2 and 1 worker all produce it), memory (1 worker leaves headroom and changes nothing),
+the job timeout (raised to 150m; a clean run takes 1.4h there), and the browser build
+(`Chromium 143.0.7499.4`, playwright build v1200, byte-identical on both platforms).
+
+The runner is a container in a 7.8 GB Docker VM on a laptop, roughly five times slower per
+test than GitHub's.
+
+**The cause is not identified, and a plausible-sounding theory did not survive checking.**
+
+The File slash-command reaches its picker through a dynamic import added by Category 2's
+code splitting:
+
+```ts
+command: async ({ editor, range }) => {
+  const { triggerFileUpload } = await import('./FileAttachment');
+  triggerFileUpload(editor, abortSignal);   // creates the input, calls .click()
+}
+```
+
+Chromium will not open a file chooser without live user activation, and that `await` sits
+between the keypress and the click — so a slow chunk load looked like an explanation. Two
+facts sink it. The **Image** command calls `input.click()` synchronously with no await, and
+six image tests fail anyway. And in E2E the app is served by `vite preview` from localhost,
+where that chunk arrives in milliseconds — the fastest case, not a slow one.
+
+So this is recorded as **unexplained**. There is no evidence it affects the deployed
+application: the live site is not implicated by anything measured here, and every one of
+these failures is confined to the GitLab runner, with the same tests passing on GitHub.
+Naming a cause we cannot demonstrate would be worth less than saying we do not have one.
+
+**`e2e` is therefore `allow_failure: true` on GitLab and blocking on GitHub.** The job still
+runs, still reports, and still publishes its artifacts on both. E2E blocks merges where it
+can be trusted to mean something, and reports without blocking where the runner cannot
+support it. Deleting the job would have hidden the result; leaving it blocking would have
+gated every merge on a laptop's speed.
+
+**E2E is now a blocking gate on both pipelines**, in the `verify` stage alongside `test`
+and `coverage`. It runs against an ordinary Postgres service rather than testcontainers:
+testcontainers needs a Docker daemon, reaching one inside a CI job means
+docker-in-docker, and that needs a runner granting privileged mode — which made the gate a
+property of one machine's configuration rather than of the commit. `E2E_DATABASE_URL`
+switches `e2e/fixtures/isolated-env.ts` onto a database per worker; unset locally, so a
+developer's run is unchanged. The job is wrapped in `scripts/assert-tests-ran.sh 874`, so a
+worker that drops tests exits 2 instead of reading as a pass.
 
 ### CI
 

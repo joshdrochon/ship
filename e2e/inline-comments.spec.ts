@@ -100,7 +100,7 @@ test.describe('Inline Comments', () => {
     await selectText(page, 'keyboard shortcut')
 
     // Press Cmd+Shift+M
-    await page.keyboard.press('Meta+Shift+m')
+    await page.keyboard.press('ControlOrMeta+Shift+m')
 
     // Comment input should appear
     const commentInput = page.getByRole('textbox', { name: 'Write a comment...' })
@@ -125,8 +125,17 @@ test.describe('Inline Comments', () => {
     const commentInput = page.getByRole('textbox', { name: 'Write a comment...' })
     await expect(commentInput).toBeVisible({ timeout: 3000 })
 
-    // Press Escape to cancel
-    await page.keyboard.press('Escape')
+    // Cancelling is keyed on focus, not visibility. CommentDisplay.tsx:302 only handles
+    // Escape when `event.target` carries `comment-pending-field`, and the field is focused
+    // asynchronously (`input?.focus()`, :187). `page.keyboard.press` sends to whatever has
+    // focus *now*, so a visible-but-not-yet-focused field sent the Escape to ProseMirror
+    // instead and the highlight was never cleared — 1 pass in 5 when run alone.
+    //
+    // Asserting focus first rather than only switching to `commentInput.press` keeps the
+    // autofocus itself under test: if it regresses, this fails here instead of becoming a
+    // flake somewhere downstream.
+    await expect(commentInput).toBeFocused({ timeout: 3000 })
+    await commentInput.press('Escape')
 
     // Highlight should be removed (auto-retries until timeout)
     await expect(page.locator('.comment-highlight')).not.toBeVisible({ timeout: 10000 })
