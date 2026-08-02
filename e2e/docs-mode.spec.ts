@@ -100,7 +100,7 @@ test.describe('Docs Mode (Phase 3)', () => {
     if (await titleInput.isVisible({ timeout: 2000 })) {
       // Clear and type new title
       await titleInput.click()
-      await page.keyboard.press('Meta+a')
+      await page.keyboard.press('ControlOrMeta+a')
       await page.keyboard.type('My Test Document')
 
       // Wait a moment for save

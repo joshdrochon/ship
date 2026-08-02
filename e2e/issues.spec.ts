@@ -108,7 +108,7 @@ test.describe('Issues (Phase 5)', () => {
 
     if (await titleElement.isVisible({ timeout: 2000 })) {
       await titleElement.click()
-      await page.keyboard.press('Meta+a')
+      await page.keyboard.press('ControlOrMeta+a')
       await page.waitForTimeout(100)  // Wait for selection
       await titleElement.fill('My Test Issue Title')
 

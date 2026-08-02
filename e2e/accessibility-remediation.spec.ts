@@ -479,7 +479,7 @@ test.describe('Phase 2: Serious Violations', () => {
       await page.waitForLoadState('networkidle')
 
       // Open command palette with Cmd+K (or Ctrl+K on non-Mac)
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press('ControlOrMeta+k')
 
       // Dialog MUST appear
       const dialog = page.locator('[role="dialog"]')
@@ -504,7 +504,7 @@ test.describe('Phase 2: Serious Violations', () => {
       await page.waitForLoadState('networkidle')
 
       // Open command palette
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press('ControlOrMeta+k')
       const dialog = page.locator('[role="dialog"]')
       await expect(dialog).toBeVisible({ timeout: 2000 })
 
@@ -1114,7 +1114,7 @@ test.describe('Phase 2: Serious Violations', () => {
       await page.waitForLoadState('networkidle')
 
       // Open command palette (Cmd+K)
-      await page.keyboard.press('Meta+k')
+      await page.keyboard.press('ControlOrMeta+k')
       await page.waitForTimeout(300)
 
       const dialog = page.locator('[role="dialog"]')

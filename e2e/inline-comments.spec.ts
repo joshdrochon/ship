@@ -100,7 +100,7 @@ test.describe('Inline Comments', () => {
     await selectText(page, 'keyboard shortcut')
 
     // Press Cmd+Shift+M
-    await page.keyboard.press('Meta+Shift+m')
+    await page.keyboard.press('ControlOrMeta+Shift+m')
 
     // Comment input should appear
     const commentInput = page.getByRole('textbox', { name: 'Write a comment...' })

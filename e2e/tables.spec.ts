@@ -352,7 +352,7 @@ test.describe('Tables', () => {
 
     // Click on table cell and select all in document
     await firstCell.click();
-    await page.keyboard.press('Meta+a');
+    await page.keyboard.press('ControlOrMeta+a');
     await page.waitForTimeout(200);
 
     // Verify table has cells with selectedCell class OR table wrapper has selection
@@ -406,7 +406,7 @@ test.describe('Tables', () => {
       await expect(table).toBeHidden({ timeout: 3000 });
     } else {
       // Alternative: Select table and press Delete/Backspace
-      await page.keyboard.press('Meta+a'); // Select all in table
+      await page.keyboard.press('ControlOrMeta+a'); // Select all in table
       await page.keyboard.press('Backspace');
       await page.waitForTimeout(300);
 

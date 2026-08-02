@@ -87,7 +87,7 @@ test.describe('Data Integrity - Document Persistence', () => {
     await expect(async () => {
       // Clear editor content and try again
       await editor.click()
-      await page.keyboard.press('Meta+a')
+      await page.keyboard.press('ControlOrMeta+a')
       await page.keyboard.press('Delete')
       await page.waitForTimeout(200)
       await page.keyboard.type('## My Test Heading', { delay: 20 })
@@ -435,9 +435,9 @@ test.describe('Data Integrity - Undo/Redo', () => {
     }
 
     // Undo last part - undo until 'more regular' is gone
-    // Use Meta+z for Mac, Control+z for others
-    const undoKey = process.platform === 'darwin' ? 'Meta+z' : 'Control+z'
-    const redoKey = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+Shift+z'
+    // Use ControlOrMeta+z for Mac, Control+z for others
+    const undoKey = process.platform === 'darwin' ? 'ControlOrMeta+z' : 'Control+z'
+    const redoKey = process.platform === 'darwin' ? 'ControlOrMeta+Shift+z' : 'Control+Shift+z'
 
     for (let i = 0; i < 10; i++) {
       await page.keyboard.press(undoKey)
@@ -482,9 +482,9 @@ test.describe('Data Integrity - Undo/Redo', () => {
     await expect(editor).toContainText('Line 3')
 
     // Undo until Line 3 is gone (may need many undos due to batching)
-    // Use Meta+z for Mac, Control+z for others
-    const undoKey = process.platform === 'darwin' ? 'Meta+z' : 'Control+z'
-    const redoKey = process.platform === 'darwin' ? 'Meta+Shift+z' : 'Control+Shift+z'
+    // Use ControlOrMeta+z for Mac, Control+z for others
+    const undoKey = process.platform === 'darwin' ? 'ControlOrMeta+z' : 'Control+z'
+    const redoKey = process.platform === 'darwin' ? 'ControlOrMeta+Shift+z' : 'Control+Shift+z'
 
     for (let i = 0; i < 15; i++) {
       await page.keyboard.press(undoKey)

@@ -140,7 +140,7 @@ test.describe('Backlinks', () => {
 
     // Focus the editor and select all content
     await editor.click()
-    await page.keyboard.press('Meta+a') // Select all (Cmd+A on Mac)
+    await page.keyboard.press('ControlOrMeta+a') // Select all (Cmd+A on Mac)
     await page.keyboard.press('Backspace') // Delete selected content
 
     // Wait for editor update to propagate (debounce is 500ms)

@@ -220,16 +220,16 @@ test.describe('Table of Contents (TOC)', () => {
     await page.waitForTimeout(300)
 
     // Go to the very start of the document (above TOC, into heading)
-    await page.keyboard.press('Meta+ArrowUp')
+    await page.keyboard.press('ControlOrMeta+ArrowUp')
     await page.waitForTimeout(100)
     // Select the entire first line (the heading text)
-    await page.keyboard.press('Shift+Meta+ArrowDown')
+    await page.keyboard.press('Shift+ControlOrMeta+ArrowDown')
     await page.waitForTimeout(100)
-    // Now type replacement - but Shift+Meta+ArrowDown may select too much
+    // Now type replacement - but Shift+ControlOrMeta+ArrowDown may select too much
     // Instead, select just to end of current line
-    await page.keyboard.press('Meta+ArrowUp')  // Reset to start
+    await page.keyboard.press('ControlOrMeta+ArrowUp')  // Reset to start
     await page.waitForTimeout(100)
-    await page.keyboard.press('Meta+Shift+ArrowRight')  // Select to end of line
+    await page.keyboard.press('ControlOrMeta+Shift+ArrowRight')  // Select to end of line
     await page.waitForTimeout(100)
     await page.keyboard.type('New Title')
     await page.waitForTimeout(1000)

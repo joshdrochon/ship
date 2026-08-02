@@ -677,7 +677,7 @@ test.describe('Bulk Selection - Keyboard Navigation', () => {
       // Focus table and press Cmd+A
       const table = page.locator('table[role="grid"]');
       await table.focus();
-      await page.keyboard.press('Meta+a');
+      await page.keyboard.press('ControlOrMeta+a');
 
       // All rows should be selected
       for (let i = 0; i < rowCount; i++) {
@@ -728,7 +728,7 @@ test.describe('Bulk Selection - Keyboard Navigation', () => {
       // Focus table and press Cmd+A to select all
       const table = page.locator('table[role="grid"]');
       await table.focus();
-      await page.keyboard.press('Meta+a');
+      await page.keyboard.press('ControlOrMeta+a');
 
       // Verify all selected
       for (let i = 0; i < rowCount; i++) {
@@ -736,7 +736,7 @@ test.describe('Bulk Selection - Keyboard Navigation', () => {
       }
 
       // Press Cmd+A again to deselect all
-      await page.keyboard.press('Meta+a');
+      await page.keyboard.press('ControlOrMeta+a');
 
       // All rows should be deselected
       for (let i = 0; i < rowCount; i++) {
@@ -1073,7 +1073,7 @@ test.describe('Bulk Selection - Tab/Filter Behavior', () => {
     // Focus table and press Cmd+A to select all
     const table = page.locator('table[role="grid"]');
     await table.focus();
-    await page.keyboard.press('Meta+a');
+    await page.keyboard.press('ControlOrMeta+a');
 
     // All visible (filtered) rows should be selected
     for (let i = 0; i < filteredCount; i++) {
@@ -2177,7 +2177,7 @@ test.describe('Bulk Selection - Performance', () => {
 
     // Measure time to select all with Cmd+A
     const startTime = Date.now();
-    await page.keyboard.press('Meta+a');
+    await page.keyboard.press('ControlOrMeta+a');
     const endTime = Date.now();
 
     // Wait for selection announcer to update
@@ -2200,7 +2200,7 @@ test.describe('Bulk Selection - Performance', () => {
 
     // Select multiple items using Cmd+A
     await table.focus();
-    await page.keyboard.press('Meta+a');
+    await page.keyboard.press('ControlOrMeta+a');
 
     // Verify bulk action bar is visible
     const bulkBar = page.getByRole('region', { name: 'Bulk actions' });

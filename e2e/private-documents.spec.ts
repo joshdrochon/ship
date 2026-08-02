@@ -556,7 +556,7 @@ test.describe('Private Documents', () => {
     await page.waitForLoadState('networkidle');
 
     // Open command palette with Cmd+K
-    await page.keyboard.press('Meta+k');
+    await page.keyboard.press('ControlOrMeta+k');
 
     // Wait for the command palette to open
     await page.waitForTimeout(500);
@@ -594,7 +594,7 @@ test.describe('Private Documents', () => {
       await memberPage.waitForLoadState('networkidle');
 
       // Open command palette
-      await memberPage.keyboard.press('Meta+k');
+      await memberPage.keyboard.press('ControlOrMeta+k');
       await memberPage.waitForTimeout(500);
 
       // Type the search query
