@@ -68,7 +68,7 @@ async function insertImageViaSlashCommand(page: Page): Promise<void> {
   await page.keyboard.type('/image');
 
   // Wait for slash command menu
-  await page.waitForTimeout(500);
+  await waitForSlashMenu(page);
 
   // Create test image file
   const tmpPath = createTestImageFile();

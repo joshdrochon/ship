@@ -383,7 +383,7 @@ test.describe('Performance - Many Images', () => {
       await page.keyboard.press('Enter')
       await page.keyboard.type('/image')
       // Wait for slash command dropdown to appear - give extra time under load
-      await page.waitForTimeout(1000)
+      await waitForSlashMenu(page)
 
       // Retry if dropdown didn't appear (slash menu items are buttons, not options)
       const optionLocator = page.getByRole('button', { name: /Image.*Upload/i })
@@ -463,7 +463,7 @@ test.describe('Performance - Many Images', () => {
 
       await page.keyboard.type('/image')
       // Wait for slash command dropdown to appear - give extra time under load
-      await page.waitForTimeout(1000)
+      await waitForSlashMenu(page)
 
       // Retry if dropdown didn't appear (slash menu items are buttons, not options)
       const optionLocator = page.getByRole('button', { name: /Image.*Upload/i })
