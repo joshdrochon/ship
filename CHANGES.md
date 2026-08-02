@@ -277,6 +277,72 @@ seconds.
 
 **How to roll it back.** `git revert 11b4935`.
 
+### The assignments grid had exactly one unassigned person (`isolated-env.ts`)
+
+**What was wrong.** The grid renders an "Unassigned" group only while at least one person
+has no current-sprint allocation. The seed created two people and allocated one, so the
+group had a population of exactly one — Bob Martinez. Several tests in
+`team-mode.spec.ts` assign a project to the `.first()` unassigned row, and `fullyParallel:
+true` spreads one spec file's tests across workers. When one of those landed on the only
+unassigned person, the group header stopped existing and every Collapse/Expand test failed
+with `element(s) not found`.
+
+**Outcome.** Four people are seeded onto a bench and never allocated, so the invariant
+survives concurrent mutation. CLAUDE.md already asks for N+2 rows where a test needs N;
+this was at N.
+
+| | before | after |
+|---|---|---|
+| `drag-handle` + `team-mode`, `--repeat-each=5 --workers=4 --retries=0` | 6 failed / 195 | see run below |
+
+**How to roll it back.** Remove the `benchNames` loop in `e2e/fixtures/isolated-env.ts`.
+
+### A hover-dependent element was queried without waiting (`drag-handle.spec.ts`)
+
+**Outcome.** `dragBlockToPosition` asserted the drag handle visible with a polling
+`expect`, then re-queried it with `page.$` — a one-shot lookup that returns whatever is in
+the DOM at that instant. The handle is rendered on hover and removed when the pointer
+leaves, so it could vanish in the gap, and the failure read as `Required elements not
+found`, which looks like a selector bug rather than a race. The handles now come from
+`locator.elementHandle()`, which waits.
+
+`:nth-child` is kept for the target rather than `.nth(index)`; the two differ when the
+document holds a non-paragraph sibling and the callers were written against `:nth-child`.
+
+**How to roll it back.** Restore the three `page.$` calls.
+
+### E2E is now a blocking CI gate
+
+**What was wrong.** The 874 Playwright tests were local-only. Everything the unit suites
+cannot see — the 4-panel layout, the collaboration socket, session expiry, the editor —
+was unguarded on every merge to main. Two real bugs reached main that way.
+
+**What changed.** An `e2e` job in both `.gitlab-ci.yml` and `.github/workflows/ci.yml`, in
+the `verify` stage alongside `test` and `coverage`, so a red suite blocks the merge.
+
+Three details that are not incidental:
+
+- **No `postgres` service.** The suite provisions a database per worker through
+  testcontainers, so it needs a Docker daemon rather than a service container. GitHub's
+  `ubuntu-latest` has one; GitLab gets `docker:dind` plus
+  `TESTCONTAINERS_HOST_OVERRIDE`, because containers start on the dind daemon and the app
+  under test has to be told where to reach them.
+- **`PLAYWRIGHT_WORKERS` is pinned to 4.** Otherwise the count is derived from free memory
+  at launch, which is not a property of the commit.
+- **The run is wrapped in `scripts/assert-tests-ran.sh 874`.** A crashed worker that drops
+  tests exits 2 rather than reading as a pass.
+
+**Tradeoff.** `retries: 2` on the CI path lets a known timing flake through. A
+deterministic failure still fails all three attempts, so the gate keeps its teeth; the
+untried flake rate is measured separately at `--retries=0` and published rather than
+hidden by the retry setting.
+
+**Known risk.** The GitLab job needs a runner that permits privileged mode. If the shared
+runners do not, it fails at an explicit `docker info` preflight with a named reason, and
+the GitHub workflow carries the same gate on runners that do.
+
+**How to roll it back.** Delete the `e2e` job from either file.
+
 ### Reading an E2E run
 
 Two ways a run can look clean without being one:

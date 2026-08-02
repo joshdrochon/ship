@@ -202,6 +202,63 @@ jobs:
             api/coverage/
             web/coverage/
 
+  # E2E is a blocking gate, not an advisory one.
+  #
+  # It was previously local-only, which meant the 874 Playwright tests never ran
+  # against a merge. Everything the unit suites cannot see — the 4-panel layout, the
+  # collaboration socket, session expiry, the editor — was unguarded on every merge to
+  # main. Two real bugs reached main that way and were caught by hand afterwards.
+  #
+  # No postgres service here, unlike `test`. The suite provisions its own database per
+  # worker through testcontainers (e2e/fixtures/isolated-env.ts), so it needs a Docker
+  # daemon rather than a service container. `ubuntu-latest` has one.
+  #
+  # PLAYWRIGHT_WORKERS is pinned. playwright.config.ts otherwise derives the count from
+  # free memory at launch, which on one machine produced a 1-worker run and a 10-worker
+  # run of the same tree within an hour — the second leaving 47 tests unexecuted. A gate
+  # whose parallelism depends on how much RAM the runner happens to have free is not a
+  # gate you can compare two commits with.
+  #
+  # `retries: 2` comes from the config's CI branch and is deliberate: it lets a known
+  # timing flake pass while still failing anything deterministic, because a deterministic
+  # failure fails all three attempts. The untried flake rate is measured separately at
+  # --retries=0 and reported in SUBMISSION.md rather than hidden by this setting.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 60
+    env:
+      # 4 matches the config's own CI default and the count every local before/after
+      # measurement on this repo was taken at.
+      PLAYWRIGHT_WORKERS: '4'
+      SESSION_SECRET: ci-only-not-a-real-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+
+      # The expected minimum is the whole suite. A filter or a crashed worker that
+      # silently drops tests exits 2 here instead of reading as a pass — the failure
+      # mode that produced two "clean" 827-test runs during this work.
+      - name: E2E suite
+        run: scripts/assert-tests-ran.sh 874 -- pnpm exec playwright test --reporter=line
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
   dependency-audit:
     runs-on: ubuntu-latest
     steps:

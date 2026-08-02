@@ -187,6 +187,63 @@ coverage:
         coverage_format: cobertura
         path: api/coverage/cobertura-coverage.xml
 
+# E2E is a blocking gate, not an advisory one.
+#
+# It was previously local-only, so the 874 Playwright tests never ran against a merge.
+# Everything the unit suites cannot see — the 4-panel layout, the collaboration socket,
+# session expiry, the editor — was unguarded on every merge to main.
+#
+# Unlike `test`, this job takes no `postgres` service. The suite provisions a database
+# per worker through testcontainers (e2e/fixtures/isolated-env.ts), which needs a Docker
+# daemon rather than a service container — hence docker:dind and DOCKER_HOST. The
+# Playwright image is pinned to the same version as the @playwright/test dependency; a
+# mismatch between the browser bundled in the image and the client driving it fails at
+# runtime, not at install.
+#
+# TESTCONTAINERS_HOST_OVERRIDE is the non-obvious one. Containers start on the dind
+# daemon, not inside this job's container, so the address testcontainers reports back has
+# to be the dind alias for the app under test to reach the database it just started.
+#
+# This job requires a runner that permits privileged mode. If the shared runners on this
+# instance do not, it fails at the `docker info` preflight below with a named reason
+# rather than a confusing testcontainers timeout, and .github/workflows/ci.yml carries
+# the same gate on runners that do.
+e2e:
+  stage: verify
+  needs: ['build']
+  image: mcr.microsoft.com/playwright:v1.57.0-noble
+  services:
+    - name: docker:27-dind
+      alias: docker
+  timeout: 60m
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ''
+    TESTCONTAINERS_HOST_OVERRIDE: docker
+    # Pinned, not derived. playwright.config.ts otherwise picks the worker count from
+    # free memory at launch — the same tree ran at 1 worker and at 10 within an hour on
+    # one machine, the second leaving 47 tests unexecuted. A gate whose parallelism
+    # depends on the runner's spare RAM cannot compare two commits.
+    PLAYWRIGHT_WORKERS: '4'
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.27.0 --activate
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+    # Fail here, with a reason, rather than 20 minutes later inside a fixture.
+    - docker info > /dev/null || { echo "E2E needs a Docker daemon (privileged runner)."; exit 1; }
+  script:
+    # The expected minimum is the whole suite. A crashed worker or a bad filter that
+    # silently drops tests exits 2 instead of reading as a pass — the failure mode that
+    # produced two "clean" 827-test runs during this work.
+    - scripts/assert-tests-ran.sh 874 -- pnpm exec playwright test --reporter=line
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - playwright-report/
+      - test-results/
+
 # ---------------------------------------------------------------------------
 # stage: audit
 # ---------------------------------------------------------------------------
