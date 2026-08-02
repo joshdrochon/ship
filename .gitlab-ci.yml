@@ -269,10 +269,11 @@ e2e:
   # (Chromium 143.0.7499.4, byte-identical on both platforms).
   #
   # This runner is a container in a 7.8 GB Docker VM on a laptop, roughly five times slower
-  # per test. At least one cause is understood and is a real product bug rather than a test
-  # defect: the File slash-command `await import()`s its module before calling
-  # `input.click()`, and Chromium will not open a file chooser without live user activation
-  # — which that await can outlive on a slow machine. Recorded in SUBMISSION.md.
+  # per test. The cause of the upload failures is NOT identified. A user-activation theory
+  # (the File command awaits a dynamic import before `input.click()`) was checked and does
+  # not hold: the Image command clicks synchronously and its tests fail too, and the chunk
+  # is served from localhost in milliseconds here. Nothing measured implicates the deployed
+  # application. Recorded in SUBMISSION.md.
   #
   # The framing: E2E blocks merges where it can be trusted to mean something, and reports
   # without blocking where the runner cannot support it. Deleting the job would have hidden

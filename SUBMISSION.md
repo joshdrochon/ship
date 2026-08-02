@@ -184,23 +184,28 @@ the job timeout (raised to 150m; a clean run takes 1.4h there), and the browser 
 The runner is a container in a 7.8 GB Docker VM on a laptop, roughly five times slower per
 test than GitHub's.
 
-**One cause is identified, and it is a product bug rather than a test defect.** The File
-slash-command reaches its file picker through a dynamic import:
+**The cause is not identified, and a plausible-sounding theory did not survive checking.**
+
+The File slash-command reaches its picker through a dynamic import added by Category 2's
+code splitting:
 
 ```ts
 command: async ({ editor, range }) => {
-  const { triggerFileUpload } = await import('./FileAttachment');  // Category 2 code split
-  triggerFileUpload(editor, abortSignal);                          // creates input, .click()
+  const { triggerFileUpload } = await import('./FileAttachment');
+  triggerFileUpload(editor, abortSignal);   // creates the input, calls .click()
 }
 ```
 
-Chromium will not open a file chooser without live *user activation*, and that `await` sits
-between the keypress and the click. On a fast machine the chunk arrives before the
-activation lapses; on a slow one it does not. **This is user-facing:** on a slow connection,
-clicking "File" in the editor does nothing at all, silently. It is a regression introduced
-by Category 2's code splitting and it was surfaced only because a CI runner was slow enough
-to expose it. It is documented here and deliberately **not** fixed under deadline, because
-the fix means restructuring the command so `.click()` happens before any `await`.
+Chromium will not open a file chooser without live user activation, and that `await` sits
+between the keypress and the click — so a slow chunk load looked like an explanation. Two
+facts sink it. The **Image** command calls `input.click()` synchronously with no await, and
+six image tests fail anyway. And in E2E the app is served by `vite preview` from localhost,
+where that chunk arrives in milliseconds — the fastest case, not a slow one.
+
+So this is recorded as **unexplained**. There is no evidence it affects the deployed
+application: the live site is not implicated by anything measured here, and every one of
+these failures is confined to the GitLab runner, with the same tests passing on GitHub.
+Naming a cause we cannot demonstrate would be worth less than saying we do not have one.
 
 **`e2e` is therefore `allow_failure: true` on GitLab and blocking on GitHub.** The job still
 runs, still reports, and still publishes its artifacts on both. E2E blocks merges where it
