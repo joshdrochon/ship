@@ -353,7 +353,16 @@ export const test = base.extend<
 
       // Use vite preview instead of vite dev - much lighter weight
       // We pass the API port via env var so vite.config.ts can set up the proxy
-      const proc = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+      //
+      // `--host 127.0.0.1` is load-bearing, not tidying. Left to itself `vite preview`
+      // binds the IPv6 loopback only (`::1`), while Node's `fetch('http://localhost:...')`
+      // resolves to `127.0.0.1` -- so nothing is listening where `waitForServer` looks and
+      // every worker dies with "did not start within 30000ms". It reproduces in
+      // `node:22-bookworm`, which is the CI image, and not on macOS, which is why the
+      // suite was green locally and failed every test in CI. Measured inside the image:
+      // `curl [::1]:PORT` 200, `curl 127.0.0.1:PORT` refused; with this flag, both the
+      // curl and the Node fetch return 200.
+      const proc = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort', '--host', '127.0.0.1'], {
         cwd: path.join(PROJECT_ROOT, 'web'),
         env: {
           ...process.env,
