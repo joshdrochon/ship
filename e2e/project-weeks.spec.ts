@@ -207,14 +207,21 @@ test.describe('Project Weeks Tab', () => {
     // the window where exactly one of the two panels had painted: 0 matches read as
     // "element(s) not found", 2 as a strict mode violation. A retry made it worse rather
     // than better, because the second attempt renders both panels from a warm cache.
+    // Located by href, not by accessible name. The name is not stable at this point:
+    // PropertiesPanel.tsx:251 renders `weeklyReviewState?.projectName` and falls back to
+    // `projectId.substring(0, 8) + '...'` until `projectDoc` has been fetched
+    // (useWeeklyReviewActions.ts:167). So the link is present and clickable immediately,
+    // carrying a truncated UUID as its label, and only becomes "Navigation Test Project"
+    // once a separate request lands. Matching on the name therefore raced that request and
+    // failed with `element(s) not found` -- three attempts in a row on a loaded CI runner,
+    // where the fetch is slowest.
+    //
+    // The href is derived from `projectId` in the document's own properties, so it is
+    // correct from first paint. This test is named for navigation; the href is the thing
+    // navigation depends on, and the label is incidental to it.
     const projectLink = page
       .getByLabel('Document properties')
-      .getByRole('link', { name: 'Navigation Test Project' });
-    // 10 s to match every other wait in this test. This assertion was the only one on the
-    // default 5 s clock, and it timed out with 0 matches under a full-suite run (14 workers)
-    // while passing 15 of 15 in isolation -- the sidebar had not painted yet, not the wrong
-    // element. The assertion is that the link exists and navigates, never that it renders
-    // inside five seconds.
+      .locator(`a[href="/documents/${projectId}/weeks"]`);
     await expect(projectLink).toBeVisible({ timeout: 10000 });
     await projectLink.click();
 
