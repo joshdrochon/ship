@@ -322,11 +322,15 @@ the `verify` stage alongside `test` and `coverage`, so a red suite blocks the me
 
 Three details that are not incidental:
 
-- **No `postgres` service.** The suite provisions a database per worker through
-  testcontainers, so it needs a Docker daemon rather than a service container. GitHub's
-  `ubuntu-latest` has one; GitLab gets `docker:dind` plus
-  `TESTCONTAINERS_HOST_OVERRIDE`, because containers start on the dind daemon and the app
-  under test has to be told where to reach them.
+- **A `postgres` service, not testcontainers.** The suite provisions a database per
+  worker. Locally that is a testcontainers instance, which needs a Docker daemon —
+  and reaching one from inside a CI job means docker-in-docker, which means a runner
+  willing to grant privileged mode. The runner this project has sets
+  `privileged = false`, so that design made the gate a property of one machine's
+  configuration rather than of the commit. `E2E_DATABASE_URL` now switches
+  `e2e/fixtures/isolated-env.ts` onto a database-per-worker on an ordinary service
+  container. Isolation is unchanged — no two workers share tables either way — and the
+  variable is unset locally, so a developer's run still uses testcontainers.
 - **`PLAYWRIGHT_WORKERS` is pinned to 4.** Otherwise the count is derived from free memory
   at launch, which is not a property of the commit.
 - **The run is wrapped in `scripts/assert-tests-ran.sh 874`.** A crashed worker that drops

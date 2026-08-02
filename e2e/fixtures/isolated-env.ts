@@ -127,9 +127,23 @@ function apiChildEnv(extra: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   };
 }
 
+/**
+ * All a worker needs from its database is a connection string.
+ *
+ * Locally that comes from a testcontainers Postgres. In CI it comes from a plain
+ * service container, because testcontainers needs a Docker daemon and reaching one
+ * from inside a CI job means docker-in-docker, which means a runner willing to grant
+ * privileged mode. Depending on that made the E2E gate a property of how one machine
+ * happens to be configured rather than a property of the commit.
+ *
+ * Set `E2E_DATABASE_URL` to a server the job can reach and each worker gets its own
+ * database on it. Leave it unset and nothing changes: testcontainers as before.
+ */
+type TestDatabase = { getConnectionUri: () => string };
+
 // Types for our worker-scoped fixtures
 type WorkerFixtures = {
-  dbContainer: StartedPostgreSqlContainer;
+  dbContainer: TestDatabase;
   bedrockMock: MockBedrock;
   apiServer: { url: string; process: ChildProcess };
   webServer: { url: string; process: ChildProcess };
@@ -163,6 +177,46 @@ export const test = base.extend<
     async ({}, use, workerInfo) => {
       const workerTag = `[Worker ${workerInfo.workerIndex}]`;
       const debug = process.env.DEBUG === '1';
+
+      // CI path: a Postgres the job can already reach, one database per worker.
+      //
+      // Isolation is what matters here, not who owns the server. Testcontainers gives a
+      // whole instance per worker; a named database per worker gives the same guarantee
+      // that no two workers share tables, which is the property every fixture below
+      // relies on. `DROP ... IF EXISTS` first so a re-run on a reused service container
+      // starts from nothing rather than inheriting the previous run's rows.
+      //
+      // The name is derived from the worker index, so it is stable and collision-free
+      // without coordination between workers.
+      const external = process.env.E2E_DATABASE_URL;
+      if (external) {
+        const dbName = `ship_e2e_w${workerInfo.workerIndex}`;
+        if (debug) console.log(`${workerTag} Using external Postgres, database ${dbName}`);
+
+        const admin = new Pool({ connectionString: external });
+        try {
+          // Identifier, not a value — it cannot be parameterised, so it is built from
+          // the worker index alone and never from anything caller-supplied.
+          await admin.query(`DROP DATABASE IF EXISTS ${dbName}`);
+          await admin.query(`CREATE DATABASE ${dbName}`);
+        } finally {
+          await admin.end();
+        }
+
+        const url = new URL(external);
+        url.pathname = `/${dbName}`;
+        const dbUrl = url.toString();
+
+        await runMigrations(dbUrl);
+        if (debug) console.log(`${workerTag} Migrations complete`);
+
+        // Deliberately not dropped on teardown. The server is a throwaway service
+        // container in CI, and dropping while the API child process still holds a
+        // connection fails noisily for no benefit.
+        await use({ getConnectionUri: () => dbUrl });
+        return;
+      }
+
       if (debug) console.log(`${workerTag} Starting PostgreSQL container...`);
 
       // Retry container startup to handle intermittent Docker port binding failures

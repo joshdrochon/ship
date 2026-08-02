@@ -193,33 +193,30 @@ coverage:
 # Everything the unit suites cannot see — the 4-panel layout, the collaboration socket,
 # session expiry, the editor — was unguarded on every merge to main.
 #
-# Unlike `test`, this job takes no `postgres` service. The suite provisions a database
-# per worker through testcontainers (e2e/fixtures/isolated-env.ts), which needs a Docker
-# daemon rather than a service container — hence docker:dind and DOCKER_HOST. The
-# Playwright image is pinned to the same version as the @playwright/test dependency; a
-# mismatch between the browser bundled in the image and the client driving it fails at
-# runtime, not at install.
+# It uses a plain `postgres` service rather than testcontainers.
 #
-# TESTCONTAINERS_HOST_OVERRIDE is the non-obvious one. Containers start on the dind
-# daemon, not inside this job's container, so the address testcontainers reports back has
-# to be the dind alias for the app under test to reach the database it just started.
+# The suite provisions a database per worker. Locally that is a testcontainers instance,
+# which needs a Docker daemon — and reaching one from inside a CI job means
+# docker-in-docker, which means a runner willing to grant privileged mode. That made the
+# gate a property of how one runner happens to be configured rather than of the commit,
+# and the runner this project actually has sets `privileged = false`.
 #
-# This job requires a runner that permits privileged mode. If the shared runners on this
-# instance do not, it fails at the `docker info` preflight below with a named reason
-# rather than a confusing testcontainers timeout, and .github/workflows/ci.yml carries
-# the same gate on runners that do.
+# `E2E_DATABASE_URL` switches e2e/fixtures/isolated-env.ts onto a database-per-worker on
+# this service instead. Isolation is unchanged: no two workers share tables either way.
+# Unset locally, so a developer's run still uses testcontainers and nothing about the
+# local workflow changes.
+#
+# Connects to the `postgres` database, not `ship_test`: the fixture needs somewhere to
+# issue CREATE DATABASE from, and POSTGRES_USER is the image's superuser.
 e2e:
   stage: verify
   needs: ['build']
-  image: mcr.microsoft.com/playwright:v1.57.0-noble
   services:
-    - name: docker:27-dind
-      alias: docker
+    - name: postgres:16
+      alias: postgres
   timeout: 60m
   variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ''
-    TESTCONTAINERS_HOST_OVERRIDE: docker
+    E2E_DATABASE_URL: 'postgresql://ship:ship_test_password@postgres:5432/postgres'
     # Pinned, not derived. playwright.config.ts otherwise picks the worker count from
     # free memory at launch — the same tree ran at 1 worker and at 10 within an hour on
     # one machine, the second leaving 47 tests unexecuted. A gate whose parallelism
@@ -230,8 +227,10 @@ e2e:
     - corepack prepare pnpm@10.27.0 --activate
     - pnpm config set store-dir .pnpm-store
     - pnpm install --frozen-lockfile
-    # Fail here, with a reason, rather than 20 minutes later inside a fixture.
-    - docker info > /dev/null || { echo "E2E needs a Docker daemon (privileged runner)."; exit 1; }
+    # Installed rather than baked in via a Playwright image: the image tag would have to
+    # track @playwright/test by hand, and a mismatch between the bundled browser and the
+    # client driving it fails at runtime rather than at install.
+    - pnpm exec playwright install --with-deps chromium
   script:
     # The expected minimum is the whole suite. A crashed worker or a bad filter that
     # silently drops tests exits 2 instead of reading as a pass — the failure mode that

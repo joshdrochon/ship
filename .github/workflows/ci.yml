@@ -209,9 +209,13 @@ jobs:
   # collaboration socket, session expiry, the editor — was unguarded on every merge to
   # main. Two real bugs reached main that way and were caught by hand afterwards.
   #
-  # No postgres service here, unlike `test`. The suite provisions its own database per
-  # worker through testcontainers (e2e/fixtures/isolated-env.ts), so it needs a Docker
-  # daemon rather than a service container. `ubuntu-latest` has one.
+  # It uses a `postgres` service rather than testcontainers, matching .gitlab-ci.yml.
+  # `ubuntu-latest` does have a Docker daemon, so testcontainers would work here — but
+  # the GitLab runner this project actually has sets `privileged = false`, so relying on
+  # a daemon would make the gate real on one platform and impossible on the other.
+  # `E2E_DATABASE_URL` switches e2e/fixtures/isolated-env.ts onto a database-per-worker
+  # on the service. Isolation is unchanged; it is unset locally, so a developer's run
+  # still uses testcontainers.
   #
   # PLAYWRIGHT_WORKERS is pinned. playwright.config.ts otherwise derives the count from
   # free memory at launch, which on one machine produced a 1-worker run and a 10-worker
@@ -227,7 +231,23 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ship_test
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_test_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
+      # Connects to the `postgres` database, not `ship_test`: the fixture needs somewhere
+      # to issue CREATE DATABASE from, and POSTGRES_USER is the image's superuser.
+      E2E_DATABASE_URL: postgresql://ship:ship_test_password@localhost:5432/postgres
       # 4 matches the config's own CI default and the count every local before/after
       # measurement on this repo was taken at.
       PLAYWRIGHT_WORKERS: '4'
