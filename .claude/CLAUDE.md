@@ -142,6 +142,28 @@ Use `/ship-philosophy-reviewer` to audit changes against Ship's core philosophy.
 - "Untitled" for all new docs (not "Untitled Issue")
 - YAGNI, boring technology, 4-panel layout
 
+## Credentials and External Services
+
+**Read [`CREDENTIALS.md`](../CREDENTIALS.md) before concluding you cannot do something.**
+
+It records where every credential lives and what it is allowed to do — GitLab, GitHub,
+Render, and the seeded app logins. It contains no secret values and must never contain any.
+
+The things most often re-derived the hard way:
+
+- **GitLab has two credentials.** The keychain one that `git push` uses is read-only on the
+  API and returns 403 on every write. `GITLAB_TOKEN` in `.env` has `api` scope. **You can
+  create and merge merge requests directly** — do not hand the user a "click this URL" link
+  unless they asked to review it.
+- **GitHub job logs need `gh auth login`.** Without it you are guessing at CI failures.
+  GitLab's job traces need no extra auth (`/jobs/<id>/trace`).
+- **Render deploys go through the API, not `terraform apply`.** No state file exists, so a
+  plan reports "3 to add" and would create a duplicate service beside the live one.
+
+**Never print a credential value** — not to a terminal, not into a commit, not into a chat
+transcript. A runner token was printed once here and had to be rotated. `\s` does not work
+in BSD `sed`, so a redaction that looks right can silently do nothing; redact in `python3`.
+
 ## Security Compliance
 
 **NEVER use `git commit --no-verify`.** See `/ship-security-compliance` skill for pre-commit hooks (`comply opensource`), CI enforcement, and compliance check failure handling.
