@@ -347,6 +347,74 @@ the GitHub workflow carries the same gate on runners that do.
 
 **How to roll it back.** Delete the `e2e` job from either file.
 
+### Four things that only broke in CI
+
+The suite was green on a laptop and red on a runner. None of the four causes was
+flakiness, and each was found by reproducing inside `node:22-bookworm` -- the CI image
+-- rather than by guessing across pipeline runs. Recorded because every one of them is
+invisible from a macOS checkout.
+
+**1. The preview server bound where nothing was looking (`d50b27d`).**
+`vite preview` binds the IPv6 loopback only. Node's `fetch('http://localhost:PORT')`
+resolves to `127.0.0.1`, so `waitForServer` polled an address with no listener, every
+worker's web server timed out at 30 s, and all 874 tests failed identically. Measured in
+the image: `curl [::1]` 200, `curl 127.0.0.1` refused. `--host 127.0.0.1` fixes it and
+macOS is unaffected either way.
+
+**2. Four workers did not fit (`974a016`).**
+Each worker carries an API server, a Vite preview and a Chromium. Four of each was killed
+by the OOM reaper at test 510 of 874 in a 7.8 GB container, with no test failures logged
+first -- SIGKILL, so the run is void rather than red. 7.8 GB is the Docker VM this
+project's GitLab runner lives in. Two workers fit.
+
+Raising Docker Desktop's memory would also have worked, and was rejected: it fixes one
+machine and puts the gate back to passing only where someone configured it that way,
+which is the same objection that moved this job off testcontainers.
+
+**3. Sixty minutes was less than a clean run costs (`5a013af`).**
+Measured at 2 workers on the project's runner: 266 of 874 tests in 30 minutes with zero
+failures, so roughly 100 minutes end to end. The job would have been killed around test
+530 and reported as a failure indistinguishable from a real one. Raised to 150m.
+
+**4. Six tests pressed a key that does not exist on Linux (`360e1f7`).**
+Editor shortcuts were sent as `Meta+...` -- Cmd on macOS, the Super key on Linux. TipTap
+binds `Mod-`, which ProseMirror resolves to Ctrl off macOS, so the presses reached nothing
+and the following assertion failed on every attempt. The comment above one of them already
+described the correct behaviour while the code did the Mac half only:
+
+```
+await page.keyboard.press('Meta+a'); // Use Meta for Mac, Control for Windows/Linux
+```
+
+`ControlOrMeta` resolves per platform. 49 occurrences across 17 spec files.
+
+| | before | after |
+|---|---|---|
+| `backlinks` `edge-cases` `inline-code` `inline-comments` `tables` `toc`, Linux, 2 workers, `--retries=0` | 6 failed every attempt | **57 passed of 57** |
+
+**How to test any of these.** Reproduce the runner rather than trusting a macOS run:
+
+```bash
+docker network create cinet
+docker run -d --name cipg --network cinet --network-alias postgres \
+  -e POSTGRES_DB=ship_test -e POSTGRES_USER=ship -e POSTGRES_PASSWORD=ship_test_password postgres:16
+git archive HEAD | tar -x -C /tmp/cirepro
+docker run -d --name cijob --network cinet -v /tmp/cirepro:/builds/ship -w /builds/ship \
+  -e E2E_DATABASE_URL='postgresql://ship:ship_test_password@postgres:5432/postgres' \
+  -e SESSION_SECRET=ci-only -e NODE_ENV=test -e CI=true node:22-bookworm sleep infinity
+docker exec cijob bash -lc 'cd /builds/ship && git init -q && corepack enable &&
+  pnpm config set store-dir /root/.pnpm-store && pnpm install --frozen-lockfile &&
+  pnpm exec playwright install --with-deps chromium &&
+  PLAYWRIGHT_WORKERS=2 pnpm exec playwright test --retries=0'
+```
+
+Two traps in that harness, both hit here and neither a pipeline problem: pnpm cannot
+hardlink across a bind mount (`system error -116`), so the store must live outside it; and
+`postinstall` runs `git config`, which exits 128 in a tarball extraction without a `.git`.
+
+**How to roll any of them back.** `git revert` the SHA named in each item. Reverting 1 or 4
+returns the suite to failing in CI while still passing locally.
+
 ### Reading an E2E run
 
 Two ways a run can look clean without being one:
