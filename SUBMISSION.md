@@ -103,21 +103,33 @@ Two tools exist because measurement itself was the hard part:
 
 ```
 pnpm type-check · pnpm lint · pnpm build     exit 0
-pnpm test                                    555 passed   (api)
-pnpm --filter @ship/web exec vitest run      244 passed   (web)
-pnpm test:e2e                                874 executed · no reproducible failure
+pnpm test                                    555 passed   (api, needs PostgreSQL)
+pnpm --filter @ship/web exec vitest run      241 passed   (web)
+scripts/check-type-violations.sh             742, at ceiling
+pnpm test:e2e                                874 executed · see below
 ```
+
+**`pnpm test` skips rather than fails without PostgreSQL.** With no database reachable it
+reports `555 skipped` and exits non-zero on setup, which is easy to misread. Treat any run
+that does not report `555 passed` as void.
 
 **On the E2E line.** An earlier revision of this file read
 `871 executed · 865 passed · 0 failed`. That was true of the tree it was measured on —
 `c432768`, before the remediation branch landed — and it is not true of `main`. It is
 corrected rather than quietly dropped.
 
-What `main` actually does: three deterministic bugs were found in the suite after
-submission and fixed (`CHANGES.md`, "E2E truth"). Two were broken tests; one was a real
-data-loss bug in the client's title path. With those closed, **no failure reproduces** —
-every hard failure observed across three full runs passed on isolated re-run, and it was a
-different test each time.
+Four post-submission changes are in `CHANGES.md` ("E2E truth"). Two were broken tests. One
+bounds an unsaved-title window at 3 s and ships. **The fourth was shipped, measured, and
+reverted** — it opened the CRDT path before the WebSocket connected, which sent a new
+document's title into a client-only `Y.Doc` while the server stored `title = null`. On the
+four specs that cover that path, `--workers=4 --repeat-each=3 --retries=0`: 6 failed / 72
+with it, 0 / 72 without.
+
+**Worker count must be pinned to compare two E2E runs.** `playwright.config.ts` derives it
+from free memory at launch, so the same command ran at 1 worker and at 10 on the same tree
+within an hour — a 24.5-minute serial run against a 6-minute run that left 47 tests
+unexecuted. Set `PLAYWRIGHT_WORKERS` explicitly, and treat any run reporting
+`did not run` as void.
 
 What remains is timing flakiness. The last complete run — 874 executed, 2 workers, all
 tests accounted for — recorded 7 flaky, of which 2 are in `docs/audit/raw/known-flakes.txt`

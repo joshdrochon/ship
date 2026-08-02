@@ -66,13 +66,12 @@ aggregate nobody watches.
 
 ## E2E truth, and the title durability bug it was hiding
 
-Five changes made after the submission commit `b827ddb`. Grouped here because they came
-from one thread: the E2E suite was reporting failures, and running them down turned up two
-broken tests and one real product bug.
+Changes made after the submission commit `b827ddb`, from one thread: the E2E suite was
+reporting failures, and running them down turned up two broken tests and one real product
+bug.
 
-**Start here if you are wondering why the suite went red.** Nothing in `api/src` changed
-for the first two items — the tests were wrong, not the product. The third item is a
-genuine data-loss bug and is the reason this section exists at all.
+Items 1 and 2 are test-only — nothing in `api/src` changed. Item 3 bounds a data-loss
+window and ships. **Item 4 was shipped and then reverted; it is not in the product.**
 
 ### 1. The Bedrock fake spoke HTTP/1.1; the SDK speaks HTTP/2
 
@@ -164,48 +163,42 @@ pnpm --filter @ship/web exec vitest run src/hooks/useCollaborativeTitle.test.tsx
 
 **How to roll it back.** `git revert c4866df`. Continuous typing becomes unbounded again.
 
-### 4. New documents reach durable storage without waiting for the socket
+### 4. Reverted: opening the CRDT path at cache load (`3faae2a`)
 
-**What was wrong.** A document's body is durable from the first keystroke: TipTap writes it
-into the Y.Doc and `IndexeddbPersistence` (`Editor.tsx:317`) flushes it with no timer. The
-title was not, for one case — a newly created "Untitled" document. CRDT writes were gated
-on `markTitleSynced()`, which fires only on the WebSocket `sync` event, so everything typed
-during the handshake lived in React state and nowhere else.
+**Status: reverted in `0e76b00`. It is not in the product.** Recorded here because it was
+shipped to `main` and claimed as a fix, and Rule 8 covers what was removed as well as what
+was added.
 
-**Scope, stated precisely.** A document whose IndexedDB cache carried a title was *already*
-durable — the observer at `useCollaborativeTitle.ts:127` adopts a non-empty `ytitle` on
-mount. It cannot adopt an empty one, because empty is ambiguous. So this closes the
-new-document case only.
+**What it did.** `markCacheLoaded()` opened the CRDT title path at the IndexedDB cache load
+rather than at WebSocket `sync`, to make a brand-new document's title durable during the
+handshake.
 
-**Why the gate could not simply be removed.** It answers "do we know this document's
-title?" With a server title of `"Q3 Roadmap"`, an unloaded empty Y.Doc, and a user typing
-`"X"`, Yjs merges the write as an insert and yields `"XQ3 Roadmap"` — it cannot distinguish
-"empty because unknown" from "empty because blank". Seeding from `initialTitle` does not
-help either: two peers inserting the same characters independently produce duplicates.
-`initialTitle` comes from the REST fetch, so `"Untitled"` means the server has no title and
-nothing can collide. Anything else still waits for `markSynced`, with the 3 s cap as
-backstop.
+**Outcome.** It replaced a bounded exposure with an unbounded one. Cache load precedes the
+socket, so flipping the flag there disarmed the REST fallback and sent keystrokes into a
+client-only `Y.Doc`. Measured on a document titled through that window: the client `Y.Doc`
+held the title, the server persisted the same document with `title = null`, and no REST
+fallback fired. The title existed only in the browser.
 
-**What changed.** `useCollaborativeTitle` gained `markCacheLoaded()`, which decides whether
-local state is conclusive and opens the CRDT path if it is. `Editor.tsx` calls it inside
-`waitForCache.then(...)` — after the IndexedDB load, before the WebSocket connects.
+| | with `3faae2a` | reverted |
+|---|---|---|
+| 4 affected specs, `--workers=4 --repeat-each=3`, `--retries=0` | 6 failed / 72 | **0 / 72** |
 
-**How to run it.** No configuration and no flag — active in the editor whenever the app
-runs. To exercise it, create a new document and type into the title immediately; the
-keystrokes land in the Y.Doc and IndexedDB right away instead of waiting for the socket.
-`Editor.tsx:340` caps the cache wait at 300 ms, so a browser with no cache still proceeds
-promptly.
+**Current behaviour.** A new document's title waits for `markSynced`. Item 3's 3 s ceiling
+bounds the unsaved window; that is the durability guarantee the product ships with.
+
+**Known gap.** The pre-socket window on a brand-new document is bounded, not eliminated, and
+the revert removed the unit tests that covered `markCacheLoaded`. No test currently asserts
+behaviour inside that window.
 
 **How to test it.**
 ```bash
 pnpm --filter @ship/web exec vitest run src/hooks/useCollaborativeTitle.test.tsx
-pnpm exec playwright test e2e/autosave-race-conditions.spec.ts --workers=1
-# 20 passed / 8 passed. Regression guard is
-# "puts a brand-new document on the durable path without waiting for the socket".
+pnpm exec playwright test e2e/title-persistence.spec.ts e2e/autosave-race-conditions.spec.ts \
+  --workers=4 --repeat-each=3 --retries=0
 ```
 
-**How to roll it back.** `git revert 3faae2a`. New documents wait for the WebSocket again;
-item 3's 3 s cap still bounds the loss.
+**How to roll it back.** `git revert 0e76b00` reinstates `3faae2a` and the data-loss path
+above. There is no reason to.
 
 ### 5. Uploads can survive a deploy — Render persistent disk
 
@@ -240,6 +233,58 @@ is the committed state. Or `git revert 6324d6c`.
 > **Not applied.** The committed config plans no disk and the live free-plan service is
 > unchanged. Render disks require `starter` or above, so attaching one costs money and is
 > the account owner's decision.
+
+---
+
+## E2E isolation and clocks
+
+Three changes to the suite itself. None touches product source.
+
+### Database state is reset at each spec-file boundary (`7f9b22e`)
+
+**What was wrong.** The Postgres container is worker-scoped and was seeded once, so every
+spec sharing a worker inherited the writes of every spec before it. Test outcomes depended
+on file ordering.
+
+**What changed.** A worker-scoped fixture resets to the seeded state the first time a given
+spec file runs on that worker, tracked by a marker file under the worker's output
+directory. An `auto: true` test fixture invokes it, so no spec has to remember to.
+
+**How to test it.** Any full run exercises it. To see the isolation directly, run two specs
+that write conflicting data in either order and confirm both pass.
+
+**How to roll it back.** `git revert 7f9b22e`.
+
+### Two tests were failing deterministically, not flaking (`b9b26d6`)
+
+**Outcome.** `inline-comments.spec.ts` pressed Escape before the comment input had focus,
+and the handler only acts on a focused field. `accessibility-remediation.spec.ts` queried a
+combobox before navigation completed and without scoping to a panel. Both now wait on the
+condition they depend on. No product source changed.
+
+**How to roll it back.** `git revert b9b26d6`.
+
+### One assertion ran on a different clock than its siblings (`11b4935`)
+
+**Outcome.** `project-weeks.spec.ts:213` had no explicit timeout, so it took Playwright's
+5 s default while the four waits around it — including the two gating the same page load —
+all specify 10 s. There is no `expect.timeout` in `playwright.config.ts` to close the gap.
+It now matches its siblings.
+
+Raising a timeout cannot be proven to remove a flake, only to make it less likely. The
+assertion's subject is that the link exists and navigates, never that it renders within five
+seconds.
+
+**How to roll it back.** `git revert 11b4935`.
+
+### Reading an E2E run
+
+Two ways a run can look clean without being one:
+
+- **`did not run` is not zero failures.** Any run reporting it is void.
+- **Worker count drifts.** `playwright.config.ts` derives it from free memory at launch, so
+  the same command on the same tree ran at 1 worker and at 10 within an hour. Pin
+  `PLAYWRIGHT_WORKERS` before comparing two runs.
 
 ---
 
