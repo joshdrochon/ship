@@ -131,30 +131,59 @@ within an hour — a 24.5-minute serial run against a 6-minute run that left 47 
 unexecuted. Set `PLAYWRIGHT_WORKERS` explicitly, and treat any run reporting
 `did not run` as void.
 
-**Latest complete run**, `PLAYWRIGHT_WORKERS=4 pnpm exec playwright test --retries=0`, all
-874 accounted for, 7.7 min:
+**GitHub Actions, the E2E gate, green:**
 
 ```
-872 passed · 2 failed · 0 did not run
+874 executed · 862 passed · 0 failed · 12 flaky      exit 0
 ```
 
-Both failures were `drag-handle.spec.ts:300` and `team-mode.spec.ts:408`, already in
-`docs/audit/raw/known-flakes.txt`. Both are now fixed at the cause rather than retried
-past:
+**GitLab CI, the same commit, not green:**
 
-| | cause | before | after |
-|---|---|---|---|
-| `team-mode` | the seed left exactly **one** person unassigned, and sibling tests assign `.first()` unassigned row under `fullyParallel` — assign that one and the group header stops existing | 6 failed / 195 | **0 / 195** |
-| `drag-handle` | `expect(handle).toBeVisible()` followed by `page.$`, a one-shot query, on an element that exists only while hovered | (same run) | |
+```
+874 executed · 844 passed · 26 failed ·  4 flaky     exit 1
+```
 
-A third surfaced only under the CI configuration: `document-workflows.spec.ts` set a title
-and slept a fixed 1 s. The client's fallback debounce on a new document is 1.5 s, so the
-sleep expired before anything was written — the editor showed the title, the database did
-not, and any assertion reading server data failed. It now waits on
-`expectDocumentTitleSaved`, which polls the API. 20 of 20 on re-run.
+Both numbers are real and neither is dropped. What separates them is below.
 
-`pnpm test:e2e` sets `retries: 1` locally and `2` in CI. The figures above use
-`--retries=0` deliberately, because retries hide exactly this class of defect.
+### Seven defects the suite carried, and one pattern
+
+Every one was found by reading a CI log or reproducing inside the CI image, and none was
+visible from a macOS checkout:
+
+| | what was wrong |
+|---|---|
+| `vite preview` bound the IPv6 loopback while the fixture polled `127.0.0.1` | every worker's web server "failed to start"; all 874 tests died identically |
+| `Meta+` is Cmd on macOS and the Super key on Linux; TipTap binds `Mod-` | 6 tests pressed a key that does not exist there |
+| the project link's accessible name is a truncated UUID until a fetch lands | matching on the name raced that fetch |
+| `waitForTimeout(500)` after typing a `/` command | if the menu was late, `Enter` reached nothing and no file chooser opened |
+| `waitForTimeout(300)` after typing paragraphs | the drag target did not exist yet, and a longer timeout cannot conjure it |
+| `waitForTimeout(1000)` after setting a title, against a 1.5 s debounce | the editor showed the title, the database did not |
+| the seed left exactly one unassigned person | a sibling test assigning them away deleted the group under test |
+
+**Six of the seven are the same mistake: sleeping a fixed number of milliseconds instead of
+waiting for the condition.** Those sleeps are correct on a laptop and wrong on a runner,
+which is precisely why a suite can be green locally and red in CI for reasons that have
+nothing to do with the code under test.
+
+### The 12 flaky are not zero
+
+They pass on retry, and `retries: 2` is what makes the gate usable — a deterministic
+failure still fails all three attempts, so the gate keeps its teeth. But twelve tests that
+only pass on a second or third try are debt, not a clean suite, and are reported as such
+rather than folded into "862 passed".
+
+### GitLab's 26, stated plainly
+
+They did not move. The identical 30 tests fail before and after every fix above, and
+**24 of the 30 are file or image uploads** whose file chooser never opens — 50 timeouts
+waiting for an event GitHub raises without trouble. Ruled out by measurement: parallelism
+(4, 2 and 1 worker all produce it), memory (1 worker leaves headroom and changes nothing),
+the job timeout (raised to 150m; a clean run takes 1.4h there), and the browser build
+(`Chromium 143.0.7499.4`, playwright build v1200, byte-identical on both platforms).
+
+The runner is a container in a 7.8 GB Docker VM on a laptop and is roughly five times
+slower per test than GitHub's. The cause of the upload failures specifically is **not yet
+identified**, and that is stated rather than papered over with a retry count.
 
 **E2E is now a blocking gate on both pipelines**, in the `verify` stage alongside `test`
 and `coverage`. It runs against an ordinary Postgres service rather than testcontainers:

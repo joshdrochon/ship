@@ -415,6 +415,45 @@ hardlink across a bind mount (`system error -116`), so the store must live outsi
 **How to roll any of them back.** `git revert` the SHA named in each item. Reverting 1 or 4
 returns the suite to failing in CI while still passing locally.
 
+### Three more that only appear on a runner
+
+**Sleeping instead of waiting, in 59 places.** Specs typed a `/` command and then slept
+300-500 ms before pressing Enter to pick an item. If the menu had not rendered, Enter
+reached nothing, no file chooser opened, and the test sat until its 60 s timeout. The menu
+now carries `data-testid="slash-menu"` -- it had no other stable hook, only utility classes
+-- and `waitForSlashMenu` in `e2e/fixtures/test-helpers.ts` waits for it.
+
+**`addParagraphs` slept 300 ms after typing** (`drag-handle.spec.ts`). The drag then looked
+up `.ProseMirror p:nth-child(N)`, which matched nothing because the paragraph did not exist
+yet. It reported as `locator.elementHandle: Timeout exceeded`, so the first attempt at a fix
+raised that timeout from 2 s to 10 s -- and it failed again at 10 s. That was the useful
+result: a longer clock cannot produce an element that is never created. It now waits for the
+typed text to be in the editor.
+
+**A link named by data that arrives later** (`project-weeks.spec.ts`). The Properties panel
+renders the project link immediately with `projectId.substring(0, 8) + '...'` as its label
+and only swaps in the real title once a separate fetch returns
+(`PropertiesPanel.tsx:251`, `useWeeklyReviewActions.ts:167`). The test matched on the name
+and raced that fetch; it now matches the `href`, which is correct from first paint. A link
+whose accessible name is a truncated UUID is also a real accessibility defect and is *not*
+fixed here.
+
+**Measured on GitHub across five runs**, each adding one fix:
+
+| | passed | failed |
+|---|---:|---:|
+| baseline | 862 | 6 |
+| + `ControlOrMeta` | 868 | 1 |
+| + href locator | 870 | 2 |
+| + slash-menu waits | 863 | 1 |
+| + paragraph wait | **862** | **0** |
+
+The passed column moves around because tests shift between failed and flaky; the failed
+column is the one that matters. 12 remain flaky and are not claimed as passing.
+
+**How to roll back.** Revert the SHA named in each item. Reverting the slash-menu change
+also removes `data-testid="slash-menu"`, which is the only product change among them.
+
 ### Reading an E2E run
 
 Two ways a run can look clean without being one:
