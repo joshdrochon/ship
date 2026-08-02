@@ -131,12 +131,22 @@ within an hour — a 24.5-minute serial run against a 6-minute run that left 47 
 unexecuted. Set `PLAYWRIGHT_WORKERS` explicitly, and treat any run reporting
 `did not run` as void.
 
-What remains is timing flakiness. The last complete run — 874 executed, 2 workers, all
-tests accounted for — recorded 7 flaky, of which 2 are in `docs/audit/raw/known-flakes.txt`
-and 1 was written after that register was captured. The 4 that are not in it flaked on a
-machine also running Docker, a GitLab runner and other stacks; that is consistent with
-contention rather than four new defects, but **one run cannot prove it** and it is not
+**Latest complete run**, `PLAYWRIGHT_WORKERS=4 pnpm exec playwright test --retries=0`, all
+874 accounted for, 7.7 min:
+
+```
+872 passed · 2 failed · 0 did not run
+```
+
+Both failures are pre-existing entries in `docs/audit/raw/known-flakes.txt` —
+`drag-handle.spec.ts:300` and `team-mode.spec.ts:408`, the latter hit at `:434`, an adjacent
+test in the same describe block. Re-run at the same worker count with `--repeat-each=3`,
+those two spec files went **3 failed / 117**, so the rate is real and roughly 2.6% rather
+than zero. That is timing flakiness in two known specs, not a regression, and it is not
 claimed as clean.
+
+`pnpm test:e2e` sets `retries: 1` locally and `2` in CI, so the documented command passes.
+The figures above use `--retries=0` deliberately, because retries hide exactly this.
 
 **This number is a local measurement, not a CI result.** E2E has never been part of either
 pipeline (Rule 4 requires `test`, which is api + web unit suites, and both run there). A
