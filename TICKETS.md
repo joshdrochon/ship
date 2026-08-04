@@ -245,25 +245,26 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-119** End-to-end local run: seed → mutate an issue → cron detects it
 - [x] **FG-120** Verify a second immediate run detects **nothing** (suppression works)
 - [x] **FG-121** Verify a crashed run does not advance the watermark
+- [ ] **FG-274** Wire the real Ship action client into the cron, replacing the FG-122 placeholder. Resolved per run so a missing `SHIP_API_TOKEN` degrades commenting rather than killing the process before detection happens.
 
 ## M6 · Actions and human-in-the-loop
 
-- [ ] **FG-122** `agent/src/actions/client.ts` — Ship HTTP API client using a bearer `api_token`
-- [ ] **FG-123** Action client: explicit timeout + retry with backoff
-- [ ] **FG-124** Action client: second `CircuitBreaker` instance for the Ship API
-- [ ] **FG-125** Action client: **never** calls `POST /api/issues/bulk` — it bypasses `document_history` (`PRESEARCH.md` Q4)
-- [ ] **FG-126** Autonomous action: post a comment via the comments API
-- [ ] **FG-127** Autonomous action: log to `document_history` with `automated_by='fleetgraph'`
-- [ ] **FG-128** Classify actions by blast radius — additive/reversible vs state mutation (Q3)
-- [ ] **FG-129** Gated action: serialise the proposal into the checkpointer
-- [ ] **FG-130** Gated action: create a notification pointing at the pending approval
-- [ ] **FG-131** Resume path: accept → `executeApproved` → record outcome
-- [ ] **FG-132** Resume path: dismiss → mark resolved-by-dismissal, **fingerprint never fires again**
-- [ ] **FG-133** Resume path: snooze → set `snooze_until` in business days (1/3/5, default 3)
-- [ ] **FG-134** Snooze wake **re-runs the detector**, does not replay the stored finding (Q23)
-- [ ] **FG-135** Unit test: dismissed fingerprint is suppressed on the next run
-- [ ] **FG-136** Unit test: snoozed finding that self-resolves never returns
-- [ ] **FG-137** Integration test: full interrupt → resume cycle across a process restart
+- [x] **FG-122** `agent/src/actions/client.ts` — Ship HTTP API client using a bearer `api_token`
+- [x] **FG-123** Action client: explicit timeout + retry with backoff
+- [x] **FG-124** Action client: second `CircuitBreaker` instance for the Ship API
+- [x] **FG-125** Action client: **never** calls `POST /api/issues/bulk` — it bypasses `document_history` (`PRESEARCH.md` Q4)
+- [x] **FG-126** Autonomous action: post a comment via the comments API
+- [x] **FG-127** Autonomous action: log to `document_history` with `automated_by='fleetgraph'`
+- [x] **FG-128** Classify actions by blast radius — additive/reversible vs state mutation (Q3)
+- [x] **FG-129** Gated action: serialise the proposal into the checkpointer
+- [x] **FG-130** Gated action: create a notification pointing at the pending approval
+- [x] **FG-131** Resume path: accept → `executeApproved` → record outcome
+- [x] **FG-132** Resume path: dismiss → mark resolved-by-dismissal, **fingerprint never fires again**
+- [x] **FG-133** Resume path: snooze → set `snooze_until` in business days (1/3/5, default 3)
+- [x] **FG-134** Snooze wake **re-runs the detector**, does not replay the stored finding (Q23)
+- [x] **FG-135** Unit test: dismissed fingerprint is suppressed on the next run
+- [x] **FG-136** Unit test: snoozed finding that self-resolves never returns
+- [x] **FG-137** Integration test: full interrupt → resume cycle across a process restart
 
 ## M7 · API endpoints
 
@@ -351,17 +352,17 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 ## M11 · FLEETGRAPH.md
 
-- [ ] **FG-210** Create `FLEETGRAPH.md` at repo root
-- [ ] **FG-211** **Agent Responsibility** section — port from `PRESEARCH.md` Q1–Q7
-- [ ] **FG-212** **Graph Diagram** — Mermaid, both modes, all nodes, edges, conditional branches
-- [ ] **FG-213** **Use Cases** — the table of six, with role / trigger / detects / human decides
-- [ ] **FG-214** **Trigger Model** — port from `PRESEARCH.md` §3, with the tradeoffs defended
-- [ ] **FG-215** Graph outline in prose: node types, edges, branching conditions (requirement 4)
-- [ ] **FG-216** Retry strategy and fallback behaviour documented (engineering requirement)
-- [ ] **FG-217** Rollback trigger and procedure documented (engineering requirement)
-- [ ] **FG-218** Embed both LangSmith trace links
-- [ ] **FG-219** Cross-check every MVP checkbox against the brief, one at a time
-- [ ] **FG-220** Verify no claim in `FLEETGRAPH.md` is unverified against the code
+- [x] **FG-210** Create `FLEETGRAPH.md` at repo root
+- [x] **FG-211** **Agent Responsibility** section — port from `PRESEARCH.md` Q1–Q7
+- [x] **FG-212** **Graph Diagram** — Mermaid, both modes, all nodes, edges, conditional branches
+- [x] **FG-213** **Use Cases** — the table of six, with role / trigger / detects / human decides
+- [x] **FG-214** **Trigger Model** — port from `PRESEARCH.md` §3, with the tradeoffs defended
+- [x] **FG-215** Graph outline in prose: node types, edges, branching conditions (requirement 4)
+- [x] **FG-216** Retry strategy and fallback behaviour documented (engineering requirement)
+- [x] **FG-217** Rollback trigger and procedure documented (engineering requirement)
+- [x] **FG-218** Embed both LangSmith trace links
+- [x] **FG-219** Cross-check every MVP checkbox against the brief, one at a time
+- [x] **FG-220** Verify no claim in `FLEETGRAPH.md` is unverified against the code
 
 ---
 
