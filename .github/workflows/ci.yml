@@ -95,10 +95,20 @@ jobs:
       # `needs: build` orders the jobs; it does not carry a filesystem between them.
       # api/ and web/ import @ship/shared, which resolves to shared/dist/index.d.ts, so
       # without this tsc reports TS2307 "Cannot find module '@ship/shared'" on ~40 files.
-      # The `test` job above already does exactly this, which is why it passed while this
-      # one failed. GitLab does not need it: `needs: ['build']` there downloads the build
-      # artifact, and shared/dist/ is in its paths.
-      - run: pnpm build:shared
+      #
+      # `pnpm build:shared` was enough until agent/ joined the workspace. `pnpm
+      # type-check` is `--recursive`, so it now compiles @ship/agent too, and
+      # agent/src/actions/client.ts imports the circuit breaker from `api/dist` on
+      # purpose (agent compiles with rootDir: ./src, so a .ts import outside it is a
+      # hard tsc error while the built .d.ts is not). Without api/dist that import is
+      # TS2307 and this job fails on a file nobody touched.
+      #
+      # Downloading the artifact rather than rebuilding is Rule 5, and it is what
+      # .gitlab-ci.yml already does — `needs: ['build']` there carries shared/dist/ and
+      # api/dist/ into the job.
+      - uses: actions/download-artifact@v4
+        with:
+          name: ship-dist-${{ github.sha }}
       - run: pnpm type-check
 
   # `pnpm type-check` proves the code compiles. It does not observe how much of that
@@ -157,6 +167,64 @@ jobs:
           path: |
             api/junit.xml
             web/junit.xml
+
+  # FG-247 / FG-248 / FG-235 — the agent package's own gate.
+  #
+  # Separate from `test` rather than a third line inside it, for one reason: the
+  # agent suite provisions its OWN Postgres per test file with testcontainers and does
+  # not use DATABASE_URL at all. Adding it to `test` would run it inside a job whose
+  # env points at a service container it ignores, and the next person to read the job
+  # would reasonably assume the service was what it was talking to.
+  #
+  # `ubuntu-latest` has a Docker daemon, which is what testcontainers needs. 11 of the
+  # 19 agent spec files start a `postgres:16` container; the other 8 are pure and would
+  # pass anywhere. Running the whole suite here means the gate covers both.
+  #
+  # The regression tests FG-229 through FG-234 live in this suite —
+  # agent/src/graph/use-cases.test.ts and agent/src/actions/autonomy.test.ts — so this
+  # job is what makes "all of them run in CI" true rather than aspirational.
+  #
+  # assert-tests-ran.sh is not decoration. A vitest path typo or a crashed worker exits
+  # 0 having run nothing, and 162 green tests and 0 executed tests look identical in a
+  # summary line. The expected minimum is the whole suite, taken from a known-good run.
+  # Raise it when tests are added; a SHORT RUN exits 2, which is distinct from a test
+  # failure on purpose.
+  agent-test:
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Rule 5: the compiled tree comes from `build`, it is not rebuilt here.
+      # agent/src/actions/client.ts imports the circuit breaker from api/dist —
+      # deliberately, so the agent reuses api/src/services/circuitBreaker.ts rather than
+      # growing a second one (engineering requirement 4). Without api/dist the whole
+      # actions layer fails to resolve.
+      - uses: actions/download-artifact@v4
+        with:
+          name: ship-dist-${{ github.sha }}
+
+      # Pre-pull so a slow registry does not eat the per-container start timeout inside
+      # the first `beforeAll`. Failing here says "the image could not be fetched", which
+      # is a much better error than a hook timeout 180 seconds later.
+      - run: docker pull postgres:16
+
+      - name: Agent suite
+        run: scripts/assert-tests-ran.sh 162 -- pnpm --filter @ship/agent exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-results-agent
+          path: agent/junit.xml
 
   coverage:
     runs-on: ubuntu-latest
@@ -366,9 +434,14 @@ jobs:
   # Credential: none to provision. GITHUB_TOKEN with `packages: write` is issued
   # to the job by Actions itself, which is the whole reason to publish from this
   # side rather than pushing to ghcr.io from GitLab with a long-lived PAT.
+  # `agent-test` is in `needs` for the reason FG-236 exists: the image this job
+  # publishes is the only thing that can be deployed, so a failing regression test
+  # must stop the artifact from existing rather than be caught after it is live.
+  # Blocking promotion is the cheap half of "a failing build never stays deployed";
+  # .github/workflows/deploy.yml is the other half.
   docker-image:
     runs-on: ubuntu-latest
-    needs: [build, lint, type-check, test]
+    needs: [build, lint, type-check, test, agent-test]
 
     # Least privilege, and not the default. Without `packages: write` the token
     # can read ghcr.io but not push; `contents: read` is all the rest of the job
