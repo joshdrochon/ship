@@ -28,6 +28,7 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -93,6 +94,7 @@ function parseSetArgs(argv) {
 
 const SET = parseSetArgs(process.argv);
 const LABEL = process.argv.includes('--label');
+const VERIFY = process.argv.includes('--verify');
 
 /**
  * Section colours, deliberately a progression rather than a random assignment —
@@ -365,6 +367,92 @@ if (key) {
   console.log(`  ${linear.size} FG ids found`);
 } else {
   console.log('\nNo LINEAR_API_KEY — skipping readback, assuming Linear is empty.');
+}
+
+// ---------------------------------------------------------------- verify mode
+
+/**
+ * Every FG id CLOSED by a commit, read from `Closes:` trailers with ranges
+ * expanded.
+ *
+ * Trailers rather than the message body, because prose cannot distinguish a
+ * claim from a mention. The first version of this grepped the whole message and
+ * immediately reported FG-222..FG-227 as closed — they appear in a commit body
+ * only as "(FG-222..FG-227) needs those states executable", describing future
+ * work. A check that cries wolf gets ignored, which is worse than no check.
+ *
+ *   Closes: FG-040..FG-049
+ *   Closes: FG-050, FG-052
+ *
+ * Ranges accept `..` or `-` and are inclusive.
+ */
+function idsInGitHistory() {
+  // execFileSync, not execSync: the format string contains parentheses, which a
+  // shell tries to interpret.
+  const raw = execFileSync(
+    'git',
+    ['log', '--format=%(trailers:key=Closes,valueonly)'],
+    { cwd: REPO, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 }
+  );
+  const ids = new Set();
+
+  for (const m of raw.matchAll(/\b(FG-\d{3})\s*(?:\.\.|-)\s*(FG-\d{3})\b/g)) {
+    const a = Number(m[1].slice(3));
+    const b = Number(m[2].slice(3));
+    if (b < a) continue;
+    for (let n = a; n <= b; n++) ids.add(`FG-${String(n).padStart(3, '0')}`);
+  }
+  // Ranges are consumed above; this also catches bare single ids.
+  for (const m of raw.matchAll(/\bFG-\d{3}\b/g)) ids.add(m[0]);
+
+  return ids;
+}
+
+if (VERIFY) {
+  if (!key) {
+    console.error('--verify needs LINEAR_API_KEY.');
+    process.exit(1);
+  }
+
+  const inGit = idsInGitHistory();
+  const doneInLinear = new Set([...linear.entries()].filter(([, v]) => v.done).map(([id]) => id));
+
+  // The dangerous direction. A ticket closed with nothing behind it looks like
+  // progress on the board and in TICKETS.md, and both agree, because --sync
+  // faithfully propagates whatever Linear says. This is the only check that
+  // compares the board against something that is not itself derived from it.
+  const closedWithoutCommit = [...doneInLinear].filter((id) => !inGit.has(id)).sort();
+
+  // The harmless-but-untidy direction: work landed, board never updated.
+  const committedButOpen = [...inGit]
+    .filter((id) => linear.has(id) && !linear.get(id).done)
+    .sort();
+
+  const started = [...linear.entries()].filter(([, v]) => v.started).map(([id]) => id).sort();
+
+  console.log(`\nDone in Linear:        ${doneInLinear.size}`);
+  console.log(`Referenced in commits: ${inGit.size}`);
+
+  if (closedWithoutCommit.length) {
+    console.log(`\n  ✗ ${closedWithoutCommit.length} marked Done with no commit reference:`);
+    for (const id of closedWithoutCommit) console.log(`      ${id}  (${linear.get(id).identifier})`);
+  }
+  if (committedButOpen.length) {
+    console.log(`\n  ! ${committedButOpen.length} referenced in a commit but still open:`);
+    for (const id of committedButOpen) console.log(`      ${id}  ${linear.get(id).state}`);
+  }
+  if (started.length) {
+    console.log(`\n  · ${started.length} In Progress — claimed, so they should be actively worked:`);
+    console.log(`      ${started.join(', ')}`);
+  }
+
+  if (!closedWithoutCommit.length && !committedButOpen.length) {
+    console.log('\n✓ Board matches git history.');
+    process.exit(0);
+  }
+  // Non-zero only for the dangerous direction; an unclosed ticket is untidy,
+  // not a false claim of progress.
+  process.exit(closedWithoutCommit.length ? 1 : 0);
 }
 
 // ---------------------------------------------------------------- label mode

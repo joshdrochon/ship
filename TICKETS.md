@@ -43,11 +43,14 @@ here and left in Backlog on the board for an hour.
 node scripts/linear-import.mjs
 
 # claim work / complete it — accepts ids and inclusive ranges
-node scripts/linear-import.mjs --set "In Progress" FG-017-FG-024
-node scripts/linear-import.mjs --set Done FG-017,FG-018
+node scripts/linear-import.mjs --set "In Progress" FG-050-FG-052
+node scripts/linear-import.mjs --set Done FG-050,FG-051
 
 # pull state back into the checkboxes below
 node scripts/linear-import.mjs --sync
+
+# check the board against git history — run before every commit
+node scripts/linear-import.mjs --verify
 
 # any command takes --dry-run
 ```
@@ -56,7 +59,28 @@ Single-ticket moves during normal work can go through the Linear MCP server dire
 that is what it is good at. `--set` exists for the batch case, because Linear's MCP writes
 one issue per call and work tends to complete in batches.
 
-Commit messages reference the ticket id (`FG-018`), so git history and the board line up.
+### Closing a ticket requires a commit
+
+`--sync` only guarantees that this file matches the board. It cannot tell whether the board
+matches reality — it would faithfully propagate a ticket closed with nothing behind it, and
+then both would agree and neither would be right.
+
+`--verify` is the check that compares the board against something not derived from it: every
+ticket marked Done must be named in a **`Closes:` trailer** on a commit. It exits non-zero
+when one is not, so a false close fails rather than passes quietly.
+
+```
+Closes: FG-040..FG-049
+Closes: FG-050, FG-052
+```
+
+A trailer, not the message body, because prose cannot distinguish a claim from a mention.
+The first version of this check grepped the whole message and immediately reported
+`FG-222..FG-227` as closed — they appear in a commit only as *"(FG-222..FG-227) needs those
+states executable"*, describing future work.
+
+**Only mark In Progress what is actually being worked on now.** Claiming a whole section up
+front makes the board say seventeen things are underway when one is.
 
 ---
 
@@ -410,6 +434,15 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [ ] **FG-266** Demo shows both modes and a human gate
 - [ ] **FG-267** Final pass: every brief requirement checked against the artifact
 - [ ] **FG-268** Merge to `main` via MR — no direct pushes
+
+---
+
+## Tooling added mid-flight
+
+Not part of the original decomposition. Recorded here so every commit's `Closes:` trailer
+names a real ticket.
+
+- [ ] **FG-269** `linear-import.mjs --verify` — fail a ticket closed with no `Closes:` trailer behind it
 
 ---
 
