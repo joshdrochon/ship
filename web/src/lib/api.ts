@@ -115,9 +115,29 @@ async function fetchWithCsrf(
   return res;
 }
 
-export async function apiGet(endpoint: string): Promise<Response> {
+/**
+ * `init.signal` is optional but load-bearing where it is passed.
+ *
+ * React Query hands every queryFn an AbortSignal and relies on it for
+ * `cancelQueries`. Without it, `cancelQueries` cannot stop anything: the request
+ * completes regardless, and the observer simply refetches — which is how a read
+ * ends up in flight concurrently with the mutation that called `cancelQueries` to
+ * prevent exactly that.
+ *
+ * Measured, on `/api/documents/:id`: the refetch was issued ~1 ms before the PATCH
+ * response landed, so whether its row read happened before or after the PATCH's
+ * COMMIT was a coin flip. When it lost, the pre-edit document landed *after* the
+ * optimistic update and overwrote it, and nothing refetched again — the field went
+ * blank and stayed blank while the correct value sat in the database. 3 failures in
+ * 6 runs on an idle machine.
+ */
+export async function apiGet(
+  endpoint: string,
+  init?: { signal?: AbortSignal }
+): Promise<Response> {
   const res = await fetch(`${API_URL}${endpoint}`, {
     credentials: 'include',
+    signal: init?.signal,
   });
 
   // Handle session expiration - redirect to login

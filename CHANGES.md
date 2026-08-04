@@ -1481,3 +1481,99 @@ exercise the gitleaks path that was broken.
 | Dockerfile | Restore the three-filter `RUN` line. Restores the TS2307 build failure. |
 | Selector fixes | `git checkout <sha> -- e2e/project-weeks.spec.ts e2e/request-changes-ui.spec.ts` |
 | Worker count | Already reverted; nothing to undo. |
+
+---
+
+# A saved value that vanished from the screen
+
+`issue-estimates.spec.ts:54` failed in CI. It was not a flaky test. Entering an estimate
+saved it correctly and then blanked the field, leaving the right value in the database and
+nothing on screen.
+
+## What was actually happening
+
+Measured with a temporary probe that logged every request, every response, and the input's
+value four seconds later. Six runs, single worker, idle machine:
+
+| Run | PATCH body | 2nd GET returned | Input after 4s |
+|---|---|---|---|
+| 1 | `{"estimate":2.5}` | `null` | `""` |
+| 2 | `{"estimate":2.5}` | `2.5` | `2.5` |
+| 3 | `{"estimate":2.5}` | `2.5` | `2.5` |
+| 4 | `{"estimate":2.5}` | `null` | `""` |
+| 5 | `{"estimate":2.5}` | `2.5` | `2.5` |
+| 6 | `{"estimate":2.5}` | `null` | `""` |
+
+The PATCH carried the right value every single time. The final state of the field is exactly
+what the second GET returned — a perfect correlation. Three blank in six, on an idle machine.
+
+A control run with no edit at all produced **zero** document requests in the same window, so
+that second GET is caused by the mutation and not by background refetching.
+
+The input was fully controlled off `issue.estimate`, so it rendered whatever the React Query
+cache last held. When the post-mutation refetch came back with the pre-edit row, it landed
+after the optimistic update, overwrote it, and nothing refetched again.
+
+## Four hypotheses, three of them wrong
+
+Recorded because the wrong ones cost time and the reasoning looked sound each time:
+
+1. **The keystroke was dropped before the PATCH.** Wrong — every PATCH carried 2.5.
+2. **CI load.** Wrong — reproduces 3-in-6 locally at one worker. A larger runner would have
+   lowered the failure rate and left the bug in the product.
+3. **`apiGet` ignored React Query's AbortSignal, so `cancelQueries` could not cancel.** True,
+   and fixed, but not the cause — still 2 blank in 8 afterwards. The racing read is issued
+   *after* `cancelQueries` has run, so it was never a candidate for cancellation.
+4. **`cancelQueries` provoked the refetch.** Wrong — still 2 blank in 10 after removing it.
+
+The instrumentation was also wrong once: response timestamps were taken after
+`await res.json()`, which inflated them and made the refetch look like it preceded the PATCH
+response. It does not.
+
+## The fix
+
+The estimate field holds its own draft while focused, and re-syncs from the server when it is
+not being edited and again on blur. What the user typed is what renders, instead of a value
+that has to survive a round trip to come back.
+
+Two supporting changes kept on their own merits, neither of which fixed this by itself:
+
+- `apiGet(endpoint, { signal })` forwards an AbortSignal to `fetch`, and the document query
+  passes React Query's signal. Correct regardless, and it aborts reads on navigation.
+- `cancelQueries` removed from the update mutation's `onMutate`. With no `staleTime` it does
+  not leave the query idle — the active observer refetches immediately — and `onSuccess`
+  already invalidates.
+
+## What is NOT fixed
+
+**A document GET issued after a committed PATCH still sometimes returns the pre-edit row.**
+`COMMIT` is at `documents.ts:1049` and the response is written at `:1099`, so the write is
+durable before the client is told about it — the stale read should not be possible, and it has
+not been explained.
+
+The UI no longer loses the user's input to it, because the field no longer depends on that
+read. But the cache can still hold a stale value until something refetches. Any other
+controlled field driven straight off the document cache has the same exposure. This deserves
+its own investigation and did not get one here.
+
+## How to test it
+
+```bash
+PLAYWRIGHT_WORKERS=1 npx playwright test e2e/issue-estimates.spec.ts --repeat-each=4 --retries=0
+```
+
+Before: **1 failed, 29 passed** (`--repeat-each=3`). After: **40 passed** (`--repeat-each=4`).
+Same machine, same worker count, same spec.
+
+Also re-measured after the change: web **267 passed / 26 files**, lint **0 errors**,
+`pnpm type-check` clean across shared, agent, api and web.
+
+## How to roll it back
+
+| To undo | Do this |
+|---|---|
+| Estimate draft state | Revert `IssueSidebar.tsx` to `value={issue.estimate ?? ''}`. Restores the blanking. |
+| AbortSignal | Revert `apiGet` in `web/src/lib/api.ts` and the `queryFn` signature. Independent of the above. |
+| `cancelQueries` | Restore the line in `onMutate`. Independent of the above. |
+
+No schema change, so no migration to reverse.
