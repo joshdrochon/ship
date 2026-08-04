@@ -51,7 +51,28 @@ export async function getCheckpointer(connectionString?: string): Promise<Postgr
   return saver;
 }
 
-/** Test seam. Drops the cached saver so a fresh container can be pointed at. */
-export function resetCheckpointer(): void {
+/**
+ * Drop the cached saver AND close its connections.
+ *
+ * The close is the part that matters, and leaving it out cost a green suite
+ * that still exited 1. `PostgresSaver.fromConnString` opens its own pool,
+ * separate from `data/pool.ts`, and nothing else owns it. A test that stopped
+ * its container without closing this produced eight unhandled `57P01`
+ * ("terminating connection due to administrator command") *after* reporting
+ * 146/146 passing — vitest counts those as failures, so CI reads red on a
+ * suite where every assertion held.
+ *
+ * A cron container exiting does not need this: the process death takes the
+ * sockets with it. Long-lived hosts and tests do.
+ */
+export async function resetCheckpointer(): Promise<void> {
+  const saver = cached;
   cached = null;
+  if (!saver) return;
+  try {
+    await saver.end();
+  } catch {
+    // Already closed, or the server went away first. Either way there is
+    // nothing left to release.
+  }
 }

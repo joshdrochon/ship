@@ -21,6 +21,7 @@ import { Pool } from 'pg';
 
 import { scanWorkspace, listWorkspaces } from './cron.js';
 import { closePool } from '../data/pool.js';
+import { resetCheckpointer } from '../graph/checkpointer.js';
 import type { JudgeFn, AnswerFn, ActFn } from '../graph/deps.js';
 import { createWorkspace, createUser, createIssue, type Workspace } from '../detectors/fixtures.js';
 
@@ -52,6 +53,17 @@ beforeAll(async () => {
 }, 180_000);
 
 afterAll(async () => {
+  // Order matters, and getting it wrong produced a green suite that exited 1.
+  //
+  // `scanWorkspace` calls `getCheckpointer()`, which opens a SECOND pool —
+  // PostgresSaver's own, separate from `data/pool.ts`. Stopping the container
+  // while it still held connections raised eight unhandled `57P01` errors
+  // AFTER the suite reported 146/146 passing, and vitest counts unhandled
+  // errors as failures. CI would have read red on a run where every assertion
+  // held, which is the kind of red people learn to ignore.
+  //
+  // Every connection closes before the server goes away.
+  await resetCheckpointer();
   await closePool();
   await pool?.end();
   await container?.stop();
