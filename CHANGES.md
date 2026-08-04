@@ -14,6 +14,204 @@ file is only about what changed and how to undo it.
 
 # Week 5 — FleetGraph
 
+## FleetGraph — the agent
+
+This is the operational entry for the agent itself: what exists, how to get it running on
+your machine, how to tell whether it worked, and how to take it back out. The *reasoning*
+— why a graph rather than a pipeline, why these five detectors, why the autonomy line is
+where it is — is `PRESEARCH.md` and `FLEETGRAPH.md`. Read those for "why"; read this for
+"how".
+
+### What was built
+
+| Piece | Where | What it is |
+|---|---|---|
+| Five detectors | `agent/src/detectors/` | `stalled_work`, `sprint_miss_risk`, `review_bottleneck`, `load_imbalance`, `rework_churn`. Plain SQL against Ship's tables, no model involved. Thresholds are in `detectors/types.ts`. |
+| A 16-node LangGraph | `agent/src/graph/` | Nodes named in `NODES` in `graph/index.ts`. **Four conditional edges** — invocation mode, zero signals, nothing survived judgement, blast radius. Edge 2 is the one that makes a three-minute schedule affordable: a quiet run ends there having spent no tokens. |
+| A Postgres checkpointer | `agent/src/graph/checkpointer.ts` | `PostgresSaver`, so a run suspended at a human approval survives the cron container exiting. Its four tables (`checkpoints`, `checkpoint_blobs`, `checkpoint_writes`, `checkpoint_migrations`) are created by the library's own `setup()`, **not** by a file in `api/src/db/migrations/` — do not go looking for them there. |
+| Batched LLM judgement | `agent/src/llm/judge.ts` | One model call for the whole batch of signals, behind the **existing** `api/src/services/circuitBreaker.ts`. Cached on a SHA-256 of the prompt bytes, not on a TTL. Every failure path returns `ai_unavailable` rather than throwing. |
+| A Ship action client | `agent/src/actions/client.ts` | Two verbs, additive only. Requests are a closed discriminated union, so a bulk update is a type error rather than a code-review finding. |
+| A cron entrypoint | `agent/src/entrypoints/cron.ts` | One-shot: scan every workspace, log one JSON line per run, exit. Per-workspace advisory lock, 4-minute hard deadline, non-zero exit on failure. |
+| Six API endpoints + `/ready` | `api/src/routes/fleetgraph/` | `GET /notifications`, `POST /notifications/:id/acknowledge`, `POST /approvals/:id/{accept,dismiss,snooze}`, `POST /chat`. `/ready` reports the Bedrock circuit state alongside Postgres. |
+| Two UI surfaces | `web/src/components/fleetgraph/` | `AgentBanner` — the approval row, in the document the finding is about. `AgentChat` — contextual chat in the existing properties sidebar. Both sit in slots that already existed, so the 4-panel layout is unchanged. `FleetGraphRailIndicator` carries the unread count on the icon rail. |
+
+Schema is migration `038_fleetgraph.sql`, documented in its own entry below.
+
+### Four things that cost real time to discover
+
+Written down because you will hit all four and none of them is guessable from the code.
+
+**1 · `api` must be built before `agent`.** `agent/src/llm/client.ts:54` imports the
+circuit breaker from `../../../api/dist/services/circuitBreaker.js` — a **relative path
+into a build output**, not a package name. Nothing in `pnpm-workspace.yaml` expresses that
+ordering, so `pnpm --filter @ship/agent build` on a tree with no `api/dist` fails with a
+module-not-found on a path that reads like a broken checkout. `Dockerfile:44` encodes the
+order (`build:shared && api build && agent build`) and is the reference for it.
+
+The import is deliberate: requirement 4 says reuse that breaker, do not write a second
+one, and the agent ships in the same image as the API where `api/dist` exists by
+construction.
+
+**2 · That same import is why the chat endpoint is not wired.** `api/` importing
+`agent/dist` would close the loop — agent needs api built, api would need agent built.
+`api/src/routes/fleetgraph/agentBridge.ts` is the seam that keeps it open, and
+`invokeAgentChat` currently throws `AgentUnavailableError('agent_not_wired')`. So
+`POST /api/fleetgraph/chat` answers **503 `{"error":"ai_unavailable"}`** and `AgentChat`
+renders a plainly-off state. That is the shipped behaviour, not a bug you have found.
+Wiring it is a change to one function body; do not widen `AgentChatRequest` to carry
+document content while you are in there — the header explains why that is a privacy
+boundary and the request schema is `.strict()` so it is enforced by a 400.
+
+**3 · `LANGCHAIN_TRACING_V2` must be the literal string `"true"`.** LangChain compares the
+string. `"1"`, `"yes"` and `true`-without-an-API-key all silently disable tracing, and a
+disabled tracer is indistinguishable from a graph that never ran. `cron.ts` calls
+`logTracingStatus()` once per process for exactly this reason — the first line of any run
+is `{"event":"fleetgraph.tracing","enabled":true|false,...}`. Check it before you go
+looking for missing traces in LangSmith.
+
+**4 · There are no AWS credentials on this machine.** Judgement therefore degrades to
+`ai_unavailable` locally. Observed, on the seeded database with one issue backdated past
+the stalled-work threshold:
+
+```
+[fleetgraph] judgement unavailable (provider_error): Could not load credentials from any providers
+{"event":"fleetgraph.scan","outcome":"quiet_nothing_survived_judgment","signals":1,"findings":0,"ms":2459}
+```
+
+`signals: 1, findings: 0` is the signature: the detector worked, the model did not run.
+The signals persist unjudged and the next run judges them, which is the designed
+degradation.
+
+`BEDROCK_ENDPOINT` points the agent at a fake. Know what each fake gives you:
+
+| Fake | Answers | Produces a finding? |
+|---|---|---|
+| `mocks/bedrock-expectations.json` (mockserver, port 4599, `./start.sh`) | Converse, with `judgments: []` | **No, ever.** A mocked run and a healthy project look identical. |
+| `e2e/fixtures/mock-bedrock.ts` (in-process, used by `agent/src/llm/converse-mock.test.ts`) | Converse, echoing real fingerprints back | Yes — this is the one that proves the path. |
+
+That distinction is not academic: the mock originally answered only `InvokeModel` while
+`ChatBedrockConverse` calls `Converse`, so every judged run in CI 404'd, degraded, and
+passed.
+
+### How to run it locally
+
+Postgres comes from Docker on **5433**. There is no PostgreSQL on the host.
+
+```bash
+pnpm docker:up          # postgres :5433, api :3000, web :5173 — migrations and seed run on api boot
+                        # runs in the FOREGROUND; ./start.sh detaches and waits for health
+curl -fsS localhost:3000/health   # {"status":"ok","revision":"unknown"}
+curl -fsS localhost:3000/ready    # postgres + bedrock circuit state
+```
+
+Then, in a second terminal:
+
+```bash
+pnpm build:api          # REQUIRED FIRST — see gotcha 1
+cp agent/.env.example agent/.env    # then fill it in; it is gitignored
+
+# agent/.env is NOT loaded automatically. Nothing in agent/src reads a .env file
+# and tsx does not load one either. Source it yourself, or pass the variables inline.
+set -a && . ./agent/.env && set +a
+
+pnpm --filter @ship/agent agent:cron     # one scan of every workspace, then exit
+```
+
+Scope it to one workspace while you are iterating — a full sweep is not what you want on
+every edit:
+
+```bash
+FLEETGRAPH_WORKSPACE_ID=<uuid> pnpm --filter @ship/agent agent:cron
+```
+
+`./start.sh` does all of this for you as part of the one-command start, and skips the scan
+with a named reason when the host cannot run it.
+
+**Everything the agent reads from the environment is in `agent/.env.example`, with the
+reason for each.** No secret value belongs in any tracked file.
+
+### How to test it
+
+```bash
+pnpm --filter @ship/agent test
+```
+
+**17 files, 146 tests, all passing — and the command still exits 1.** Reproduced twice.
+`agent/src/entrypoints/cron.test.ts` leaves pooled `pg` connections open when its
+testcontainer stops, so eight `57P01 terminating connection due to administrator command`
+errors arrive after the suite has already reported green:
+
+```
+Test Files  17 passed (17)
+     Tests  146 passed (146)
+    Errors  8 errors        →  exit 1
+```
+
+Do not read that exit code as a failing suite, and do not add a retry around it. The fix
+is closing the pool in that file's teardown.
+
+To watch the graph actually branch, make a detector fire. `stalled_work` triggers on an
+`in_progress` issue whose `updated_at` has not moved for 5 business days:
+
+```bash
+docker exec ship-postgres-1 psql -U ship -d ship_dev -c \
+  "UPDATE documents SET updated_at = now() - interval '14 days'
+     WHERE id = '<some in_progress issue id>';"
+```
+
+Re-run the scan and the outcome moves from `quiet_no_signals` to
+`quiet_nothing_survived_judgment` (no credentials) or to a finding (with credentials or
+the in-process fake). Put the timestamp back afterwards, or re-seed.
+
+What a run actually leaves behind:
+
+```bash
+docker exec ship-postgres-1 psql -U ship -d ship_dev -tAc \
+  "SELECT count(*) FROM fleetgraph_observations;
+   SELECT count(*) FROM fleetgraph_notifications;
+   SELECT count(*) FROM fleetgraph_watermarks;"
+```
+
+Watermarks advance on every *completed* scan even when nothing was found — that is how a
+crash re-covers its window instead of losing it. Observations only appear once judgement
+has run.
+
+### How to roll it back
+
+Four layers, and they come out independently. Do them in this order.
+
+| Layer | How | Notes |
+|---|---|---|
+| **`start.sh`** | Delete the `run_fleetgraph_scan` function, its call site, the `--no-agent` flag and the `FleetGraph` / `Scan again` lines from the summary | Wholly self-contained. The app start is untouched. |
+| **Web** | `rm -rf web/src/components/fleetgraph web/src/hooks/useFleetGraphNotifications.ts`, then remove the mounts in `web/src/components/UnifiedEditor.tsx` and `web/src/pages/App.tsx` | Both surfaces occupy slots that already existed, so removing them restores the previous layout exactly. Nothing else imports them. |
+| **API** | Delete `api/src/routes/fleetgraph/`, `api/src/openapi/schemas/fleetgraph.ts`, and the import + `app.use('/api/fleetgraph', ...)` in `api/src/app.ts` | The web layer must go first or it calls routes that no longer exist. These routes hold their own SQL and import nothing from `agent/`. |
+| **Agent** | `rm -rf agent/`, drop `agent` from `pnpm-workspace.yaml`, drop the `@ship/agent` filter from the root `test` script, and remove the agent lines from `Dockerfile` (28, 37, 44, 58, 95, 110) | The agent is a **separate workspace package**. Nothing in `api/`, `web/` or `shared/` imports it — the dependency runs the other way, agent → `api/dist`. So this is a deletion, not an untangling. `pnpm install` after. |
+
+**The database is the one thing that does not come out by reverting.** Migrations here are
+**forward-only** — `api/src/db/migrate.ts` has no down path and there are no down files, by
+design. `git revert` removes `038_fleetgraph.sql` from the tree; it does not remove
+anything from a database that already ran it. To actually reverse it:
+
+```sql
+DROP TABLE fleetgraph_notifications, fleetgraph_observations, fleetgraph_watermarks;
+DROP INDEX idx_documents_workspace_updated;
+ALTER TABLE api_tokens DROP COLUMN scopes;
+DELETE FROM schema_migrations WHERE version = '038_fleetgraph';
+
+-- LangGraph's own tables, created by PostgresSaver.setup(), not by any migration:
+DROP TABLE checkpoint_writes, checkpoint_blobs, checkpoints, checkpoint_migrations;
+```
+
+Safe while the agent is not running: nothing outside `agent/` and
+`api/src/routes/fleetgraph/` reads any of it. Two caveats. `api_tokens.scopes` is nullable
+and `NULL` means unscoped, so dropping it is a real behaviour change if anything has
+started writing scopes — check before you drop. And `idx_documents_workspace_updated` is a
+plain index on Ship's own `documents` table; dropping it costs the proactive scan's access
+path and nothing else, but it is the one object here that a non-FleetGraph query could
+also be using.
+
+---
+
 ## The migration chain could not run against a fresh database
 
 **What was wrong.** `migrate.ts` applies `schema.sql` first, then every migration in order.
