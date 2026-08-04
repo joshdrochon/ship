@@ -2,26 +2,18 @@
  * FG-239 · The on-demand test: a user invokes the agent from a context-aware view and
  * gets a grounded response.
  *
- * ── Status: both tests are `test.fixme()`, and this is not a stub ───────────────
- * They are written against the behaviour the system is meant to have, and they fail
- * today for exactly one reason:
+ * ── Status: live ───────────────────────────────────────────────────────────────
+ * Both tests were `test()` while `invokeAgentChat` threw
+ * `agent_not_wired`. The seam is filled (FG-279) and the markers are gone.
  *
- *   `api/src/routes/fleetgraph/agentBridge.ts#invokeAgentChat` throws
- *   `AgentUnavailableError('agent_not_wired')`, so `POST /api/fleetgraph/chat`
- *   answers 503 `{ error: 'ai_unavailable', reason: 'agent_not_wired' }`.
+ * The blocker was never the route. `api` could not import `agent` at all,
+ * because the agent reached the circuit breaker through `api/dist` and the
+ * reverse import would have closed a build cycle. Moving `circuitBreaker.ts`
+ * into `@ship/shared` (FG-280) made the dependency graph a line, and the
+ * function body became a normal change.
  *
- * That seam is deliberate — its header explains that importing `agent/` from `api/`
- * would make the API's build depend on the agent's, so the route was finished against
- * a stable signature while the graph was built in parallel. The graph now exists
- * (`agent/src/graph/`, on-demand path: `resolve_scope -> on_demand_fetch_* ->
- * compose_answer -> END`). What is missing is the function body.
- *
- * ── What unblocks them ─────────────────────────────────────────────────────────
- * Replace the body of `invokeAgentChat` so it invokes the compiled graph with
- * `{ mode: 'on_demand', scope: { workspaceId, documentId, documentType, tab }, messages:
- * [{ role: 'user', content: message }] }` and returns `{ answer, threadId }`. Then
- * delete the two `.fixme` markers below. Nothing else in this file should need to
- * change — that is what makes them worth writing now.
+ * Nothing else in this file changed when they were unblocked, which is the
+ * whole argument for writing them against the intended behaviour up front.
  *
  * ── What is deliberately NOT done here ─────────────────────────────────────────
  * The assertions are not weakened to accept the 503. `expect(res.status()).toBe(503)`
@@ -81,7 +73,7 @@ test.describe('FleetGraph · on-demand chat (FG-239)', () => {
    * went to the in-process fake exactly once (FG-241 — never the live provider, and
    * never zero times, which is what a route answering from a canned string would do).
    */
-  test.fixme(
+  test(
     'a question about the document in view returns a grounded answer',
     async ({ page, apiServer, bedrockMock }) => {
       await login(page);
@@ -143,7 +135,7 @@ test.describe('FleetGraph · on-demand chat (FG-239)', () => {
    * Clicking a suggested prompt is the cheapest real invocation: it is a click a user
    * makes, and it exercises the same `send()` path as typing.
    */
-  test.fixme(
+  test(
     'invoking chat from the document view shows the answer and no unavailable notice',
     async ({ page, apiServer }) => {
       await login(page);
