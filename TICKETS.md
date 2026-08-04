@@ -181,67 +181,70 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 ## M3 · Graph core
 
-- [ ] **FG-067** `agent/src/graph/state.ts` — the typed state object from `PRESEARCH.md` Q18
-- [ ] **FG-068** State: keep `signals` (measured) separate from `findings` (judged) — the trace must show where determinism ends
-- [ ] **FG-069** `agent/src/graph/nodes/triggerRouter.ts`
-- [ ] **FG-070** `agent/src/graph/nodes/resolveScope.ts` — workspace scope (proactive) or document id (on-demand)
-- [ ] **FG-071** `resolveScope`: on-demand path resolves the document, its associations, recent history, participants
-- [ ] **FG-072** `agent/src/graph/nodes/fetchSignals.ts`
-- [ ] **FG-073** `agent/src/graph/nodes/fetchParticipants.ts`
-- [ ] **FG-074** `fetchParticipants`: derive roles structurally — assignee / owner / reports_to (`PRESEARCH.md` Q5)
-- [ ] **FG-075** `agent/src/graph/nodes/fetchPriorState.ts`
-- [ ] **FG-076** Wire the three fetch nodes as a parallel fan-out (Q16)
-- [ ] **FG-077** `agent/src/graph/nodes/triageGate.ts` — **conditional edge**, terminates on zero signals
-- [ ] **FG-078** `agent/src/graph/nodes/judgeSignals.ts`
-- [ ] **FG-079** `agent/src/graph/nodes/composeAnswer.ts` — on-demand, read-only
-- [ ] **FG-080** `agent/src/graph/nodes/routeAction.ts` — **conditional edge** on blast radius
-- [ ] **FG-081** `agent/src/graph/nodes/executeAutonomous.ts`
-- [ ] **FG-082** `agent/src/graph/nodes/awaitApproval.ts` — `interrupt()`
-- [ ] **FG-083** `agent/src/graph/nodes/executeApproved.ts`
-- [ ] **FG-084** `agent/src/graph/nodes/deliver.ts` — notify, record observation, advance watermark
-- [ ] **FG-085** `agent/src/graph/index.ts` — assemble nodes and edges
-- [ ] **FG-086** Wire conditional edge 1: trigger mode
-- [ ] **FG-087** Wire conditional edge 2: `signals.length === 0` → terminate quiet
-- [ ] **FG-088** Wire conditional edge 3: `findings.length === 0` → terminate quiet
-- [ ] **FG-089** Wire conditional edge 4: action class → autonomous vs gated
-- [ ] **FG-090** Configure the Postgres checkpointer against the Ship database
-- [ ] **FG-091** Verify checkpointer tables are created on first run
-- [ ] **FG-092** Unit test: quiet run terminates at `triageGate` with **zero** LLM calls
-- [ ] **FG-093** Unit test: run with signals reaches `judgeSignals`
-- [ ] **FG-094** Unit test: state object is fully populated at `deliver`
+- [x] **FG-067** `agent/src/graph/state.ts` — the typed state object from `PRESEARCH.md` Q18
+- [x] **FG-068** State: keep `signals` (measured) separate from `findings` (judged) — the trace must show where determinism ends
+- [x] **FG-069** `agent/src/graph/nodes/triggerRouter.ts`
+- [x] **FG-070** `agent/src/graph/nodes/resolveScope.ts` — workspace scope (proactive) or document id (on-demand)
+- [x] **FG-071** `resolveScope`: on-demand path resolves the document, its associations, recent history, participants
+- [x] **FG-072** `agent/src/graph/nodes/fetchSignals.ts`
+- [x] **FG-073** `agent/src/graph/nodes/fetchParticipants.ts`
+- [x] **FG-074** `fetchParticipants`: derive roles structurally — assignee / owner / reports_to (`PRESEARCH.md` Q5)
+- [x] **FG-075** `agent/src/graph/nodes/fetchPriorState.ts`
+- [x] **FG-076** Wire the three fetch nodes as a parallel fan-out (Q16)
+- [x] **FG-077** `agent/src/graph/nodes/triageGate.ts` — **conditional edge**, terminates on zero signals
+- [x] **FG-078** `agent/src/graph/nodes/judgeSignals.ts`
+- [x] **FG-079** `agent/src/graph/nodes/composeAnswer.ts` — on-demand, read-only
+- [x] **FG-080** `agent/src/graph/nodes/routeAction.ts` — **conditional edge** on blast radius
+- [x] **FG-081** `agent/src/graph/nodes/executeAutonomous.ts`
+- [x] **FG-082** `agent/src/graph/nodes/awaitApproval.ts` — `interrupt()`
+- [x] **FG-083** `agent/src/graph/nodes/executeApproved.ts`
+- [x] **FG-084** `agent/src/graph/nodes/deliver.ts` — notify, record observation, advance watermark
+- [x] **FG-085** `agent/src/graph/index.ts` — assemble nodes and edges
+- [x] **FG-086** Wire conditional edge 1: trigger mode
+- [x] **FG-087** Wire conditional edge 2: `signals.length === 0` → terminate quiet
+- [x] **FG-088** Wire conditional edge 3: `findings.length === 0` → terminate quiet
+- [x] **FG-089** Wire conditional edge 4: action class → autonomous vs gated
+- [x] **FG-090** Configure the Postgres checkpointer against the Ship database
+- [x] **FG-091** Verify checkpointer tables are created on first run
+- [x] **FG-092** Unit test: quiet run terminates at `triageGate` with **zero** LLM calls
+- [x] **FG-093** Unit test: run with signals reaches `judgeSignals`
+- [x] **FG-094** Unit test: state object is fully populated at `deliver`
+- [x] **FG-272** **Bug.** `resolveScope` mapped `field: r.field_name` after the SELECT was corrected to `field`, so every on-demand history entry reached the answer prompt as `undefined`. The query stopped throwing, so the test stayed green. The regression test asserts the value, not the absence of an exception.
+- [ ] **FG-273** **Bug, two of them.** (a) `closeQuiet` advanced the watermark on an `ai_unavailable` run, closing a window whose signals were never judged — contradicting `judgeSignals`' own header. (b) `awaitApproval` stored a computed `pending_thread_id` unrelated to the checkpointer's real thread, so the approval endpoint would have resumed an id that does not exist. Invisible to the graph tests, which compile without a checkpointer.
 
 ## M4 · Judgment
 
-- [ ] **FG-095** `agent/src/llm/client.ts` — `ChatBedrockConverse` via `@langchain/aws`
-- [ ] **FG-096** Reuse `BEDROCK_ENDPOINT` env override so CI hits the existing mock (stable fakes requirement)
-- [ ] **FG-097** Wrap the LLM call in the existing `CircuitBreaker` from `api/src/services/circuitBreaker.ts`
-- [ ] **FG-098** Promote `circuitBreaker.ts` to `shared/` or import cross-package — do not duplicate it
-- [ ] **FG-099** Explicit timeouts matching the existing values: 3s connect, 20s request, 3 attempts
-- [ ] **FG-100** `agent/src/llm/prompts/judge.ts` — the judgment system prompt
-- [ ] **FG-101** Judge prompt receives **measurements**, never raw project data (`PRESEARCH.md` Q31)
-- [ ] **FG-102** Judge prompt output schema: severity, recipient, worth_surfacing, phrasing
-- [ ] **FG-103** Structured-output parsing with a validation fallback to `ai_unavailable`
-- [ ] **FG-104** Batch all signals for a scope into **one** judgment call (Q32 cost cliff)
-- [ ] **FG-105** `agent/src/llm/prompts/answer.ts` — on-demand grounded-answer prompt
-- [ ] **FG-106** Answer prompt is explicitly read-only; no tool access
-- [ ] **FG-107** Content-hash cache on judgment input, reusing the `computeContentHash` pattern
-- [ ] **FG-108** Unit test: judgment with a mocked LLM returns parsed findings
-- [ ] **FG-109** Unit test: circuit-open returns `ai_unavailable` without calling the provider
+- [x] **FG-095** `agent/src/llm/client.ts` — `ChatBedrockConverse` via `@langchain/aws`
+- [ ] **FG-096** Reuse `BEDROCK_ENDPOINT` env override so CI hits the existing mock (stable fakes requirement) — override is wired; **blocked on FG-271**, the mock does not answer the endpoint the client calls
+- [ ] **FG-271** Add a `/converse` expectation to both Bedrock fakes. `ChatBedrockConverse` calls `POST /converse`; `mocks/bedrock-expectations.json` and `e2e/fixtures/mock-bedrock.ts` only answer `POST /model/*/invoke` and 404 everything else, so CI cannot exercise judgement at all. The response must be Converse-shaped and carry a `toolUse` block, because `withStructuredOutput` binds the schema as a tool. Engineering requirement 3.
+- [x] **FG-097** Wrap the LLM call in the existing `CircuitBreaker` from `api/src/services/circuitBreaker.ts`
+- [x] **FG-098** Promote `circuitBreaker.ts` to `shared/` or import cross-package — do not duplicate it
+- [x] **FG-099** Explicit timeouts matching the existing values: 3s connect, 20s request, 3 attempts
+- [x] **FG-100** `agent/src/llm/prompts/judge.ts` — the judgment system prompt
+- [x] **FG-101** Judge prompt receives **measurements**, never raw project data (`PRESEARCH.md` Q31)
+- [x] **FG-102** Judge prompt output schema: severity, recipient, worth_surfacing, phrasing
+- [x] **FG-103** Structured-output parsing with a validation fallback to `ai_unavailable`
+- [x] **FG-104** Batch all signals for a scope into **one** judgment call (Q32 cost cliff)
+- [x] **FG-105** `agent/src/llm/prompts/answer.ts` — on-demand grounded-answer prompt
+- [x] **FG-106** Answer prompt is explicitly read-only; no tool access
+- [x] **FG-107** Content-hash cache on judgment input, reusing the `computeContentHash` pattern
+- [x] **FG-108** Unit test: judgment with a mocked LLM returns parsed findings
+- [x] **FG-109** Unit test: circuit-open returns `ai_unavailable` without calling the provider
 
 ## M5 · Trigger
 
-- [ ] **FG-110** `agent/src/entrypoints/cron.ts` — the proactive entrypoint
-- [ ] **FG-111** Cron: read watermark → run graph → advance watermark **only on completion** (Q24)
-- [ ] **FG-112** Cron: exit non-zero on failure so the scheduler reports it
-- [ ] **FG-113** Cron: advisory lock per workspace so a proactive run and an on-demand run cannot race
-- [ ] **FG-114** Cron: structured log line per run — signals found, findings surfaced, tokens spent
-- [ ] **FG-115** Cron: bounded total runtime, exits rather than hanging
-- [ ] **FG-116** Add `agent:cron` script to `agent/package.json`
-- [ ] **FG-117** Dockerfile: ensure `agent/` is built into the image
-- [ ] **FG-118** Verify the same image can run either entrypoint (`start_command` override)
-- [ ] **FG-119** End-to-end local run: seed → mutate an issue → cron detects it
-- [ ] **FG-120** Verify a second immediate run detects **nothing** (suppression works)
-- [ ] **FG-121** Verify a crashed run does not advance the watermark
+- [x] **FG-110** `agent/src/entrypoints/cron.ts` — the proactive entrypoint
+- [x] **FG-111** Cron: read watermark → run graph → advance watermark **only on completion** (Q24)
+- [x] **FG-112** Cron: exit non-zero on failure so the scheduler reports it
+- [x] **FG-113** Cron: advisory lock per workspace so a proactive run and an on-demand run cannot race
+- [x] **FG-114** Cron: structured log line per run — signals found, findings surfaced, tokens spent
+- [x] **FG-115** Cron: bounded total runtime, exits rather than hanging
+- [x] **FG-116** Add `agent:cron` script to `agent/package.json`
+- [x] **FG-117** Dockerfile: ensure `agent/` is built into the image
+- [x] **FG-118** Verify the same image can run either entrypoint (`start_command` override)
+- [x] **FG-119** End-to-end local run: seed → mutate an issue → cron detects it
+- [x] **FG-120** Verify a second immediate run detects **nothing** (suppression works)
+- [x] **FG-121** Verify a crashed run does not advance the watermark
 
 ## M6 · Actions and human-in-the-loop
 
@@ -264,23 +267,23 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 ## M7 · API endpoints
 
-- [ ] **FG-138** `GET /api/fleetgraph/notifications` — current user's notifications
-- [ ] **FG-139** `POST /api/fleetgraph/notifications/:id/acknowledge`
-- [ ] **FG-140** `POST /api/fleetgraph/approvals/:id/accept`
-- [ ] **FG-141** `POST /api/fleetgraph/approvals/:id/dismiss`
-- [ ] **FG-142** `POST /api/fleetgraph/approvals/:id/snooze` — body carries the horizon
-- [ ] **FG-143** `POST /api/fleetgraph/chat` — on-demand invocation, body carries document id + type + tab
-- [ ] **FG-144** Chat endpoint sends **route params**, never rendered content (`PRESEARCH.md` Q7)
-- [ ] **FG-145** Register all six paths with OpenAPI per `/ship-openapi-endpoints`
-- [ ] **FG-146** Zod schemas for every request body
-- [ ] **FG-147** All endpoints behind `authMiddleware`
-- [ ] **FG-148** Visibility filtering — a user must not see notifications about documents they cannot read
-- [ ] **FG-149** Rate limit the chat endpoint, reusing the `checkRateLimit` pattern (Q32)
-- [ ] **FG-150** `GET /ready` — **required by MVP, does not exist today**
-- [ ] **FG-151** `/ready` reports Postgres connectivity
-- [ ] **FG-152** `/ready` reports circuit-breaker state via `getBedrockBreakerStats()`
-- [ ] **FG-153** `/ready` returns 503 when a dependency is unreachable, 200 otherwise
-- [ ] **FG-154** Route tests for all endpoints
+- [x] **FG-138** `GET /api/fleetgraph/notifications` — current user's notifications
+- [x] **FG-139** `POST /api/fleetgraph/notifications/:id/acknowledge`
+- [x] **FG-140** `POST /api/fleetgraph/approvals/:id/accept`
+- [x] **FG-141** `POST /api/fleetgraph/approvals/:id/dismiss`
+- [x] **FG-142** `POST /api/fleetgraph/approvals/:id/snooze` — body carries the horizon
+- [x] **FG-143** `POST /api/fleetgraph/chat` — on-demand invocation, body carries document id + type + tab
+- [x] **FG-144** Chat endpoint sends **route params**, never rendered content (`PRESEARCH.md` Q7)
+- [x] **FG-145** Register all six paths with OpenAPI per `/ship-openapi-endpoints`
+- [x] **FG-146** Zod schemas for every request body
+- [x] **FG-147** All endpoints behind `authMiddleware`
+- [x] **FG-148** Visibility filtering — a user must not see notifications about documents they cannot read
+- [x] **FG-149** Rate limit the chat endpoint, reusing the `checkRateLimit` pattern (Q32)
+- [x] **FG-150** `GET /ready` — **required by MVP, does not exist today**
+- [x] **FG-151** `/ready` reports Postgres connectivity
+- [x] **FG-152** `/ready` reports circuit-breaker state via `getBedrockBreakerStats()`
+- [x] **FG-153** `/ready` returns 503 when a dependency is unreachable, 200 otherwise
+- [x] **FG-154** Route tests for all endpoints
 
 ## M8 · UI
 
@@ -321,18 +324,18 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 ## M10 · Deployment
 
-- [ ] **FG-186** `terraform/render/cron.tf` — `render_cron_job` resource
-- [ ] **FG-187** Cron resource: `name`, `plan`, `region`, `runtime_source`, `schedule` (all required)
-- [ ] **FG-188** Cron resource: `start_command` overriding the entrypoint — the same-image seam
-- [ ] **FG-189** Cron schedule `*/3 * * * *` — 3 minutes, per `PRESEARCH.md` Q11
-- [ ] **FG-190** Cron env vars: `DATABASE_URL` via resource reference, never typed
-- [ ] **FG-191** Cron env vars: `SHIP_API_TOKEN`, `LANGCHAIN_API_KEY` as Terraform secret vars, uncommitted
-- [ ] **FG-192** Variables + outputs for the new resource
-- [ ] **FG-193** Confirm no secret lands in `terraform.tfstate` beyond what the provider requires
-- [ ] **FG-194** `terraform validate` passes
-- [ ] **FG-195** `terraform fmt` clean
-- [ ] **FG-196** **`terraform plan` from empty state — save the raw output**
-- [ ] **FG-197** Annotate the plan output, resource by resource (MVP requirement 8)
+- [x] **FG-186** `terraform/render/cron.tf` — `render_cron_job` resource
+- [x] **FG-187** Cron resource: `name`, `plan`, `region`, `runtime_source`, `schedule` (all required)
+- [x] **FG-188** Cron resource: `start_command` overriding the entrypoint — the same-image seam
+- [x] **FG-189** Cron schedule `*/3 * * * *` — 3 minutes, per `PRESEARCH.md` Q11
+- [x] **FG-190** Cron env vars: `DATABASE_URL` via resource reference, never typed
+- [x] **FG-191** Cron env vars: `SHIP_API_TOKEN`, `LANGCHAIN_API_KEY` as Terraform secret vars, uncommitted
+- [x] **FG-192** Variables + outputs for the new resource
+- [x] **FG-193** Confirm no secret lands in `terraform.tfstate` beyond what the provider requires
+- [x] **FG-194** `terraform validate` passes
+- [x] **FG-195** `terraform fmt` clean
+- [x] **FG-196** **`terraform plan` from empty state — save the raw output**
+- [x] **FG-197** Annotate the plan output, resource by resource (MVP requirement 8)
 - [ ] **FG-198** `terraform apply` — first real deployment
 - [ ] **FG-199** Verify `/health` returns the expected revision SHA
 - [ ] **FG-200** Verify `/ready` returns 200 with dependencies up
