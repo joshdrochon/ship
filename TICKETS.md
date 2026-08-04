@@ -82,10 +82,10 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 ## M0 · Foundations
 
-- [ ] **FG-001** Create branch `feat/fleetgraph-mvp` off `main`
-- [ ] **FG-002** Commit `PRESEARCH.md` (currently uncommitted)
-- [ ] **FG-003** Commit `TICKETS.md`
-- [ ] **FG-004** Commit the `.claude/CLAUDE.md` E2E test-DB lifecycle correction
+- [x] **FG-001** Create branch `feat/fleetgraph-mvp` off `main`
+- [x] **FG-002** Commit `PRESEARCH.md` (currently uncommitted)
+- [x] **FG-003** Commit `TICKETS.md`
+- [x] **FG-004** Commit the `.claude/CLAUDE.md` E2E test-DB lifecycle correction
 - [x] **FG-005** Add workspace package `agent/` to `pnpm-workspace.yaml`
 - [x] **FG-006** `agent/package.json` — name `@ship/agent`, type module, matching Node engine
 - [x] **FG-007** `agent/tsconfig.json` extending the root config (do **not** repeat `web/`'s mistake of not extending)
