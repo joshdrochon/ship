@@ -35,6 +35,7 @@ import {
 import { getCheckpointer } from '../graph/checkpointer.js';
 import { makeJudge, makeAnswer } from '../llm/index.js';
 import { makeShipAct } from '../actions/index.js';
+import { logTracingStatus } from '../observability/tracing.js';
 
 /** Backstop for a hang, not a performance target. See the header. */
 const RUN_DEADLINE_MS = 4 * 60_000;
@@ -210,6 +211,10 @@ export async function main(): Promise<number> {
   deadline.unref?.();
 
   let failed = false;
+
+  // Once per process, before any work. An empty LangSmith project and a graph
+  // that never ran look identical from the outside; this says which it is.
+  logTracingStatus();
 
   try {
     // A single workspace can be targeted, which is what makes a timed latency
