@@ -64,6 +64,11 @@ locals {
   agent_optional_env = local.agent_tracing_enabled ? {
     LANGCHAIN_API_KEY    = { value = var.langchain_api_key }
     LANGCHAIN_TRACING_V2 = { value = "true" }
+    # A cron container exits when the scan ends. LangChain uploads traces on a
+    # background queue that dies with the process, so without this the deployed
+    # agent runs correctly and traces nothing. Verified locally: same run, same
+    # workspace, zero sessions without it and a trace with it.
+    LANGCHAIN_CALLBACKS_BACKGROUND = { value = "false" }
   } : {}
 }
 

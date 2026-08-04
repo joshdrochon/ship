@@ -8,7 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { tracingStatus } from './tracing.js';
+import { tracingStatus, ensureSynchronousCallbacks } from './tracing.js';
 
 const KEY = 'lsv2_pt_notarealkey';
 
@@ -56,5 +56,27 @@ describe('tracingStatus', () => {
   it('never carries the key in its output', () => {
     const s = tracingStatus({ LANGCHAIN_TRACING_V2: 'true', LANGCHAIN_API_KEY: KEY });
     expect(JSON.stringify(s)).not.toContain(KEY);
+  });
+});
+
+describe('ensureSynchronousCallbacks', () => {
+  it('defaults background callbacks OFF', () => {
+    // The cron exits the moment the scan ends. LangChain uploads traces on a
+    // background queue that dies with the process, so leaving this unset means
+    // the run is correct and LangSmith stays empty — which is exactly the
+    // symptom the rest of this file exists to make diagnosable.
+    //
+    // Measured before it was fixed: the same quiet run produced zero LangSmith
+    // sessions without the flag and a trace with it.
+    const env: NodeJS.ProcessEnv = {};
+    ensureSynchronousCallbacks(env);
+    expect(env.LANGCHAIN_CALLBACKS_BACKGROUND).toBe('false');
+  });
+
+  it('does not override an explicit setting', () => {
+    // A long-running host should be able to put the queue back.
+    const env: NodeJS.ProcessEnv = { LANGCHAIN_CALLBACKS_BACKGROUND: 'true' };
+    ensureSynchronousCallbacks(env);
+    expect(env.LANGCHAIN_CALLBACKS_BACKGROUND).toBe('true');
   });
 });

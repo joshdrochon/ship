@@ -23,6 +23,31 @@
  * an investigation into a glance.
  */
 
+/**
+ * Make tracing synchronous, or a short-lived process loses every trace.
+ *
+ * LangChain uploads traces on a background queue. That is correct for a server,
+ * which stays alive long enough to drain it. A cron container does not: it
+ * scans, exits, and the queue dies with the process. The run completes, the
+ * scan is correct, and LangSmith stays empty forever.
+ *
+ * Measured, not assumed. The first quiet run against a live key produced zero
+ * sessions in LangSmith; the identical run with this flag produced the trace
+ * immediately. Same code, same workspace, one environment variable apart.
+ *
+ * The cost is real — the scan now waits on the upload before exiting — and it
+ * is the right trade here. A trace that never arrives has no value, and this
+ * process has nothing else to do with the time.
+ *
+ * Not forced: an explicit setting in the environment wins, so a long-running
+ * host can turn it back off.
+ */
+export function ensureSynchronousCallbacks(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.LANGCHAIN_CALLBACKS_BACKGROUND === undefined) {
+    env.LANGCHAIN_CALLBACKS_BACKGROUND = 'false';
+  }
+}
+
 export interface TracingStatus {
   enabled: boolean;
   project: string | null;
