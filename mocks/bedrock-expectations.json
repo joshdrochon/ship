@@ -1,5 +1,6 @@
 [
   {
+    "id": "invoke-model-anthropic-messages",
     "httpRequest": {
       "method": "POST",
       "path": "/model/.*/invoke"
@@ -38,6 +39,7 @@
     "priority": 10
   },
   {
+    "id": "invoke-with-response-stream-not-implemented",
     "httpRequest": {
       "method": "POST",
       "path": "/model/.*/invoke-with-response-stream"
@@ -62,9 +64,25 @@
     "priority": 5
   },
   {
+    "id": "converse-judgment-EMPTY-BY-DESIGN-see-agent-src-llm-converse-mock-test-ts",
     "httpRequest": {
       "method": "POST",
-      "path": "/model/.*/converse"
+      "path": "/model/.*/converse",
+      "body": {
+        "type": "JSON",
+        "json": {
+          "toolConfig": {
+            "tools": [
+              {
+                "toolSpec": {
+                  "name": "judgment"
+                }
+              }
+            ]
+          }
+        },
+        "matchType": "ONLY_MATCHING_FIELDS"
+      }
     },
     "httpResponse": {
       "statusCode": 200,
@@ -103,6 +121,53 @@
           }
         }
       }
-    }
+    },
+    "times": {
+      "unlimited": true
+    },
+    "priority": 20
+  },
+  {
+    "id": "converse-answer-plain-text-no-toolconfig",
+    "httpRequest": {
+      "method": "POST",
+      "path": "/model/.*/converse"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "content-type": [
+          "application/json"
+        ]
+      },
+      "body": {
+        "type": "JSON",
+        "json": {
+          "output": {
+            "message": {
+              "role": "assistant",
+              "content": [
+                {
+                  "text": "MOCK RESPONSE from docker-compose.mocks.yml. This local stack answers Bedrock Converse with fixed text, so nothing here reflects the document you asked about. Unset BEDROCK_ENDPOINT and supply AWS credentials for a real grounded answer. The measured signals shown alongside this reply are real - they come from SQL, not from the model."
+                }
+              ]
+            }
+          },
+          "stopReason": "end_turn",
+          "usage": {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "totalTokens": 0
+          },
+          "metrics": {
+            "latencyMs": 0
+          }
+        }
+      }
+    },
+    "times": {
+      "unlimited": true
+    },
+    "priority": 1
   }
 ]
