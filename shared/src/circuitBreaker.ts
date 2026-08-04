@@ -28,6 +28,20 @@ export interface CircuitBreakerOptions {
 
 export type CircuitState = 'closed' | 'open' | 'half-open';
 
+/**
+ * What `stats` reports.
+ *
+ * Named rather than inferred because consumers in other packages re-export it.
+ * An anonymous inferred type cannot be written into another package's `.d.ts`
+ * without a relative path back into `node_modules`, which TypeScript refuses
+ * as non-portable (TS2742). It only surfaced on a clean build — incremental
+ * builds had the shape cached and stayed quiet.
+ */
+export interface CircuitBreakerStats {
+  state: CircuitState;
+  consecutiveFailures: number;
+}
+
 export class CircuitOpenError extends Error {
   constructor(name: string, readonly retryAfterMs: number) {
     super(`Circuit "${name}" is open; retry in ${retryAfterMs}ms`);
@@ -71,7 +85,7 @@ export class CircuitBreaker {
   }
 
   /** Diagnostics for a health endpoint or a log line. */
-  get stats(): { state: CircuitState; consecutiveFailures: number } {
+  get stats(): CircuitBreakerStats {
     return { state: this.state, consecutiveFailures: this.consecutiveFailures };
   }
 

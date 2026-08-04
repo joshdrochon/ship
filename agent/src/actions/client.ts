@@ -49,9 +49,9 @@
  *              thundering herd on the next run.
  *   breaker    the API is actually down. Retrying then multiplies both load and
  *              the latency every caller waits through — see the header of
- *              `api/src/services/circuitBreaker.ts`, which is where this
- *              reasoning is written down and why we import that class rather
- *              than write a second one.
+ *              `shared/src/circuitBreaker.ts`, which is where this reasoning is
+ *              written down and why we import that class rather than write a
+ *              second one.
  *
  * The three compose in one order and it matters: the breaker wraps the WHOLE
  * retry sequence, so three attempts count as one failure against the threshold.
@@ -68,11 +68,12 @@
  * — judgement can fail while delivery works, and vice versa. Sharing one
  * instance would make a Bedrock outage silently stop comments from posting.
  *
- * ── The import path is `api/dist`, and that is deliberate ──────────────────
- * Same trick as `llm/client.ts`: this package compiles with `rootDir: ./src`,
- * so importing a `.ts` outside it is a hard `tsc` error while importing the
- * built `.d.ts` is not. It costs nothing operationally because the agent ships
- * in the same image as the API (Q27), where `api/dist` exists by construction.
+ * ── The breaker comes from `@ship/shared` ──────────────────────────────────
+ * It used to be imported through `api/dist`, a relative path into another
+ * package's build output, and that quietly made `api` unable to import
+ * anything from `agent` — the reverse import would have closed a build cycle.
+ * The class is dependency-free and used by two packages, which is what
+ * `shared/` is for. See `llm/client.ts` for the full account.
  *
  * ── Auth: a bearer `api_token`, per Q29 ────────────────────────────────────
  * `authMiddleware` checks for a Bearer token before falling through to session
@@ -83,7 +84,7 @@
  */
 import { createHash } from 'node:crypto';
 
-import { CircuitBreaker, CircuitOpenError } from '../../../api/dist/services/circuitBreaker.js';
+import { CircuitBreaker, CircuitOpenError, type CircuitBreakerStats } from '@ship/shared';
 
 // ---------------------------------------------------------------------------
 // Bounds
@@ -272,7 +273,7 @@ const shipApiBreaker = new CircuitBreaker({
 });
 
 /** For the health endpoint (Q28) and for tests. */
-export function getShipApiBreakerStats() {
+export function getShipApiBreakerStats(): CircuitBreakerStats {
   return shipApiBreaker.stats;
 }
 
@@ -468,7 +469,7 @@ export function createShipClient(options: ShipClientOptions = {}): ShipClient {
           // id. Ship does not dedupe on it, so this does not make the POST
           // idempotent — it makes a double-post detectable with a query
           // instead of invisible, which is the most the endpoint allows.
-          comment_id: deterministicUuid(`${documentId} ${content}`),
+          comment_id: deterministicUuid(`${documentId}${content}`),
           content,
         },
       });

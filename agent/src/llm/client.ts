@@ -57,7 +57,7 @@
  */
 import { ChatBedrockConverse } from '@langchain/aws';
 
-import { CircuitBreaker, CircuitOpenError } from '@ship/shared';
+import { CircuitBreaker, CircuitOpenError , type CircuitBreakerStats } from '@ship/shared';
 
 /**
  * Inherited from `api/src/services/ai-analysis.ts` rather than chosen again.
@@ -93,7 +93,7 @@ const bedrockBreaker = new CircuitBreaker({
 });
 
 /** For the health endpoint (Q28) and for tests. */
-export function getLlmBreakerStats() {
+export function getLlmBreakerStats(): CircuitBreakerStats {
   return bedrockBreaker.stats;
 }
 
