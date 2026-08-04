@@ -111,7 +111,7 @@ export function makeResolveScope(deps: GraphDeps) {
         title: r.title,
       })),
       recentHistory: histRows.map((r) => ({
-        field: r.field_name,
+        field: r.field,
         from: r.old_value,
         to: r.new_value,
         at: r.created_at,

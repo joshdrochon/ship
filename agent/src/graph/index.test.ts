@@ -30,6 +30,7 @@ import {
   createIssue,
   createSprint,
   attachToSprint,
+  recordStateChange,
   type Workspace,
 } from '../detectors/fixtures.js';
 
@@ -233,5 +234,60 @@ describe('the graph', () => {
     expect(seen).not.toContain(NODES.awaitApproval);
     expect(f.calls.act, 'chat must never act').toBe(0);
     expect(f.calls.answer).toBe(1);
+  }, 60_000);
+
+  it('on-demand history reaches the answer prompt with its field names intact', async () => {
+    // Regression. `resolveScope` selected `field_name` (wrong — the column is
+    // `field`), and the fix corrected the SELECT but not the row mapping two
+    // lines below. The query stopped throwing, so the test above went green
+    // while every history entry silently carried `field: undefined` into the
+    // answer prompt.
+    //
+    // Asserting the node ran is not the same as asserting it produced anything
+    // usable. This checks the value, not the absence of an exception.
+    const doc = await createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20 });
+    await recordStateChange(pool, doc, 'todo', 'in_progress', ws.ownerId, 2);
+
+    const f = fakes();
+    let seenHistory: Array<{ field?: string }> = [];
+    const deps: GraphDeps = {
+      ...depsWith(f),
+      answer: async (input) => {
+        // The document facts are carried into state as a message by
+        // resolve_scope; pull them back out the way the prompt does.
+        const doc = input.scope.documentId;
+        expect(doc).toBeTruthy();
+        return 'ok';
+      },
+    };
+
+    const graph = compileGraph(deps);
+    const final = await graph.invoke(
+      {
+        mode: 'on_demand',
+        scope: { workspaceId: ws.workspaceId, documentId: doc },
+        actor: ws.ownerId,
+        messages: [{ role: 'user', content: 'what happened here?' }],
+      } as never,
+      { recursionLimit: 50 }
+    );
+
+    const resolved = final.messages
+      .map((m: { content: string }) => {
+        try {
+          return JSON.parse(m.content);
+        } catch {
+          return null;
+        }
+      })
+      .find((p: { document?: unknown } | null) => p?.document);
+
+    expect(resolved, 'resolve_scope must carry the document into state').toBeTruthy();
+    seenHistory = resolved.document.recentHistory;
+    expect(seenHistory.length).toBeGreaterThan(0);
+    expect(
+      seenHistory[0]?.field,
+      'history entries must name the field that changed, not undefined'
+    ).toBeTruthy();
   }, 60_000);
 });
