@@ -34,23 +34,44 @@ import {
 } from '../graph/index.js';
 import { getCheckpointer } from '../graph/checkpointer.js';
 import { makeJudge, makeAnswer } from '../llm/index.js';
+import { makeShipAct } from '../actions/index.js';
 
 /** Backstop for a hang, not a performance target. See the header. */
 const RUN_DEADLINE_MS = 4 * 60_000;
 
 /**
- * Until the Ship action client lands (FG-122), autonomous actions refuse rather
- * than pretend.
+ * Without a Ship API token there is nothing to act with, and the run says so
+ * rather than failing.
  *
- * Refusing is recorded as an error on the run and costs the comment. It does
- * not cost the finding: the notification is the primary delivery channel and
- * goes out regardless. A stub that returned `ok: true` would be worse than
- * this in the one way that matters — the trace would claim an action happened.
+ * Refusing costs the comment, not the finding — the notification is the primary
+ * delivery channel and goes out regardless. A stub returning `ok: true` would
+ * be worse in the one way that matters: the trace would claim an action
+ * happened.
  */
 const refuseToAct = async (action: ProposedAction) => ({
   ok: false,
-  detail: `action client not wired (FG-122) — ${action.kind} on ${action.targetId} not performed`,
+  detail: `SHIP_API_TOKEN not set — ${action.kind} on ${action.targetId} not performed`,
 });
+
+/**
+ * The real action client, when the environment can support one.
+ *
+ * Resolved per run rather than at module load so a missing token degrades this
+ * single capability instead of killing the process before any detection
+ * happens. Detection is the valuable half; commenting is the garnish.
+ */
+function resolveAct() {
+  if (!process.env.SHIP_API_TOKEN) return refuseToAct;
+  try {
+    return makeShipAct();
+  } catch (err) {
+    console.error(
+      '[fleetgraph] action client unavailable:',
+      err instanceof Error ? err.message : err
+    );
+    return refuseToAct;
+  }
+}
 
 export interface CronResult {
   workspaceId: string;
@@ -106,7 +127,7 @@ export async function scanWorkspace(
           db: client,
           judge: deps.judge ?? makeJudge(),
           answer: deps.answer ?? makeAnswer(),
-          act: deps.act ?? refuseToAct,
+          act: deps.act ?? resolveAct(),
           now: deps.now,
         },
         checkpointer
