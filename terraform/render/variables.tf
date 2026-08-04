@@ -104,7 +104,22 @@ variable "service_name" {
 variable "service_plan" {
   description = "Render instance plan. `free` costs nothing and sleeps after 15 minutes idle; `starter` is the first paid tier."
   type        = string
-  default     = "free"
+
+  # `starter`, not `free`, and the difference is measured rather than assumed. On
+  # `free` Render sleeps the service after 15 minutes idle, and the wake-up was
+  # timed against the live instance:
+  #
+  #   cold  31.3 s
+  #   warm   0.15 s
+  #
+  # 31 seconds is what anyone arriving at a link that has been quiet gets — which
+  # is the failure the deployment exists to prevent. `starter` does not sleep.
+  #
+  # The default carries it rather than a -var flag or a tfvars file, because the
+  # brief (p.3) requires re-applying "from the Terraform config alone". A plan
+  # supplied on the command line is not in the config, and the environment that
+  # came back would quietly be the sleeping one.
+  default = "starter"
 
   validation {
     condition     = contains(["free", "starter", "standard", "pro", "pro_plus", "pro_max", "pro_ultra"], var.service_plan)
@@ -288,6 +303,12 @@ variable "langchain_api_key" {
   type        = string
   sensitive   = true
   default     = null
+}
+
+variable "langchain_project" {
+  description = "LangSmith project the deployed cron's traces land in. Unset, LangChain uses its default project and deployed runs mix with every local experiment — which does not break tracing but makes a specific run unfindable, and MVP requirement 2 (brief p.3) asks for two shared trace links showing different execution paths. Named per environment so a local run (fleetgraph-local) and the deployed cron never collide."
+  type        = string
+  default     = "fleetgraph-prod"
 }
 
 variable "anthropic_api_key" {

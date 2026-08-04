@@ -738,10 +738,22 @@ business days, and no seeded sprint is two days from its end with unstarted work
 therefore constructs its condition. "Make an issue stale" is not reproducible;
 `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20 })` is.
 
-**The trace links are empty and no placeholder is written.** Capturing a trace needs a run
-against a real model provider, and there are no AWS credentials on this machine, so no run
-against Bedrock can be made. A fabricated or dead link would read as satisfied, which is worse
-than an empty cell.
+**The trace links below are still empty, and no placeholder is written.** A fabricated or dead
+link would read as satisfied, which is worse than an empty cell.
+
+The reason has changed, though, and the old one is worth correcting rather than quietly
+editing away. This paragraph used to say the blocker was "no AWS credentials on this machine".
+That was true and it was also not the whole truth: `terraform/render/*.tf` declared no AWS
+environment variables either, so the *deployed* agent had no model access. The provider has
+since moved to the direct Anthropic API and the deployed agent judges for real — see
+"Traces from the deployed agent" below.
+
+What is still missing is narrower. Rows 1–5 describe *planted* Ship states, and Ship's seed
+data triggers none of them: no seeded issue has sat in `in_progress` for five business days,
+and no seeded sprint carries an `end_date` at all (see the note under row 2). Producing those
+traces means writing that state into the deployed database, which needs a route through
+Render's Postgres IP allow-list that does not exist yet. Row 6 no longer needs one and is
+covered below.
 
 **None of these are runs of the deployed agent.** They run the assembled graph and the real
 detectors against a real Postgres provisioned by testcontainers, loading `schema.sql` and every
@@ -755,6 +767,47 @@ migration, with the LLM injected as a fake — which is what engineering require
 | 4 | Review bottleneck | `createIssue(pool, ws, { state: 'in_review', assigneeId, updatedDaysAgo: 12 })` | One `review_bottleneck` signal · `threshold` 2 · `context.reviewer_known` = `0`, set so the prompt cannot imply the recipient is the blocker · `accountableUserId` = the assignee, which is the caveat this detector ships with | <!-- TODO(FG-181, FG-225): not captured --> |
 | 5 | Rework churn | `createProject(pool, ws, { ownerId: owner })`, then 3× (`createIssue(… updatedDaysAgo: 0)` + `attachToProject` + `recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3)`) | **One** `rework_churn` signal for the project, not three for the issues · `targetType: 'project'` · `measurement` 3 · `threshold` 2 · `context.lookback_days` 30 · `accountableUserId` = the project owner. `additive`/`comment` → autonomous | <!-- TODO(FG-181, FG-226): not captured --> |
 | 6 | On-demand contextual answer | `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20, assigneeId })` + `recordStateChange(pool, issueId, 'todo', 'in_progress', ws.ownerId, 21)`, then invoke with `mode: 'on_demand'` and `scope: { workspaceId, documentId: issueId, documentType: 'issue' }`, one user message | Path is `trigger_router → resolve_scope → on_demand_fetch_signals ‖ on_demand_fetch_participants → compose_answer → END`, `outcome: 'answered'`. **No execute node is visited** — the action-client call count stays 0 and the answer call count is 1. The answer node is asserted to have received *that* `documentId` and the measured signals, and `recentHistory[].field` carries the real field name | <!-- TODO(FG-182, FG-227): not captured --> |
+
+## Traces from the deployed agent
+
+Two runs of the deployed graph, against the deployed database, judged by a real provider —
+`{"provider":"anthropic","model":"claude-opus-4-5-20251101","mocked":false}`, logged by
+`cron.ts` on every run precisely so this claim can be checked rather than taken on trust.
+
+LangSmith project **`fleetgraph-prod`** (`65a2e1e6-68e9-457d-804d-c5a1d3308f85`). Named per
+environment so deployed runs never mix with local experiments — before this the deployed cron
+logged `LANGCHAIN_PROJECT is unset` on every run and its traces landed in the default project.
+
+| Path | Run id | Nodes visited |
+|---|---|---|
+| Proactive, quiet | `019fcf27-fe51-7240-ab1d-f9d52333568f` | `__start__ → trigger_router → resolve_scope → fetch_participants → fetch_prior_state → fetch_signals → triage_gate → close_quiet` (10) |
+| On-demand answer | `019fcf27-c0e7-7529-8a74-28d426d049fb` | `__start__ → trigger_router → resolve_scope → on_demand_fetch_participants → on_demand_fetch_signals → compose_answer` (7) |
+
+This is MVP requirement 2's "different execution paths", and it is the brief's own test on
+p.2 — *a graph that looks identical across every run is a pipeline, not a graph*. The two runs
+diverge at the first conditional edge and never rejoin: the proactive path fetches prior state
+and terminates at the triage gate having made **zero** model calls, while the on-demand path
+skips prior state entirely and ends at `compose_answer`. Neither reaches an execute node.
+
+The quiet run is also the cost argument holding in production rather than in a test: 10 nodes,
+no signals, no judgment, no spend.
+
+The on-demand run is the one that answered this, against the live deployment:
+
+> **Q.** What is the state of this week and is anything at risk?
+>
+> **A.** *"No measured signals are present — no detector thresholds are currently crossed in
+> this scope … The absence of signals means nothing has tripped an automated alert, but it
+> doesn't confirm everything is on track — only that nothing measurable has crossed a
+> threshold yet."*
+
+Grounded, and honest about the limits of its grounding, which is the behaviour the answer
+prompt is written for.
+
+**These are run ids, not shared links.** Turning a LangSmith trace into a public link exposes
+whatever Ship data the run carried to anyone holding the URL, so it is a decision for a human
+rather than something to do on the way past. The submission needs the shared form; the runs
+are captured and identified and the sharing step is deliberately outstanding.
 
 ## The seed mutations, in full
 

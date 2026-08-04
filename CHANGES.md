@@ -1577,3 +1577,126 @@ Also re-measured after the change: web **267 passed / 26 files**, lint **0 error
 | `cancelQueries` | Restore the line in `onMutate`. Independent of the above. |
 
 No schema change, so no migration to reverse.
+
+---
+
+# Deployed via Terraform, destroy-and-redeploy proven, agent live
+
+MVP requirement 8 (brief p.3) asks for the deployment to be described in `terraform/`, and for
+the destroy-and-redeploy test: *"tear down the environment and re-apply from the Terraform
+config alone to prove the IaC is the source of truth."*
+
+## What was actually deployed before this
+
+Two resources, both created by hand:
+
+```
+web_service  shipshape  srv-d9kkhtqjnfac739cbfrg
+postgres     ship-db    dpg-d9kk5eajobas73fo2h20-a  (free)
+```
+
+Terraform declares four. **The FleetGraph cron had never been deployed at all**, so MVP
+requirement 1 — a graph running with a proactive detection wired end-to-end — was not true in
+production either, only in CI. And with no state file (`terraform state list` → "No state file
+was found"), an apply would have tried to create a service that already existed.
+
+## The teardown
+
+Both hand-made resources deleted (HTTP 204 each), Render confirmed empty, then a single apply
+from config with no state to lean on:
+
+```
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
+
+service_url  https://shipshape-7buc.onrender.com
+agent_cron   crn-d9p7967qj5pc73dk7j60  (fleetgraph-agent)
+postgres     dpg-d9p789cs728c7393svq0-a
+```
+
+`/health` and `/ready` both 200; `/ready` reports `postgres` ok at 16 ms and the model breaker
+closed. `healthCheckPath` is now `/health` — the hand-made service had it blank, which is the
+kind of drift the IaC requirement exists to eliminate.
+
+## Three config changes the redeploy forced into the open
+
+**`service_plan` default `free` → `starter`.** Measured against the live instance before
+teardown: cold 31.3 s, warm 0.15 s. Free sleeps after 15 minutes idle, so anyone arriving at a
+quiet link waits half a minute. Set as the variable default rather than a `-var` flag, because
+p.3 requires re-applying *from the config alone* — a plan passed on the command line is not in
+the config, and the environment that came back would quietly be the sleeping one.
+
+**`LANGCHAIN_PROJECT` added** (`fleetgraph-prod`). The deployed cron was logging, every run:
+`"LANGCHAIN_PROJECT is unset — runs will land in the LangSmith default project, mixed in with
+everything else"`. Tracing worked, so nothing looked broken; but requirement 2 wants two shared
+trace links, and a link is only useful if the run behind it can be found.
+
+**`ANTHROPIC_API_KEY` and `LANGCHAIN_*` added to the web service.** `cron.tf` gained the model
+key when the provider moved off Bedrock and `main.tf` did not, so the deployed API had exactly
+three environment variables — `DATABASE_URL`, `NODE_ENV`, `SESSION_SECRET` — and no way to
+reach a model. `POST /api/fleetgraph/chat` answered every request with
+`503 {"error":"ai_unavailable","reason":"agent_unreachable"}`, verified against the live
+deployment. Same omission as the Bedrock one, one service over: two services run the same
+image and only one was given what the image needs.
+
+## Proof the deployed agent is real
+
+```json
+{"event":"fleetgraph.model","provider":"anthropic",
+ "model":"claude-opus-4-5-20251101","mocked":false}
+{"event":"fleetgraph.scan","outcome":"quiet_no_signals","signals":0,"findings":0,"ms":961}
+```
+
+That `mocked:false` field exists specifically so "running against real Ship data — no mocked
+responses" (requirement 6) can be checked in a log rather than asserted in a document.
+
+Chat, against the live deployment, returns a grounded answer — see FLEETGRAPH.md
+"Traces from the deployed agent" for the transcript and both run ids.
+
+## A detector that cannot fire against real Ship data
+
+Found while trying to plant a trigger state. `agent/src/detectors/sprintMissRisk.ts:61`
+requires `s.properties->>'end_date' IS NOT NULL`. Ship never stores that field —
+`api/src/routes/documents.ts:386` says so outright: *"Sprint properties (dates computed from
+sprint_number + workspace.sprint_start_date)"*. The API computes `end_date` for responses; it
+is not persisted. Confirmed on the live deployment: the active sprint "Week 14" has
+`sprint_number: 14` and no `end_date`.
+
+The detector's own tests pass because `agent/src/detectors/fixtures.ts:120` **writes**
+`end_date` into properties. The fixture manufactures a shape production does not have, so use
+case 2 is green in CI and unreachable in production.
+
+Not fixed here — the fix is either to compute `end_date` the way Ship does, or to persist it,
+and that is a design decision rather than a typo. Recorded so it is not mistaken for working.
+
+## How to run it
+
+```bash
+set -a; source .env; set +a       # TF_VAR_* — never committed
+cd terraform/render
+terraform plan  -var image_tag=$(git rev-parse HEAD)
+terraform apply -var image_tag=$(git rev-parse HEAD)
+```
+
+`image_tag` has no default on purpose: a deploy is a decision about which commit goes live.
+The tag must be one CI has published to ghcr.io — `docker-image` is gated on the test jobs, so
+a commit whose e2e failed has no image, which is the gate working.
+
+## How to roll it back
+
+| To undo | Do this |
+|---|---|
+| The whole environment | `terraform destroy`. It is now genuinely reversible — that is the point of this entry. |
+| `starter` → `free` | Change the `service_plan` default and re-apply. Restores the 31 s cold start. |
+| Web-service model access | Remove `local.agent_env` from the `env_vars` merge in `main.tf`. Restores the 503 on chat. |
+| A bad image | `terraform apply -var image_tag=<previous SHA>`. The image is promoted, never rebuilt. |
+
+## Still outstanding
+
+- **Shared trace links.** Both runs are captured and identified; turning a LangSmith trace
+  public exposes the Ship data in it, so that step is left to a human.
+- **Traces for use cases 1–5.** They need planted state in the deployed database, which needs
+  a route through Render's Postgres IP allow-list that does not exist.
+- **Remote state backend.** State is a local file, so `.github/workflows/deploy.yml` still
+  reports DORMANT — it names this as the one genuinely missing piece.
+- **Deployed image is `a08fa6d`**, which predates the estimate fix. `docker-image` was skipped
+  on `7660bd8` because e2e failed; once a green run publishes, the bump is one variable.

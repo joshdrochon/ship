@@ -69,6 +69,22 @@ locals {
     # agent runs correctly and traces nothing. Verified locally: same run, same
     # workspace, zero sessions without it and a trace with it.
     LANGCHAIN_CALLBACKS_BACKGROUND = { value = "false" }
+
+    # Without this the deployed cron logged, on every run:
+    #
+    #   "LANGCHAIN_PROJECT is unset — runs will land in the LangSmith default
+    #    project, mixed in with everything else"
+    #
+    # Traces still uploaded, so nothing looked broken. But MVP requirement 2
+    # (brief p.3) asks for two shared trace links showing different execution
+    # paths, and a link is only useful if the run behind it can be found. Landing
+    # deployed runs in the default project alongside every local experiment is
+    # how they stop being findable.
+    #
+    # Named per environment rather than hardcoded, so a local run
+    # (`fleetgraph-local`, see agent/.env.example) and the deployed cron never
+    # share a project and get mistaken for each other.
+    LANGCHAIN_PROJECT = { value = var.langchain_project }
   } : {}
 
   # Same nonsensitive-boolean trick, same reason: the presence of a model key is
