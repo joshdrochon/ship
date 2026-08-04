@@ -26,15 +26,11 @@
  */
 
 import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const JSON_OUT = process.argv.includes('--json');
-
-/** A gap longer than this is not work — it is a break. */
-const IDLE_GAP_MIN = 45;
 
 /**
  * Deadlines, from the brief (p.1). Absolute, so a stale run cannot silently
@@ -76,21 +72,6 @@ function parseTickets() {
 }
 
 // ---------------------------------------------------------------- velocity
-
-function git(args) {
-  return execFileSync('git', args, { cwd: REPO, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
-}
-
-function expandRange(text) {
-  const ids = new Set();
-  for (const m of text.matchAll(/\b(FG-\d{3})\s*(?:\.\.|-)\s*(FG-\d{3})\b/g)) {
-    const a = Number(m[1].slice(3));
-    const b = Number(m[2].slice(3));
-    if (b >= a) for (let n = a; n <= b; n++) ids.add(`FG-${String(n).padStart(3, '0')}`);
-  }
-  for (const m of text.matchAll(/\bFG-\d{3}\b/g)) ids.add(m[0]);
-  return ids;
-}
 
 /**
  * Velocity cannot be derived from commit timestamps in this project, and the
@@ -210,7 +191,7 @@ if (JSON_OUT) {
         done: done.length,
         remaining: left.length,
         percent: pct(done.length, tickets.length),
-        measuredActiveHours: Number(hours.toFixed(2)),
+        measuredActiveHours: observed ? Number(observed.hours.toFixed(2)) : null,
         ticketsPerClaudeHour: rate ? Number(rate.toFixed(1)) : null,
         claudeHoursRemaining: rate ? Number(claudeHours(left.length).toFixed(1)) : null,
         byBucket,

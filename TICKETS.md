@@ -443,6 +443,7 @@ Not part of the original decomposition. Recorded here so every commit's `Closes:
 names a real ticket.
 
 - [x] **FG-269** `linear-import.mjs --verify` — fail a ticket closed with no `Closes:` trailer behind it
+- [x] **FG-270** `/project-progress` skill — completion and remaining work in claude-hours
 
 ---
 
