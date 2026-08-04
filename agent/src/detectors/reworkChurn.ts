@@ -29,12 +29,12 @@
  * project where several bounce back is a definition-of-done problem, and that is
  * a Director-level conversation rather than a per-issue nudge.
  */
-import type { Pool, PoolClient } from 'pg';
+import type { Queryable } from '../data/queryable.js';
 
 import { THRESHOLDS, type Signal } from './types.js';
 import { countBucket, fingerprint } from './fingerprint.js';
 
-type Db = Pool | PoolClient;
+type Db = Queryable;
 
 export async function detectReworkChurn(
   workspaceId: string,

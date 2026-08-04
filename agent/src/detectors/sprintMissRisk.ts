@@ -21,13 +21,13 @@
  * migration 027 and `program_id`/`project_id` by 029. A detector reading those
  * would find nothing and cheerfully report every sprint as clean.
  */
-import type { Pool, PoolClient } from 'pg';
+import type { Queryable } from '../data/queryable.js';
 import { businessDaysBetween } from '@ship/shared';
 
 import { THRESHOLDS, type Signal } from './types.js';
 import { countBucket, fingerprint } from './fingerprint.js';
 
-type Db = Pool | PoolClient;
+type Db = Queryable;
 
 /** States that mean work has not been picked up. */
 const UNSTARTED = ['todo', 'backlog'];

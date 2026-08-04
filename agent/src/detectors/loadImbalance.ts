@@ -24,12 +24,12 @@
  * be an outlier in, so it stays silent. That is a deliberate blind spot, not an
  * oversight: a two-person imbalance is visible without an agent.
  */
-import type { Pool, PoolClient } from 'pg';
+import type { Queryable } from '../data/queryable.js';
 
 import { THRESHOLDS, type Signal } from './types.js';
 import { countBucket, fingerprint } from './fingerprint.js';
 
-type Db = Pool | PoolClient;
+type Db = Queryable;
 
 /** States that represent work someone is actively carrying. */
 const ACTIVE = ['in_progress', 'in_review'];

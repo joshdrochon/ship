@@ -27,10 +27,10 @@
  *   3. nothing outside this file changes
  * ─────────────────────────────────────────────────────────────────────────────
  */
-import type { Pool, PoolClient } from 'pg';
+import type { Queryable } from './queryable.js';
 import { getPool } from './pool.js';
 
-type Db = Pool | PoolClient;
+type Db = Queryable;
 
 // ---------------------------------------------------------------------------
 // Watermark

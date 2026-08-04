@@ -33,13 +33,13 @@
  * — was excluded by the query and the detector reported a clean workspace.
  * Caught by the fingerprint-stability test, which had no signals to compare.
  */
-import type { Pool, PoolClient } from 'pg';
+import type { Queryable } from '../data/queryable.js';
 import { businessDaysBetween } from '@ship/shared';
 
 import { THRESHOLDS, type Signal } from './types.js';
 import { bucketOf, fingerprint } from './fingerprint.js';
 
-type Db = Pool | PoolClient;
+type Db = Queryable;
 
 export async function detectStalledWork(
   workspaceId: string,

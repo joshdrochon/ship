@@ -26,7 +26,7 @@
  * scans. The parallelism that matters is at the graph's fetch nodes (Q16), where
  * the work is genuinely independent.
  */
-import type { Pool, PoolClient } from 'pg';
+import type { Queryable } from '../data/queryable.js';
 
 import type { DetectorRun, Signal } from './types.js';
 import { detectStalledWork } from './stalledWork.js';
@@ -35,7 +35,7 @@ import { detectReviewBottleneck } from './reviewBottleneck.js';
 import { detectLoadImbalance } from './loadImbalance.js';
 import { detectReworkChurn } from './reworkChurn.js';
 
-type Db = Pool | PoolClient;
+type Db = Queryable;
 
 export const DETECTORS = [
   { name: 'stalled_work', run: detectStalledWork },

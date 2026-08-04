@@ -20,13 +20,13 @@
  * implementations behind these functions, not here. This file only fixes the
  * shape of the seam.
  */
-import type { Pool, PoolClient } from 'pg';
+import type { Queryable } from '../data/queryable.js';
 
 import type { Signal } from '../detectors/types.js';
 import type { Finding } from '../llm/types.js';
 import type { Participant, ProposedAction, Scope } from './state.js';
 
-export type Db = Pool | PoolClient;
+export type Db = Queryable;
 
 /**
  * Judge a batch of signals.

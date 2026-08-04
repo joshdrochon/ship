@@ -1,21 +1,27 @@
 /**
  * The one outbound model call FleetGraph makes, and everything wrapped round it.
  *
- * ── Why the breaker is imported from `api/` rather than copied ──────────────
- * `api/src/services/circuitBreaker.ts` already exists, is already tested, and
- * already fronts Bedrock with the exact values below. PRESEARCH.md Q25 decides
- * to reuse it, and the reason is written in its own header: "a retry makes a
- * single request more likely to succeed, but when the dependency is down it
- * multiplies the load and multiplies the latency every caller waits through."
- * That reasoning does not change because a second process is doing the calling.
- * A second copy would be a second thing to keep correct.
+ * ── Why the breaker is shared rather than copied ────────────────────────────
+ * It already exists, is already tested, and already fronts Bedrock with the
+ * exact values below. PRESEARCH.md Q25 decides to reuse it, and the reason is
+ * written in its own header: "a retry makes a single request more likely to
+ * succeed, but when the dependency is down it multiplies the load and
+ * multiplies the latency every caller waits through." That reasoning does not
+ * change because a second process is doing the calling. A second copy would be
+ * a second thing to keep correct.
  *
- * The import is `api/dist`, not `api/src`, and that is deliberate: this package
- * compiles with `rootDir: ./src`, so importing a .ts file outside it is a hard
- * `tsc` error, while importing the built `.d.ts` is not — declaration files are
- * never emitted, so they are exempt from the rootDir and composite checks. It
- * also costs nothing operationally, because the agent ships in the same image
- * as the API (Q27), where `api/dist` is present by construction.
+ * It lives in `@ship/shared`. It used to be imported through
+ * `../../../api/dist/services/circuitBreaker.js` — a relative path into another
+ * package's build output, which worked and had one consequence nobody wanted:
+ * `api` could then never import anything from `agent`, because that would close
+ * a build cycle with no package able to compile first.
+ *
+ * That cycle is the entire reason `POST /api/fleetgraph/chat` returned 503
+ * `agent_not_wired` while its route, schema, rate limit and tests were
+ * finished. The graph existed; `api` had no legal way to reach it.
+ *
+ * A dependency-free utility used by two packages belongs in `shared/`, which
+ * turns the dependency graph from a loop into a line: shared → agent → api.
  *
  * ── The failure modes these values protect against ─────────────────────────
  * Same four as `ai-analysis.ts`, inherited rather than re-derived:
@@ -51,7 +57,7 @@
  */
 import { ChatBedrockConverse } from '@langchain/aws';
 
-import { CircuitBreaker, CircuitOpenError } from '../../../api/dist/services/circuitBreaker.js';
+import { CircuitBreaker, CircuitOpenError } from '@ship/shared';
 
 /**
  * Inherited from `api/src/services/ai-analysis.ts` rather than chosen again.

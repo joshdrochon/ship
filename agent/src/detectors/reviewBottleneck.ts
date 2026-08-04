@@ -22,13 +22,13 @@
  * is a handoff: the work is done and someone is waiting. Two days of silence
  * there means something different from two days on work in progress.
  */
-import type { Pool, PoolClient } from 'pg';
+import type { Queryable } from '../data/queryable.js';
 import { businessDaysBetween } from '@ship/shared';
 
 import { THRESHOLDS, type Signal } from './types.js';
 import { bucketOf, fingerprint } from './fingerprint.js';
 
-type Db = Pool | PoolClient;
+type Db = Queryable;
 
 export async function detectReviewBottleneck(
   workspaceId: string,
