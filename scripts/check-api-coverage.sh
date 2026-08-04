@@ -57,7 +57,15 @@ TEMP_FILE="/tmp/api_endpoints_$$"
 rm -f "$TEMP_FILE"
 touch "$TEMP_FILE"
 
-for route_file in api/src/routes/*.ts; do
+# Both flat route files and directory-per-resource route modules.
+#
+# The second form was invisible to this check until 2026-08-03, when the
+# FleetGraph endpoints landed in api/src/routes/fleetgraph/index.ts and the hook
+# reported them missing while they were mounted, registered with OpenAPI, and
+# covered by 46 passing tests. A checker that cannot see a whole directory shape
+# reports false positives, and a false positive on a pre-commit hook is how
+# people learn to reach for --no-verify.
+for route_file in api/src/routes/*.ts api/src/routes/*/index.ts; do
   [ -f "$route_file" ] || continue
 
   # Skip test files
@@ -65,8 +73,11 @@ for route_file in api/src/routes/*.ts; do
     *".test.ts") continue ;;
   esac
 
-  # Get base name without .ts extension
+  # For a directory module the mount name is the DIRECTORY, not "index".
   basename_file=$(basename "$route_file" .ts)
+  if [ "$basename_file" = "index" ]; then
+    basename_file=$(basename "$(dirname "$route_file")")
+  fi
 
   # Find mount point for this file
   # Check if this file's basename matches a mount point
