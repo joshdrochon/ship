@@ -161,12 +161,12 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-047** Detector 1: threshold as config constant, default 5 business days
 - [x] **FG-048** Detector 1: exclude archived and soft-deleted documents
 - [x] **FG-049** Detector 1: unit test against fixture data
-- [ ] **FG-050** **Detector 2 — sprint-miss risk.** Sprint `end_date` within 2 business days, issues still `todo`/`backlog`
-- [ ] **FG-051** Detector 2: resolve sprint→issue via `document_associations` (relationship_type `sprint`), not legacy columns
-- [ ] **FG-052** Detector 2: unit test
-- [ ] **FG-053** **Detector 3 — review bottleneck.** `state='in_review'`, `updated_at` unchanged N business days
-- [ ] **FG-054** Detector 3: threshold constant, default 2 business days
-- [ ] **FG-055** Detector 3: unit test
+- [x] **FG-050** **Detector 2 — sprint-miss risk.** Sprint `end_date` within 2 business days, issues still `todo`/`backlog`
+- [x] **FG-051** Detector 2: resolve sprint→issue via `document_associations` (relationship_type `sprint`), not legacy columns
+- [x] **FG-052** Detector 2: unit test
+- [x] **FG-053** **Detector 3 — review bottleneck.** `state='in_review'`, `updated_at` unchanged N business days
+- [x] **FG-054** Detector 3: threshold constant, default 2 business days
+- [x] **FG-055** Detector 3: unit test
 - [ ] **FG-056** **Detector 4 — load imbalance.** `COUNT(*) GROUP BY properties->>'assignee_id'` vs team median
 - [ ] **FG-057** Detector 4: define "team" as sprint participants, not the whole workspace
 - [ ] **FG-058** Detector 4: guard against a team of 1 (median is meaningless)
