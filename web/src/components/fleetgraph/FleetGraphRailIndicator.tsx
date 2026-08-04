@@ -47,7 +47,7 @@ export function FleetGraphRailIndicator() {
       }
     };
     const onPointerDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (e.target instanceof Node && containerRef.current && !containerRef.current.contains(e.target)) {
         setOpen(false);
       }
     };

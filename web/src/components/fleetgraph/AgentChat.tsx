@@ -50,7 +50,21 @@ const FOCUS_RING =
  */
 const CHAT_TIMEOUT_MS = 45_000;
 
-export type ChatUnavailableReason = 'agent_not_wired' | 'rate_limited' | 'timeout' | 'unknown';
+/**
+ * Every `reason` the chat endpoint can return, plus the client-side ones.
+ *
+ * `agent_unreachable` was missing until the runtime guard below forced the
+ * union to be honest: the endpoint started returning it when the graph was
+ * wired (FG-279), and the UI was still rendering "isn't connected yet" copy for
+ * a live agent whose model was simply down. Two different situations, two
+ * different things a user should do about it.
+ */
+export type ChatUnavailableReason =
+  | 'agent_not_wired'
+  | 'agent_unreachable'
+  | 'rate_limited'
+  | 'timeout'
+  | 'unknown';
 
 interface ChatTurn {
   id: string;
@@ -101,6 +115,51 @@ const EMPTY_STATE_PROMPTS: Record<string, string[]> = {
 };
 
 const DEFAULT_PROMPTS = ['Summarise the state of this document.', 'What needs attention here?'];
+
+/**
+ * Narrow an untyped response body instead of asserting a shape onto it.
+ *
+ * `res.json()` returns `any`. `as { answer: string }` is a claim about a server
+ * we cannot see from here, and it is believed silently — a field the API stops
+ * sending becomes `undefined` at the point of use rather than a caught error.
+ * These check, so a contract change surfaces as the unavailable state rather
+ * than as a blank message bubble.
+ */
+const UNAVAILABLE_REASONS = [
+  'agent_not_wired',
+  'agent_unreachable',
+  'rate_limited',
+  'unknown',
+] as const;
+
+/** A type predicate, so the narrowing is checked rather than asserted. */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null;
+}
+
+function readUnavailableReason(body: unknown): ChatUnavailableReason {
+  if (isRecord(body) && typeof body.reason === 'string') {
+    const match = UNAVAILABLE_REASONS.find((r) => r === body.reason);
+    if (match) return match;
+  }
+  return 'agent_not_wired';
+}
+
+interface ChatAnswer {
+  answer: string;
+  threadId: string | null;
+  documentId: string | null;
+}
+
+function readChatAnswer(body: unknown): ChatAnswer | null {
+  if (!isRecord(body)) return null;
+  if (typeof body.answer !== 'string' || body.answer.length === 0) return null;
+  return {
+    answer: body.answer,
+    threadId: typeof body.threadId === 'string' ? body.threadId : null,
+    documentId: typeof body.documentId === 'string' ? body.documentId : null,
+  };
+}
 
 export function AgentChat({
   documentId,
@@ -188,8 +247,8 @@ export function AgentChat({
         });
 
         if (res.status === 503) {
-          const payload = (await res.json().catch(() => ({}))) as { reason?: string };
-          setUnavailable((payload.reason as ChatUnavailableReason) ?? 'agent_not_wired');
+          const payload: unknown = await res.json().catch(() => ({}));
+          setUnavailable(readUnavailableReason(payload));
           return;
         }
         if (res.status === 429) {
@@ -201,14 +260,17 @@ export function AgentChat({
           return;
         }
 
-        const data = (await res.json()) as {
-          answer: string;
-          threadId: string | null;
-          documentId: string;
-        };
+        const data = readChatAnswer(await res.json());
+        if (!data) {
+          // Well-formed HTTP, malformed body. Treated as unavailable rather
+          // than rendered — a blank bubble reads as the agent having nothing
+          // to say, which is a different and wrong message.
+          setUnavailable('unknown');
+          return;
+        }
         // A late answer for a document we have navigated away from is dropped.
         if (data.documentId && data.documentId !== documentId) return;
-        setThreadId(data.threadId ?? null);
+        setThreadId(data.threadId);
         const agentTurnId = `a-${Date.now()}`;
         setTurns((prev) => [...prev, { id: agentTurnId, role: 'agent', text: '' }]);
         appendAnswer(agentTurnId, data.answer ?? '');
@@ -359,7 +421,9 @@ function UnavailableNotice({ reason }: { reason: ChatUnavailableReason }) {
         ? 'The agent didn’t answer in time. Nothing was sent twice — ask again when you’re ready.'
         : reason === 'agent_not_wired'
           ? 'The agent isn’t connected yet, so it can’t answer questions about this document.'
-          : 'The agent is unavailable right now.';
+          : reason === 'agent_unreachable'
+            ? 'The agent is connected but couldn’t reach its language model. Detection is still running — only answers are affected.'
+            : 'The agent is unavailable right now.';
 
   return (
     <div

@@ -109,11 +109,13 @@ describe('FleetGraph API', () => {
     workspaceId = ws.rows[0].id;
 
     const mkUser = async (label: string) => {
-      const r = await pool.query(
+      const r = await pool.query<{ id: string }>(
         `INSERT INTO users (email, password_hash, name) VALUES ($1, 'test-hash', $2) RETURNING id`,
         [`fg-${label}-${runId}@ship.local`, `FG ${label}`]
       );
-      return r.rows[0].id as string;
+      const row = r.rows[0];
+      if (!row) throw new Error(`fixture: INSERT of user ${label} returned no row`);
+      return row.id;
     };
 
     recipientId = await mkUser('recipient');
@@ -737,7 +739,7 @@ describe('FleetGraph API', () => {
 
       // Q7 is a privacy boundary, so assert the negative too: nothing resembling
       // rendered content reaches the agent.
-      const sent = firstAgentCall() as unknown as Record<string, unknown>;
+      const sent: Readonly<Record<string, unknown>> = { ...firstAgentCall() };
       for (const forbidden of ['content', 'html', 'text', 'selection', 'dom']) {
         expect(sent).not.toHaveProperty(forbidden);
       }

@@ -64,7 +64,7 @@ describe('GET /ready', () => {
   // first with no detail.
   it('times out the Postgres probe rather than hanging', async () => {
     vi.spyOn(pool, 'query').mockImplementationOnce(
-      () => new Promise(() => {}) as ReturnType<typeof pool.query>
+      () => new Promise<Awaited<ReturnType<typeof pool.query>>>(() => {})
     );
 
     const startedAt = Date.now();

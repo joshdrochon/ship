@@ -146,7 +146,7 @@ function AgentFindingRow({
   useEffect(() => {
     if (!snoozeOpen) return;
     const onPointerDown = (e: MouseEvent) => {
-      if (snoozeRef.current && !snoozeRef.current.contains(e.target as Node)) {
+      if (e.target instanceof Node && snoozeRef.current && !snoozeRef.current.contains(e.target)) {
         setSnoozeOpen(false);
       }
     };

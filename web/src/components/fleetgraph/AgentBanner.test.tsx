@@ -66,7 +66,7 @@ function renderBanner(documentId: string, notifications: FleetGraphNotification[
  */
 function mockApi({
   approvalStatus = 200,
-  open = [] as FleetGraphNotification[],
+  open = [],
 }: { approvalStatus?: number; open?: FleetGraphNotification[] } = {}) {
   const calls: Array<{ url: string; method: string; body: unknown }> = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {

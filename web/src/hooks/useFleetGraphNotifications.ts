@@ -101,8 +101,27 @@ async function fetchNotifications(): Promise<FleetGraphNotification[]> {
   });
   if (!res.ok) return [];
   if (!res.headers.get('content-type')?.includes('application/json')) return [];
-  const data = (await res.json()) as { notifications?: FleetGraphNotification[] };
-  return data.notifications ?? [];
+  const data: unknown = await res.json();
+  // Checked, not asserted. Everything above this line already degrades to an
+  // empty list rather than throwing; a malformed body should too, instead of
+  // handing the banner a shape it will crash on.
+  return isNotificationsBody(data) ? data.notifications : [];
+}
+
+/**
+ * A type predicate, so the shape is verified rather than claimed.
+ *
+ * It checks the envelope, not every field of every row — the endpoint is ours
+ * and OpenAPI-registered, so the risk being guarded is a missing or renamed
+ * `notifications` key, not a malformed `createdAt`.
+ */
+function isNotificationsBody(v: unknown): v is { notifications: FleetGraphNotification[] } {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    'notifications' in v &&
+    Array.isArray(v.notifications)
+  );
 }
 
 /**
