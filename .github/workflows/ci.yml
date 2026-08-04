@@ -317,12 +317,30 @@ jobs:
       # Connects to the `postgres` database, not `ship_test`: the fixture needs somewhere
       # to issue CREATE DATABASE from, and POSTGRES_USER is the image's superuser.
       E2E_DATABASE_URL: postgresql://ship:ship_test_password@localhost:5432/postgres
-      # 2, not the config's CI default of 4. Each worker runs an API server, a Vite
-      # preview and a Chromium — four of each was killed by the OOM reaper at test 510 of
-      # 874 in a 7.8 GB container, and `ubuntu-latest` is only 2 vCPU, so four also
-      # oversubscribes the CPU and tightens every timeout in the suite. Halving it trades
-      # roughly 15 minutes of wall clock for a run that finishes.
-      PLAYWRIGHT_WORKERS: '2'
+      # 3, not the config's CI default of 4, and not the 2 this was pinned at.
+      #
+      # Each worker runs an API server, a Vite preview and a Chromium. Four of each was
+      # killed by the OOM reaper at test 510 of 874, and the pin to 2 was the fix. That
+      # measurement was taken in a 7.8 GB container.
+      #
+      # The runner is no longer that size. Run 30751981015 logged, from this job:
+      #
+      #   [Memory] Total: 15.6GB, Available: 14.0GB
+      #   Running 874 tests using 2 workers
+      #
+      # This repository is public, and GitHub gives public repositories the larger
+      # `ubuntu-latest` — which is where 15.6 GB comes from. So the constraint that
+      # justified 2 was measured against half the memory this job now gets.
+      #
+      # 3 rather than straight back to 4, because memory is the only half of the original
+      # argument that has been re-measured. The other half — CPU oversubscription, and the
+      # timeouts it tightens across the suite — has not been, and a suite that finishes
+      # slowly beats one that flakes. 3 buys most of the wall clock with headroom on both,
+      # and is a number that can be moved again on evidence.
+      #
+      # e2e is 20 minutes of a 22-minute pipeline; every other job finishes in under one.
+      # This is the only job where parallelism is worth anything.
+      PLAYWRIGHT_WORKERS: '3'
       SESSION_SECRET: ci-only-not-a-real-secret
     steps:
       - uses: actions/checkout@v4

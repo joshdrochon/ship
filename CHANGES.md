@@ -1320,3 +1320,50 @@ No schema change, so no migration to reverse.
 · `agent/src/entrypoints/cron.ts` (`fleetgraph.model` log line) · `agent/.env.example` ·
 `agent/package.json` (`@langchain/anthropic`) · `terraform/render/cron.tf` ·
 `terraform/render/variables.tf` · `PRESEARCH.md` (Q25 correction)
+
+---
+
+# E2E parallelism — the pin was measured against half the runner
+
+`PLAYWRIGHT_WORKERS` was pinned to 2 in `.github/workflows/ci.yml` because 4 workers were
+killed by the OOM reaper at test 510 of 874. That measurement was taken in a **7.8 GB**
+container.
+
+The runner is no longer that size. From the e2e job of run `30751981015`:
+
+```
+[Memory] Total: 15.6GB, Available: 14.0GB
+Running 874 tests using 2 workers
+```
+
+This repository is public, and GitHub gives public repositories the larger `ubuntu-latest`.
+So the constraint that justified 2 was measured against half the memory the job now gets.
+
+**Before**, same run, per job:
+
+| Job | Time |
+|---|---|
+| e2e | 20 min |
+| build · test · lint · type-check · coverage · audit · licence · security-scan · docker | ≤1 min each |
+
+22-minute pipeline, 20 of it one job. e2e is the only job where parallelism buys anything.
+
+**Change:** 2 → 3, GitHub only.
+
+3 rather than straight back to 4, because only half the original argument has been
+re-measured. Memory has; CPU oversubscription — and the timeouts it tightens across the whole
+suite — has not. A suite that finishes slowly beats one that flakes, so 3 takes most of the
+wall clock while keeping headroom on both, and can be moved again on evidence.
+
+GitLab stays at 1. Its runner size has not been measured, and inheriting a number from a
+different platform is the mistake this entry is correcting.
+
+## How to test it
+
+The after-number comes from the next e2e job on this branch, compared against the 20 min
+above — same suite, same 874 tests, same runner image (Rule 1). If wall clock does not drop
+or flake count rises, revert to 2; the comment records why the number is what it is.
+
+## How to roll it back
+
+Set `PLAYWRIGHT_WORKERS: '2'` in `.github/workflows/ci.yml`. Nothing else depends on it.
