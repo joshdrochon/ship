@@ -114,11 +114,24 @@ export function makeDeliver(deps: GraphDeps) {
  * Exists so the trace ends at a named node rather than trailing off, and so the
  * watermark advances on quiet runs too — a healthy workspace still has to close
  * its scan window, or the next run re-covers ground it already cleared.
+ *
+ * ── Except when the model was unavailable ──────────────────────────────────
+ * `ai_unavailable` reaches this node by the same edge as a genuinely quiet run,
+ * and the two must NOT be treated alike. A quiet run measured the window and
+ * found nothing; an unavailable-model run measured it and never got to judge.
+ * Advancing on the second would close a window whose signals were never
+ * assessed, and they would never be looked at again.
+ *
+ * So the watermark holds and the next scan re-covers the same ground — which is
+ * exactly what `judgeSignals` promises in its header, and what makes the
+ * degraded path lossless rather than merely quiet.
  */
 export function makeCloseQuiet(deps: GraphDeps) {
   const now = deps.now ?? (() => new Date());
 
   return async function closeQuiet(state: GraphStateType): Promise<GraphUpdate> {
+    if (state.outcome === 'ai_unavailable') return {};
+
     try {
       await setWatermark(
         state.scope.workspaceId,

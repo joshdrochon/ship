@@ -194,5 +194,5 @@ export function compileGraph(deps: GraphDeps, checkpointer?: BaseCheckpointSaver
 export * from './state.js';
 export * from './deps.js';
 export { getCheckpointer, resetCheckpointer } from './checkpointer.js';
-export { threadIdFor } from './nodes/awaitApproval.js';
+export { currentThreadId, proactiveThreadId } from './nodes/awaitApproval.js';
 export type { ApprovalDecision } from './nodes/awaitApproval.js';

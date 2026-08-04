@@ -31,7 +31,7 @@
  * next scan while it sits awaiting approval. Without that, a proposal pending
  * for six hours would be re-detected and re-proposed 120 times.
  */
-import { interrupt } from '@langchain/langgraph';
+import { interrupt, getConfig } from '@langchain/langgraph';
 
 import { createNotification, recordObservation } from '../../data/boundary.js';
 import type { GraphDeps } from '../deps.js';
@@ -81,7 +81,7 @@ export function makeAwaitApproval(deps: GraphDeps) {
             targetId: signal.targetId,
             // What the UI resumes. Without it the banner has a decision to
             // offer and nothing to send it to.
-            pendingThreadId: threadIdFor(state),
+            pendingThreadId: currentThreadId(),
           },
           deps.db
         );
@@ -119,14 +119,38 @@ export function makeAwaitApproval(deps: GraphDeps) {
 }
 
 /**
- * The checkpointer thread id for this run.
+ * The thread the checkpointer is actually writing to.
  *
- * Derived from workspace and fingerprint rather than random, so the API
- * endpoint can resume a specific pending approval without storing a mapping —
- * and so a re-detected finding resumes the same thread instead of forking a
- * second one.
+ * Read from the runtime config rather than computed, and that distinction cost
+ * a real bug: the first version derived a plausible-looking id from workspace
+ * and fingerprint, stored it as `pending_thread_id`, and had nothing to do with
+ * the thread LangGraph was checkpointing under. The approval endpoint would
+ * have resumed an id that did not exist — and it would have failed only in
+ * production, since the graph tests compile without a checkpointer and never
+ * exercise a thread at all.
+ *
+ * Whatever the caller passed as `configurable.thread_id` is the only id that
+ * can be resumed, so it is the only one worth storing.
  */
-export function threadIdFor(state: GraphStateType): string {
-  const fp = state.findings[state.pending?.findingIndex ?? 0]?.fingerprint ?? 'none';
-  return `fg:${state.scope.workspaceId}:${fp}`;
+export function currentThreadId(): string | null {
+  try {
+    const cfg = getConfig();
+    return (cfg?.configurable?.thread_id as string | undefined) ?? null;
+  } catch {
+    // Running outside a graph invocation, or compiled without a checkpointer.
+    return null;
+  }
+}
+
+/**
+ * The thread id a proactive run should be invoked with.
+ *
+ * Per RUN, not per workspace. A single long-lived workspace thread would mean
+ * the next scan resumes a thread still suspended at an approval, immediately
+ * re-interrupting it and tangling two runs together. Suppression already stops
+ * the same finding being re-proposed while it waits, so forking a fresh thread
+ * costs nothing.
+ */
+export function proactiveThreadId(workspaceId: string, at: Date): string {
+  return `fg:${workspaceId}:${at.toISOString()}`;
 }
