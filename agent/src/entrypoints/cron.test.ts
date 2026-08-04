@@ -22,6 +22,7 @@ import { Pool } from 'pg';
 import { scanWorkspace, listWorkspaces } from './cron.js';
 import { closePool } from '../data/pool.js';
 import { resetCheckpointer } from '../graph/checkpointer.js';
+import { makeJudge, resetLlmBreaker } from '../llm/index.js';
 import type { JudgeFn, AnswerFn, ActFn } from '../graph/deps.js';
 import { createWorkspace, createUser, createIssue, type Workspace } from '../detectors/fixtures.js';
 
@@ -140,6 +141,44 @@ describe('the proactive cron', () => {
     const recovered = await scanWorkspace(ws.workspaceId, { judge, answer, act });
     expect(recovered.signals).toBeGreaterThan(0);
     expect(await watermarkOf(ws.workspaceId)).toBeTruthy();
+  }, 60_000);
+
+  it('FG-121 holds for the REAL judge, not just a throwing fake', async () => {
+    // The original FG-121 passed against a fake judge that throws. The real
+    // one did not throw — `makeJudge` flattened every status to
+    // `result.findings`, so an unreachable provider arrived at the graph as an
+    // empty array, read as "nothing worth surfacing", routed to close_quiet,
+    // and ADVANCED THE WATERMARK. A window whose signals were never judged was
+    // closed and never looked at again.
+    //
+    // `closeQuiet` already refused to advance on `ai_unavailable`. It just
+    // never saw that outcome, because the status was discarded a layer below.
+    //
+    // So this drives the real judgeSignals and the real makeJudge, faking only
+    // the transport. Without the fix it reports `quiet_nothing_survived_judgment`
+    // and writes a watermark.
+    await createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20 });
+    resetLlmBreaker();
+
+    const realJudge = makeJudge({
+      model: {
+        invoke: async () => {
+          throw new Error('simulated provider outage');
+        },
+      },
+    });
+
+    const result = await scanWorkspace(ws.workspaceId, {
+      judge: realJudge as never,
+      answer,
+      act,
+    });
+
+    expect(result.outcome, 'must not report a quiet workspace').toBe('ai_unavailable');
+    expect(
+      await watermarkOf(ws.workspaceId),
+      'an unjudged window must stay open for the next run'
+    ).toBeNull();
   }, 60_000);
 
   it('a quiet workspace still closes its scan window', async () => {

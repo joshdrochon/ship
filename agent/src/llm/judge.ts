@@ -253,9 +253,37 @@ function assemble(input: JudgeInput, judgments: ReadonlyArray<{
  * graph behaviour anyway: nothing to route, nothing to deliver, signals judged
  * next run.
  */
+export class JudgementUnavailableError extends Error {
+  constructor(readonly reason: string) {
+    super(`judgement unavailable: ${reason}`);
+    this.name = 'JudgementUnavailableError';
+  }
+}
+
 export function makeJudge(deps: JudgeDeps = {}) {
   return async function judge(input: JudgeInput): Promise<Finding[]> {
     const result = await judgeSignals(input, deps);
+
+    // Throw rather than flatten to []. The earlier version returned
+    // `result.findings` on every status, and that silently lost data.
+    //
+    // The graph reads an empty findings array as "the model judged nothing
+    // worth surfacing", routes to close_quiet, and ADVANCES THE WATERMARK. So
+    // an unreachable Bedrock closed a scan window whose signals were never
+    // judged, and they were never looked at again. `closeQuiet` already
+    // refuses to advance on `ai_unavailable` — it just never saw that outcome,
+    // because the status was discarded one layer down.
+    //
+    // The graph's judge node catches and sets `ai_unavailable`, which is
+    // exactly the signal it needs. Control flow through an exception is not
+    // lovely; losing a scan window without a trace is worse.
+    //
+    // FG-121 passed throughout, because its fake judge throws. The real one
+    // did not. That gap is why this test now drives the real makeJudge.
+    if (result.status === AI_UNAVAILABLE) {
+      throw new JudgementUnavailableError(result.reason ?? 'unknown');
+    }
+
     return result.findings;
   };
 }

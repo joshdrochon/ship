@@ -14,7 +14,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { judgeSignals, makeJudge, clearJudgmentCache } from './judge.js';
+import { judgeSignals, makeJudge, JudgementUnavailableError, clearJudgmentCache } from './judge.js';
 import { CircuitBreaker, type PromptedModel } from './client.js';
 import type { JudgeInput } from './judge.js';
 import type { Signal } from '../detectors/types.js';
@@ -320,15 +320,50 @@ describe('makeJudge', () => {
     expect(findings[0]?.fingerprint).toBe(s.fingerprint);
   });
 
-  it('flattens an unavailable provider to no findings', async () => {
+  it('THROWS on an unavailable provider rather than returning no findings', async () => {
+    // This test previously asserted the opposite, and the assertion was the
+    // bug. Flattening `ai_unavailable` to `[]` handed the graph an empty
+    // findings array, which it correctly reads as "the model judged nothing
+    // worth surfacing" — so it routed to close_quiet and advanced the
+    // watermark, closing a scan window whose signals were never judged.
+    //
+    // `closeQuiet` already refused to advance on `ai_unavailable`; it never
+    // saw that outcome because the status died here.
+    //
+    // An empty result and an unreachable provider must not be the same value.
+    // A calm project and a broken one are different events, and every layer
+    // that erases the difference has to be found and fixed.
     const model: PromptedModel = {
       async invoke() {
         throw new Error('bedrock down');
       },
     };
 
-    const findings = await makeJudge({ model })(input([signal()]));
+    await expect(makeJudge({ model })(input([signal()]))).rejects.toThrow(
+      JudgementUnavailableError
+    );
+  });
 
-    expect(findings).toEqual([]);
+  it('still returns findings normally when the provider works', async () => {
+    // The throw must be reachable only on failure — a judge that threw on the
+    // happy path would take the whole run down.
+    const model: PromptedModel = {
+      async invoke() {
+        return {
+          judgments: [
+            {
+              fingerprint: signal().fingerprint,
+              worth_surfacing: true,
+              severity: 'medium' as const,
+              recipient: null,
+              phrasing: 'ok',
+            },
+          ],
+        };
+      },
+    };
+
+    const findings = await makeJudge({ model })(input([signal()]));
+    expect(findings).toHaveLength(1);
   });
 });
