@@ -167,17 +167,17 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-053** **Detector 3 — review bottleneck.** `state='in_review'`, `updated_at` unchanged N business days
 - [x] **FG-054** Detector 3: threshold constant, default 2 business days
 - [x] **FG-055** Detector 3: unit test
-- [ ] **FG-056** **Detector 4 — load imbalance.** `COUNT(*) GROUP BY properties->>'assignee_id'` vs team median
-- [ ] **FG-057** Detector 4: define "team" as sprint participants, not the whole workspace
-- [ ] **FG-058** Detector 4: guard against a team of 1 (median is meaningless)
-- [ ] **FG-059** Detector 4: unit test
-- [ ] **FG-060** **Detector 5 — rework churn.** `reopened_at` set, or repeated `done → in_progress` in `document_history`
-- [ ] **FG-061** Detector 5: this is the one detector that legitimately reads `document_history` — `state` is a tracked field
-- [ ] **FG-062** Detector 5: unit test
-- [ ] **FG-063** `agent/src/detectors/index.ts` — run all five, return `Signal[]`
-- [ ] **FG-064** All detectors accept a watermark and scope only to documents changed since
-- [ ] **FG-065** Integration test: all five detectors against a seeded database
-- [ ] **FG-066** Verify a quiet workspace returns zero signals (the triage-gate path)
+- [x] **FG-056** **Detector 4 — load imbalance.** `COUNT(*) GROUP BY properties->>'assignee_id'` vs team median
+- [x] **FG-057** Detector 4: define "team" as sprint participants, not the whole workspace
+- [x] **FG-058** Detector 4: guard against a team of 1 (median is meaningless)
+- [x] **FG-059** Detector 4: unit test
+- [x] **FG-060** **Detector 5 — rework churn.** `reopened_at` set, or repeated `done → in_progress` in `document_history`
+- [x] **FG-061** Detector 5: this is the one detector that legitimately reads `document_history` — `state` is a tracked field
+- [x] **FG-062** Detector 5: unit test
+- [x] **FG-063** `agent/src/detectors/index.ts` — run all five, return `Signal[]`
+- [x] **FG-064** All detectors accept a watermark and scope only to documents changed since
+- [x] **FG-065** Integration test: all five detectors against a seeded database
+- [x] **FG-066** Verify a quiet workspace returns zero signals (the triage-gate path)
 
 ## M3 · Graph core
 

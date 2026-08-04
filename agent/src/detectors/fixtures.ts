@@ -155,6 +155,34 @@ export async function attachToSprint(
   );
 }
 
+export async function createProject(
+  db: Pool,
+  ws: Workspace,
+  opts: { title?: string; ownerId?: string | null } = {},
+): Promise<string> {
+  const { title = 'Platform', ownerId = null } = opts;
+  const { rows } = await db.query(
+    `INSERT INTO documents
+       (workspace_id, document_type, title, properties, created_by, created_at, updated_at)
+     VALUES ($1, 'project', $2, jsonb_build_object('owner_id', $3::text), $4, NOW(), NOW())
+     RETURNING id`,
+    [ws.workspaceId, title, ownerId, ws.ownerId],
+  );
+  return rows[0].id;
+}
+
+export async function attachToProject(
+  db: Pool,
+  documentId: string,
+  projectId: string,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO document_associations (document_id, related_id, relationship_type)
+     VALUES ($1, $2, 'project')`,
+    [documentId, projectId],
+  );
+}
+
 /** A `state` transition in document_history — what rework churn counts. */
 export async function recordStateChange(
   db: Pool,
