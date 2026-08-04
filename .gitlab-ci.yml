@@ -92,6 +92,7 @@ build:
     expire_in: 1 week
     paths:
       - shared/dist/
+      - agent/dist/
       - api/dist/
       - web/dist/
       - dist-sha.txt

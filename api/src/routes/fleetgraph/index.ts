@@ -351,7 +351,7 @@ function approvalHandler(
 
   return async (req: Request, res: Response): Promise<void> => {
     let notificationId: string;
-    let snoozeUntil: Date | null = null;
+    let snoozeUntil: Date | null;
     try {
       notificationId = idParamSchema.parse(req.params).id;
       snoozeUntil = computeSnoozeUntil ? computeSnoozeUntil(req) : null;

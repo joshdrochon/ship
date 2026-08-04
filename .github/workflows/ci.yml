@@ -52,6 +52,7 @@ jobs:
           retention-days: 7
           path: |
             shared/dist/
+            agent/dist/
             api/dist/
             web/dist/
             dist-sha.txt

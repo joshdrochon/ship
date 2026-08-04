@@ -249,7 +249,6 @@ describe('the graph', () => {
     await recordStateChange(pool, doc, 'todo', 'in_progress', ws.ownerId, 2);
 
     const f = fakes();
-    let seenHistory: Array<{ field?: string }> = [];
     const deps: GraphDeps = {
       ...depsWith(f),
       answer: async (input) => {
@@ -283,7 +282,7 @@ describe('the graph', () => {
       .find((p: { document?: unknown } | null) => p?.document);
 
     expect(resolved, 'resolve_scope must carry the document into state').toBeTruthy();
-    seenHistory = resolved.document.recentHistory;
+    const seenHistory: Array<{ field?: string }> = resolved.document.recentHistory;
     expect(seenHistory.length).toBeGreaterThan(0);
     expect(
       seenHistory[0]?.field,

@@ -331,12 +331,9 @@ describe('FG-137 — interrupt and resume across a process restart', () => {
     const thread = threadId(fingerprint);
 
     const before = fakes();
-    let saver1: PostgresSaver | null = PostgresSaver.fromConnString(connectionString);
+    const saver1 = PostgresSaver.fromConnString(connectionString);
     await saver1.setup();
-    let graph1: ReturnType<typeof compileGraph> | null = compileGraph(
-      depsWith(before, pool),
-      saver1
-    );
+    const graph1 = compileGraph(depsWith(before, pool), saver1);
 
     const suspended = await graph1.invoke(
       { mode: 'proactive', scope: { workspaceId: ws.workspaceId } } as never,
@@ -348,8 +345,10 @@ describe('FG-137 — interrupt and resume across a process restart', () => {
     // Throw it all away. The connection pool behind the first checkpointer is
     // closed, so nothing below can be served by a socket it left open.
     await saver1.end();
-    saver1 = null;
-    graph1 = null;
+    // Deliberately NOT nulled-and-forgotten: the linter is right that a dead
+    // assignment proves nothing. What proves it is that everything below uses
+    // saver2/graph2 exclusively, and saver1's pool is closed — a leaked reuse
+    // would throw on a closed pool rather than silently succeed.
 
     const after = fakes();
     const saver2 = PostgresSaver.fromConnString(connectionString);
