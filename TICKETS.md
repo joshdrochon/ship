@@ -442,7 +442,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 Not part of the original decomposition. Recorded here so every commit's `Closes:` trailer
 names a real ticket.
 
-- [ ] **FG-269** `linear-import.mjs --verify` — fail a ticket closed with no `Closes:` trailer behind it
+- [x] **FG-269** `linear-import.mjs --verify` — fail a ticket closed with no `Closes:` trailer behind it
 
 ---
 
