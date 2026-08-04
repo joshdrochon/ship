@@ -251,6 +251,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [ ] **FG-279** **The API-to-graph seam does not exist.** `agentBridge.ts:91` throws `agent_not_wired`; the three approval routes persist a decision and hardcode `resumed: false`; nothing loads the checkpointer or issues `Command({ resume })`. Chat UI, route, Zod schema, rate limit and visibility filter are all real — the call at the centre is a stub. **Blocked on FG-280.**
 - [ ] **FG-280** **Decision + move: break the api↔agent build cycle.** `agent/` imports `CircuitBreaker` from `api/dist` by relative path, so `api/` importing `agent/dist` would make neither buildable. Fix is to promote `circuitBreaker.ts` into `shared/` (the option FG-098 named first), leaving a re-export in `api/` for back-compat. Additive and reversible. Needs a human call — it changes package structure.
 - [ ] **FG-281** **Bug.** `makeJudge` flattened `ai_unavailable` to `[]`, so the graph read an unreachable model as "nothing worth surfacing", routed to `close_quiet`, and advanced the watermark — closing a scan window whose signals were never judged. `closeQuiet`'s own guard never saw the outcome because the status died a layer below. FG-121 passed throughout: its fake judge threw, the real one did not.
+- [ ] **FG-282** **Bug.** `makeAnswer` flattened `ai_unavailable` to its notice text, so the graph set `outcome: 'answered'` with a non-empty answer and the chat endpoint replied 200 — the UI rendered a service notice as a normal assistant message instead of using its `ai_unavailable` state. Second instance of the FG-281 seam bug. There were no `makeAnswer` tests at all.
 - [ ] **FG-275** Fix the `Closes:` trailer block. A blank line before `Co-Authored-By` splits it, git parses only the last paragraph, and fourteen commits' worth of closures were inert. `--verify` caught it.
 - [ ] **FG-276** `scripts/check-api-coverage.sh` scanned `api/src/routes/*.ts` only, so directory route modules (`routes/fleetgraph/index.ts`) read as missing endpoints. Fixed to scan `*/index.ts` and take the mount name from the directory.
 
@@ -265,7 +266,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-128** Classify actions by blast radius — additive/reversible vs state mutation (Q3)
 - [x] **FG-129** Gated action: serialise the proposal into the checkpointer
 - [x] **FG-130** Gated action: create a notification pointing at the pending approval
-- [ ] **FG-131** Resume path: accept → `executeApproved` → record outcome
+- [x] **FG-131** Resume path: accept → `executeApproved` → record outcome
 - [x] **FG-132** Resume path: dismiss → mark resolved-by-dismissal, **fingerprint never fires again**
 - [x] **FG-133** Resume path: snooze → set `snooze_until` in business days (1/3/5, default 3)
 - [x] **FG-134** Snooze wake **re-runs the detector**, does not replay the stored finding (Q23)
@@ -280,7 +281,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-140** `POST /api/fleetgraph/approvals/:id/accept`
 - [x] **FG-141** `POST /api/fleetgraph/approvals/:id/dismiss`
 - [x] **FG-142** `POST /api/fleetgraph/approvals/:id/snooze` — body carries the horizon
-- [ ] **FG-143** `POST /api/fleetgraph/chat` — on-demand invocation, body carries document id + type + tab
+- [x] **FG-143** `POST /api/fleetgraph/chat` — on-demand invocation, body carries document id + type + tab
 - [x] **FG-144** Chat endpoint sends **route params**, never rendered content (`PRESEARCH.md` Q7)
 - [x] **FG-145** Register all six paths with OpenAPI per `/ship-openapi-endpoints`
 - [x] **FG-146** Zod schemas for every request body
