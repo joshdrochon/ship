@@ -246,6 +246,8 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-120** Verify a second immediate run detects **nothing** (suppression works)
 - [x] **FG-121** Verify a crashed run does not advance the watermark
 - [ ] **FG-274** Wire the real Ship action client into the cron, replacing the FG-122 placeholder. Resolved per run so a missing `SHIP_API_TOKEN` degrades commenting rather than killing the process before detection happens.
+- [ ] **FG-275** Fix the `Closes:` trailer block. A blank line before `Co-Authored-By` splits it, git parses only the last paragraph, and fourteen commits' worth of closures were inert. `--verify` caught it.
+- [ ] **FG-276** `scripts/check-api-coverage.sh` scanned `api/src/routes/*.ts` only, so directory route modules (`routes/fleetgraph/index.ts`) read as missing endpoints. Fixed to scan `*/index.ts` and take the mount name from the directory.
 
 ## M6 · Actions and human-in-the-loop
 
@@ -288,27 +290,27 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 ## M8 · UI
 
-- [ ] **FG-155** `web/src/components/fleetgraph/AgentBanner.tsx` — approval surface, modelled on `PlanQualityBanner`
-- [ ] **FG-156** Banner renders between title and editor, matching the existing pattern (Q22)
-- [ ] **FG-157** Banner: finding text, proposed action, Accept / Dismiss / Snooze
-- [ ] **FG-158** Banner: snooze offers 1 / 3 / 5 business days, default 3
-- [ ] **FG-159** Banner: optimistic update, rollback on failure
-- [ ] **FG-160** `web/src/hooks/useFleetGraphNotifications.ts`
-- [ ] **FG-161** Set-scoped findings (load imbalance) surface on the **sprint** view, not per-issue (Q22)
-- [ ] **FG-162** `web/src/components/fleetgraph/AgentChat.tsx` — contextual chat
-- [ ] **FG-163** Chat is embedded in the document view — **no standalone chatbot page** (brief constraint)
-- [ ] **FG-164** Chat passes document id + type + active tab from route params
-- [ ] **FG-165** Chat renders streaming or progressive response
-- [ ] **FG-166** Chat: empty state naming what it can answer about *this* document
-- [ ] **FG-167** Chat: error state when the agent is unavailable, reusing the `ai_unavailable` pattern
-- [ ] **FG-168** Mount chat in `UnifiedDocumentPage`
-- [ ] **FG-169** Mount banner in `UnifiedDocumentPage`
-- [ ] **FG-170** Notification indicator in the icon rail or dashboard
-- [ ] **FG-171** Notification list view — recipient's open findings
-- [ ] **FG-172** Keyboard accessible: banner actions reachable and operable by keyboard
-- [ ] **FG-173** Focus states visible on all new interactive elements
-- [ ] **FG-174** Both surfaces respect the existing 4-panel layout
-- [ ] **FG-175** Component tests for banner and chat
+- [x] **FG-155** `web/src/components/fleetgraph/AgentBanner.tsx` — approval surface, modelled on `PlanQualityBanner`
+- [x] **FG-156** Banner renders between title and editor, matching the existing pattern (Q22)
+- [x] **FG-157** Banner: finding text, proposed action, Accept / Dismiss / Snooze
+- [x] **FG-158** Banner: snooze offers 1 / 3 / 5 business days, default 3
+- [x] **FG-159** Banner: optimistic update, rollback on failure
+- [x] **FG-160** `web/src/hooks/useFleetGraphNotifications.ts`
+- [x] **FG-161** Set-scoped findings (load imbalance) surface on the **sprint** view, not per-issue (Q22)
+- [x] **FG-162** `web/src/components/fleetgraph/AgentChat.tsx` — contextual chat
+- [x] **FG-163** Chat is embedded in the document view — **no standalone chatbot page** (brief constraint)
+- [x] **FG-164** Chat passes document id + type + active tab from route params
+- [x] **FG-165** Chat renders streaming or progressive response
+- [x] **FG-166** Chat: empty state naming what it can answer about *this* document
+- [x] **FG-167** Chat: error state when the agent is unavailable, reusing the `ai_unavailable` pattern
+- [x] **FG-168** Mount chat in `UnifiedDocumentPage`
+- [x] **FG-169** Mount banner in `UnifiedDocumentPage`
+- [x] **FG-170** Notification indicator in the icon rail or dashboard
+- [x] **FG-171** Notification list view — recipient's open findings
+- [x] **FG-172** Keyboard accessible: banner actions reachable and operable by keyboard
+- [x] **FG-173** Focus states visible on all new interactive elements
+- [x] **FG-174** Both surfaces respect the existing 4-panel layout
+- [x] **FG-175** Component tests for banner and chat
 
 ## M9 · Observability
 
