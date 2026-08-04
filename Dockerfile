@@ -25,6 +25,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY api/package.json ./api/
 COPY web/package.json ./web/
 COPY shared/package.json ./shared/
+COPY agent/package.json ./agent/
 
 # Full install — devDependencies are needed to compile TypeScript
 RUN pnpm install --frozen-lockfile --ignore-scripts
@@ -33,9 +34,14 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY tsconfig.json ./
 COPY shared/ ./shared/
 COPY api/ ./api/
+COPY agent/ ./agent/
 
-# shared must build first; api's tsconfig references its emitted types
-RUN pnpm build:shared && pnpm --filter @ship/api build
+# Order is a dependency chain, not a preference: shared emits the types api's
+# tsconfig references, and the agent imports the circuit breaker from api/dist
+# (a built .d.ts — a cross-package .ts import is a hard tsc error under
+# `rootDir: ./src`). Reordering these breaks the build in a way whose error
+# message points at the wrong package.
+RUN pnpm build:shared && pnpm --filter @ship/api build && pnpm --filter @ship/agent build
 
 # Frontend, served from the same origin as the API. Same-origin is required, not
 # preferred: the session cookie is sameSite:'strict', so a frontend on another
@@ -48,7 +54,8 @@ RUN test -f web/dist/index.html || (echo "web build produced no index.html" && e
 # Fail loudly here rather than at container start
 RUN test -f api/dist/index.js || (echo "api build produced no dist/index.js" && exit 1) \
  && test -f api/dist/db/schema.sql || (echo "schema.sql missing from api/dist/db" && exit 1) \
- && test -d api/dist/db/migrations || (echo "migrations missing from api/dist/db" && exit 1)
+ && test -d api/dist/db/migrations || (echo "migrations missing from api/dist/db" && exit 1) \
+ && test -f agent/dist/entrypoints/cron.js || (echo "agent build produced no cron entrypoint" && exit 1)
 
 # ---------------------------------------------------------------------------
 # Stage 2 — runtime
@@ -85,12 +92,22 @@ RUN npm install -g pnpm@9.15.4 && pnpm config set strict-ssl false
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY api/package.json ./api/
 COPY shared/package.json ./shared/
+COPY agent/package.json ./agent/
 
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts && pnpm store prune
 
 COPY --from=builder /app/shared/dist/ ./shared/dist/
 COPY --from=builder /app/api/dist/ ./api/dist/
 COPY --from=builder /app/web/dist/ ./web/dist/
+
+# The agent ships in the same image as the API, and the Render cron job selects
+# it with a start_command override (terraform/render/cron.tf). One image, two
+# entrypoints.
+#
+# Two images would mean two builds, two registry pushes, and a class of bug
+# where the cron runs a different commit than the API it is reading from — which
+# is exactly the kind of skew that produces a finding nobody can reproduce.
+COPY --from=builder /app/agent/dist/ ./agent/dist/
 
 EXPOSE 80
 
