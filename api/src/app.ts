@@ -35,6 +35,8 @@ import associationsRoutes from './routes/associations.js';
 import accountabilityRoutes from './routes/accountability.js';
 import aiRoutes from './routes/ai.js';
 import weeklyPlansRoutes, { weeklyRetrosRouter } from './routes/weekly-plans.js';
+import fleetgraphRoutes from './routes/fleetgraph/index.js';
+import readyRoutes from './routes/ready.js';
 import { documentCommentsRouter, commentsRouter } from './routes/comments.js';
 import { setupSwagger } from './swagger.js';
 import { initializeCAIA } from './services/caia.js';
@@ -205,6 +207,15 @@ export function createApp(corsOrigin: string = 'http://localhost:5173'): express
     res.json({ status: 'ok', revision });
   });
 
+  // Readiness probe (no auth, no CSRF), mounted next to /health and for the same
+  // reason: a prober reaches it before any session exists.
+  //
+  // Separate from /health on purpose. /health is liveness and touches nothing, so
+  // a database blip cannot restart every healthy container; /ready reaches the
+  // dependencies and answers whether this process can serve a request. See
+  // routes/ready.ts for what makes it 503 and what deliberately does not.
+  app.use(readyRoutes);
+
   // API documentation (no auth needed)
   setupSwagger(app);
 
@@ -271,6 +282,12 @@ export function createApp(corsOrigin: string = 'http://localhost:5173'): express
   // File upload routes (CSRF protected for POST endpoints)
   app.use('/api/files', conditionalCsrf, filesRouter);
 
+  // FleetGraph routes — agent notifications, the approve path, and on-demand chat.
+  // CSRF protected: five of the six are POSTs, and accept/dismiss/snooze resolve a
+  // finding permanently. authMiddleware is applied inside the router, once, so a
+  // seventh route cannot be added without it.
+  app.use('/api/fleetgraph', conditionalCsrf, fleetgraphRoutes);
+
   // Comments routes
   app.use('/api/documents', conditionalCsrf, documentCommentsRouter);
   app.use('/api/comments', conditionalCsrf, commentsRouter);
@@ -288,9 +305,14 @@ export function createApp(corsOrigin: string = 'http://localhost:5173'): express
     app.use(express.static(webDist, { index: false, maxAge: '1y' }));
 
     // SPA fallback — client-side routes like /docs/:id have no file on disk.
-    // Anything under /api, /health or /collaboration has already been handled
-    // above; this must not swallow them.
-    app.get(/^\/(?!api\/|health$|collaboration\/).*/, (_req, res) => {
+    // Anything under /api, /health, /ready or /collaboration has already been
+    // handled above; this must not swallow them.
+    //
+    // /ready is in the lookahead even though route order already covers the GET.
+    // A probe that misspells the method, or a future reorder, would otherwise get
+    // index.html with a 200 — a readiness probe that reports healthy by serving
+    // the frontend is the worst possible failure of a readiness probe.
+    app.get(/^\/(?!api\/|health$|ready$|collaboration\/).*/, (_req, res) => {
       res.sendFile(join(webDist, 'index.html'));
     });
     console.log(`Serving frontend from ${webDist}`);
