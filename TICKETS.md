@@ -252,6 +252,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [ ] **FG-280** **Decision + move: break the api↔agent build cycle.** `agent/` imports `CircuitBreaker` from `api/dist` by relative path, so `api/` importing `agent/dist` would make neither buildable. Fix is to promote `circuitBreaker.ts` into `shared/` (the option FG-098 named first), leaving a re-export in `api/` for back-compat. Additive and reversible. Needs a human call — it changes package structure.
 - [ ] **FG-281** **Bug.** `makeJudge` flattened `ai_unavailable` to `[]`, so the graph read an unreachable model as "nothing worth surfacing", routed to `close_quiet`, and advanced the watermark — closing a scan window whose signals were never judged. `closeQuiet`'s own guard never saw the outcome because the status died a layer below. FG-121 passed throughout: its fake judge threw, the real one did not.
 - [ ] **FG-282** **Bug.** `makeAnswer` flattened `ai_unavailable` to its notice text, so the graph set `outcome: 'answered'` with a non-empty answer and the chat endpoint replied 200 — the UI rendered a service notice as a normal assistant message instead of using its `ai_unavailable` state. Second instance of the FG-281 seam bug. There were no `makeAnswer` tests at all.
+- [ ] **FG-283** **Bug.** The FG-280 breaker move missed `agent/src/actions/client.ts`, which still imported from `api/dist` — so the build cycle was never actually broken. Type-checks and 774 unit tests all passed on stale incremental artifacts; only a clean `pnpm build:api` (via E2E global-setup) revealed it, along with TS5055 and TS2742.
 - [ ] **FG-275** Fix the `Closes:` trailer block. A blank line before `Co-Authored-By` splits it, git parses only the last paragraph, and fourteen commits' worth of closures were inert. `--verify` caught it.
 - [ ] **FG-276** `scripts/check-api-coverage.sh` scanned `api/src/routes/*.ts` only, so directory route modules (`routes/fleetgraph/index.ts`) read as missing endpoints. Fixed to scan `*/index.ts` and take the mount name from the directory.
 
@@ -397,12 +398,12 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-234** Regression: agent never mutates state without approval
 - [x] **FG-235** All regression tests run in CI
 - [ ] **FG-236** CI failure triggers automatic rollback — do not allow a failing build to remain deployed
-- [ ] **FG-237** Document the rollback trigger and procedure in `FLEETGRAPH.md`
+- [x] **FG-237** Document the rollback trigger and procedure in `FLEETGRAPH.md`
 
 ## E3 · E2E tests
 
 - [x] **FG-238** E2E: event introduced into Ship → agent surfaces it within the latency window
-- [ ] **FG-239** E2E: user invokes chat from a context-aware view → receives a grounded response
+- [x] **FG-239** E2E: user invokes chat from a context-aware view → receives a grounded response
 - [x] **FG-240** Both E2E tests run in CI (explicit brief requirement)
 - [x] **FG-241** E2E tests use stable fakes for the LLM, not the live provider
 - [x] **FG-242** Seed fixtures updated in `e2e/fixtures/isolated-env.ts` for agent scenarios
