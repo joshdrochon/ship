@@ -19,22 +19,34 @@ behaviour that has not been verified against the tree.
 | Migration `038` — index, `api_tokens.scopes`, observations, notifications, watermarks | **Built** | `api/src/db/migrations/038_fleetgraph.sql` |
 | Data-access boundary — watermark, suppression, observations, notifications | **Built** | `agent/src/data/boundary.ts` |
 | Five detectors + fingerprinting | **Built, unit-tested** | `agent/src/detectors/` |
-| Graph state object | **Built** | `agent/src/graph/state.ts` |
-| Graph nodes | **All thirteen node modules written** | `agent/src/graph/nodes/` |
+| Graph state object | **Built** — 13 annotated fields | `agent/src/graph/state.ts` |
+| Graph nodes | **Thirteen node modules**; `close_quiet` shares `deliver.ts` | `agent/src/graph/nodes/` |
 | Graph assembly — 16 registered nodes, four conditional edges, `START`/`END` | **Built** | `agent/src/graph/index.ts` — `buildGraph(deps)`, `compileGraph(deps, checkpointer)` |
-| Graph behaviour under test | **Five tests against real Postgres via testcontainers** | `agent/src/graph/index.test.ts` |
+| Graph behaviour under test | **Six tests against real Postgres via testcontainers** | `agent/src/graph/index.test.ts` |
 | Postgres checkpointer | **Built** — `PostgresSaver.fromConnString` + `setup()`, cached per process | `agent/src/graph/checkpointer.ts` |
-| Judgment (LLM) client | **Built**, reusing `api/`'s `CircuitBreaker` rather than copying it | `agent/src/llm/client.ts` |
-| Cron entrypoint | **Not written.** `agent:cron` is registered in `package.json`; `agent/src/entrypoints/` does not exist | `FG-110`–`FG-121` |
+| Judgment (LLM) client and judge | **Built.** One batched `model.invoke` per run, reusing `api/`'s `CircuitBreaker` rather than copying it | `agent/src/llm/client.ts`, `judge.ts`, `answer.ts` |
+| Ship action client | **Built.** Its **own** breaker instance, 5 s request timeout, 3 attempts, 200 ms → 2 s backoff | `agent/src/actions/client.ts`, `act.ts` |
+| Human-in-the-loop resume — accept / dismiss / snooze | **Built and tested across a real `process.exit(0)`** | `agent/src/actions/restart.test.ts`, `suppression.test.ts` |
+| Cron entrypoint | **Built.** Per-workspace advisory lock, 4-minute deadline → `exit(2)`, one JSON log line per scan | `agent/src/entrypoints/cron.ts` |
 | `GET /ready` | **Built and wired** | `api/src/routes/ready.ts`, `app.ts:217` |
-| FleetGraph HTTP endpoints | In progress | `api/src/routes/fleetgraph/` |
+| FleetGraph HTTP endpoints — six, plus schemas and tests | **Built and mounted** at `/api/fleetgraph` | `api/src/routes/fleetgraph/`, `app.ts:289` |
+| The API → graph seam | **Not built.** `invokeAgentChat` throws `agent_not_wired`; the approval routes persist the decision and return `resumed: false` | `api/src/routes/fleetgraph/agentBridge.ts:91`, `index.ts:377` |
+| UI surfaces — banner, chat, rail indicator | **Built and mounted** in `UnifiedEditor` and `App` | `web/src/components/fleetgraph/`, `web/src/hooks/useFleetGraphNotifications.ts` |
 | `render_cron_job` in Terraform | **Written and planned**, `*/3 * * * *`, same image and tag as the web service | `terraform/render/cron.tf`, `terraform/render/PLAN-ANNOTATED.md` |
-| Dockerfile builds `agent/` | **No.** It copies `shared/`, `api/`, `web/` only — the cron's `start_command` has no target in the image | `FG-117`, `FG-118` |
-| UI surfaces — banner, chat, notification list | **Not started.** No `web/src/components/fleetgraph/` | `FG-155`–`FG-175` |
-| LangSmith trace links | Not captured | `FG-181`–`FG-185` |
+| Dockerfile builds `agent/` | **Yes**, and fails the build if `agent/dist/entrypoints/cron.js` is absent | `Dockerfile:44`, `:58`, `:110` |
+| LangSmith tracing | Config is **reported, not enabled** — LangChain reads the env itself; `logTracingStatus()` warns on the quiet misconfigurations | `agent/src/observability/tracing.ts` |
+| LangSmith trace links | Not captured. No AWS credentials on this machine, so no run against a real provider | `FG-181`–`FG-185` |
+| CI deploy / automatic rollback | **Not built.** Neither `.gitlab-ci.yml` nor `.github/workflows/ci.yml` has a deploy stage | `FG-236`, `FG-237` |
 
-Verified against `fa51a0a`. Several agents are landing code on this branch concurrently, so the
-table above is a point-in-time reading, not a standing claim.
+Verified against `83aa33c`: `agent/` runs **162 tests in 19 files, all passing** (`npx vitest run`
+in `agent/`, 28 s, exit 0). The run also prints ten unhandled `57P01` errors attributed to
+`entrypoints/cron.test.ts` — testcontainer shutdown racing pooled clients at teardown, after the
+assertions have passed. Noisy, not failing, and named here so nobody reads the output and
+concludes otherwise.
+
+Several agents are landing code on this branch concurrently, so the table above is a
+point-in-time reading, not a standing claim. Two test files landed between the start of this
+sweep and its end.
 
 Section **Unverified Claims** at the end lists every statement in this document that could not
 be checked against code, so a reader does not have to reconstruct the list.
@@ -211,8 +223,9 @@ and stops at the project owner. A Director never receives an individual stalled 
 receive only aggregate signals such as rework churn. The unit is business days, not runs — at a
 3-minute cron, "two runs" would be six minutes, which would escalate a finding defined by five
 days of silence almost immediately.
-<!-- TODO(FG-084, FG-130): escalation is designed and unimplemented. `fleetgraph_notifications`
-     carries the state column it needs; the escalation step itself lives in `deliver`. -->
+<!-- TODO(FG-084): escalation is designed and unimplemented. `fleetgraph_observations.escalation_count`
+     exists, migration 038 creates it, and `fetchPriorState` reads it into state — but nothing
+     increments it and nothing walks `reports_to`. Re-checked against the tree; still the case. -->
 
 **The caveat, volunteered rather than hidden.** Review bottleneck has no strictly correct
 recipient. **Ship has no reviewer field** — an issue in `in_review` records who it is assigned
@@ -452,6 +465,15 @@ One typed state object, threaded through every node (`agent/src/graph/state.ts`)
 | `pending` | The proposal awaiting approval, when suspended |
 | `messages[]` | Conversation turns, on-demand only |
 
+Four more fields the code carries that `PRESEARCH.md` Q18 does not list, each earning its place:
+
+| Field | Holds | Why |
+|---|---|---|
+| `scannedThrough` | The scan's upper bound, captured in `resolve_scope` before any query runs | The watermark's crash-safety property |
+| `answer` | The composed on-demand answer | Kept out of `messages` so the terminal value is readable without scanning the thread |
+| `outcome` | One of seven terminal states — `quiet_no_signals`, `quiet_all_suppressed`, `quiet_nothing_survived_judgment`, `delivered`, `awaiting_approval`, `answered`, `ai_unavailable` | **Recorded rather than inferred.** A quiet run and a broken run both look like silence; this is what tells them apart in a trace |
+| `errors[]` | Non-fatal problems, appended rather than replaced | A degraded run still delivers what it has |
+
 Keeping `signals` (measured) separate from `findings` (judged) is deliberate: a LangSmith trace
 then shows exactly where determinism ends and the model begins.
 
@@ -506,12 +528,23 @@ condition that resolved itself disappears silently — which is only affordable 
 is cheap. Snooze horizons are in business days because every threshold is in business days; an
 hours-scale snooze would wake before the underlying state could plausibly change.
 
-The `await_approval` node and the `interrupt()` inside it are written, and the graph routes to
-them on C4's `gated` branch.
+All three responses are implemented and tested. `agent/src/actions/restart.test.ts` suspends a
+run at `await_approval` in one process, calls `process.exit(0)`, and resumes the same thread in a
+process that never saw the proposal — asserting that the resume continued rather than replayed
+(`judge` is called zero times on the resumed half). Dismissal and snooze are asserted to survive
+the restart too, and `agent/src/actions/suppression.test.ts` asserts a dismissed fingerprint stays
+dismissed on the run after that, and the one after that.
 
-<!-- TODO(FG-131 – FG-137, FG-155 – FG-159): the resume paths (accept / dismiss / snooze) and the
-     banner that drives them are not written. The suspend half and the checkpointer it rests on
-     are built; nothing yet resumes a suspended thread from a user action. -->
+**The seam that is missing is between the API and the graph, not inside the graph.** The three
+approval endpoints persist the human's decision and return `resumed: false` — deliberately
+honest, and the comment above the handler says so. Nothing yet loads the checkpointer and issues
+the `Command({ resume })` that the agent-side tests issue directly. The same is true of chat:
+`invokeAgentChat` throws `AgentUnavailableError('agent_not_wired')`, so the UI's chat renders its
+`ai_unavailable` state rather than an answer.
+
+<!-- TODO(api/src/routes/fleetgraph/agentBridge.ts:91, index.ts:377): wire the route handlers to
+     the compiled graph. No ticket covers this seam — FG-131 (accept resume) and FG-143 (chat
+     endpoint) are both marked closed against work that stops one call short of the graph. -->
 
 ---
 
@@ -537,7 +570,7 @@ embed everywhere.
 
 The full register, not only the use cases. `PRESEARCH.md` was written before the code and is
 graded as a design document; where the two disagree, **the code is authoritative** and the
-difference is recorded rather than smoothed over. Seven, and none of them changes a decision.
+difference is recorded rather than smoothed over. Nine, and none of them changes a decision.
 
 | # | `PRESEARCH.md` says | The code does | Resolution |
 |---|---|---|---|
@@ -548,10 +581,12 @@ difference is recorded rather than smoothed over. Seven, and none of them change
 | 5 | Q11/Q20: the scan "only considers documents changed since the last run" and "a quiet workspace returns zero rows" | The watermark bounds the **run**, not the query. `runDetectors` takes no watermark parameter | The code is right: absence-based detectors would hide exactly what they look for. Argued in full under **Trigger Model → What the watermark actually does** |
 | 6 | Q16 implies the five detectors are part of the parallelism | The three fetch **nodes** are parallel; the five detectors inside `fetch_signals` run sequentially | Not a contradiction, an omission. Five queries against a pool capped at four connections would saturate it |
 | 7 | Q17: conditional edge 1 fires after `trigger_router` | It fires after `resolve_scope`, one node later. Same condition, same two branches | `scannedThrough` must be captured before any query runs, and scope resolution is common to both modes — branching first would duplicate that capture. Argued under **Graph Outline → Where the assembled graph differs from Q17** |
+| 8 | Q15 lists **thirteen** nodes | Sixteen are registered. Q15 has no `close_quiet` and no on-demand fetch nodes | Additions, not contradictions, and each has a reason the design did not reach: a quiet run still has to close its window, and a trace should name the mode it ran in rather than making you infer it |
+| 9 | Nothing in `PRESEARCH.md` bounds how many findings one run acts on | `route_action` ranks by severity and proposes **exactly one** per run; the rest stay recorded as observations and surface on later scans if they persist | An omission the code had to close. "A run that delivers eight notifications at once is a run whose notifications get bulk-dismissed" (`routeAction.ts:50`). It is a real scope limit and is recorded as one |
 
 Rows 1–4 are `PRESEARCH.md` Q9 compressing details wrongly. Rows 5–7 are the implementation
-finding a better answer than the design did, and each is recorded at the seam in the code as
-well as here.
+finding a better answer than the design did. Rows 8–9 are the design being silent where the code
+had to decide. Each is recorded at the seam in the code as well as here.
 
 ## How these were discovered rather than invented
 
@@ -691,6 +726,255 @@ whenever the TTL expired, which is precisely the alert-fatigue failure.
 
 ---
 
+# Test Cases
+
+Brief p.9: for each use case, the Ship state that should trigger the agent, what the agent
+should detect or produce, and the LangSmith trace from a run against that state.
+
+**The Ship state is executable, not described.** Every trigger state below is the exact fixture
+call that produces it, from `agent/src/detectors/fixtures.ts` — the same builders the detector
+tests use. Ship's seed data triggers nothing: no seeded issue has sat in `in_progress` for five
+business days, and no seeded sprint is two days from its end with unstarted work. Every case
+therefore constructs its condition. "Make an issue stale" is not reproducible;
+`createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20 })` is.
+
+**The trace links are empty and no placeholder is written.** Capturing a trace needs a run
+against a real model provider, and there are no AWS credentials on this machine, so no run
+against Bedrock can be made. A fabricated or dead link would read as satisfied, which is worse
+than an empty cell.
+
+**None of these are runs of the deployed agent.** They run the assembled graph and the real
+detectors against a real Postgres provisioned by testcontainers, loading `schema.sql` and every
+migration, with the LLM injected as a fake — which is what engineering requirement 3 asks for.
+
+| # | Use case | Ship state — seed mutation | Expected output | Trace |
+|---|---|---|---|---|
+| 1 | Stalled work | `createIssue(pool, ws, { state: 'in_progress', assigneeId: dev, updatedDaysAgo: 20 })` | One `stalled_work` signal · `targetType: 'issue'` · `measurement` = business days idle, ≥ `threshold` 5 · `accountableUserId` = the assignee. Action class `additive`/`comment`, so C4 routes **autonomous** → `execute_autonomous` → `deliver`, `outcome: 'delivered'` | <!-- TODO(FG-181, FG-222): no run against a real provider; no AWS credentials on this machine --> |
+| 2 | Sprint-miss risk | `createSprint(pool, ws, { endsInDays: 1, ownerId: owner })`, then 4× `createIssue(pool, ws, { state: 'todo' \| 'backlog', updatedDaysAgo: 0 })` + `attachToSprint` | **One** `sprint_miss_risk` signal for the sprint, not four for the issues · `targetType: 'sprint'` · `measurement` = 4 unstarted · `threshold` 2 (business days left) · `accountableUserId` = the sprint owner. `additive`/`comment` → autonomous | <!-- TODO(FG-181, FG-223): not captured --> |
+| 3 | Load imbalance | `createSprint(pool, ws, { endsInDays: 10, ownerId })`, then three people holding 1, 1 and 8 `in_progress` issues, all `updatedDaysAgo: 0`, each `attachToSprint` | One `load_imbalance` signal · `targetId` = the **sprint** · `measurement` 8 · `context.team_median` 1 · `context.team_size` 3 · `accountableUserId` = the sprint owner, **never** the overloaded person. The only signal typed `mutation`/`reassign`, so C4 routes **gated** → `await_approval`, `outcome: 'awaiting_approval'` | <!-- TODO(FG-182, FG-224): not captured --> |
+| 4 | Review bottleneck | `createIssue(pool, ws, { state: 'in_review', assigneeId, updatedDaysAgo: 12 })` | One `review_bottleneck` signal · `threshold` 2 · `context.reviewer_known` = `0`, set so the prompt cannot imply the recipient is the blocker · `accountableUserId` = the assignee, which is the caveat this detector ships with | <!-- TODO(FG-181, FG-225): not captured --> |
+| 5 | Rework churn | `createProject(pool, ws, { ownerId: owner })`, then 3× (`createIssue(… updatedDaysAgo: 0)` + `attachToProject` + `recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3)`) | **One** `rework_churn` signal for the project, not three for the issues · `targetType: 'project'` · `measurement` 3 · `threshold` 2 · `context.lookback_days` 30 · `accountableUserId` = the project owner. `additive`/`comment` → autonomous | <!-- TODO(FG-181, FG-226): not captured --> |
+| 6 | On-demand contextual answer | `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20, assigneeId })` + `recordStateChange(pool, issueId, 'todo', 'in_progress', ws.ownerId, 21)`, then invoke with `mode: 'on_demand'` and `scope: { workspaceId, documentId: issueId, documentType: 'issue' }`, one user message | Path is `trigger_router → resolve_scope → on_demand_fetch_signals ‖ on_demand_fetch_participants → compose_answer → END`, `outcome: 'answered'`. **No execute node is visited** — the action-client call count stays 0 and the answer call count is 1. The answer node is asserted to have received *that* `documentId` and the measured signals, and `recentHistory[].field` carries the real field name | <!-- TODO(FG-182, FG-227): not captured --> |
+
+## The seed mutations, in full
+
+Cases 1, 4 and 6 are one call and are complete in the table. The three that build a shape are
+written out here so someone else can reproduce the trigger state without reading the tests.
+
+```ts
+// Case 2 — sprint-miss risk. Ends tomorrow; four issues never started.
+// Four rather than one so "per sprint, not per issue" is a distinguishable claim.
+const sprintId = await createSprint(pool, ws, { title: 'Week 31', endsInDays: 1, ownerId: owner });
+for (let n = 0; n < 4; n++) {
+  const id = await createIssue(pool, ws, {
+    title: `Unstarted ${n}`,
+    state: n % 2 === 0 ? 'todo' : 'backlog',
+    updatedDaysAgo: 0,                       // freshly touched, so nothing else fires
+  });
+  await attachToSprint(pool, id, sprintId);  // document_associations, never the dropped sprint_id
+}
+
+// Case 3 — load imbalance. Three people is the minimum team; 8 against a median of 1 is 8x.
+// The sprint ends in ten days so sprint-miss risk stays silent and this is the only signal.
+const sprintId = await createSprint(pool, ws, { title: 'Week 32', endsInDays: 10, ownerId });
+for (let p = 0; p < 3; p++) {
+  const uid = await createUser(pool, `uc3-p${p}-${sprintId.slice(0, 8)}@t.local`, `P${p}`);
+  for (let n = 0; n < (p === 2 ? 8 : 1); n++) {
+    const id = await createIssue(pool, ws, {
+      state: 'in_progress', updatedDaysAgo: 0, assigneeId: uid,
+    });
+    await attachToSprint(pool, id, sprintId);
+  }
+}
+
+// Case 5 — rework churn. Three issues back from done inside the 30-day lookback.
+// Three, not two, so the aggregate is distinguishable from the threshold itself.
+const projectId = await createProject(pool, ws, { title: 'Platform', ownerId: owner });
+for (let n = 0; n < 3; n++) {
+  const id = await createIssue(pool, ws, { title: `Reopened ${n}`, updatedDaysAgo: 0 });
+  await attachToProject(pool, id, projectId);
+  await recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3);
+}
+```
+
+Three properties of the fixtures that make the numbers above land where they do.
+
+- `updatedDaysAgo` is **calendar** days, and every detector converts to business days in JS with
+  `businessDaysBetween` — so 20 calendar days is about 14 business days, comfortably past the
+  5-day bar without sitting on it whichever weekday the suite runs on.
+- `updated_at` is written explicitly on every insert rather than defaulting to `now()`. That is
+  the whole point: the fixtures exist to make a row *old*.
+- **Every fixture is built to trip exactly one detector**, and the tests assert that with a length
+  check. `route_action` proposes one finding per run, so a workspace tripping two would make
+  "the agent proposed X" depend on tie-break order among equal severities. That is also why the
+  irrelevant rows in each fixture carry `updatedDaysAgo: 0` and why case 3's sprint ends ten days
+  out rather than one.
+
+## Where each expected output is asserted today
+
+The two columns above are not a restatement of the tests; they are the fixture call and the
+assertions of these files.
+
+Every row has a **graph-level** regression test in `agent/src/graph/use-cases.test.ts`, one per
+use case, which runs the real compiled graph against a real Postgres and asserts the row of the
+table column by column — what it detected, the shape the finding took, the action class it
+proposed, and who was notified. Beneath those sit the detector tests, which prove the SQL
+predicate and nothing more.
+
+| # | Graph-level — `graph/use-cases.test.ts` | Detector-level |
+|---|---|---|
+| 1 | Comments autonomously, tells the assignee, `outcome: 'delivered'`, never visits `await_approval` | `detectors/stalledWork.test.ts` — threshold, quiet cases, archived/deleted, workspace scoping, fingerprint stability |
+| 2 | One signal per sprint carrying the unstarted count, not one per issue | `detectors/sprintMissRisk.test.ts` — quiet when started, quiet when far off, null owner carried |
+| 3 | Proposes a rebalance to the sprint owner and **never performs it** | `detectors/loadImbalance.test.ts` — median, small-team guard, within-sprint comparison, distinct fingerprints for two overloaded people |
+| 4 | Detects an `in_review` issue idle past 2 business days and routes it to the assignee | `detectors/sprintMissRisk.test.ts` (second `describe`) — threshold lower than stalled work, `reviewer_known` |
+| 5 | Aggregates reopened work per project, reports to the project owner | `detectors/loadImbalance.test.ts` (second `describe`) — both sources, no double-count, lookback window, forward transitions ignored |
+| 6 | Answers about the document in view and takes no action at all | — |
+
+Two more properties of that file, neither per-row, both the reason it is trustworthy rather than
+merely present.
+
+- **The run is streamed once, not run twice.** Reading the visited nodes and the end state from
+  two invocations would mean the second run finds the first run's observation already recorded
+  and terminates `quiet_all_suppressed` — correct behaviour that would make a two-run helper
+  silently assert nothing. The state is read back out of the checkpointer instead.
+- **`POST /api/issues/bulk` is asserted against the wire, not against the source.** The action
+  layer is wired to a recording `fetch`, and after all six runs every request path is checked for
+  `bulk` and passed through `assertSingleDocumentPath`. That proves the guard sits on the path a
+  real run takes, which a string-literal test of the guard does not (`FG-233`).
+
+The human gate is exercised separately and harder. `agent/src/actions/restart.test.ts` suspends
+case 3 at `await_approval`, calls `process.exit(0)`, and resumes the same thread in a process
+that never saw the proposal — asserting the resumed half calls `judge` zero times, so the run
+continued rather than replayed. `agent/src/actions/suppression.test.ts` covers dismissal staying
+dismissed and a snooze that re-runs the detector.
+
+One thing these tests deliberately do not prove: **none of them run the agent as a deployed
+process against a live workspace.** They run the same graph the cron entrypoint compiles, against
+a real Postgres, with the model faked. What is untested end to end is the deployment
+(`FG-196`–`FG-209`) and the API-to-graph seam, which is not written at all.
+
+---
+
+# Architecture Decisions
+
+The four the brief asks for: framework choice, node design, state management, deployment model.
+Each states what else was considered and why it lost, because a decision recorded without its
+rejected alternatives is a preference.
+
+These are ported from `PRESEARCH.md`, which holds the full argument. Where a rationale is not in
+`PRESEARCH.md` or in a code header, that is said rather than back-filled.
+
+## AD-1 · Framework — LangGraph JS, inside the monorepo
+
+`@langchain/langgraph` 1.4.8 with `@langchain/langgraph-checkpoint-postgres` 1.0.4, as a pnpm
+workspace package at `agent/` alongside `shared/`, `api/`, and `web/`.
+
+Two reasons, and only one of them is the brief. The brief (p.6) recommends LangGraph and charges
+any other framework with instrumenting LangSmith manually — that sets the default. What made the
+default safe was verifying the one property the whole deployment model rests on: a run suspended
+for human approval must survive the container exiting. That was proved before anything was
+built, in a separate process, with eight assertions including that the pre-interrupt nodes did
+not re-run (`PRESEARCH.md`, "Closed — LangGraph JS durable `interrupt()`").
+
+| Alternative | Why it lost |
+|---|---|
+| LangGraph in **Python**, as a sidecar | A second runtime, a second image, and a second Terraform service, for a repository that is TypeScript end to end (`PRESEARCH.md` gating decision 2) |
+| A framework other than LangGraph | The brief makes it responsible for producing equivalent traces by hand (p.6). Buying that work to avoid a recommended dependency is a bad trade |
+| Hand-rolled orchestration, no framework | Same instrumentation cost, plus writing a durable checkpointer. **Not recorded in `PRESEARCH.md` as a considered alternative** — stated here as the obvious third option rather than presented as a decision that was actually taken |
+| Manual instrumentation instead of LangSmith | The brief permits it and charges for it (`PRESEARCH.md` gating decision 3) |
+
+The monorepo placement is the same argument as the single image (AD-4). `agent/` takes
+`@ship/shared` as a `workspace:*` dependency and reaches the API's `CircuitBreaker` directly at
+`api/dist/services/circuitBreaker.js` — the built artifact, not a copied file — so the agent and
+the API cannot drift on shared types or on the breaker's configuration.
+
+## AD-2 · Node design — measurement is deterministic, judgment is not
+
+Sixteen registered nodes from thirteen modules, four conditional edges, and exactly **two** LLM
+nodes. The ratio is the design: the model judges pre-measured facts and phrases them, and does
+nothing else.
+
+Eight choices, each with what it beat.
+
+| Choice | Alternative | Why it lost |
+|---|---|---|
+| Two gates — a SQL threshold, then an LLM judgment | Thresholds only | That is `accountability.ts` already: nine detection types, a flat list, everything crossing a line equally loud (`PRESEARCH.md` Q2) |
+| | LLM only | Pays tokens whether or not anything happened, and asks the model to do timestamp arithmetic (Q2) |
+| `triage_gate` is a node that calls nothing | An `if` inside `judge_signals` | The gate is where a quiet run and a drifting run diverge, so it has to be *named* in the trace. Its header says so: "the most important node in the graph, and it calls nothing" |
+| `close_quiet` is a node, not an edge to `END` | Three edges straight to `END` | A quiet run still has to close its scan window or the next run re-covers it. Recorded in `deliver.ts`, which also records the exception: an `ai_unavailable` run must **not** advance, because it measured the window and never got to judge |
+| Fan-out at the three fetch **nodes** | Sequential fetches | Pays the sum of three independent reads for no benefit (Q16) |
+| | Fetch participants lazily after triage | Saves a query on quiet runs, but participants are needed to *judge* severity, so it serialises the work behind the model call (Q16) |
+| The five detectors inside `fetch_signals` run **sequentially** | Parallel detectors | Five queries against a pool capped at four connections would saturate it, to gain milliseconds on indexed range scans (`detectors/index.ts` header). Not addressed in `PRESEARCH.md`; this is the code's own answer |
+| On-demand fetches registered under **separate node names** | Reuse the proactive names | The trace would no longer name the path it took (`graph/index.ts` header) |
+| Blast radius derived in code, from a signal-type table | Let the model classify its own impact | The one thing a model cannot be trusted on. `routeAction.ts` derives the class from `ACTION_BY_SIGNAL`; the model's output shapes what the message *says* and never widens what the agent may *do* |
+| Chat's read-only property is a **missing edge** | A prompt instruction not to act | "A prompt instruction is a request; a missing edge is a guarantee" (`graph/index.ts` header), and the graph test asserts it structurally |
+
+## AD-3 · State management — one object in flight, three tables at rest
+
+**In flight:** a single typed state object threaded through every node
+(`agent/src/graph/state.ts`). Every node reads and writes one object, so a trace shows exactly
+what each node saw. `signals` (measured) stay separate from `findings` (judged) so the trace
+shows where determinism ends and the model begins (`PRESEARCH.md` Q18).
+
+**At rest:** three FleetGraph tables plus the LangGraph checkpointer, all in Ship's existing
+Postgres.
+
+| Alternative | Why it lost |
+|---|---|
+| In-memory state between runs | Cannot survive a cron container exiting, which is the entire approval model. The single strongest argument for a durable checkpointer (Q19) |
+| Redis or `render_keyvalue` | Available rather than hypothetical — both are resources in the pinned provider. It still loses: the state is small, relational, and joins to `documents` and `users`, so a key-value store means giving up the joins and adding a second backup story for no gain (Q19) |
+| Agent bookkeeping in Ship's `documents` table | Pollutes the unified document model, which Ship's own philosophy docs argue against (Q19) |
+| Time-based cache instead of fingerprint suppression | Re-surfaces the same finding whenever the TTL expires, which is precisely the alert-fatigue failure (Q20) |
+| Cache model responses keyed on the prompt | Helps a repeated question; does nothing for the proactive path (Q20) |
+| No dedup, filter at delivery | Pays the full token cost and then throws the answer away (Q20) |
+
+Two things the implementation settled that the design did not.
+
+- **The watermark bounds the run, not the query.** `PRESEARCH.md` Q11/Q20 describe the scan as
+  considering only documents changed since the last run. Detectors measure conditions that have
+  *persisted*, so filtering on `updated_at > watermark` would hide exactly what they look for.
+  Drift-register row 5; argued under **Trigger Model → What the watermark actually does**.
+- **The checkpointer's tables are the library's, not ours.** `PostgresSaver.setup()` creates
+  `checkpoints`, `checkpoint_blobs`, `checkpoint_writes`, and `checkpoint_migrations` in Ship's
+  database. They are deliberately not in `api/src/db/migrations/`: the library owns their schema
+  and migrates them itself, so a hand-written migration would fight it the first time it changes
+  them. `setup()` is idempotent, which is what makes destroy-and-redeploy work with no manual
+  step.
+
+## AD-4 · Deployment model — one image, two entrypoints
+
+A `render_cron_job` in `terraform/render/` on `*/3 * * * *`, running the **same image** as the
+API with a different `start_command`. The on-demand path needs no process of its own: the graph
+runs inside the existing API service and inherits its health checking.
+
+`start_command` being optional on `render_cron_job` in the pinned provider (`render-oss/render`
+1.9.1) is the seam that makes "same image, different entrypoint" work without a second artifact
+— verified in the provider schema before the resource was written (`PRESEARCH.md` Q27).
+
+| Alternative | Why it lost |
+|---|---|
+| A separate always-on service running an internal scheduler | Pays for an idle process 24/7 and adds a second image to keep in sync (Q27) |
+| An in-process `setInterval` in the API | Dies when the free-plan service sleeps, and couples agent liveness to API liveness (Q27) |
+| External cron — GitHub Actions | Puts the trigger outside Terraform, and the MVP requires the deployment to be defined there (Q27) |
+| A long-running worker with an internal loop | Needs liveness probes, a restart policy, and memory-leak vigilance for no benefit. A process that exits cannot leak, wedge, or drift; its failure mode is "did not run", which the scheduler reports (Q28) |
+| A serverless function | A fourth deployment target for the same code (Q28) |
+| Service account holding a session cookie | Sessions time out at 15 minutes; a cron would spend most of its life re-authenticating (Q29) |
+| A shared-secret header | A second auth path to secure, bypassing the audited one (Q29) |
+| mTLS | Real infrastructure cost for a threat model where a revocable bearer token over TLS is appropriate (Q29) |
+
+Authentication is a Ship API token (`api_tokens`) issued to a dedicated FleetGraph service
+account and passed as `Authorization: Bearer` — the mechanism `mcp/server.ts` already uses,
+injected by Terraform off the Postgres resource's computed `connection_info` so no credential
+enters a variable file or the repository.
+
+**The consequence that pays for the whole decision is rollback.** Because the image is built once
+in CI and promoted by SHA, and because the agent and the API are that same image, a rollback is
+one `terraform apply` with an older tag and it rolls both back together. There is no way for the
+agent and the API to be running different versions of the shared types, the circuit breaker, or
+the schema expectations. See **Rollback Trigger and Procedure**.
+
+---
+
 # Performance
 
 ## Detection latency budget
@@ -711,8 +995,11 @@ existing request timeout kills it first. A pathologically slow judgment fails fa
 
 **Verification is a timed test run**, per the brief: introduce an event into Ship, start the
 clock, assert the agent surfaces it inside the window.
-<!-- TODO(FG-209, FG-238): the timed run has not been performed. The 15 s cold start is the only
-     unbounded term and is the reason the measurement is required rather than optional. -->
+The E2E spec that performs it exists — `e2e/fleetgraph-agent.spec.ts`, "surfaces an event
+introduced into Ship inside the 5-minute latency window" — and both pipelines have an `e2e` job.
+<!-- TODO(FG-209): the number it produces has not been recorded here. The 15 s cold start is the
+     only unbounded term in the budget and is why the measurement is required rather than
+     optional. `e2e/**` is owned by another agent this pass, so the spec is cited, not claimed. -->
 
 ## Token budget per invocation
 
@@ -770,11 +1057,26 @@ instance for the Ship HTTP API.
 | Breaker states | closed / open / half-open | `circuitBreaker.ts` |
 
 Exponential backoff between attempts comes from the AWS SDK's standard retry mode, configured by
-`maxAttempts: 3` on the `BedrockRuntimeClient`. The Ship HTTP client, which has no SDK behind it,
-implements backoff explicitly on the pattern already used in `api/src/services/caia.ts`:
-`base × 2^(attempt-1)`, bounded by the attempt count.
-<!-- TODO(FG-123, FG-124): the Ship API client and its breaker instance are not written. The
-     breaker class and the Bedrock configuration above are verified; the second instance is not. -->
+`maxAttempts: 3` on the Bedrock client. The Ship HTTP client, which has no SDK behind it,
+implements backoff explicitly on the pattern already used in `api/src/services/caia.ts`. It is
+written, and its numbers are its own rather than inherited:
+
+| Parameter | Value | Verified in |
+|---|---|---|
+| Request timeout | 5 s | `agent/src/actions/client.ts` — `REQUEST_TIMEOUT_MS = 5_000`, enforced by an `AbortController` |
+| Max attempts | 3 | `MAX_ATTEMPTS = 3` |
+| Backoff | 200 ms base, doubling, capped at 2 s | `BACKOFF_BASE_MS`, `BACKOFF_CAP_MS` |
+| Worst-case total for one call | **15.6 s**, computed rather than asserted | `MAX_TOTAL_MS`, exported so a test can bind to it |
+| Breaker | Its **own** instance, 5 consecutive failures / 60 s cooldown | `const shipApiBreaker = new CircuitBreaker({...})` |
+
+Ship's API is a different dependency from Bedrock with a different latency profile, so a 20 s
+request timeout would be wrong for it — hence a second instance of the same class rather than a
+shared one. The breaker wraps the whole retry sequence, not each attempt, so three retries count
+as one failure against the threshold.
+
+`MAX_TOTAL_MS` being exported and computed is the detail worth keeping: the bound on how long a
+single outbound call can take is derived from the constants above rather than written down
+separately, so it cannot drift from them.
 
 **Why reuse rather than write a second one.** The existing breaker's own comments record why it
 exists: *"a retry makes a single request more likely to succeed, but when the dependency is down
@@ -796,6 +1098,16 @@ through HTTP.
 crashed or aborted run leaves it where it was and the next scan re-covers the same window. The
 proactive path is therefore crash-safe **without any retry logic** — reconciliation is inherent
 to the design rather than bolted on.
+
+There is one case where "completed" is not the same as "reached the last node", and it is the
+kind of bug that hides for weeks. An `ai_unavailable` run arrives at `close_quiet` by the same
+edge as a genuinely quiet one. They must not be treated alike: a quiet run measured the window
+and found nothing, while an unavailable-model run measured it and never got to judge. Advancing
+on the second would close a window whose signals were never assessed, and nothing would look at
+them again. `close_quiet` holds the watermark in that case — `if (state.outcome ===
+'ai_unavailable') return {}` before the write, verified in `nodes/deliver.ts` — which is what
+makes the degraded path lossless rather than merely silent. Logged as a bug (`FG-273`) and fixed;
+the ticket is still open in `TICKETS.md`, which is stale rather than the code being wrong.
 
 | Alternative | Why it lost |
 |---|---|
@@ -871,10 +1183,18 @@ different `start_command`. That is the point of the one-image decision: no secon
 keep in sync, and no way for the agent and the API to be running different versions of the
 shared types, the circuit breaker, or the schema expectations.
 
-<!-- TODO(FG-117, FG-118): the one-image claim is not true of the tree yet. The Dockerfile copies
-     `shared/`, `api/`, and `web/` only — `agent/` is neither built nor present in the runtime
-     stage — and `agent/src/entrypoints/cron.ts` does not exist. Both must land before the cron
-     resource is written, or the `start_command` seam has nothing to point at. -->
+**The one-image claim is true of the tree now**, which it was not when this section was first
+written. `Dockerfile:44` builds `@ship/agent` alongside `@ship/api`, `:110` copies
+`agent/dist/` into the runtime stage, and `:58` fails the build outright if
+`agent/dist/entrypoints/cron.js` is not there — so the image cannot be published without the
+target the cron's `start_command` points at. The default `start_command` in
+`terraform/render/variables.tf` is `node /app/agent/dist/entrypoints/cron.js`, which is that
+exact path.
+
+The remaining half is the apply. The cron resource is declared and planned; it has not been
+applied, so the seam is verified by construction and not by a running job.
+<!-- TODO(FG-196 – FG-205): terraform apply, the annotated plan against a real apply, and the
+     destroy-and-redeploy cycle. -->
 
 
 ## Two caveats that are properties of the app, not the pipeline
@@ -889,8 +1209,9 @@ shared types, the circuit breaker, or the schema expectations.
 
 ## What is not built yet
 
-The repository's CI pipeline has four stages — `setup`, `verify`, `audit`, `package` — and **no
-deploy stage**. Promotion is currently a `terraform apply` an operator runs. The automatic
+**Neither pipeline has a deploy stage.** GitLab's has four — `setup`, `verify`, `audit`,
+`package` — and ends at publishing the image to the registry; GitHub's has ten jobs and no
+deploy or rollback among them. Promotion is a `terraform apply` an operator runs. The automatic
 rollback that engineering requirement 1 asks for therefore rests today on Render's health-check
 rollback, which is configured and real, plus the promotion gate, which is manual.
 
@@ -907,6 +1228,18 @@ LangGraph traces automatically once `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`,
 `LANGCHAIN_PROJECT` are set. Nodes are named so the trace reads as the graph outline above rather
 than as anonymous steps.
 
+`agent/src/observability/tracing.ts` **reports that configuration; it does not enable it.** That
+is deliberate and worth being explicit about, because it is the kind of thing a reader assumes
+the file does. LangChain reads the environment itself, so a module that also set it would be a
+second source of truth. What the module adds is a warning for each of the three quiet
+misconfigurations — the flag set with no key, a key with the flag unset, tracing on with no
+project name — printed once per process by `logTracingStatus()`, which the cron entrypoint calls
+before its first scan. The key is never printed. Tracing being silently off is exactly the
+failure that produces an empty trace list and no error, so it is made loud.
+
+The cron's Terraform passes `LANGCHAIN_*` through `local.agent_optional_env`, opt-in: absent
+variables mean absent env vars rather than empty ones.
+
 Two trace links are required, showing **different execution paths through the same graph**:
 
 | # | Path the trace must show | Expected node sequence | Link |
@@ -915,8 +1248,14 @@ Two trace links are required, showing **different execution paths through the sa
 | 2 | Drifting run — reaches an action and hits the human gate | `… → triage_gate → judge_signals → route_action → await_approval` (suspends on the checkpointer) | <!-- TODO(FG-182, FG-184, FG-185): not captured --> |
 
 **The links do not exist yet and no placeholder URL is written here.** A fabricated or dead link
-would be worse than an empty cell, because it would read as satisfied. What is missing is the
-LangSmith wiring and a run to trace — there is no cron entrypoint yet (`FG-110`).
+would be worse than an empty cell, because it would read as satisfied.
+
+What is missing is no longer the code. The cron entrypoint exists, the graph compiles, and the
+node names are the ones in the table. What is missing is a run against a real model provider:
+**there are no AWS credentials on this machine**, so the drifting run cannot reach Bedrock and
+neither trace can be captured. The quiet trace is closer — it spends no tokens by construction —
+but capturing one and not the other would defeat the purpose, since the point of the pair is the
+contrast. `FG-177`–`FG-179` are the wiring; `FG-181`–`FG-185` are the capture.
 
 **The property the traces are meant to demonstrate is already asserted in a test.** MVP
 requirement 2 asks for two traces showing *different execution paths*.
@@ -939,14 +1278,14 @@ underlying feature is built unless the Evidence column says so.
 
 | # | MVP requirement | Doc | Code | Notes |
 |---|---|---|---|---|
-| 1 | Graph running with ≥ 1 proactive detection wired end-to-end | Documented | **Nearly** | The graph is assembled and runs end-to-end **in test** — a 20-day-idle issue reaches `judge_signals` and populates state at `deliver`, against real Postgres. What is missing is the process that runs it outside a test: no cron entrypoint (`FG-110`), and the Dockerfile does not build `agent/` (`FG-117`) |
-| 2 | LangSmith tracing enabled, ≥ 2 shared trace links showing different paths | Section present, links empty | Partial | The *different paths* property is asserted by a regression test today. The tracing wiring and the two shared links are not done (`FG-176`–`FG-185`). Deliberately not faked |
+| 1 | Graph running with ≥ 1 proactive detection wired end-to-end | Documented | **Yes, in test; not deployed** | All six use cases run end to end through the real compiled graph against real Postgres (`graph/use-cases.test.ts`). The process that runs it outside a test now exists too — `entrypoints/cron.ts`, built into the image and pointed at by the cron's `start_command`. What has not happened is the apply (`FG-196`–`FG-209`) |
+| 2 | LangSmith tracing enabled, ≥ 2 shared trace links showing different paths | Section present, links empty | Partial | The *different paths* property is asserted by a regression test today, and the env contract and status reporting are written. **No AWS credentials on this machine**, so no run can reach a real provider and neither trace can be captured (`FG-177`–`FG-185`). Deliberately not faked |
 | 3 | FLEETGRAPH.md with Agent Responsibility and Use Cases, ≥ 5 use cases | **Covered** | n/a | Agent Responsibility answers all seven brief questions; six use cases, matched to the code |
 | 4 | Graph outline — node types, edges, branching conditions | **Covered** | **Yes** | Sixteen registered nodes, the fan-out, and four conditional edges — all present in `agent/src/graph/index.ts` and named identically here and in `NODES` |
-| 5 | ≥ 1 human-in-the-loop gate implemented | Documented | Partial | `await_approval` is written, wired to C4's `gated` branch, and `interrupt()` durability is verified across a process exit. The resume paths a human drives (accept / dismiss / snooze) are not written (`FG-131`–`FG-137`), and there is no UI to drive them from |
+| 5 | ≥ 1 human-in-the-loop gate implemented | Documented | **Yes at the graph layer** | `await_approval` is wired to C4's `gated` branch, and accept / dismiss / snooze are implemented and asserted across a real `process.exit(0)` (`FG-131`–`FG-137`). The banner that drives them is built. **The API routes do not resume the thread** — they persist the decision and return `resumed: false` |
 | 6 | Running against real Ship data, no mocked responses | Documented | Partial | Detectors and the full graph run against a real Postgres provisioned by testcontainers, loading `schema.sql` and every migration. Only the LLM is faked, which engineering requirement 3 requires. No deployed run against a live workspace yet |
-| 7 | Agent chat and notifications accessible in the UI | Documented | **No** | `fleetgraph_notifications` exists and `api/src/routes/fleetgraph/` is in progress. **No `web/src/components/fleetgraph/` at all** — nothing is accessible in the UI yet (`FG-155`–`FG-175`) |
-| 8 | Deployed via Terraform, `/health` + `/ready`, annotated plan, destroy-and-redeploy | Documented | Partial | `terraform/render/` declares Postgres, the web service, and `render_cron_job`. `/health` and `/ready` both exist and are wired. Outstanding: the Dockerfile does not build `agent/`, so the cron's `start_command` has no target; and the apply, annotated plan, and destroy-and-redeploy have not been run (`FG-117`, `FG-196`–`FG-205`) |
+| 7 | Agent chat and notifications accessible in the UI | Documented | **Partial** | `web/src/components/fleetgraph/` has the banner, the chat panel, and the rail indicator, mounted in `UnifiedEditor` and `App`; six endpoints are live behind `/api/fleetgraph`. **Notifications work end to end** — the graph writes the table the list reads. **Chat does not**: `invokeAgentChat` throws `agent_not_wired`, so the panel renders its `ai_unavailable` state |
+| 8 | Deployed via Terraform, `/health` + `/ready`, annotated plan, destroy-and-redeploy | Documented | Partial | `terraform/render/` declares Postgres, the web service, and `render_cron_job`. `/health` and `/ready` both exist and are wired. The Dockerfile now builds `agent/` and fails without the cron entrypoint, so the `start_command` seam has a target. Outstanding: the apply, the annotated plan against a real apply, and destroy-and-redeploy (`FG-196`–`FG-205`) |
 | 9 | Trigger model documented and defended | **Covered** | n/a | Poll/webhook/hybrid tradeoffs, staleness, and the 100/1,000-project cost curve, each with the alternative named |
 
 Performance requirements from the same page:
@@ -961,19 +1300,25 @@ Engineering requirements (brief p.4):
 
 | Requirement | Status |
 |---|---|
-| 1 · Regression tests with automatic rollback | Rollback trigger and procedure documented above. The **automatic** half is not wired (`FG-236`) |
-| 2 · E2E tests for both modes, in CI | Not written (`FG-238`–`FG-240`) |
-| 3 · Mock external services with stable fakes | Pattern exists — `mocks/bedrock-expectations.json` and the `BEDROCK_ENDPOINT` override, which `agent/src/llm/client.ts` already honours. Extending the fixtures is `FG-245` |
-| 4 · Retries, timeouts, circuit breakers | Documented above with verified values. The Ship-API breaker instance is `FG-124` |
-| 5 · `CHANGES.md` developer documentation | Exists from Week 4 and continues; agent sections are `FG-255`–`FG-257` |
+| 1 · Regression tests with automatic rollback | **Regression tests done** — one per use case at the graph layer (`graph/use-cases.test.ts`, `FG-229`). The **automatic rollback** half is not wired: neither pipeline has a deploy stage (`FG-236`) |
+| 2 · E2E tests for both modes, in CI | Half. `e2e/fleetgraph-agent.spec.ts` covers the proactive latency window (`FG-238`) and both pipelines have an `e2e` job. The on-demand mode has no E2E spec (`FG-239`, `FG-240`). Another agent owns `e2e/**`, so this row is a point-in-time reading |
+| 3 · Mock external services with stable fakes | Pattern exists — `mocks/bedrock-expectations.json` and the `BEDROCK_ENDPOINT` override, which `agent/src/llm/client.ts` honours. **Blocked**: the fakes answer `POST /model/*/invoke`, and `ChatBedrockConverse` calls `POST /converse`, so CI cannot exercise judgment at all (`FG-271`) |
+| 4 · Retries, timeouts, circuit breakers | **Done.** Both outbound clients are written, each with its own breaker instance, explicit timeouts, and bounded backoff. Values tabulated above and read off the constants |
+| 5 · `CHANGES.md` developer documentation | Exists from Week 4 and continues; agent sections are `FG-255`–`FG-257`. Owned by another agent this pass |
 
-**Three MVP items are fully satisfied: 3, 4, and 9.** Requirement 4 is now satisfied in code as
-well as in prose — every node and edge described here exists and is under test.
+**Five MVP items are satisfied: 3, 4, 5, 6 and 9** — 5 and 6 at the graph layer, which is where
+the requirement is about the agent rather than about the deployment. Requirement 4 is satisfied
+in code as well as in prose: every node and edge described here exists and is under test.
 
-Items 1, 2, 5, 6, 7, and 8 are documented but await code. The four that are genuinely outstanding
-rather than nearly done: **no cron entrypoint** (`FG-110`), **no LangSmith trace links**
-(`FG-181`–`FG-185`), **no UI at all** (`FG-155`+), and **no CI deploy stage**, so engineering
-requirement 1's automatic rollback is not wired (`FG-236`).
+Three things are genuinely outstanding rather than nearly done:
+
+1. **No LangSmith trace links** (`FG-181`–`FG-185`), because there are no credentials here to
+   make a real run against.
+2. **The API-to-graph seam.** Chat and the approval resume both stop one call short of the
+   compiled graph. This is the only place in the system where a built surface does not reach a
+   built backend.
+3. **No CI deploy stage**, so engineering requirement 1's automatic rollback rests on Render's
+   health-check rollback alone (`FG-236`).
 
 ---
 
@@ -985,35 +1330,42 @@ behaviour.
 
 | Claim | Status | Ticket |
 |---|---|---|
-| The graph registers sixteen nodes with four conditional edges | **Verified.** `agent/src/graph/index.ts`; the labels in the diagram are the exported `NODES` strings | `FG-085`–`FG-089` |
+| The graph registers sixteen nodes with four conditional edges | **Verified.** Sixteen `addNode` calls, four `addConditionalEdges`, in `agent/src/graph/index.ts`; the labels in the diagram are the exported `NODES` strings | `FG-085`–`FG-089` |
 | Three fetch nodes run as a parallel fan-out | **Verified** structurally — C1 returns all three names in one superstep. The wall-clock saving is not measured | `FG-076` |
 | A quiet run spends zero tokens | **Verified.** Asserted on a call counter the graph increments through its real path, with the judge injected rather than module-mocked, so the test is not testing a mock | `FG-092` |
-| Judgment batches all signals into one call | **Verified.** The drifting-run test asserts the judge is called exactly once, not once per signal | `FG-093`, `FG-104` |
+| Judgment batches all signals into one call | **Verified.** One `model.invoke` in `llm/judge.ts`, fanned back out to per-signal findings by fingerprint; the drifting-run test asserts the judge is called exactly once | `FG-093`, `FG-104` |
 | Chat cannot reach an execute node | **Verified.** Asserted structurally on the visited node set, so adding an edge from `compose_answer` to an execute node fails the test | — |
-| The on-demand path resolves recent document history | **Partly false today.** The query was fixed to select `field` (the real column name — `field_name` does not exist), but the row mapping in `resolveScope.ts:114` still reads `r.field_name`, so every `recentHistory[].field` is `undefined`. The query no longer throws, so no test catches it | `FG-071` |
+| The on-demand path resolves recent document history | **Verified, and it was false when this row was last written.** `resolveScope.ts:114` now maps `field: r.field`, and a regression test asserts the *value* rather than the absence of an exception | `FG-272` |
 | The LLM call is wrapped in the existing `CircuitBreaker` | **Verified.** `agent/src/llm/client.ts` imports `CircuitBreaker` from `api/dist/services/circuitBreaker.js` — the built declaration, not a copy — and constructs its own instance | `FG-097` |
-| A second breaker instance guards the Ship HTTP API | Design | `FG-124` |
-| Explicit exponential backoff in the Ship API client | Design. The `caia.ts` precedent it copies is verified | `FG-123` |
-| Escalation after 2 business days, at most one hop | Design. The person `reports_to` property and `routes/team.ts` are verified | `FG-084` |
-| The run suspends at `await_approval` and a later process resumes it | The node is written and wired to C4's `gated` branch, and the spike proved durability across a real process exit. **The in-graph suspend/resume is not itself covered by the five graph tests** | `FG-137` |
-| Accept / Dismiss / Snooze semantics | Design. `snooze_until` and `resolution` columns exist in `038` | `FG-131`–`FG-134` |
-| The approval banner renders in the document view | Design | `FG-155`–`FG-159` |
-| Chat sends route params and is embedded in context | Design | `FG-143`, `FG-162`–`FG-164` |
+| A second breaker instance guards the Ship HTTP API | **Verified.** `const shipApiBreaker = new CircuitBreaker(...)` in `actions/client.ts`, 5 failures / 60 s, wrapping the whole retry sequence rather than each attempt | `FG-124` |
+| Explicit exponential backoff in the Ship API client | **Verified.** 200 ms base, doubling, capped at 2 s, 3 attempts, with the worst-case total computed from those constants and exported as `MAX_TOTAL_MS` | `FG-123` |
+| The cron takes a per-workspace advisory lock and cannot overrun its interval | **Verified.** `pg_try_advisory_lock(hashtext('fleetgraph:' || wsId))`, skipping the workspace if another run holds it, and a 4-minute deadline that exits 2 | `FG-110`–`FG-121` |
+| Escalation after 2 business days, at most one hop | **Design.** `escalation_count` is carried through state and the boundary, but nothing increments it and nothing routes up `reports_to`. The person property and `routes/team.ts` are verified; the step is not written | `FG-084` |
+| The run suspends at `await_approval` and a later process resumes it | **Verified in-graph**, not only in the spike. `actions/restart.test.ts` proposes in a process that calls `process.exit(0)` and resumes in a fresh one, asserting the resumed half re-judges nothing | `FG-137` |
+| Accept / Dismiss / Snooze semantics | **Verified at the graph layer.** Dismissal stays dismissed across further runs; a snooze that self-resolves never returns, and one that did not resolve does | `FG-131`–`FG-136` |
+| The approval banner renders in the document view | **Built**, with component tests. `AgentBanner.tsx` renders in `UnifiedEditor`'s `contentBanner` slot. Not verified in a browser during this pass | `FG-155`–`FG-159`, `FG-175` |
+| Chat sends route params and is embedded in context | **Verified structurally.** `AgentChat.tsx` posts `document_id`, `document_type`, `tab`, `message` and nothing else, from the properties sidebar. There is no standalone chat page | `FG-143`, `FG-162`–`FG-164` |
+| **`POST /api/fleetgraph/chat` reaches the graph** | **False today.** `agentBridge.ts:91` — `invokeAgentChat` throws `AgentUnavailableError('agent_not_wired')`. The route, the rate limit, the visibility filter and the UI around it are all real; the call at the centre is a stub | no ticket |
+| **The approval endpoints resume the suspended thread** | **False today.** They persist the decision and return `resumed: false`, which the handler's own comment states. Nothing loads the checkpointer or issues `Command({ resume })` | no ticket |
 | `/ready` reports Postgres and breaker state | **Verified.** `api/src/routes/ready.ts`, mounted at `app.ts:217`. One nuance: it returns **503 only when Postgres fails**. An open Bedrock breaker returns 200 `degraded`, deliberately — the app renders `ai_unavailable` fine, and failing readiness there would pull a serving instance for a dependency it does not need | `FG-150`–`FG-153` |
-| `render_cron_job` scheduled `*/3 * * * *` | **Verified.** `terraform/render/cron.tf`, same `image_repository` and `image_tag` as the web service, `start_command` as the only difference. Not yet applied | `FG-186`–`FG-189` |
-| The same image runs either entrypoint | **False today.** The `agent:cron` script exists in `agent/package.json`, but the Dockerfile copies only `shared/`, `api/`, and `web/` — `agent/` is neither built nor copied into the runtime stage. Also, `agent/src/entrypoints/cron.ts` does not exist | `FG-110`, `FG-117`, `FG-118` |
+| `render_cron_job` scheduled `*/3 * * * *` | **Verified.** `terraform/render/cron.tf`, same image and tag as the web service, `start_command` as the only difference. Not yet applied | `FG-186`–`FG-189` |
+| The same image runs either entrypoint | **Verified, and it was false when this row was last written.** `Dockerfile:44` builds `@ship/agent`, `:110` copies `agent/dist/` into the runtime stage, and `:58` fails the build if `agent/dist/entrypoints/cron.js` is missing — which is the exact path the cron's default `start_command` names | `FG-110`, `FG-117`, `FG-118` |
+| LangSmith tracing is enabled by `observability/tracing.ts` | **False, and deliberately.** The module reports and warns; LangChain reads the env itself. Enabling it is a deploy-time variable, not code | `FG-176`–`FG-179` |
+| The Bedrock fakes let CI exercise judgment | **False.** `ChatBedrockConverse` calls `POST /converse`; both fakes answer only `POST /model/*/invoke` and 404 the rest | `FG-271` |
 | 15 s container cold start | The one term in the latency budget that is an estimate, not a bound | `FG-209` |
 | 480 scans/day at any project count | Arithmetic from a 3-minute interval, not a measurement | — |
 | Token ranges per invocation | Estimates. `max_tokens` 2048 and the 50 KB input bound are verified in `ai-analysis.ts` | — |
-| CI-triggered automatic rollback | The pipeline has no deploy stage. Render's health-check rollback is configured and real; the CI half is not | `FG-236` |
-| LangSmith traces show two different paths | No traces captured. The underlying property — quiet and drifting runs visiting different node sets — **is** asserted by a test | `FG-181`–`FG-183` |
+| CI-triggered automatic rollback | **False.** Neither pipeline has a deploy stage. Render's health-check rollback is configured and real; the CI half is not | `FG-236` |
+| LangSmith traces show two different paths | No traces captured — no AWS credentials on this machine. The underlying property, quiet and drifting runs visiting different node sets, **is** asserted by a test | `FG-181`–`FG-183` |
 
-The seven places this document corrects `PRESEARCH.md` rather than repeating it are consolidated
+The nine places this document corrects `PRESEARCH.md` rather than repeating it are consolidated
 in **Use Cases → Where the code and `PRESEARCH.md` disagree**, with the argument for each at the
-seam where it belongs. All seven favour the code.
+seam where it belongs. All nine favour the code.
 
-Verified against `fa51a0a`. Three things in this table were false in the understating direction
-one commit earlier, which is the argument for re-reading it rather than trusting it.
+Verified against `83aa33c`. **Eight rows moved from design or false to verified since the last
+stamp**, and **two newly-recorded rows are false** — both of those on the API-to-graph seam,
+which is now the only place a built surface does not reach a built backend. That churn is the
+argument for re-reading this table against the tree rather than trusting it.
 
 ---
 
@@ -1021,6 +1373,6 @@ one commit earlier, which is the argument for re-reading it rather than trusting
 
 | Section | Due | State |
 |---|---|---|
-| Test Cases — Ship state, expected output, trace link, per use case | Early Submission | `FG-221`–`FG-228` |
-| Architecture Decisions — framework, node design, state management, deployment | Early Submission | `FG-250`–`FG-254`. The arguments exist in `PRESEARCH.md`; they are not duplicated here yet |
-| Cost Analysis — development spend, production projections at 100 / 1,000 / 10,000 users | Final Submission | `FG-260`–`FG-264` |
+| Test Cases — Ship state, expected output, trace link, per use case | Early Submission | **Written.** `FG-221`–`FG-228`. The trace-link column is empty and says why |
+| Architecture Decisions — framework, node design, state management, deployment | Early Submission | **Written.** `FG-250`–`FG-254` |
+| Cost Analysis — development spend, production projections at 100 / 1,000 / 10,000 users | Final Submission | Not started. `FG-260`–`FG-264` |
