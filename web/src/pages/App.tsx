@@ -37,6 +37,7 @@ import { ProjectSetupWizard, ProjectSetupData } from '@/components/ProjectSetupW
 import { SelectionPersistenceProvider } from '@/contexts/SelectionPersistenceContext';
 import { ActionItemsModal } from '@/components/ActionItemsModal';
 import { AccountabilityBanner } from '@/components/AccountabilityBanner';
+import { FleetGraphRailIndicator } from '@/components/fleetgraph/FleetGraphRailIndicator';
 import { ProjectContextSidebar } from '@/components/sidebars/ProjectContextSidebar';
 
 type Mode = 'docs' | 'issues' | 'projects' | 'programs' | 'sprints' | 'team' | 'settings' | 'dashboard' | 'project-context';
@@ -404,6 +405,13 @@ export function AppLayout() {
 
           {/* User avatar & settings at bottom */}
           <div className="flex flex-col items-center gap-2">
+            {/*
+              FG-170. Renders nothing when there are no open findings, so the
+              rail is unchanged for anyone the agent has nothing to say to. The
+              popover only counts and routes — every decision is taken in the
+              document, per PRESEARCH.md Q22.
+            */}
+            <FleetGraphRailIndicator />
             <RailIcon
               icon={<SettingsIcon />}
               label="Settings"
