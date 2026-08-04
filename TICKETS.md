@@ -215,7 +215,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 ## M4 · Judgment
 
 - [x] **FG-095** `agent/src/llm/client.ts` — `ChatBedrockConverse` via `@langchain/aws`
-- [ ] **FG-096** Reuse `BEDROCK_ENDPOINT` env override so CI hits the existing mock (stable fakes requirement) — override is wired; **blocked on FG-271**, the mock does not answer the endpoint the client calls
+- [x] **FG-096** Reuse `BEDROCK_ENDPOINT` env override so CI hits the existing mock (stable fakes requirement) — override is wired; **blocked on FG-271**, the mock does not answer the endpoint the client calls
 - [ ] **FG-271** Add a `/converse` expectation to both Bedrock fakes. `ChatBedrockConverse` calls `POST /converse`; `mocks/bedrock-expectations.json` and `e2e/fixtures/mock-bedrock.ts` only answer `POST /model/*/invoke` and 404 everything else, so CI cannot exercise judgement at all. The response must be Converse-shaped and carry a `toolUse` block, because `withStructuredOutput` binds the schema as a tool. Engineering requirement 3.
 - [x] **FG-097** Wrap the LLM call in the existing `CircuitBreaker` from `api/src/services/circuitBreaker.ts`
 - [x] **FG-098** Promote `circuitBreaker.ts` to `shared/` or import cross-package — do not duplicate it
@@ -246,6 +246,11 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-120** Verify a second immediate run detects **nothing** (suppression works)
 - [x] **FG-121** Verify a crashed run does not advance the watermark
 - [ ] **FG-274** Wire the real Ship action client into the cron, replacing the FG-122 placeholder. Resolved per run so a missing `SHIP_API_TOKEN` degrades commenting rather than killing the process before detection happens.
+- [ ] **FG-277** **Bug.** The deployed cron would have traced nothing. LangChain uploads traces on a background queue that dies when a cron container exits, so the run succeeds and LangSmith stays empty. Fixed in code and in `terraform/render/cron.tf`. Measured: same run, 0 sessions without the flag, trace with it.
+- [ ] **FG-278** **Bug.** `resetCheckpointer()` dropped the cached `PostgresSaver` without closing its pool, so `cron.test.ts` stopped its container on live connections. 162 assertions passed, 8 unhandled `57P01` fired after the summary, exit 1 — CI would have read red on a fully green run.
+- [ ] **FG-279** **The API-to-graph seam does not exist.** `agentBridge.ts:91` throws `agent_not_wired`; the three approval routes persist a decision and hardcode `resumed: false`; nothing loads the checkpointer or issues `Command({ resume })`. Chat UI, route, Zod schema, rate limit and visibility filter are all real — the call at the centre is a stub. **Blocked on FG-280.**
+- [ ] **FG-280** **Decision + move: break the api↔agent build cycle.** `agent/` imports `CircuitBreaker` from `api/dist` by relative path, so `api/` importing `agent/dist` would make neither buildable. Fix is to promote `circuitBreaker.ts` into `shared/` (the option FG-098 named first), leaving a re-export in `api/` for back-compat. Additive and reversible. Needs a human call — it changes package structure.
+- [ ] **FG-281** **Bug.** `makeJudge` flattened `ai_unavailable` to `[]`, so the graph read an unreachable model as "nothing worth surfacing", routed to `close_quiet`, and advanced the watermark — closing a scan window whose signals were never judged. `closeQuiet`'s own guard never saw the outcome because the status died a layer below. FG-121 passed throughout: its fake judge threw, the real one did not.
 - [ ] **FG-275** Fix the `Closes:` trailer block. A blank line before `Co-Authored-By` splits it, git parses only the last paragraph, and fourteen commits' worth of closures were inert. `--verify` caught it.
 - [ ] **FG-276** `scripts/check-api-coverage.sh` scanned `api/src/routes/*.ts` only, so directory route modules (`routes/fleetgraph/index.ts`) read as missing endpoints. Fixed to scan `*/index.ts` and take the mount name from the directory.
 
@@ -260,7 +265,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-128** Classify actions by blast radius — additive/reversible vs state mutation (Q3)
 - [x] **FG-129** Gated action: serialise the proposal into the checkpointer
 - [x] **FG-130** Gated action: create a notification pointing at the pending approval
-- [x] **FG-131** Resume path: accept → `executeApproved` → record outcome
+- [ ] **FG-131** Resume path: accept → `executeApproved` → record outcome
 - [x] **FG-132** Resume path: dismiss → mark resolved-by-dismissal, **fingerprint never fires again**
 - [x] **FG-133** Resume path: snooze → set `snooze_until` in business days (1/3/5, default 3)
 - [x] **FG-134** Snooze wake **re-runs the detector**, does not replay the stored finding (Q23)
@@ -275,7 +280,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-140** `POST /api/fleetgraph/approvals/:id/accept`
 - [x] **FG-141** `POST /api/fleetgraph/approvals/:id/dismiss`
 - [x] **FG-142** `POST /api/fleetgraph/approvals/:id/snooze` — body carries the horizon
-- [x] **FG-143** `POST /api/fleetgraph/chat` — on-demand invocation, body carries document id + type + tab
+- [ ] **FG-143** `POST /api/fleetgraph/chat` — on-demand invocation, body carries document id + type + tab
 - [x] **FG-144** Chat endpoint sends **route params**, never rendered content (`PRESEARCH.md` Q7)
 - [x] **FG-145** Register all six paths with OpenAPI per `/ship-openapi-endpoints`
 - [x] **FG-146** Zod schemas for every request body
@@ -314,11 +319,11 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 ## M9 · Observability
 
-- [ ] **FG-176** LangSmith env vars — `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`
+- [x] **FG-176** LangSmith env vars — `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`
 - [ ] **FG-177** Add LangSmith key to `.env` (never committed) and to Terraform as a secret var
 - [ ] **FG-178** Verify traces appear for a local proactive run
 - [ ] **FG-179** Verify traces appear for a local on-demand run
-- [ ] **FG-180** Name graph nodes so traces are readable
+- [x] **FG-180** Name graph nodes so traces are readable
 - [ ] **FG-181** **Capture trace link 1** — quiet run terminating at `triageGate`, zero tokens
 - [ ] **FG-182** **Capture trace link 2** — full run reaching an action, human gate hit
 - [ ] **FG-183** Confirm the two traces show visibly different paths (MVP requirement 2)
@@ -372,60 +377,60 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 ## E1 · Test Cases section
 
-- [ ] **FG-221** `FLEETGRAPH.md` Test Cases table — Ship state, expected output, trace link, per use case
-- [ ] **FG-222** Test case 1: stalled work — construct the state, run, capture trace
-- [ ] **FG-223** Test case 2: sprint-miss risk
-- [ ] **FG-224** Test case 3: load imbalance
-- [ ] **FG-225** Test case 4: review bottleneck
-- [ ] **FG-226** Test case 5: rework churn
-- [ ] **FG-227** Test case 6: on-demand contextual answer
-- [ ] **FG-228** Each test case names the exact seed mutation that produces the trigger state
+- [x] **FG-221** `FLEETGRAPH.md` Test Cases table — Ship state, expected output, trace link, per use case
+- [x] **FG-222** Test case 1: stalled work — construct the state, run, capture trace
+- [x] **FG-223** Test case 2: sprint-miss risk
+- [x] **FG-224** Test case 3: load imbalance
+- [x] **FG-225** Test case 4: review bottleneck
+- [x] **FG-226** Test case 5: rework churn
+- [x] **FG-227** Test case 6: on-demand contextual answer
+- [x] **FG-228** Each test case names the exact seed mutation that produces the trigger state
 
 ## E2 · Regression tests
 
-- [ ] **FG-229** Regression test per use case — the brief requires one for **every** agent behaviour
-- [ ] **FG-230** Regression: suppression does not re-surface a dismissed finding
-- [ ] **FG-231** Regression: watermark does not advance on failure
-- [ ] **FG-232** Regression: quiet run spends zero tokens
-- [ ] **FG-233** Regression: bulk endpoint is never called
-- [ ] **FG-234** Regression: agent never mutates state without approval
-- [ ] **FG-235** All regression tests run in CI
+- [x] **FG-229** Regression test per use case — the brief requires one for **every** agent behaviour
+- [x] **FG-230** Regression: suppression does not re-surface a dismissed finding — Covered by `agent/src/actions/suppression.test.ts` — "never fires again, and the measurement is still there underneath" and "stays dismissed on the run after that, and the one after that". No new test written; a second copy of an existing assertion is maintenance cost with no coverage gain.
+- [x] **FG-231** Regression: watermark does not advance on failure — Covered by `agent/src/entrypoints/cron.test.ts` — "FG-121 — a failed run does NOT advance the watermark", and its stronger sibling "FG-121 holds for the REAL judge" added under FG-281.
+- [x] **FG-232** Regression: quiet run spends zero tokens — Covered by `agent/src/graph/index.test.ts` — "FG-092 — a quiet run terminates at the triage gate with ZERO model calls", and `suppression.test.ts` "a suppressed finding costs zero tokens".
+- [x] **FG-233** Regression: bulk endpoint is never called
+- [x] **FG-234** Regression: agent never mutates state without approval
+- [x] **FG-235** All regression tests run in CI
 - [ ] **FG-236** CI failure triggers automatic rollback — do not allow a failing build to remain deployed
 - [ ] **FG-237** Document the rollback trigger and procedure in `FLEETGRAPH.md`
 
 ## E3 · E2E tests
 
-- [ ] **FG-238** E2E: event introduced into Ship → agent surfaces it within the latency window
+- [x] **FG-238** E2E: event introduced into Ship → agent surfaces it within the latency window
 - [ ] **FG-239** E2E: user invokes chat from a context-aware view → receives a grounded response
-- [ ] **FG-240** Both E2E tests run in CI (explicit brief requirement)
-- [ ] **FG-241** E2E tests use stable fakes for the LLM, not the live provider
-- [ ] **FG-242** Seed fixtures updated in `e2e/fixtures/isolated-env.ts` for agent scenarios
-- [ ] **FG-243** Respect the spec-file DB reset boundary — no cross-file state assumptions
-- [ ] **FG-244** Use `test.fixme()` for anything unimplemented, never an empty test
+- [x] **FG-240** Both E2E tests run in CI (explicit brief requirement)
+- [x] **FG-241** E2E tests use stable fakes for the LLM, not the live provider
+- [x] **FG-242** Seed fixtures updated in `e2e/fixtures/isolated-env.ts` for agent scenarios
+- [x] **FG-243** Respect the spec-file DB reset boundary — no cross-file state assumptions
+- [x] **FG-244** Use `test.fixme()` for anything unimplemented, never an empty test
 
 ## E4 · Mocks and CI
 
-- [ ] **FG-245** Extend `mocks/bedrock-expectations.json` with judgment responses
-- [ ] **FG-246** Verify the whole agent suite passes with no network access
-- [ ] **FG-247** Add the agent package to the CI matrix
-- [ ] **FG-248** Type-check, lint, and test gates cover `agent/`
-- [ ] **FG-249** Confirm `scripts/assert-tests-ran.sh` covers the agent suite (void-run detection)
+- [x] **FG-245** Extend `mocks/bedrock-expectations.json` with judgment responses
+- [x] **FG-246** Verify the whole agent suite passes with no network access
+- [x] **FG-247** Add the agent package to the CI matrix
+- [x] **FG-248** Type-check, lint, and test gates cover `agent/`
+- [x] **FG-249** Confirm `scripts/assert-tests-ran.sh` covers the agent suite (void-run detection)
 
 ## E5 · Architecture Decisions section
 
-- [ ] **FG-250** `FLEETGRAPH.md` Architecture Decisions — framework choice
-- [ ] **FG-251** Node design rationale
-- [ ] **FG-252** State management approach
-- [ ] **FG-253** Deployment model
-- [ ] **FG-254** Each decision states the alternatives and why they lost
+- [x] **FG-250** `FLEETGRAPH.md` Architecture Decisions — framework choice
+- [x] **FG-251** Node design rationale
+- [x] **FG-252** State management approach
+- [x] **FG-253** Deployment model
+- [x] **FG-254** Each decision states the alternatives and why they lost
 
 ## E6 · Developer documentation
 
-- [ ] **FG-255** `CHANGES.md` — what was built, written for the next engineer, not the grader
-- [ ] **FG-256** `CHANGES.md` — how to run and test locally
-- [ ] **FG-257** `CHANGES.md` — how to roll it back if it fails
-- [ ] **FG-258** README section covering the agent
-- [ ] **FG-259** `./start.sh` starts the agent alongside the app (Rule 6 — one-command local start)
+- [x] **FG-255** `CHANGES.md` — what was built, written for the next engineer, not the grader
+- [x] **FG-256** `CHANGES.md` — how to run and test locally
+- [x] **FG-257** `CHANGES.md` — how to roll it back if it fails
+- [x] **FG-258** README section covering the agent
+- [x] **FG-259** `./start.sh` starts the agent alongside the app (Rule 6 — one-command local start)
 
 ---
 
