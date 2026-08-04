@@ -174,7 +174,13 @@ test.describe('Request Changes UI', () => {
 
     // The sidebar should show a Request Changes button (via ApprovalButton or review queue controls)
     // Wait for the page to fully load
-    await expect(page.getByText('Weekly Plan')).toBeVisible({ timeout: 10000 });
+    // Heading, not a substring match. FleetGraph's chat panel renders "Grounded in this
+    // weekly plan. Try:" on this same page, so `getByText('Weekly Plan')` now resolves to
+    // two elements and fails strict mode. What this line is waiting for is the document
+    // heading, which is what it now names.
+    await expect(page.getByRole('heading', { name: 'Weekly Plan' })).toBeVisible({
+      timeout: 10000,
+    });
   });
 
   test('Reviews page shows all legend colors', async ({ page }) => {

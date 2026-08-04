@@ -1367,3 +1367,117 @@ or flake count rises, revert to 2; the comment records why the number is what it
 ## How to roll it back
 
 Set `PLAYWRIGHT_WORKERS: '2'` in `.github/workflows/ci.yml`. Nothing else depends on it.
+
+---
+
+# Three red CI jobs, three different reasons
+
+`security-scan`, `docker-image` and `e2e` were all failing on the pull-request run. They
+turned out to be unrelated.
+
+## security-scan — passing on push, failing on pull_request
+
+`gitleaks/gitleaks-action@v2` requires `GITHUB_TOKEN` on `pull_request` events, where it
+resolves the PR's commit range through the API. Without it the job fails in 10 seconds:
+`GITHUB_TOKEN is now required to scan pull requests`.
+
+Not a leak, and not a scanner finding — a missing `env:` entry, and it is the
+automatically-provided token, so nothing needs configuring in repository settings.
+
+**Why it survived this long:** the push-event run of the same commit passes this job. Job
+lists read from `gh run list` were showing the push run, which was green here. Verified on
+run `30950757047` (push, security-scan **success**) against `30950764598` (pull_request,
+security-scan **failure**) — same SHA.
+
+## docker-image — the build order, for the fourth time
+
+`Dockerfile:44` ran `build:shared && --filter @ship/api build && --filter @ship/agent build`.
+That order was correct when the agent imported the circuit breaker from `api/dist`. FG-280
+moved the breaker to `shared/` and inverted the chain to shared → agent → api, so that `api`
+could import the graph and `POST /api/fleetgraph/chat` could stop returning 503
+`agent_not_wired`.
+
+Every place encoding the order got updated except this one:
+
+```
+src/routes/fleetgraph/agentBridge.ts(116,64): error TS2307:
+  Cannot find module '@ship/agent' or its corresponding type declarations.
+```
+
+This is the fourth instance of one pattern — a cross-package edit fixed in some of the places
+that encode build order and not all of them (FG-283 `actions/client.ts`, FG-286 and FG-287 the
+CI jobs, now the Dockerfile).
+
+**Fix:** `RUN pnpm build:api`. The root script already expands to
+build:shared → build:agent → api, so the order now lives in exactly one place and this file
+cannot fall out of step with it again. Verified with a local `docker build`: the `@ship/api`
+build step completes where it previously exited 2.
+
+## e2e — a FleetGraph regression wearing a flake costume
+
+Three of the four failures were one cause. `AgentChat.tsx:319` renders
+`Grounded in this {humanDocumentType(documentType)}. Try:`, which on a weekly plan reads
+"Grounded in this weekly plan. Try:". Three pre-existing tests asserted on
+`text=Weekly Plan` / `getByText('Weekly Plan')` — substring matches — so mounting the chat
+panel gave each of them two matching elements and a strict-mode violation:
+
+```
+strict mode violation: locator('text=Weekly Plan') resolved to 2 elements:
+  1) <h3 class="text-sm font-medium text-foreground">Weekly Plan</h3>
+  2) <p class="m-0 text-xs text-muted">Grounded in this weekly plan. Try:</p>
+```
+
+Fixed at the three call sites (`project-weeks.spec.ts:164`, `:201`,
+`request-changes-ui.spec.ts:177`) by naming the heading —
+`getByRole('heading', { name: 'Weekly Plan' })`, which is what Playwright's own error message
+suggests. The product copy is not the defect: each assertion means "we are on a weekly plan
+document", the heading is the thing that establishes it, and the substring selector was always
+too loose. It simply had not been contradicted until a page gained more copy.
+
+The fourth failure differs between runs — `data-integrity.spec.ts:259` at 2 workers,
+`program-mode-week-ux.spec.ts:408` at 3 — and both appear in the flaky list of the other run.
+Those are the known flakes, tracked separately, and are not addressed here.
+
+## E2E parallelism — 3 workers reverted
+
+The preceding entry raised `PLAYWRIGHT_WORKERS` from 2 to 3 on the grounds that the OOM kill
+justifying 2 was measured in a 7.8 GB container while the runner now reports 15.6 GB. Measured
+on the next run, same branch, same 877 tests:
+
+| | 2 workers (`dc36a77`) | 3 workers (`f733527`) |
+|---|---|---|
+| wall clock | 18.5 min | 15.1 min |
+| passed | 869 | 817 |
+| failed | 4 | 4 |
+| flaky | 4 | 10 |
+| **did not run** | **0** | **46** |
+
+3.4 minutes faster, and it loses 46 tests. There is no `maxFailures` in
+`playwright.config.ts`, so tests that never ran mean a worker process went away and took its
+queue with it — which `assert-tests-ran` catches and voids the run over, exactly as intended.
+
+So memory was never the binding constraint. CPU is, and that is the half of the argument the
+3-worker attempt explicitly declined to re-measure; the doubled flake rate is the same
+oversubscription showing up a second way. Reverted to 2, with the numbers recorded in the
+comment so the next person does not repeat the experiment.
+
+The lever that would actually work is a larger runner (`runs-on: ubuntu-latest-4-core` or
+above), not a higher worker count on the same two cores.
+
+## How to test it
+
+```bash
+docker build -t ship-check .        # was: exit 2 at Dockerfile:44
+```
+
+`security-scan` and `e2e` are verified by the next pull-request run — the push run does not
+exercise the gitleaks path that was broken.
+
+## How to roll it back
+
+| To undo | Do this |
+|---|---|
+| gitleaks token | Remove the `GITHUB_TOKEN` line from the `security-scan` job. Restores a red PR check. |
+| Dockerfile | Restore the three-filter `RUN` line. Restores the TS2307 build failure. |
+| Selector fixes | `git checkout <sha> -- e2e/project-weeks.spec.ts e2e/request-changes-ui.spec.ts` |
+| Worker count | Already reverted; nothing to undo. |

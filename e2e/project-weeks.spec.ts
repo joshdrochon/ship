@@ -160,8 +160,14 @@ test.describe('Project Weeks Tab', () => {
     // Wait for navigation to weekly plan document
     await expect(page).toHaveURL(/\/documents\/[a-f0-9-]+$/, { timeout: 10000 });
 
-    // Verify we're on a weekly plan document
-    await expect(page.locator('text=Weekly Plan')).toBeVisible();
+    // Verify we're on a weekly plan document.
+    //
+    // The heading, not a substring match. `text=Weekly Plan` matched any element whose
+    // text contained that phrase, and FleetGraph's chat panel put a second one on the
+    // page — "Grounded in this weekly plan. Try:" — which turned this into a strict-mode
+    // violation the moment the panel mounted. The assertion was always meant to be about
+    // the document's heading; the loose selector just had not been contradicted yet.
+    await expect(page.getByRole('heading', { name: 'Weekly Plan' })).toBeVisible();
 
     // Verify Properties sidebar shows person name (not UUID)
     // The label is just "Person" (without colon), rendered by WeeklyDocumentSidebar
@@ -197,8 +203,10 @@ test.describe('Project Weeks Tab', () => {
     const planCell = page.locator('button[title*="Weekly Plan"]').first();
     await planCell.click();
 
-    // Wait for weekly plan document
-    await expect(page.locator('text=Weekly Plan')).toBeVisible({ timeout: 10000 });
+    // Wait for weekly plan document. Heading, not substring — see line 164.
+    await expect(page.getByRole('heading', { name: 'Weekly Plan' })).toBeVisible({
+      timeout: 10000,
+    });
 
     // Click the project link to navigate back
     // Scoped to the Properties sidebar, which is the panel this test is named for. An

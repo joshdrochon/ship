@@ -317,30 +317,39 @@ jobs:
       # Connects to the `postgres` database, not `ship_test`: the fixture needs somewhere
       # to issue CREATE DATABASE from, and POSTGRES_USER is the image's superuser.
       E2E_DATABASE_URL: postgresql://ship:ship_test_password@localhost:5432/postgres
-      # 3, not the config's CI default of 4, and not the 2 this was pinned at.
+      # 2. Tried at 3, measured, and put back — the runner has the memory for 3 and it
+      # still does not help.
       #
       # Each worker runs an API server, a Vite preview and a Chromium. Four of each was
-      # killed by the OOM reaper at test 510 of 874, and the pin to 2 was the fix. That
-      # measurement was taken in a 7.8 GB container.
+      # killed by the OOM reaper at test 510 of 874, which is where the pin to 2 came
+      # from, and that measurement was taken in a 7.8 GB container. The runner is now
+      # 15.6 GB — this repository is public, and GitHub gives public repositories the
+      # larger `ubuntu-latest` — so the memory half of the original argument no longer
+      # holds, and 3 looked safe.
       #
-      # The runner is no longer that size. Run 30751981015 logged, from this job:
+      # Same branch, same 877 tests, two consecutive runs:
       #
-      #   [Memory] Total: 15.6GB, Available: 14.0GB
-      #   Running 874 tests using 2 workers
+      #                    2 workers (dc36a77)   3 workers (f733527)
+      #   wall clock              18.5 min             15.1 min
+      #   passed                       869                  817
+      #   failed                         4                    4
+      #   flaky                          4                   10
+      #   DID NOT RUN                    0                   46
       #
-      # This repository is public, and GitHub gives public repositories the larger
-      # `ubuntu-latest` — which is where 15.6 GB comes from. So the constraint that
-      # justified 2 was measured against half the memory this job now gets.
+      # 3.4 minutes faster, and it loses 46 tests. There is no `maxFailures` in
+      # playwright.config.ts, so tests that never ran mean a worker process went away
+      # and took its queue with it. `assert-tests-ran` catches that and voids the run,
+      # which is the whole reason that gate exists: a subset that happens to be green
+      # tells you nothing about the rest.
       #
-      # 3 rather than straight back to 4, because memory is the only half of the original
-      # argument that has been re-measured. The other half — CPU oversubscription, and the
-      # timeouts it tightens across the suite — has not been, and a suite that finishes
-      # slowly beats one that flakes. 3 buys most of the wall clock with headroom on both,
-      # and is a number that can be moved again on evidence.
+      # So memory was never the binding constraint — CPU is, and that is the half of
+      # the argument the 3-worker attempt explicitly did not re-measure. Doubling the
+      # flake rate is the visible symptom of the same oversubscription.
       #
-      # e2e is 20 minutes of a 22-minute pipeline; every other job finishes in under one.
-      # This is the only job where parallelism is worth anything.
-      PLAYWRIGHT_WORKERS: '3'
+      # Do not raise this again without a bigger runner. The lever that would actually
+      # work is `runs-on: ubuntu-latest-4-core` or larger, not a higher worker count on
+      # the same two.
+      PLAYWRIGHT_WORKERS: '2'
       SESSION_SECRET: ci-only-not-a-real-secret
     steps:
       - uses: actions/checkout@v4
@@ -405,8 +414,18 @@ jobs:
           fetch-depth: 0
       # `comply` is the organisation's scanner but is not available in this runner, so
       # gitleaks stands in. The substitution is recorded in CHANGES.md.
+      #
+      # GITHUB_TOKEN is required, not optional, and only on `pull_request` events —
+      # the action resolves the PR's commit range through the API. Without it the job
+      # fails in 10 seconds with "GITHUB_TOKEN is now required to scan pull requests".
+      #
+      # That asymmetry is why this went unnoticed: the push-event run of the same
+      # commit passes this job, so the branch looked green from `gh run list` while
+      # every PR run had a red security-scan. It is the automatically-provided token,
+      # so nothing needs configuring in repository settings.
       - uses: gitleaks/gitleaks-action@v2
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'true'
 
   license-inventory:

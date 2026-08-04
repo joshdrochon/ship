@@ -36,12 +36,21 @@ COPY shared/ ./shared/
 COPY api/ ./api/
 COPY agent/ ./agent/
 
-# Order is a dependency chain, not a preference: shared emits the types api's
-# tsconfig references, and the agent imports the circuit breaker from api/dist
-# (a built .d.ts — a cross-package .ts import is a hard tsc error under
-# `rootDir: ./src`). Reordering these breaks the build in a way whose error
-# message points at the wrong package.
-RUN pnpm build:shared && pnpm --filter @ship/api build && pnpm --filter @ship/agent build
+# One script, not three filters spelled out, because spelling them out is how this
+# broke. The chain used to be shared -> api -> agent: the agent imported the circuit
+# breaker from api/dist, so api had to be built first. FG-280 moved the breaker to
+# shared/ and inverted the chain to shared -> agent -> api, so that api could import
+# the graph and POST /api/fleetgraph/chat could stop returning 503 agent_not_wired.
+#
+# Every place that named the order got updated except this line, and it failed with
+# TS2307 "Cannot find module '@ship/agent'" against api/src/routes/fleetgraph/*.
+# That is the fourth time one cross-package edit has been fixed in some of the
+# places that encode the order and not all of them (FG-283, FG-286, FG-287).
+#
+# `pnpm build:api` expands to build:shared -> build:agent -> api via the root
+# package.json. Deferring to it means the order lives in exactly one place and this
+# file cannot fall out of step with it again.
+RUN pnpm build:api
 
 # Frontend, served from the same origin as the API. Same-origin is required, not
 # preferred: the session cookie is sameSite:'strict', so a frontend on another
