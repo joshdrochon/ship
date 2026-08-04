@@ -15,7 +15,17 @@ When in doubt about implementation approach, check these docs first.
 
 ## Commands
 
-**PostgreSQL must be running locally before dev or tests.** The user has local PostgreSQL installed (not Docker).
+**PostgreSQL must be reachable before dev or tests, and it comes from Docker.** There is no
+PostgreSQL installed on the host — no `psql`, no Homebrew formula, no Postgres.app. Verified
+2026-08-03; the `ship_postgres_data` and `ship-local_postgres_data` Docker volumes are where
+every database this project has used actually lives.
+
+- `pnpm docker:up` — the Compose stack, Postgres on **5433**
+- `./start.sh` — full one-command local start (app + database + mocks)
+- E2E provisions its own via **testcontainers**; CI uses a `postgres:16` service container
+
+`api/.env.local` points at `localhost:5432`, which is what makes it look like a host install.
+It isn't one.
 
 ```bash
 # Development (runs api + web in parallel)
@@ -67,6 +77,8 @@ pnpm test             # Runs api unit tests via vitest
    expect(rowCount, 'Seed data should provide at least 4 issues. Run: pnpm db:seed').toBeGreaterThanOrEqual(4);
    ```
 3. If a test needs N rows, ensure fixtures create at least N+2 rows
+
+**Test DB lifecycle:** the database is scoped per worker and reset to seeded state at each *spec-file* boundary (`e2e/fixtures/isolated-env.ts` → `resetDatabaseForFile`), deliberately not per test — specs routinely build across tests within a file. So a test may rely on state its earlier siblings created, but never on state from another file.
 
 ## Architecture
 
