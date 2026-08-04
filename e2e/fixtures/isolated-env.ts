@@ -22,6 +22,7 @@ import { readdirSync, readFileSync, existsSync, writeFileSync, mkdirSync } from 
 import path from 'path';
 import getPort, { portNumbers } from 'get-port';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import os from 'os';
 import { startMockBedrock, type MockBedrock } from './mock-bedrock';
 
@@ -82,11 +83,15 @@ if (availableMem < 4) {
 }
 
 /**
- * Build the API child process environment with every ambient AWS credential removed.
+ * Build a child-process environment with every ambient third-party credential removed.
  *
- * Implementation Rule 3 (stable fakes, not live external calls). The API's one outbound
- * third-party dependency is AWS Bedrock (`api/src/services/ai-analysis.ts`). This
- * fixture used to spread `process.env` straight into the child, so a developer with
+ * Implementation Rule 3 (stable fakes, not live external calls). Two processes spawn
+ * from this fixture and both make outbound model calls: the API
+ * (`api/src/services/ai-analysis.ts` → Bedrock InvokeModel) and, from
+ * `e2e/fleetgraph-agent.spec.ts`, the FleetGraph cron (`agent/src/llm/client.ts` →
+ * Bedrock Converse, plus LangSmith tracing). Both go through here.
+ *
+ * This fixture used to spread `process.env` straight into the child, so a developer with
  * `AWS_ACCESS_KEY_ID`/`AWS_PROFILE` exported — or a CI runner with an instance role —
  * gave the API under test working credentials and `e2e/ai-analysis-api.spec.ts` made
  * real, billed InvokeModel calls against `bedrock-runtime.us-east-1.amazonaws.com`.
@@ -106,11 +111,20 @@ if (availableMem < 4) {
  * Note that the dummy credentials are required, not belt-and-braces: the SDK still
  * SigV4-signs requests to an overridden endpoint and throws
  * `CredentialsProviderError` if it cannot resolve any. The mock ignores the signature.
+ *
+ * ── LANGCHAIN_* / LANGSMITH_* go too, and for the same reason ────────────────────
+ * `agent/src/observability/tracing.ts` configures nothing — LangChain reads the
+ * environment itself, so `LANGCHAIN_TRACING_V2=true` plus a key on a developer's
+ * machine would upload every E2E graph run to a real LangSmith project. Same class of
+ * failure as the billed Bedrock calls above (unintended live traffic from a test run),
+ * so it is closed the same way: sweep the prefix rather than name the variables.
  */
-function apiChildEnv(extra: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function sandboxedChildEnv(extra: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(process.env)) {
-    if (key.toUpperCase().startsWith('AWS_')) continue;
+    const name = key.toUpperCase();
+    if (name.startsWith('AWS_')) continue;
+    if (name.startsWith('LANGCHAIN_') || name.startsWith('LANGSMITH_')) continue;
     env[key] = value;
   }
 
@@ -286,7 +300,7 @@ export const test = base.extend<
       // Use the built API (faster than dev server)
       const proc = spawn('node', ['dist/index.js'], {
         cwd: path.join(PROJECT_ROOT, 'api'),
-        env: apiChildEnv({
+        env: sandboxedChildEnv({
           PORT: String(port),
           DATABASE_URL: dbUrl,
           CORS_ORIGIN: '*', // Allow any origin during tests
@@ -478,9 +492,17 @@ export const test = base.extend<
 async function resetToSeededState(dbUrl: string): Promise<void> {
   const pool = new Pool({ connectionString: dbUrl });
   try {
+    // `checkpoint_migrations` is preserved for the same reason as `schema_migrations`,
+    // one library over. LangGraph's PostgresSaver creates and versions its own tables
+    // (`agent/src/graph/checkpointer.ts` says so at length) and reads that table to
+    // decide which of its migrations still need applying. Truncating it tells the
+    // library it has never migrated, so the next `setup()` replays ALTERs against
+    // columns that already exist. Its data tables ARE truncated below, so no run's
+    // suspended state leaks into the next spec file.
     const { rows } = await pool.query<{ tablename: string }>(
       `SELECT tablename FROM pg_tables
-       WHERE schemaname = 'public' AND tablename <> 'schema_migrations'`
+       WHERE schemaname = 'public'
+         AND tablename NOT IN ('schema_migrations', 'checkpoint_migrations')`
     );
     if (rows.length > 0) {
       const list = rows.map((r) => `"${r.tablename}"`).join(', ');
@@ -532,6 +554,34 @@ async function runMigrations(dbUrl: string): Promise<void> {
         'INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT DO NOTHING',
         [version]
       );
+    }
+
+    // Step 4: Apply the migrations whose objects schema.sql does NOT contain.
+    //
+    // Step 3's assumption — "schema.sql represents the full current state" — is the
+    // one every worker database depends on, and it is only true while someone keeps
+    // schema.sql in step with the migration directory. It was not true for 038:
+    // `fleetgraph_observations`, `fleetgraph_notifications` and `fleetgraph_watermarks`
+    // exist in `api/src/db/migrations/038_fleetgraph.sql` and nowhere in schema.sql, so
+    // every E2E worker ran against a database with no FleetGraph tables at all. The
+    // symptom is not a missing table error in the test — it is
+    // `GET /api/fleetgraph/notifications` answering 500, which reads as "the agent
+    // surfaced nothing", which is exactly the quiet failure the agent exists to prevent.
+    //
+    // Listed explicitly rather than replaying every migration: schema.sql really does
+    // carry 001-037, and re-running those fails on CREATE TABLE statements that predate
+    // the IF NOT EXISTS convention. 038 is guarded throughout, so applying it here is
+    // safe whether or not schema.sql later grows the same objects.
+    const MIGRATIONS_MISSING_FROM_SCHEMA_SQL = ['038_fleetgraph.sql'];
+    for (const file of MIGRATIONS_MISSING_FROM_SCHEMA_SQL) {
+      const filePath = path.join(migrationsDir, file);
+      if (!existsSync(filePath)) {
+        throw new Error(
+          `Migration ${file} is listed as missing from schema.sql but does not exist. ` +
+            `Remove it from MIGRATIONS_MISSING_FROM_SCHEMA_SQL in e2e/fixtures/isolated-env.ts.`
+        );
+      }
+      await pool.query(readFileSync(filePath, 'utf-8'));
     }
 
     // Step 5: Seed minimal test data
@@ -1067,6 +1117,216 @@ async function seedMinimalTestData(pool: Pool): Promise<void> {
        VALUES ($1, 'wiki', $2, $3, $4, $5)`,
       [workspaceId, doc.title, JSON.stringify(contentJson), i + 1, userId]
     );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// FG-242 · FleetGraph agent scenario fixtures
+// ---------------------------------------------------------------------------
+
+/**
+ * The bearer the FleetGraph cron authenticates with in E2E runs.
+ *
+ * A plain string here, its SHA-256 in `api_tokens.token_hash` — that is the shape
+ * `api/src/middleware/auth.ts#validateApiToken` verifies. Q29 gives the agent an
+ * `api_tokens` bearer rather than a session because sessions expire after 15 minutes
+ * of inactivity and a cron container has no session to keep alive.
+ *
+ * Without it, `agent/src/entrypoints/cron.ts#resolveAct` substitutes `refuseToAct`,
+ * every autonomous comment reports `ok: false`, and the run exits 1 with an error —
+ * a degraded run that still delivers its notification. A test that asserted only on
+ * the notification would pass against that, which is the class of assertion this
+ * suite exists to avoid.
+ */
+export const FLEETGRAPH_AGENT_TOKEN = 'fleetgraph-e2e-agent-token';
+
+export interface FleetGraphScenario {
+  workspaceId: string;
+  /** dev@ship.local — the week owner, and so the accountable recipient (Q6). */
+  ownerUserId: string;
+  /** The week that is one working day from its end date. */
+  weekId: string;
+  weekTitle: string;
+  /** Issues already under way in that week. None of them is a signal. */
+  startedIssueIds: string[];
+  /** `api_tokens` bearer for the agent process. Equals FLEETGRAPH_AGENT_TOKEN. */
+  agentToken: string;
+}
+
+/**
+ * Build the stage for the agent scenarios — deliberately NOT part of the base seed.
+ *
+ * ── Why this is a function and not rows in `seedMinimalTestData` ─────────────────
+ * The base seed is shared by all 74 spec files, and several of them are sensitive to
+ * its exact shape: the sidebar's "N more…" branch needs 13 workspace roots, the
+ * assignments grid needs exactly four unallocated people, bulk selection needs six
+ * rows per state filter. Adding a week and four issues to it would shift week lists,
+ * issue counts and program views under every one of those. The blast radius of a
+ * FleetGraph fixture should be FleetGraph's specs.
+ *
+ * ── What it deliberately does NOT do ────────────────────────────────────────────
+ * It does not create the triggering condition. The workspace it leaves behind is
+ * QUIET — every detector in `agent/src/detectors/` measures zero against it:
+ *
+ *   stalled_work       the issues below are `in_progress` with a fresh updated_at
+ *   review_bottleneck  nothing sits in `in_review`
+ *   sprint_miss_risk   the week ends today but has no unstarted work
+ *   load_imbalance     one assignee in the week, and the guard needs three
+ *   rework_churn       no `done -> in_progress` history rows, no reopened_at
+ *
+ * That is the whole point. FG-238 has to introduce the event itself and time it, so
+ * a fixture that pre-loads a finding would make the test measure nothing. The
+ * baseline scan asserting `quiet_no_signals` is what proves this stayed true.
+ *
+ * ── Sizes ───────────────────────────────────────────────────────────────────────
+ * CLAUDE.md asks for N+2 rows where a test needs N. The scenario needs one started
+ * issue for the detector to have something to NOT count; four are created, so the
+ * "started work is not unstarted work" distinction survives a test consuming a
+ * couple of them.
+ */
+export async function seedFleetGraphScenario(dbUrl: string): Promise<FleetGraphScenario> {
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    const { rows: wsRows } = await pool.query(`SELECT id FROM workspaces LIMIT 1`);
+    const workspaceId = wsRows[0]?.id as string;
+    if (!workspaceId) throw new Error('seedFleetGraphScenario: no workspace — base seed missing');
+
+    const { rows: userRows } = await pool.query(
+      `SELECT id FROM users WHERE email = 'dev@ship.local'`
+    );
+    const ownerUserId = userRows[0]?.id as string;
+    if (!ownerUserId) throw new Error('seedFleetGraphScenario: dev@ship.local missing');
+
+    const { rows: progRows } = await pool.query(
+      `SELECT id FROM documents
+        WHERE workspace_id = $1 AND document_type = 'program' AND title = 'Ship Core'`,
+      [workspaceId]
+    );
+    const programId = progRows[0]?.id as string | undefined;
+
+    // The agent's bearer. `revoked_at`/`expires_at` stay null so the token is live.
+    await pool.query(
+      `INSERT INTO api_tokens (user_id, workspace_id, name, token_hash, token_prefix)
+       VALUES ($1, $2, 'FleetGraph E2E agent', $3, $4)
+       ON CONFLICT (user_id, workspace_id, name) DO UPDATE SET token_hash = EXCLUDED.token_hash`,
+      [
+        ownerUserId,
+        workspaceId,
+        crypto.createHash('sha256').update(FLEETGRAPH_AGENT_TOKEN).digest('hex'),
+        FLEETGRAPH_AGENT_TOKEN.slice(0, 8),
+      ]
+    );
+
+    // `end_date` is TODAY, not "in two days".
+    //
+    // `detectSprintMissRisk` keeps a week whose end date is today or later and whose
+    // `businessDaysBetween(today, end_date)` is within SPRINT_MISS_DAYS. Today gives 0,
+    // which clears the threshold on every calendar day of the year — including a
+    // Saturday, a Monday before a federal holiday, and the far side of a DST change.
+    // Any future offset has to be counted in business days against
+    // `@ship/shared`'s holiday calendar, and a fixture that only triggers on some
+    // weekdays is a fixture that fails a Friday CI run for reasons nobody will find.
+    const today = new Date().toISOString().slice(0, 10);
+    const weekStart = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10);
+    const weekTitle = 'Week 99 · FleetGraph scenario';
+
+    const { rows: weekRows } = await pool.query(
+      `INSERT INTO documents (workspace_id, document_type, title, properties, created_by,
+                              created_at, updated_at)
+       VALUES ($1, 'sprint', $2, $3, $4, NOW(), NOW())
+       RETURNING id`,
+      [
+        workspaceId,
+        weekTitle,
+        JSON.stringify({
+          sprint_number: 99,
+          // The accountable party for a sprint_miss_risk finding is the week owner,
+          // never an assignee — the unstarted issues may have no assignee at all
+          // (PRESEARCH.md Q6). This is the id the notification must be addressed to.
+          owner_id: ownerUserId,
+          start_date: weekStart,
+          end_date: today,
+        }),
+        ownerUserId,
+      ]
+    );
+    const weekId = weekRows[0].id as string;
+
+    if (programId) {
+      await pool.query(
+        `INSERT INTO document_associations (document_id, related_id, relationship_type)
+         VALUES ($1, $2, 'program')`,
+        [weekId, programId]
+      );
+    }
+
+    // Work already under way. `updated_at` is NOW() explicitly: stalled_work and
+    // review_bottleneck both measure how long a row has NOT moved, so a fixture that
+    // let these age would start failing the baseline assertion five days later.
+    const { rows: maxTicket } = await pool.query(
+      `SELECT COALESCE(MAX(ticket_number), 0)::int AS n FROM documents
+        WHERE workspace_id = $1 AND document_type = 'issue'`,
+      [workspaceId]
+    );
+    let ticketNumber = maxTicket[0].n as number;
+
+    const startedIssueIds: string[] = [];
+    const started = [
+      { title: 'FleetGraph scenario · migration cutover', state: 'in_progress' },
+      { title: 'FleetGraph scenario · index backfill', state: 'in_progress' },
+      { title: 'FleetGraph scenario · rollout checklist', state: 'done' },
+      { title: 'FleetGraph scenario · dashboard wiring', state: 'done' },
+    ];
+
+    for (const issue of started) {
+      ticketNumber++;
+      const { rows } = await pool.query(
+        `INSERT INTO documents (workspace_id, document_type, title, properties, ticket_number,
+                                created_by, created_at, updated_at)
+         VALUES ($1, 'issue', $2, $3, $4, $5, NOW(), NOW())
+         RETURNING id`,
+        [
+          workspaceId,
+          issue.title,
+          JSON.stringify({
+            state: issue.state,
+            priority: 'medium',
+            source: 'internal',
+            assignee_id: ownerUserId,
+          }),
+          ticketNumber,
+          ownerUserId,
+        ]
+      );
+      const issueId = rows[0].id as string;
+      startedIssueIds.push(issueId);
+
+      // Through `document_associations` — the legacy `sprint_id` column was dropped by
+      // migration 027, and a detector reading it would report a clean week.
+      await pool.query(
+        `INSERT INTO document_associations (document_id, related_id, relationship_type)
+         VALUES ($1, $2, 'sprint')`,
+        [issueId, weekId]
+      );
+      if (programId) {
+        await pool.query(
+          `INSERT INTO document_associations (document_id, related_id, relationship_type)
+           VALUES ($1, $2, 'program')`,
+          [issueId, programId]
+        );
+      }
+    }
+
+    return {
+      workspaceId,
+      ownerUserId,
+      weekId,
+      weekTitle,
+      startedIssueIds,
+      agentToken: FLEETGRAPH_AGENT_TOKEN,
+    };
+  } finally {
+    await pool.end();
   }
 }
 
