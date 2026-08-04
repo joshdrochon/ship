@@ -676,7 +676,14 @@ describe('FleetGraph API', () => {
   // -------------------------------------------------------------------------
 
   describe('POST /chat (FG-143)', () => {
-    it('surfaces the unwired graph as ai_unavailable rather than a 500', async () => {
+    it('surfaces an unreachable graph as ai_unavailable rather than a 500', async () => {
+      // This used to assert `reason: 'agent_not_wired'` — the stub. The graph
+      // is wired now (FG-279), so the only way this path degrades is the model
+      // being unreachable, which is `agent_unreachable`.
+      //
+      // What must NOT change is the shape: a degraded agent is a 503 the UI
+      // renders as a quiet unavailable state, never a 500 and never a 200 with
+      // an empty answer that reads like a reply.
       const res = await request(app)
         .post('/api/fleetgraph/chat')
         .set('Cookie', recipientAuth.cookie)
@@ -685,7 +692,7 @@ describe('FleetGraph API', () => {
 
       expect(res.status).toBe(503);
       expect(res.body.error).toBe('ai_unavailable');
-      expect(res.body.reason).toBe('agent_not_wired');
+      expect(res.body.reason).toBe('agent_unreachable');
     });
 
     it('passes route params to the agent and returns its answer', async () => {

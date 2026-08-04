@@ -2,13 +2,20 @@
  * The seam between Ship's HTTP layer and the FleetGraph LangGraph graph.
  *
  * ── Why this file is one function and nothing else ──────────────────────────
- * The graph lives in `agent/`, in a different package, and is being built in
- * parallel with this route. If the chat route imported the graph directly, the
- * route could not be written, reviewed or tested until the graph existed, and
- * the two lanes would have to land in one commit. One narrow function means the
- * route, its schema, its OpenAPI registration and its tests are all finished
- * against a stable signature, and wiring the graph is a change to a single
- * function body.
+ * The graph lives in `agent/`, a different package. Keeping the crossing to one
+ * narrow function meant the route, its schema, its OpenAPI registration and its
+ * tests could all be finished against a stable signature before the graph
+ * existed — and it meant wiring the graph was a change to a single body.
+ *
+ * It also survived a problem the seam was not designed for. For most of this
+ * build `api` COULD NOT import `agent` at all: the agent reached the circuit
+ * breaker through `api/dist`, so an import in the other direction closed a
+ * build cycle with no package able to compile first. This function threw
+ * `agent_not_wired` throughout, and the chat endpoint returned a clean 503
+ * while everything around it was finished and tested.
+ *
+ * That was fixed by moving `circuitBreaker.ts` into `@ship/shared`, which turns
+ * the dependency graph from a loop into a line: shared -> agent -> api.
  *
  * ── Why the parameters are what they are (PRESEARCH.md Q7) ──────────────────
  * This takes a document *id*, a document *type* and the *active tab* — route
@@ -35,6 +42,8 @@
  * 400, not by this comment. If someone adds a `content` field to the chat body,
  * the schema rejects it before the route ever runs.
  */
+
+import { pool } from '../../db/client.js';
 
 /** What the chat route hands to the graph. Route params only — see the header. */
 export interface AgentChatRequest {
@@ -84,13 +93,78 @@ export class AgentUnavailableError extends Error {
 /**
  * Invoke the FleetGraph graph for an on-demand chat turn.
  *
- * IMPLEMENTATION PENDING — the graph is under construction at `agent/src/graph/`.
- * Replace this body; do not change the signature, and do not widen
- * `AgentChatRequest` to carry document content (see the header).
+ * ── One graph, two triggers ────────────────────────────────────────────────
+ * This runs the SAME graph the cron runs, with `mode: 'on_demand'`. Not a
+ * parallel implementation that happens to agree — the same nodes, the same
+ * detectors, the same judgement. What differs is the trigger and the route
+ * through the conditional edges, which is exactly the property the brief is
+ * asking about when it says a standalone chatbot is not a graph agent.
+ *
+ * ── It cannot act, structurally ────────────────────────────────────────────
+ * The on-demand path has no edge to any execute node (PRESEARCH.md Q3). Chat
+ * cannot comment, reassign, or propose — not because this function withholds
+ * an action client, but because the graph has no route from `compose_answer` to
+ * one. `act` is still passed as a refusal so that a future miswiring fails
+ * loudly here rather than doing something quietly.
+ *
+ * ── No checkpointer ────────────────────────────────────────────────────────
+ * A chat turn answers and ends; there is no `interrupt()` on this path and
+ * nothing to resume. Compiling without a checkpointer keeps a question from
+ * writing checkpoint rows for a thread nobody will ever come back to.
  */
-export async function invokeAgentChat(_request: AgentChatRequest): Promise<AgentChatResponse> {
-  throw new AgentUnavailableError(
-    'agent_not_wired',
-    'FleetGraph chat graph is not wired yet (agent/src/graph/)'
-  );
+export async function invokeAgentChat(request: AgentChatRequest): Promise<AgentChatResponse> {
+  const { compileGraph, makeJudge, makeAnswer } = await import('@ship/agent');
+
+  const threadId = `fg:chat:${request.workspaceId}:${request.documentId}`;
+
+  try {
+    const graph = compileGraph({
+      db: pool,
+      judge: makeJudge(),
+      answer: makeAnswer(),
+      // Unreachable from this path. Present so a miswired edge throws instead
+      // of acting.
+      act: async () => ({
+        ok: false,
+        detail: 'on-demand chat cannot act (PRESEARCH.md Q3)',
+      }),
+    });
+
+    const final = await graph.invoke(
+      {
+        mode: 'on_demand',
+        scope: {
+          workspaceId: request.workspaceId,
+          documentId: request.documentId,
+          documentType: request.documentType,
+          tab: request.tab ?? undefined,
+        },
+        actor: request.userId,
+        messages: [
+          {
+            role: 'user',
+            content: request.message ?? 'What is the current state of this document?',
+          },
+        ],
+      } as never,
+      { recursionLimit: 50, configurable: { thread_id: threadId } }
+    );
+
+    if (final.outcome === 'ai_unavailable' || !final.answer) {
+      // The graph ran and could not answer — a degraded model, not a bug here.
+      // Surfaced as 503 so the UI shows its existing unavailable state rather
+      // than an empty bubble that looks like a reply.
+      throw new AgentUnavailableError(
+        'agent_unreachable',
+        final.errors?.join('; ') || 'the graph produced no answer'
+      );
+    }
+
+    return { answer: final.answer, threadId };
+  } catch (err) {
+    if (err instanceof AgentUnavailableError) throw err;
+    // Anything else is a genuine fault and must reach the logs as one rather
+    // than being flattened into "unavailable".
+    throw err;
+  }
 }

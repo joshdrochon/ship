@@ -143,6 +143,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.26.0
         version: 1.26.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
+      '@ship/agent':
+        specifier: workspace:*
+        version: link:../agent
       '@ship/shared':
         specifier: workspace:*
         version: link:../shared
@@ -8515,7 +8518,7 @@ snapshots:
       obug: 2.1.1
       std-env: 3.10.0
       tinyrainbow: 3.1.1
-      vitest: 4.1.10(@types/node@22.19.5)(@vitest/coverage-v8@4.0.17)(@vitest/ui@4.0.17)(jsdom@27.4.0)(vite@6.4.1(@types/node@22.19.5)(jiti@1.21.7)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      vitest: 4.1.10(@types/node@22.19.5)(@vitest/coverage-v8@4.0.17)(@vitest/ui@4.1.10)(jsdom@27.4.0)(vite@6.4.1(@types/node@22.19.5)(jiti@1.21.7)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
   '@vitest/expect@4.1.10':
     dependencies:
