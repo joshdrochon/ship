@@ -2,9 +2,21 @@
 -- This protects against infinite loops in recursive CTE queries
 
 -- Step 1: Add simple CHECK constraint for self-reference
-ALTER TABLE documents
-ADD CONSTRAINT documents_no_self_parent
-CHECK (id != parent_id);
+--
+-- Guarded for the same reason as 010 and 035: schema.sql carries current state
+-- and already declares this constraint, so a bare ADD CONSTRAINT aborts the
+-- migration run on any fresh database. Postgres has no
+-- ADD CONSTRAINT IF NOT EXISTS, hence the catalogue check.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'documents_no_self_parent'
+  ) THEN
+    ALTER TABLE documents
+    ADD CONSTRAINT documents_no_self_parent
+    CHECK (id != parent_id);
+  END IF;
+END $$;
 
 -- Step 2: Create function to detect circular references by traversing ancestors
 CREATE OR REPLACE FUNCTION prevent_circular_parent()
@@ -51,6 +63,11 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Step 3: Create trigger to run the function
+--
+-- DROP first: Postgres 16 has no CREATE TRIGGER IF NOT EXISTS, and the function
+-- above is already CREATE OR REPLACE, so re-pointing the trigger at it is a
+-- no-op in effect.
+DROP TRIGGER IF EXISTS prevent_circular_parent_trigger ON documents;
 CREATE TRIGGER prevent_circular_parent_trigger
 BEFORE INSERT OR UPDATE OF parent_id ON documents
 FOR EACH ROW
