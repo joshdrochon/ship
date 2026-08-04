@@ -7,9 +7,9 @@
  * is for callers that actually want to run something.
  */
 export * from './types.js';
-export { judgeSignals, makeJudge, clearJudgmentCache } from './judge.js';
+export { judgeSignals, makeJudge, clearJudgmentCache, JudgementUnavailableError } from './judge.js';
 export type { JudgeInput, JudgeDeps } from './judge.js';
-export { composeAnswer, makeAnswer } from './answer.js';
+export { composeAnswer, makeAnswer, AnswerUnavailableError } from './answer.js';
 export type { AnswerInput, AnswerDeps } from './answer.js';
 export { getChatModel, resetChatModel, getLlmBreakerStats, resetLlmBreaker } from './client.js';
 export type { PromptedModel } from './client.js';

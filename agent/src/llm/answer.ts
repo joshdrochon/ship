@@ -121,6 +121,33 @@ function extractText(value: unknown): string {
 export function makeAnswer(deps: AnswerDeps = {}) {
   return async function answer(input: AnswerInput): Promise<string> {
     const result = await composeAnswer(input, deps);
+
+    // Throw rather than return UNAVAILABLE_TEXT. Same seam bug as makeJudge
+    // (FG-281), and this one is more visible to a user.
+    //
+    // The text itself is honest — it says the model could not be reached. The
+    // CHANNEL was the problem: returning it as a string made the graph set
+    // `outcome: 'answered'` with a non-empty answer, so the chat endpoint
+    // replied 200 and the UI rendered a degradation notice as a normal
+    // assistant message. Ship already has an `ai_unavailable` state for
+    // exactly this, and it never got the chance to show it.
+    //
+    // Caught by the chat route test returning 200 where it expected a 503,
+    // immediately after the graph was wired for the first time.
+    //
+    // `composeAnswer` still returns the structured result for direct callers
+    // that want to render the text themselves.
+    if (result.status === AI_UNAVAILABLE) {
+      throw new AnswerUnavailableError(result.reason ?? 'unknown');
+    }
+
     return result.text;
   };
+}
+
+export class AnswerUnavailableError extends Error {
+  constructor(readonly reason: string) {
+    super(`answer unavailable: ${reason}`);
+    this.name = 'AnswerUnavailableError';
+  }
 }

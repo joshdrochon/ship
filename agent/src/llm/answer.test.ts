@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { composeAnswer } from './answer.js';
+import { composeAnswer, makeAnswer, AnswerUnavailableError } from './answer.js';
 import { renderAnswerInput } from './prompts/answer.js';
 import { CircuitBreaker, type PromptedModel } from './client.js';
 import type { AnswerInput } from './answer.js';
@@ -118,5 +118,53 @@ describe('renderAnswerInput', () => {
 
     // An omitted section reads as missing data; "none" is an answer.
     expect(rendered).toContain('no detector threshold is currently crossed');
+  });
+});
+
+describe('makeAnswer', () => {
+  it('THROWS when the model is unreachable rather than returning the notice', async () => {
+    // The bug this replaces: makeAnswer returned `result.text`, which on
+    // ai_unavailable is UNAVAILABLE_TEXT — honest prose saying the model could
+    // not be reached. Returning it as a plain string made the graph set
+    // `outcome: 'answered'` with a non-empty answer, so the chat endpoint
+    // replied 200 and the UI rendered a degradation notice as a normal
+    // assistant message. Ship has an `ai_unavailable` state for exactly this
+    // and never got the chance to show it.
+    //
+    // The text was never the problem. The channel was.
+    const model: PromptedModel = {
+      async invoke() {
+        throw new Error('TimeoutError: socket hang up');
+      },
+    };
+
+    await expect(makeAnswer({ model })(INPUT)).rejects.toThrow(AnswerUnavailableError);
+  });
+
+  it('returns the answer normally when the model works', async () => {
+    // The throw must be reachable only on failure. One that fired on the happy
+    // path would take every chat turn down.
+    const model: PromptedModel = {
+      async invoke() {
+        return { content: 'Three issues are stalled in this sprint.' };
+      },
+    };
+
+    const text = await makeAnswer({ model })(INPUT);
+    expect(text).toContain('stalled');
+  });
+
+  it('composeAnswer still hands back the notice for callers that want it', async () => {
+    // The structured entrypoint is unchanged — only the flattening wrapper
+    // throws, so a caller that wants to render the notice itself still can.
+    const model: PromptedModel = {
+      async invoke() {
+        throw new Error('bedrock down');
+      },
+    };
+
+    const result = await composeAnswer(INPUT, { model });
+    expect(result.status).toBe('ai_unavailable');
+    expect(result.text).toContain('could not reach');
   });
 });
