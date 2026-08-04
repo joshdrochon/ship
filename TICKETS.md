@@ -127,16 +127,16 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 ## M2 · Detectors
 
-- [ ] **FG-040** `agent/src/detectors/types.ts` — `Signal` shape: type, target_id, target_type, measurement, threshold, fingerprint
-- [ ] **FG-041** `agent/src/detectors/fingerprint.ts` — deterministic fingerprint from (signal_type, target_id, threshold bucket)
-- [ ] **FG-042** Unit test: same input → same fingerprint; different bucket → different fingerprint
-- [ ] **FG-043** `agent/src/detectors/businessDays.ts` — reuse `api/src/utils/business-days.ts` rather than reimplementing
-- [ ] **FG-044** Verify business-days util is importable across packages, or promote to `shared/`
-- [ ] **FG-045** **Detector 1 — stalled work.** `state='in_progress'`, `started_at` older than N business days, `updated_at` unchanged since
-- [ ] **FG-046** Detector 1: use `updated_at`, **not** `document_history` absence — history has coverage holes (`PRESEARCH.md` Q1)
-- [ ] **FG-047** Detector 1: threshold as config constant, default 5 business days
-- [ ] **FG-048** Detector 1: exclude archived and soft-deleted documents
-- [ ] **FG-049** Detector 1: unit test against fixture data
+- [x] **FG-040** `agent/src/detectors/types.ts` — `Signal` shape: type, target_id, target_type, measurement, threshold, fingerprint
+- [x] **FG-041** `agent/src/detectors/fingerprint.ts` — deterministic fingerprint from (signal_type, target_id, threshold bucket)
+- [x] **FG-042** Unit test: same input → same fingerprint; different bucket → different fingerprint
+- [x] **FG-043** `agent/src/detectors/businessDays.ts` — reuse `api/src/utils/business-days.ts` rather than reimplementing
+- [x] **FG-044** Verify business-days util is importable across packages, or promote to `shared/`
+- [x] **FG-045** **Detector 1 — stalled work.** `state='in_progress'`, `started_at` older than N business days, `updated_at` unchanged since
+- [x] **FG-046** Detector 1: use `updated_at`, **not** `document_history` absence — history has coverage holes (`PRESEARCH.md` Q1)
+- [x] **FG-047** Detector 1: threshold as config constant, default 5 business days
+- [x] **FG-048** Detector 1: exclude archived and soft-deleted documents
+- [x] **FG-049** Detector 1: unit test against fixture data
 - [ ] **FG-050** **Detector 2 — sprint-miss risk.** Sprint `end_date` within 2 business days, issues still `todo`/`backlog`
 - [ ] **FG-051** Detector 2: resolve sprint→issue via `document_associations` (relationship_type `sprint`), not legacy columns
 - [ ] **FG-052** Detector 2: unit test
