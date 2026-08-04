@@ -1154,10 +1154,12 @@ documented manual procedure someone follows is not sufficient.
 
 | Trigger | Detected by | Response |
 |---|---|---|
-| A CI job fails on the deployed commit | GitLab CI `verify` stage — `lint`, `type-check`, `test`, plus the agent suite | The pipeline does not promote the image; if the commit is already live, re-apply the previous SHA |
-| The post-deploy health check never passes | Render polls `health_check_path = "/health"` after each deploy | **Render rolls back to the previous instance automatically.** Configured in `terraform/render/main.tf` |
-| `/ready` returns 503 after deploy | `api/src/routes/ready.ts` — 503 when Postgres is unreachable. An open Bedrock breaker is reported as `degraded` at 200, not a rollback trigger | Operator-triggered rollback by SHA |
-| A regression test for a use case fails | `FG-229`–`FG-234` | Blocks promotion; the failing commit never becomes the deployed tag |
+| A CI job fails on a commit that is **not** deployed | GitLab `verify` stage and GitHub `CI` — `lint`, `type-check`, `test`, `agent-test`, `e2e` | Promotion is blocked. `docker-image` lists `agent-test` in `needs`, so the image is never published and there is nothing to deploy |
+| A CI job fails on a commit that **is** deployed | `.github/workflows/deploy.yml`, job `rollback-on-failed-ci`, triggered by `workflow_run` on CI completion | Asks `/health` which revision is live. If it is the failing SHA, applies `deploy/green` automatically and verifies. If it is not, does nothing — the failing commit is not deployed |
+| A deploy's post-deploy health check never passes | `deploy.yml`, job `deploy`, step "Verify /health reports \<sha\>" — polls for 10 minutes | `if: failure()` applies `deploy/green` and re-verifies. The `deploy/green` tag is **not** moved, so the next rollback still has a good target |
+| Render's own health check fails | Render polls `health_check_path = "/health"` after each deploy | **Render rolls back to the previous instance automatically.** Configured in `terraform/render/main.tf` |
+| `/ready` returns 503 after deploy | `api/src/routes/ready.ts` — 503 when Postgres is unreachable. An open Bedrock breaker is reported as `degraded` at 200, not a rollback trigger | Operator-triggered rollback by SHA: run `deploy.yml` via `workflow_dispatch` with the target SHA |
+| A regression test for a use case fails | `FG-229`–`FG-234`, in `agent/src/graph/use-cases.test.ts` and `agent/src/actions/autonomy.test.ts`, gated by `agent-test` | Blocks promotion; the failing commit never becomes the deployed tag. If it was already deployed, row 2 removes it |
 
 ## The procedure
 
@@ -1190,6 +1192,30 @@ written. `Dockerfile:44` builds `@ship/agent` alongside `@ship/api`, `:110` copi
 target the cron's `start_command` points at. The default `start_command` in
 `terraform/render/variables.tf` is `node /app/agent/dist/entrypoints/cron.js`, which is that
 exact path.
+
+`deploy.yml` runs exactly the two commands above. There is no second implementation to drift,
+which is the point — a rollback path that exists only in automation is one nobody can rehearse,
+and one that exists only in a runbook is what requirement 1 rules out. `workflow_dispatch` makes
+the same path runnable by hand.
+
+**"The previous SHA" is a recorded fact, not a guess.** The `deploy/green` git tag moves to a SHA
+only *after* `/health` has confirmed that SHA is live. Any commit whose CI run pushed an image is
+a valid manual target, but the automatic path only ever falls back to a revision that has
+demonstrably served traffic.
+
+## What is not wired yet
+
+`deploy.yml` is **dormant** behind `vars.RENDER_DEPLOY_ENABLED`. An `armed` job runs on every CI
+completion and writes DORMANT into the run summary, so the gap is stated on every run rather than
+discovered during an incident.
+
+The blocking prerequisite is a **remote state backend for `terraform/render`**. State is
+currently a local file, so a CI `terraform apply` would start with no knowledge of the running
+service and try to create it. The workflow's preflight step fails on exactly that, by name. The
+Render and registry secrets are paste-in work; the backend is not.
+
+Until that lands, requirement 1's *automatic* rollback is built and proven-by-construction but
+not armed. Stated plainly rather than counted as done.
 
 The remaining half is the apply. The cron resource is declared and planned; it has not been
 applied, so the seam is verified by construction and not by a running job.
