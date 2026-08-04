@@ -155,7 +155,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build:shared
+      - run: pnpm build:agent   # shared -> agent; api imports @ship/agent
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
       # Both suites. `pnpm test` alone is api-only and would leave 151 web tests
       # unexecuted, which does not satisfy Rule 2.
@@ -257,7 +257,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build:shared
+      - run: pnpm build:agent   # shared -> agent; api imports @ship/agent
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
       - run: pnpm --filter @ship/api test:coverage
       # web needs --coverage.reportOnFailure explicitly; vitest defaults it to false,
