@@ -1207,3 +1207,116 @@ Nothing here changes the database schema, so there is no migration to reverse.
 `web/src/components/UnifiedEditor.tsx` · `web/src/components/icons/uswds/Icon.tsx` ·
 `web/src/components/review/WeeklyReviewSubNav.tsx` · the three test files above ·
 `e2e/manager-reviews-visual.spec.ts` (redundant escapes)
+
+---
+
+# Week 5 — FleetGraph: the deployed agent had no model
+
+## What was wrong
+
+The agent was inert in production, and every layer was behaving as designed.
+
+`PRESEARCH.md` Q25 chose Bedrock on one premise: Ship already used it, so the credentials
+were already there. The premise was false. `terraform/render/*.tf` declared no AWS
+environment variables at all, and `api/src/services/ai-analysis.ts:39` had already recorded
+the same fact about the API — "no AWS credentials at all". Render supplies no instance role,
+so the ambient AWS credential chain resolved to nothing on every run.
+
+What follows from that is a chain of individually correct behaviour:
+
+| Layer | What it did | Correct? |
+|---|---|---|
+| `judgeSignals` | returned `ai_unavailable` | yes — provider unreachable |
+| `makeJudge` | threw `JudgementUnavailableError` | yes — flattening to `[]` loses the window |
+| graph | routed to `close_quiet` | yes — no findings to route |
+| `closeQuiet` | held the watermark | yes — an unjudged window must not close |
+
+The product of four correct behaviours: an agent that scans every three minutes, detects
+drift, and notifies nobody. Forever. MVP requirement 1 wants one proactive detection reaching
+a human end-to-end, and there was no path to one. `POST /api/fleetgraph/chat` returned 503 on
+every request for the same reason.
+
+Nothing caught it because nothing failed loudly. "No findings" is also what a calm project
+looks like — the graph's quiet path is *designed* to produce that outcome cheaply, so the two
+are indistinguishable from outside.
+
+## What changed
+
+The direct Anthropic API is now the primary provider. Bedrock stays, and its job is now the
+mock seam rather than production.
+
+**Precedence — `BEDROCK_ENDPOINT` > `ANTHROPIC_API_KEY` > ambient AWS.** The mock outranks a
+real key on purpose. `BEDROCK_ENDPOINT` is only ever set to point at the local fake
+(`docker-compose.mocks.yml`, `mocks/bedrock-expectations.json`), so if a key ever lands in a
+CI environment, precedence is the only thing between a deterministic suite and a billed one.
+That is engineering requirement 3, and it is asserted rather than assumed.
+
+Downstream is untouched. `PromptedModel` is structural, the breaker wraps `callModel` rather
+than the client, and judge and answer never learn which provider replied. Requirement 4 holds
+on both paths, through different SDK field names: `timeout` = 20 s and `maxRetries` = 2 on
+Anthropic (retries, not attempts — one less, so the request count matches Bedrock's
+`maxAttempts` = 3). The Anthropic SDK has no separate connect timeout, so a stalled handshake
+is caught by the same 20 s rather than by Bedrock's tighter 3 s: slower to fail, still
+bounded, still inside the Q30 latency budget.
+
+**Two things stop it recurring**, because the code change alone would not have been caught
+either:
+
+1. `agent/src/llm/client.test.ts` — 7 tests asserting which provider a call would *reach*,
+   including the precedence rule and that the built client satisfies both call sites
+   (`invoke` for answers, `withStructuredOutput` for judgement).
+2. `cron.ts` logs `fleetgraph.model` once per process, before any work, naming the provider
+   and whether it is mocked. A run that surfaced nothing because the project is calm is now
+   distinguishable in the log from one that surfaced nothing because there was no credential.
+
+## How to run it locally
+
+```bash
+cp agent/.env.example agent/.env      # then set ANTHROPIC_API_KEY
+./start.sh                            # app + database + mocks
+node agent/dist/entrypoints/cron.js   # one scan
+```
+
+The first log line names the provider:
+
+```json
+{"at":"...","event":"fleetgraph.model","provider":"anthropic","model":"claude-opus-4-5-20251101","mocked":false}
+```
+
+`provider: "bedrock"` with `mocked: false` and no AWS credentials is the inert state described
+above. Without any key the agent still starts and still detects — judgement is what degrades.
+
+Set `FLEETGRAPH_MODEL_ID` if the key has no access to the default model. That failure arrives
+as a 404 on the model id, which from behind the breaker is indistinguishable from an outage.
+
+## How to test it
+
+```bash
+pnpm --filter @ship/agent exec vitest run src/llm/client.test.ts   # 7 passed
+pnpm --filter @ship/agent exec vitest run                          # 174 passed (was 167)
+pnpm --filter @ship/agent exec tsc --noEmit                        # clean
+cd terraform/render && terraform validate && terraform fmt -check  # valid, formatted
+```
+
+CI needs no key: `BEDROCK_ENDPOINT` is set there, so the mock answers and the suite stays
+deterministic. Verified — the three `getChatModel` tests set and restore the env themselves
+rather than depending on the developer's shell.
+
+## How to roll it back
+
+| To undo | Do this |
+|---|---|
+| The provider swap | `git revert <sha>`. Returns the agent to Bedrock-only — that is, to inert on Render. |
+| Just the deployed key | Unset `TF_VAR_anthropic_api_key` and re-apply. The variable defaults to null and the env var is omitted rather than set empty, so the agent degrades honestly instead of failing on a blank key. |
+| The dependency | `pnpm --filter @ship/agent remove @langchain/anthropic` after reverting `client.ts` |
+
+No schema change, so no migration to reverse.
+
+### Files touched
+
+**Added:** `agent/src/llm/client.test.ts`
+
+**Edited:** `agent/src/llm/client.ts` (provider selection) · `agent/src/llm/index.ts` (exports)
+· `agent/src/entrypoints/cron.ts` (`fleetgraph.model` log line) · `agent/.env.example` ·
+`agent/package.json` (`@langchain/anthropic`) · `terraform/render/cron.tf` ·
+`terraform/render/variables.tf` · `PRESEARCH.md` (Q25 correction)

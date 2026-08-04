@@ -289,3 +289,10 @@ variable "langchain_api_key" {
   sensitive   = true
   default     = null
 }
+
+variable "anthropic_api_key" {
+  description = "Anthropic API key for judgement and on-demand answers. Null (the default) leaves the cron with no model credential, which is what this file previously did unintentionally: PRESEARCH.md Q25 chose Bedrock expecting an ambient AWS credential chain, and Render supplies no instance role, so every judgement returned ai_unavailable and the agent could detect but never surface. Omitted rather than set empty when null, so the agent falls back to the Bedrock path and degrades honestly instead of failing on a blank key. Set TF_VAR_anthropic_api_key."
+  type        = string
+  sensitive   = true
+  default     = null
+}

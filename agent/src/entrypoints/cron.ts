@@ -33,7 +33,7 @@ import {
   type ProposedAction,
 } from '../graph/index.js';
 import { getCheckpointer } from '../graph/checkpointer.js';
-import { makeJudge, makeAnswer } from '../llm/index.js';
+import { makeJudge, makeAnswer, describeProvider } from '../llm/index.js';
 import { makeShipAct } from '../actions/index.js';
 import { ensureSynchronousCallbacks, logTracingStatus } from '../observability/tracing.js';
 
@@ -220,6 +220,20 @@ export async function main(): Promise<number> {
   // Once per process, before any work. An empty LangSmith project and a graph
   // that never ran look identical from the outside; this says which it is.
   logTracingStatus();
+
+  // Same argument, one layer down. A run that surfaced nothing because the
+  // project is calm and a run that surfaced nothing because there was no model
+  // credential produce the same output — no findings, no notification. That
+  // ambiguity is what let the deployed cron sit inert with every layer
+  // behaving as designed. This line names the provider before the ambiguity
+  // can arise.
+  console.log(
+    JSON.stringify({
+      at: new Date().toISOString(),
+      event: 'fleetgraph.model',
+      ...describeProvider(),
+    })
+  );
 
   try {
     // A single workspace can be targeted, which is what makes a timed latency

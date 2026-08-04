@@ -1,6 +1,33 @@
 /**
  * The one outbound model call FleetGraph makes, and everything wrapped round it.
  *
+ * ── Two providers, and why there are two ───────────────────────────────────
+ * PRESEARCH.md Q25 chose Bedrock for one reason only: Ship already used it, so
+ * the credentials, the breaker and the mock were all sitting there. That reason
+ * turned out to be false. `terraform/render/*.tf` declares no AWS environment
+ * variables at all, and `api/src/services/ai-analysis.ts:39` already recorded
+ * the same thing about the API — "no AWS credentials at all". So the deployed
+ * cron had no more access to Bedrock than a laptop does.
+ *
+ * That is not a degraded deployment, it is an inert one. `makeJudge` throws
+ * `JudgementUnavailableError` on an unreachable provider, the graph routes to
+ * `close_quiet`, and `closeQuiet` deliberately holds the watermark. All correct,
+ * and the sum of it is an agent that detects drift and tells nobody, forever.
+ * MVP requirement 1 wants one proactive detection reaching a human end-to-end;
+ * with no reachable model there is no path to one.
+ *
+ * The provider was never a requirement — the brief names none. So the direct
+ * Anthropic API is now the primary, selected by `ANTHROPIC_API_KEY`, and Bedrock
+ * stays as the fallback for one specific job: `BEDROCK_ENDPOINT` still steers
+ * CI and `./start.sh` at the local mock, which is engineering requirement 3's
+ * stable fake and must keep working. Hence the precedence below — an explicit
+ * mock endpoint outranks a real key, so a key leaking into a CI environment
+ * cannot turn a deterministic suite into a billed one.
+ *
+ * Everything downstream is untouched. `PromptedModel` is structural, the
+ * breaker fronts the call rather than the client, and judge/answer never learn
+ * which provider answered.
+ *
  * ── Why the breaker is shared rather than copied ────────────────────────────
  * It already exists, is already tested, and already fronts Bedrock with the
  * exact values below. PRESEARCH.md Q25 decides to reuse it, and the reason is
@@ -55,7 +82,9 @@
  * scheme, so it is the one seam that survives. Named here because it looks
  * eccentric otherwise.
  */
+import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatBedrockConverse } from '@langchain/aws';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 
 import { CircuitBreaker, CircuitOpenError , type CircuitBreakerStats } from '@ship/shared';
 
@@ -64,8 +93,18 @@ import { CircuitBreaker, CircuitOpenError , type CircuitBreakerStats } from '@sh
  * Two model ids across one product means two answers to "what did it say", and
  * the mock expectations are written against this one.
  */
-const MODEL_ID = 'global.anthropic.claude-opus-4-5-20251101-v1:0';
+const BEDROCK_MODEL_ID = 'global.anthropic.claude-opus-4-5-20251101-v1:0';
 const REGION = 'us-east-1';
+
+/**
+ * The direct-API default, overridable by env.
+ *
+ * Overridable because the failure it guards against is un-debuggable from a
+ * cron log: a key without access to this particular model fails as a 404 on the
+ * model id, which reads identically to an outage from behind the breaker. One
+ * env var turns that into a thing an operator can fix without a deploy.
+ */
+const ANTHROPIC_MODEL_ID = process.env.FLEETGRAPH_MODEL_ID ?? 'claude-opus-4-5-20251101';
 
 /**
  * The Q31 output budget. Judgement returns a handful of short sentences; 2048
@@ -118,8 +157,47 @@ export interface PromptedModel<T = unknown> {
   invoke(messages: Array<{ role: 'system' | 'user'; content: string }>): Promise<T>;
 }
 
-let chatModel: ChatBedrockConverse | null = null;
+let chatModel: BaseChatModel | null = null;
 let chatModelInitFailed = false;
+
+/** Which provider a call would reach right now. `none` means judgement degrades. */
+export type ModelProvider = 'anthropic' | 'bedrock' | 'none';
+
+/**
+ * Decide the provider from the environment, without constructing anything.
+ *
+ * Separate from `getChatModel` so the health endpoint (Q28) and the tests can
+ * ask the question without paying for a client or caching one — and so the
+ * precedence rule is one readable expression rather than a shape inferred from
+ * a chain of try/catch.
+ *
+ * `BEDROCK_ENDPOINT` first: that variable is only ever set to point at a mock
+ * (`docker-compose.mocks.yml`, `e2e/fixtures/mock-bedrock.ts`). If it is set,
+ * the environment has explicitly asked for the fake, and a real key present in
+ * the same environment must not quietly win and start billing a test run.
+ */
+export function selectProvider(env: NodeJS.ProcessEnv = process.env): ModelProvider {
+  if (env.BEDROCK_ENDPOINT) return 'bedrock';
+  if (env.ANTHROPIC_API_KEY) return 'anthropic';
+  // Bedrock is still worth attempting: an EC2/ECS role supplies credentials
+  // through the chain with no environment variable to detect. On Render there
+  // is no such role, so this is the branch that degrades to `ai_unavailable`.
+  return 'bedrock';
+}
+
+/** For the health endpoint and for the startup log line. */
+export function describeProvider(env: NodeJS.ProcessEnv = process.env): {
+  provider: ModelProvider;
+  model: string;
+  mocked: boolean;
+} {
+  const provider = selectProvider(env);
+  return {
+    provider,
+    model: provider === 'anthropic' ? ANTHROPIC_MODEL_ID : BEDROCK_MODEL_ID,
+    mocked: Boolean(env.BEDROCK_ENDPOINT),
+  };
+}
 
 /**
  * The shared chat model, built on first use.
@@ -133,41 +211,71 @@ let chatModelInitFailed = false;
  * `ai_unavailable` on the one path that needs the model rather than taking down
  * the run — detection keeps working without judgement (Q25's first rung).
  */
-export function getChatModel(): ChatBedrockConverse | null {
+export function getChatModel(): BaseChatModel | null {
   if (chatModelInitFailed) return null;
   if (chatModel) return chatModel;
 
   try {
-    const endpoint = process.env.BEDROCK_ENDPOINT;
-
-    chatModel = new ChatBedrockConverse({
-      model: MODEL_ID,
-      region: REGION,
-      maxTokens: MAX_TOKENS,
-      // Deterministic-as-it-gets. Severity that changes between runs on
-      // unchanged input is a finding nobody can act on with confidence.
-      temperature: 0,
-      clientOptions: {
-        maxAttempts: MAX_ATTEMPTS,
-        // Handler options, not a handler instance: the SDK constructs the
-        // NodeHttpHandler itself, so this needs no @smithy/* import.
-        requestHandler: {
-          connectionTimeout: CONNECT_TIMEOUT_MS,
-          requestTimeout: REQUEST_TIMEOUT_MS,
-        },
-        ...(endpoint ? { endpointProvider: () => ({ url: new URL(endpoint) }) } : {}),
-      },
-    });
-
+    chatModel =
+      selectProvider() === 'anthropic' ? buildAnthropicModel() : buildBedrockModel();
     return chatModel;
   } catch (err) {
     console.warn(
-      '[fleetgraph] Bedrock client init failed; judgement degrades to ai_unavailable:',
+      '[fleetgraph] model client init failed; judgement degrades to ai_unavailable:',
       err instanceof Error ? err.message : err
     );
     chatModelInitFailed = true;
     return null;
   }
+}
+
+/**
+ * The direct Anthropic API client.
+ *
+ * The same four failure modes are covered as on the Bedrock path, through
+ * different field names — requirement 4 is about the behaviour, not the SDK:
+ *
+ *  - `timeout` is the per-request ceiling, matching REQUEST_TIMEOUT_MS. There is
+ *    no separate connect timeout in this SDK, so a stalled handshake is caught
+ *    by the same 20 s rather than by a tighter 3 s. Slower to fail, still
+ *    bounded, and still inside the Q30 latency budget.
+ *  - `maxRetries` is retries, not attempts, so it is one less than MAX_ATTEMPTS
+ *    to keep the total number of requests identical across providers. The SDK
+ *    retries 429 and 5xx with exponential backoff and jitter.
+ *  - The breaker is unchanged: it wraps `callModel`, not the client, so it
+ *    counts failures from whichever provider answered.
+ */
+function buildAnthropicModel(): BaseChatModel {
+  return new ChatAnthropic({
+    model: ANTHROPIC_MODEL_ID,
+    maxTokens: MAX_TOKENS,
+    // Deterministic-as-it-gets. Severity that changes between runs on
+    // unchanged input is a finding nobody can act on with confidence.
+    temperature: 0,
+    maxRetries: MAX_ATTEMPTS - 1,
+    clientOptions: { timeout: REQUEST_TIMEOUT_MS },
+  });
+}
+
+function buildBedrockModel(): BaseChatModel {
+  const endpoint = process.env.BEDROCK_ENDPOINT;
+
+  return new ChatBedrockConverse({
+    model: BEDROCK_MODEL_ID,
+    region: REGION,
+    maxTokens: MAX_TOKENS,
+    temperature: 0,
+    clientOptions: {
+      maxAttempts: MAX_ATTEMPTS,
+      // Handler options, not a handler instance: the SDK constructs the
+      // NodeHttpHandler itself, so this needs no @smithy/* import.
+      requestHandler: {
+        connectionTimeout: CONNECT_TIMEOUT_MS,
+        requestTimeout: REQUEST_TIMEOUT_MS,
+      },
+      ...(endpoint ? { endpointProvider: () => ({ url: new URL(endpoint) }) } : {}),
+    },
+  });
 }
 
 /** Test seam: forget the cached client so a new env can take effect. */

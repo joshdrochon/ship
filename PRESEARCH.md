@@ -661,6 +661,47 @@ written: *"a retry makes a single request more likely to succeed, but when the d
 down it multiplies the load and multiplies the latency every caller waits through."* That
 reasoning applies unchanged. Writing a second one would be duplicating a solved problem.
 
+**Correction (2026-08-04) — rung 1 was the steady state, not the exception.**
+
+The ladder above is right about what each failure costs. It is wrong about which failure was
+going to happen. "LLM down" was written as a transient — an outage, an expired role, a bad
+minute — and the design leans on that: signals stay unjudged and are judged *next run*.
+
+There was no next run. Bedrock was chosen here because Ship already used it, and that premise
+does not survive checking: `terraform/render/*.tf` declared no AWS environment variables at
+all, and `api/src/services/ai-analysis.ts:39` already recorded the same thing about the API —
+"no AWS credentials at all". Render supplies no instance role, so the ambient credential chain
+resolved to nothing on every run, forever.
+
+So the deployed agent sat permanently on rung 1. Every layer behaved exactly as specified:
+judgement returned `ai_unavailable`, `makeJudge` threw, the graph routed to `close_quiet`, and
+`closeQuiet` correctly held the watermark. The product of all that correct behaviour was an
+agent that detects drift every three minutes and notifies nobody. MVP requirement 1 wants one
+proactive detection reaching a human end-to-end; there was no path to one.
+
+Nothing caught it because nothing failed loudly. "No findings" is also what a calm project
+looks like — the two are indistinguishable from outside, which is precisely the ambiguity the
+graph's quiet path is designed to produce cheaply.
+
+**What changed.** The direct Anthropic API is now the primary provider, selected by
+`ANTHROPIC_API_KEY` (`agent/src/llm/client.ts`, terraform var `anthropic_api_key`). Bedrock
+stays as the fallback and, more importantly, as the mock seam — `BEDROCK_ENDPOINT` still
+steers CI and `./start.sh` at the local fake, which is engineering requirement 3 and must keep
+working. Precedence is `BEDROCK_ENDPOINT` > `ANTHROPIC_API_KEY` > ambient AWS, so a key
+present in a CI environment cannot quietly turn a deterministic suite into a billed one.
+
+The provider was never a requirement — the brief names none — so this costs nothing the
+original decision was buying. Everything downstream is untouched: `PromptedModel` is
+structural, the breaker fronts `callModel` rather than the client, and judge and answer never
+learn which provider replied.
+
+**What stops it recurring.** Two things, because the code change alone would not have been
+caught either. `agent/src/llm/client.test.ts` asserts which provider a call would reach,
+including the precedence rule. And `cron.ts` now logs `fleetgraph.model` once per process,
+before any work, naming the provider and whether it is mocked — so a run that surfaced nothing
+because the project is calm is distinguishable in the log from one that surfaced nothing
+because there was no credential.
+
 ### Q26 · What gets cached and for how long?
 
 **Decision.**

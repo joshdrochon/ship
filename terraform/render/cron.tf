@@ -70,6 +70,28 @@ locals {
     # workspace, zero sessions without it and a trace with it.
     LANGCHAIN_CALLBACKS_BACKGROUND = { value = "false" }
   } : {}
+
+  # Same nonsensitive-boolean trick, same reason: the presence of a model key is
+  # not itself a secret, and deciding the map's shape from a sensitive value
+  # would collapse the whole env_vars block in the plan output again.
+  agent_model_key_set = nonsensitive(var.anthropic_api_key != null)
+
+  # Without this the deployed agent detects and notifies nobody.
+  #
+  # Not a hypothetical. This file previously declared no model credential of any
+  # kind, on the assumption — PRESEARCH.md Q25 — that Bedrock's ambient AWS
+  # credential chain would supply one. Render provides no instance role, so the
+  # chain resolves to nothing, every judgement returned `ai_unavailable`, and
+  # `closeQuiet` correctly refused to advance the watermark. The result was a
+  # cron that ran every 3 minutes and could never surface a finding.
+  #
+  # Empty when unset rather than defaulted, so the failure stays the honest one:
+  # the agent still runs and still detects, judgement degrades, and the health
+  # endpoint reports `provider: bedrock` with no credentials rather than
+  # pretending a key exists.
+  agent_model_env = local.agent_model_key_set ? {
+    ANTHROPIC_API_KEY = { value = var.anthropic_api_key }
+  } : {}
 }
 
 resource "render_cron_job" "fleetgraph" {
@@ -169,5 +191,6 @@ resource "render_cron_job" "fleetgraph" {
       SHIP_API_TOKEN = { value = var.ship_api_token }
     },
     local.agent_optional_env,
+    local.agent_model_env,
   )
 }

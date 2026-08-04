@@ -11,7 +11,14 @@ export { judgeSignals, makeJudge, clearJudgmentCache, JudgementUnavailableError 
 export type { JudgeInput, JudgeDeps } from './judge.js';
 export { composeAnswer, makeAnswer, AnswerUnavailableError } from './answer.js';
 export type { AnswerInput, AnswerDeps } from './answer.js';
-export { getChatModel, resetChatModel, getLlmBreakerStats, resetLlmBreaker } from './client.js';
-export type { PromptedModel } from './client.js';
+export {
+  getChatModel,
+  resetChatModel,
+  getLlmBreakerStats,
+  resetLlmBreaker,
+  selectProvider,
+  describeProvider,
+} from './client.js';
+export type { PromptedModel, ModelProvider } from './client.js';
 export { JUDGE_SYSTEM_PROMPT, JudgmentBatchSchema, renderJudgeInput } from './prompts/judge.js';
 export { ANSWER_SYSTEM_PROMPT, renderAnswerInput } from './prompts/answer.js';
