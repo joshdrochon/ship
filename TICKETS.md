@@ -1,0 +1,432 @@
+# FleetGraph — Ticket Board
+
+Working checklist for the Week 5 FleetGraph build. Not a graded deliverable — the graded
+files are `PRESEARCH.md` and `FLEETGRAPH.md`. This is the execution plan behind them, and the
+import source for Linear.
+
+| | |
+|---|---|
+| **Source of truth** | `GFA_Week_5_FleetGraph_Updated.pdf` — extracted to `.claude/prd/` (gitignored), sha `2e9d2409…` |
+| **Architecture decisions** | `PRESEARCH.md` — every ticket below traces to a Q there |
+| **Branch** | `feat/fleetgraph-presearch` off `main` @ `1ca148f` |
+| **MVP** | **Tuesday 11:59 PM** — §M tickets |
+| **Early Submission** | Thursday 11:59 PM — §E tickets |
+| **Final** | Sunday noon — §F tickets |
+
+**Deployment decision (locked):** Terraform builds a fresh Render environment from zero; the
+API-created service retires. `url` and `slug` are Render-computed, so the required
+destroy-and-redeploy test produces a new URL under any approach. Week 4 is already graded, so
+nothing depends on the old one.
+
+**Reversibility note:** `FG-021` (the data-access boundary) is what keeps "one database" a
+two-way door. Every cross-boundary join goes through that module. If joins spread inline
+across node code, splitting the database later stops being feasible — see `PRESEARCH.md` Q19.
+
+---
+
+## Working process
+
+Authority is split, and nothing is maintained by hand in both places:
+
+| | Owns |
+|---|---|
+| **This file** | What tickets *exist* — the definition |
+| **Linear** | What state they are *in* — the live board |
+
+**Never hand-edit a checkbox below.** They are generated from Linear by
+`scripts/linear-import.mjs --sync`. Editing one by hand creates drift that looks like
+progress; that is precisely what happened on 2026-08-03, when ten M0 tickets were checked
+here and left in Backlog on the board for an hour.
+
+```bash
+# add newly written tickets to Linear (idempotent — skips what exists)
+node scripts/linear-import.mjs
+
+# claim work / complete it — accepts ids and inclusive ranges
+node scripts/linear-import.mjs --set "In Progress" FG-017-FG-024
+node scripts/linear-import.mjs --set Done FG-017,FG-018
+
+# pull state back into the checkboxes below
+node scripts/linear-import.mjs --sync
+
+# any command takes --dry-run
+```
+
+Single-ticket moves during normal work can go through the Linear MCP server directly —
+that is what it is good at. `--set` exists for the batch case, because Linear's MCP writes
+one issue per call and work tends to complete in batches.
+
+Commit messages reference the ticket id (`FG-018`), so git history and the board line up.
+
+---
+
+## Requirement traceability
+
+The nine MVP requirements from the brief (p.3), and the tickets that satisfy each.
+
+| # | MVP requirement | Tickets |
+|---|---|---|
+| 1 | Graph running, ≥1 proactive detection end-to-end | M2, M3, M5 |
+| 2 | LangSmith tracing, ≥2 trace links, different execution paths | M9 |
+| 3 | `FLEETGRAPH.md` — Agent Responsibility + Use Cases (≥5) | M11 |
+| 4 | Graph outline — node types, edges, branching conditions | M11 |
+| 5 | ≥1 human-in-the-loop gate implemented | M6 |
+| 6 | Running against real Ship data, no mocked responses | M5, M10 |
+| 7 | Agent chat **and** notifications accessible in the UI | M7, M8 |
+| 8 | Deployed via Terraform, `/health` + `/ready`, annotated plan, destroy test | M10 |
+| 9 | Trigger model documented and defended | M11 |
+
+---
+
+# §M · MVP — due Tuesday 11:59 PM
+
+## M0 · Foundations
+
+- [ ] **FG-001** Create branch `feat/fleetgraph-mvp` off `main`
+- [ ] **FG-002** Commit `PRESEARCH.md` (currently uncommitted)
+- [ ] **FG-003** Commit `TICKETS.md`
+- [ ] **FG-004** Commit the `.claude/CLAUDE.md` E2E test-DB lifecycle correction
+- [x] **FG-005** Add workspace package `agent/` to `pnpm-workspace.yaml`
+- [x] **FG-006** `agent/package.json` — name `@ship/agent`, type module, matching Node engine
+- [x] **FG-007** `agent/tsconfig.json` extending the root config (do **not** repeat `web/`'s mistake of not extending)
+- [x] **FG-008** Install `@langchain/langgraph`, `@langchain/core` in `agent/`
+- [x] **FG-009** Install `@langchain/aws` (Bedrock, reuses existing credentials path)
+- [x] **FG-010** Install `langsmith`
+- [x] **FG-011** Install `@langchain/langgraph-checkpoint-postgres`
+- [x] **FG-012** Add `agent/` to root `pnpm build`, `type-check`, `lint`, `test` scripts
+- [x] **FG-013** Verify `pnpm type-check` passes with the new package empty
+- [x] **FG-014** Add `agent/src/index.ts` stub exporting nothing, to prove the build wiring
+- [x] **FG-015** **Spike:** confirm LangGraph JS `interrupt()` state survives a process exit with the Postgres checkpointer — **PASSED** 2026-08-03, langgraph 1.4.8 / checkpoint-postgres 1.0.4. 8/8 assertions; pre-interrupt nodes did not re-run
+- [x] **FG-016** Record the spike result in `PRESEARCH.md` open items
+
+## M1 · Data layer
+
+- [x] **FG-017** Migration `038_fleetgraph.sql` — create file, register in migration order
+- [x] **FG-018** `038`: index `documents (workspace_id, updated_at)` — the watermark scan seq-scans without it (`PRESEARCH.md` Q1)
+- [x] **FG-019** `038`: `api_tokens.scopes` column, nullable text[], default null = full permissions (backward compatible)
+- [x] **FG-020** `038`: table `fleetgraph_observations` — id, workspace_id, fingerprint, signal_type, target_id, target_type, first_seen_at, last_surfaced_at, resolution, resolved_at, snooze_until
+- [x] **FG-021** `038`: unique index on `(workspace_id, fingerprint)` — the suppression key. **This is the cost cliff from Q32; get it right**
+- [x] **FG-022** `038`: table `fleetgraph_notifications` — id, workspace_id, observation_id, recipient_user_id, title, body, state, acknowledged_at, created_at
+- [x] **FG-023** `038`: table `fleetgraph_watermarks` — workspace_id PK, last_scanned_at, last_run_completed_at
+- [x] **FG-024** `038`: indexes for notification lookup by recipient + state
+- [x] **FG-025** Run `038` against local dev, verify it applies cleanly
+- [x] **FG-026** Verify `038` rolls back cleanly on failure (migrations run in a transaction)
+- [x] **FG-027** Re-run `038` to confirm idempotency (`IF NOT EXISTS` everywhere)
+- [x] **FG-028** `EXPLAIN ANALYZE` the watermark query before and after the index; record both
+- [x] **FG-029** `agent/src/data/boundary.ts` — **the single module holding every query that joins agent tables to Ship tables.** Keeps the one-database decision reversible
+- [x] **FG-030** Header comment in `boundary.ts` pointing at `PRESEARCH.md` Q19 and stating the reversal path
+- [x] **FG-031** `boundary.ts`: `getWatermark(workspaceId)`
+- [x] **FG-032** `boundary.ts`: `setWatermark(workspaceId, ts)` — only called on a completed run (Q24 crash-safety)
+- [x] **FG-033** `boundary.ts`: `loadSuppressionSet(workspaceId)`
+- [x] **FG-034** `boundary.ts`: `recordObservation(...)`
+- [x] **FG-035** `boundary.ts`: `resolveObservation(id, resolution)`
+- [x] **FG-036** `boundary.ts`: `createNotification(...)`
+- [x] **FG-037** `agent/src/data/pool.ts` — Postgres pool, reads `DATABASE_URL`, bounded connection count (Render free tier caps connections)
+- [x] **FG-038** Unit test: watermark round-trip
+- [x] **FG-039** Unit test: suppression fingerprint uniqueness constraint rejects duplicates
+
+## M2 · Detectors
+
+- [ ] **FG-040** `agent/src/detectors/types.ts` — `Signal` shape: type, target_id, target_type, measurement, threshold, fingerprint
+- [ ] **FG-041** `agent/src/detectors/fingerprint.ts` — deterministic fingerprint from (signal_type, target_id, threshold bucket)
+- [ ] **FG-042** Unit test: same input → same fingerprint; different bucket → different fingerprint
+- [ ] **FG-043** `agent/src/detectors/businessDays.ts` — reuse `api/src/utils/business-days.ts` rather than reimplementing
+- [ ] **FG-044** Verify business-days util is importable across packages, or promote to `shared/`
+- [ ] **FG-045** **Detector 1 — stalled work.** `state='in_progress'`, `started_at` older than N business days, `updated_at` unchanged since
+- [ ] **FG-046** Detector 1: use `updated_at`, **not** `document_history` absence — history has coverage holes (`PRESEARCH.md` Q1)
+- [ ] **FG-047** Detector 1: threshold as config constant, default 5 business days
+- [ ] **FG-048** Detector 1: exclude archived and soft-deleted documents
+- [ ] **FG-049** Detector 1: unit test against fixture data
+- [ ] **FG-050** **Detector 2 — sprint-miss risk.** Sprint `end_date` within 2 business days, issues still `todo`/`backlog`
+- [ ] **FG-051** Detector 2: resolve sprint→issue via `document_associations` (relationship_type `sprint`), not legacy columns
+- [ ] **FG-052** Detector 2: unit test
+- [ ] **FG-053** **Detector 3 — review bottleneck.** `state='in_review'`, `updated_at` unchanged N business days
+- [ ] **FG-054** Detector 3: threshold constant, default 2 business days
+- [ ] **FG-055** Detector 3: unit test
+- [ ] **FG-056** **Detector 4 — load imbalance.** `COUNT(*) GROUP BY properties->>'assignee_id'` vs team median
+- [ ] **FG-057** Detector 4: define "team" as sprint participants, not the whole workspace
+- [ ] **FG-058** Detector 4: guard against a team of 1 (median is meaningless)
+- [ ] **FG-059** Detector 4: unit test
+- [ ] **FG-060** **Detector 5 — rework churn.** `reopened_at` set, or repeated `done → in_progress` in `document_history`
+- [ ] **FG-061** Detector 5: this is the one detector that legitimately reads `document_history` — `state` is a tracked field
+- [ ] **FG-062** Detector 5: unit test
+- [ ] **FG-063** `agent/src/detectors/index.ts` — run all five, return `Signal[]`
+- [ ] **FG-064** All detectors accept a watermark and scope only to documents changed since
+- [ ] **FG-065** Integration test: all five detectors against a seeded database
+- [ ] **FG-066** Verify a quiet workspace returns zero signals (the triage-gate path)
+
+## M3 · Graph core
+
+- [ ] **FG-067** `agent/src/graph/state.ts` — the typed state object from `PRESEARCH.md` Q18
+- [ ] **FG-068** State: keep `signals` (measured) separate from `findings` (judged) — the trace must show where determinism ends
+- [ ] **FG-069** `agent/src/graph/nodes/triggerRouter.ts`
+- [ ] **FG-070** `agent/src/graph/nodes/resolveScope.ts` — workspace scope (proactive) or document id (on-demand)
+- [ ] **FG-071** `resolveScope`: on-demand path resolves the document, its associations, recent history, participants
+- [ ] **FG-072** `agent/src/graph/nodes/fetchSignals.ts`
+- [ ] **FG-073** `agent/src/graph/nodes/fetchParticipants.ts`
+- [ ] **FG-074** `fetchParticipants`: derive roles structurally — assignee / owner / reports_to (`PRESEARCH.md` Q5)
+- [ ] **FG-075** `agent/src/graph/nodes/fetchPriorState.ts`
+- [ ] **FG-076** Wire the three fetch nodes as a parallel fan-out (Q16)
+- [ ] **FG-077** `agent/src/graph/nodes/triageGate.ts` — **conditional edge**, terminates on zero signals
+- [ ] **FG-078** `agent/src/graph/nodes/judgeSignals.ts`
+- [ ] **FG-079** `agent/src/graph/nodes/composeAnswer.ts` — on-demand, read-only
+- [ ] **FG-080** `agent/src/graph/nodes/routeAction.ts` — **conditional edge** on blast radius
+- [ ] **FG-081** `agent/src/graph/nodes/executeAutonomous.ts`
+- [ ] **FG-082** `agent/src/graph/nodes/awaitApproval.ts` — `interrupt()`
+- [ ] **FG-083** `agent/src/graph/nodes/executeApproved.ts`
+- [ ] **FG-084** `agent/src/graph/nodes/deliver.ts` — notify, record observation, advance watermark
+- [ ] **FG-085** `agent/src/graph/index.ts` — assemble nodes and edges
+- [ ] **FG-086** Wire conditional edge 1: trigger mode
+- [ ] **FG-087** Wire conditional edge 2: `signals.length === 0` → terminate quiet
+- [ ] **FG-088** Wire conditional edge 3: `findings.length === 0` → terminate quiet
+- [ ] **FG-089** Wire conditional edge 4: action class → autonomous vs gated
+- [ ] **FG-090** Configure the Postgres checkpointer against the Ship database
+- [ ] **FG-091** Verify checkpointer tables are created on first run
+- [ ] **FG-092** Unit test: quiet run terminates at `triageGate` with **zero** LLM calls
+- [ ] **FG-093** Unit test: run with signals reaches `judgeSignals`
+- [ ] **FG-094** Unit test: state object is fully populated at `deliver`
+
+## M4 · Judgment
+
+- [ ] **FG-095** `agent/src/llm/client.ts` — `ChatBedrockConverse` via `@langchain/aws`
+- [ ] **FG-096** Reuse `BEDROCK_ENDPOINT` env override so CI hits the existing mock (stable fakes requirement)
+- [ ] **FG-097** Wrap the LLM call in the existing `CircuitBreaker` from `api/src/services/circuitBreaker.ts`
+- [ ] **FG-098** Promote `circuitBreaker.ts` to `shared/` or import cross-package — do not duplicate it
+- [ ] **FG-099** Explicit timeouts matching the existing values: 3s connect, 20s request, 3 attempts
+- [ ] **FG-100** `agent/src/llm/prompts/judge.ts` — the judgment system prompt
+- [ ] **FG-101** Judge prompt receives **measurements**, never raw project data (`PRESEARCH.md` Q31)
+- [ ] **FG-102** Judge prompt output schema: severity, recipient, worth_surfacing, phrasing
+- [ ] **FG-103** Structured-output parsing with a validation fallback to `ai_unavailable`
+- [ ] **FG-104** Batch all signals for a scope into **one** judgment call (Q32 cost cliff)
+- [ ] **FG-105** `agent/src/llm/prompts/answer.ts` — on-demand grounded-answer prompt
+- [ ] **FG-106** Answer prompt is explicitly read-only; no tool access
+- [ ] **FG-107** Content-hash cache on judgment input, reusing the `computeContentHash` pattern
+- [ ] **FG-108** Unit test: judgment with a mocked LLM returns parsed findings
+- [ ] **FG-109** Unit test: circuit-open returns `ai_unavailable` without calling the provider
+
+## M5 · Trigger
+
+- [ ] **FG-110** `agent/src/entrypoints/cron.ts` — the proactive entrypoint
+- [ ] **FG-111** Cron: read watermark → run graph → advance watermark **only on completion** (Q24)
+- [ ] **FG-112** Cron: exit non-zero on failure so the scheduler reports it
+- [ ] **FG-113** Cron: advisory lock per workspace so a proactive run and an on-demand run cannot race
+- [ ] **FG-114** Cron: structured log line per run — signals found, findings surfaced, tokens spent
+- [ ] **FG-115** Cron: bounded total runtime, exits rather than hanging
+- [ ] **FG-116** Add `agent:cron` script to `agent/package.json`
+- [ ] **FG-117** Dockerfile: ensure `agent/` is built into the image
+- [ ] **FG-118** Verify the same image can run either entrypoint (`start_command` override)
+- [ ] **FG-119** End-to-end local run: seed → mutate an issue → cron detects it
+- [ ] **FG-120** Verify a second immediate run detects **nothing** (suppression works)
+- [ ] **FG-121** Verify a crashed run does not advance the watermark
+
+## M6 · Actions and human-in-the-loop
+
+- [ ] **FG-122** `agent/src/actions/client.ts` — Ship HTTP API client using a bearer `api_token`
+- [ ] **FG-123** Action client: explicit timeout + retry with backoff
+- [ ] **FG-124** Action client: second `CircuitBreaker` instance for the Ship API
+- [ ] **FG-125** Action client: **never** calls `POST /api/issues/bulk` — it bypasses `document_history` (`PRESEARCH.md` Q4)
+- [ ] **FG-126** Autonomous action: post a comment via the comments API
+- [ ] **FG-127** Autonomous action: log to `document_history` with `automated_by='fleetgraph'`
+- [ ] **FG-128** Classify actions by blast radius — additive/reversible vs state mutation (Q3)
+- [ ] **FG-129** Gated action: serialise the proposal into the checkpointer
+- [ ] **FG-130** Gated action: create a notification pointing at the pending approval
+- [ ] **FG-131** Resume path: accept → `executeApproved` → record outcome
+- [ ] **FG-132** Resume path: dismiss → mark resolved-by-dismissal, **fingerprint never fires again**
+- [ ] **FG-133** Resume path: snooze → set `snooze_until` in business days (1/3/5, default 3)
+- [ ] **FG-134** Snooze wake **re-runs the detector**, does not replay the stored finding (Q23)
+- [ ] **FG-135** Unit test: dismissed fingerprint is suppressed on the next run
+- [ ] **FG-136** Unit test: snoozed finding that self-resolves never returns
+- [ ] **FG-137** Integration test: full interrupt → resume cycle across a process restart
+
+## M7 · API endpoints
+
+- [ ] **FG-138** `GET /api/fleetgraph/notifications` — current user's notifications
+- [ ] **FG-139** `POST /api/fleetgraph/notifications/:id/acknowledge`
+- [ ] **FG-140** `POST /api/fleetgraph/approvals/:id/accept`
+- [ ] **FG-141** `POST /api/fleetgraph/approvals/:id/dismiss`
+- [ ] **FG-142** `POST /api/fleetgraph/approvals/:id/snooze` — body carries the horizon
+- [ ] **FG-143** `POST /api/fleetgraph/chat` — on-demand invocation, body carries document id + type + tab
+- [ ] **FG-144** Chat endpoint sends **route params**, never rendered content (`PRESEARCH.md` Q7)
+- [ ] **FG-145** Register all six paths with OpenAPI per `/ship-openapi-endpoints`
+- [ ] **FG-146** Zod schemas for every request body
+- [ ] **FG-147** All endpoints behind `authMiddleware`
+- [ ] **FG-148** Visibility filtering — a user must not see notifications about documents they cannot read
+- [ ] **FG-149** Rate limit the chat endpoint, reusing the `checkRateLimit` pattern (Q32)
+- [ ] **FG-150** `GET /ready` — **required by MVP, does not exist today**
+- [ ] **FG-151** `/ready` reports Postgres connectivity
+- [ ] **FG-152** `/ready` reports circuit-breaker state via `getBedrockBreakerStats()`
+- [ ] **FG-153** `/ready` returns 503 when a dependency is unreachable, 200 otherwise
+- [ ] **FG-154** Route tests for all endpoints
+
+## M8 · UI
+
+- [ ] **FG-155** `web/src/components/fleetgraph/AgentBanner.tsx` — approval surface, modelled on `PlanQualityBanner`
+- [ ] **FG-156** Banner renders between title and editor, matching the existing pattern (Q22)
+- [ ] **FG-157** Banner: finding text, proposed action, Accept / Dismiss / Snooze
+- [ ] **FG-158** Banner: snooze offers 1 / 3 / 5 business days, default 3
+- [ ] **FG-159** Banner: optimistic update, rollback on failure
+- [ ] **FG-160** `web/src/hooks/useFleetGraphNotifications.ts`
+- [ ] **FG-161** Set-scoped findings (load imbalance) surface on the **sprint** view, not per-issue (Q22)
+- [ ] **FG-162** `web/src/components/fleetgraph/AgentChat.tsx` — contextual chat
+- [ ] **FG-163** Chat is embedded in the document view — **no standalone chatbot page** (brief constraint)
+- [ ] **FG-164** Chat passes document id + type + active tab from route params
+- [ ] **FG-165** Chat renders streaming or progressive response
+- [ ] **FG-166** Chat: empty state naming what it can answer about *this* document
+- [ ] **FG-167** Chat: error state when the agent is unavailable, reusing the `ai_unavailable` pattern
+- [ ] **FG-168** Mount chat in `UnifiedDocumentPage`
+- [ ] **FG-169** Mount banner in `UnifiedDocumentPage`
+- [ ] **FG-170** Notification indicator in the icon rail or dashboard
+- [ ] **FG-171** Notification list view — recipient's open findings
+- [ ] **FG-172** Keyboard accessible: banner actions reachable and operable by keyboard
+- [ ] **FG-173** Focus states visible on all new interactive elements
+- [ ] **FG-174** Both surfaces respect the existing 4-panel layout
+- [ ] **FG-175** Component tests for banner and chat
+
+## M9 · Observability
+
+- [ ] **FG-176** LangSmith env vars — `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`
+- [ ] **FG-177** Add LangSmith key to `.env` (never committed) and to Terraform as a secret var
+- [ ] **FG-178** Verify traces appear for a local proactive run
+- [ ] **FG-179** Verify traces appear for a local on-demand run
+- [ ] **FG-180** Name graph nodes so traces are readable
+- [ ] **FG-181** **Capture trace link 1** — quiet run terminating at `triageGate`, zero tokens
+- [ ] **FG-182** **Capture trace link 2** — full run reaching an action, human gate hit
+- [ ] **FG-183** Confirm the two traces show visibly different paths (MVP requirement 2)
+- [ ] **FG-184** Make both trace links shareable/public
+- [ ] **FG-185** Record both links in `FLEETGRAPH.md`
+
+## M10 · Deployment
+
+- [ ] **FG-186** `terraform/render/cron.tf` — `render_cron_job` resource
+- [ ] **FG-187** Cron resource: `name`, `plan`, `region`, `runtime_source`, `schedule` (all required)
+- [ ] **FG-188** Cron resource: `start_command` overriding the entrypoint — the same-image seam
+- [ ] **FG-189** Cron schedule `*/3 * * * *` — 3 minutes, per `PRESEARCH.md` Q11
+- [ ] **FG-190** Cron env vars: `DATABASE_URL` via resource reference, never typed
+- [ ] **FG-191** Cron env vars: `SHIP_API_TOKEN`, `LANGCHAIN_API_KEY` as Terraform secret vars, uncommitted
+- [ ] **FG-192** Variables + outputs for the new resource
+- [ ] **FG-193** Confirm no secret lands in `terraform.tfstate` beyond what the provider requires
+- [ ] **FG-194** `terraform validate` passes
+- [ ] **FG-195** `terraform fmt` clean
+- [ ] **FG-196** **`terraform plan` from empty state — save the raw output**
+- [ ] **FG-197** Annotate the plan output, resource by resource (MVP requirement 8)
+- [ ] **FG-198** `terraform apply` — first real deployment
+- [ ] **FG-199** Verify `/health` returns the expected revision SHA
+- [ ] **FG-200** Verify `/ready` returns 200 with dependencies up
+- [ ] **FG-201** Verify the cron job appears in Render and fires on schedule
+- [ ] **FG-202** Verify seed data populated automatically on boot (`Dockerfile:111`)
+- [ ] **FG-203** **Script the destroy-and-redeploy cycle** so it is re-runnable, not hand-performed
+- [ ] **FG-204** **Run destroy-and-redeploy — early, not at the deadline.** Capture full output
+- [ ] **FG-205** Verify the rebuilt environment is functional: health, ready, cron, seed, UI
+- [ ] **FG-206** Record the new service URL everywhere it is referenced
+- [ ] **FG-207** Retire the old API-created Render service and database
+- [ ] **FG-208** Update `CREDENTIALS.md` with the new service id and URL
+- [ ] **FG-209** Timed latency test: introduce an event, assert the agent surfaces it inside 5 minutes (MVP requirement 6 + performance goal)
+
+## M11 · FLEETGRAPH.md
+
+- [ ] **FG-210** Create `FLEETGRAPH.md` at repo root
+- [ ] **FG-211** **Agent Responsibility** section — port from `PRESEARCH.md` Q1–Q7
+- [ ] **FG-212** **Graph Diagram** — Mermaid, both modes, all nodes, edges, conditional branches
+- [ ] **FG-213** **Use Cases** — the table of six, with role / trigger / detects / human decides
+- [ ] **FG-214** **Trigger Model** — port from `PRESEARCH.md` §3, with the tradeoffs defended
+- [ ] **FG-215** Graph outline in prose: node types, edges, branching conditions (requirement 4)
+- [ ] **FG-216** Retry strategy and fallback behaviour documented (engineering requirement)
+- [ ] **FG-217** Rollback trigger and procedure documented (engineering requirement)
+- [ ] **FG-218** Embed both LangSmith trace links
+- [ ] **FG-219** Cross-check every MVP checkbox against the brief, one at a time
+- [ ] **FG-220** Verify no claim in `FLEETGRAPH.md` is unverified against the code
+
+---
+
+# §E · Early Submission — due Thursday 11:59 PM
+
+## E1 · Test Cases section
+
+- [ ] **FG-221** `FLEETGRAPH.md` Test Cases table — Ship state, expected output, trace link, per use case
+- [ ] **FG-222** Test case 1: stalled work — construct the state, run, capture trace
+- [ ] **FG-223** Test case 2: sprint-miss risk
+- [ ] **FG-224** Test case 3: load imbalance
+- [ ] **FG-225** Test case 4: review bottleneck
+- [ ] **FG-226** Test case 5: rework churn
+- [ ] **FG-227** Test case 6: on-demand contextual answer
+- [ ] **FG-228** Each test case names the exact seed mutation that produces the trigger state
+
+## E2 · Regression tests
+
+- [ ] **FG-229** Regression test per use case — the brief requires one for **every** agent behaviour
+- [ ] **FG-230** Regression: suppression does not re-surface a dismissed finding
+- [ ] **FG-231** Regression: watermark does not advance on failure
+- [ ] **FG-232** Regression: quiet run spends zero tokens
+- [ ] **FG-233** Regression: bulk endpoint is never called
+- [ ] **FG-234** Regression: agent never mutates state without approval
+- [ ] **FG-235** All regression tests run in CI
+- [ ] **FG-236** CI failure triggers automatic rollback — do not allow a failing build to remain deployed
+- [ ] **FG-237** Document the rollback trigger and procedure in `FLEETGRAPH.md`
+
+## E3 · E2E tests
+
+- [ ] **FG-238** E2E: event introduced into Ship → agent surfaces it within the latency window
+- [ ] **FG-239** E2E: user invokes chat from a context-aware view → receives a grounded response
+- [ ] **FG-240** Both E2E tests run in CI (explicit brief requirement)
+- [ ] **FG-241** E2E tests use stable fakes for the LLM, not the live provider
+- [ ] **FG-242** Seed fixtures updated in `e2e/fixtures/isolated-env.ts` for agent scenarios
+- [ ] **FG-243** Respect the spec-file DB reset boundary — no cross-file state assumptions
+- [ ] **FG-244** Use `test.fixme()` for anything unimplemented, never an empty test
+
+## E4 · Mocks and CI
+
+- [ ] **FG-245** Extend `mocks/bedrock-expectations.json` with judgment responses
+- [ ] **FG-246** Verify the whole agent suite passes with no network access
+- [ ] **FG-247** Add the agent package to the CI matrix
+- [ ] **FG-248** Type-check, lint, and test gates cover `agent/`
+- [ ] **FG-249** Confirm `scripts/assert-tests-ran.sh` covers the agent suite (void-run detection)
+
+## E5 · Architecture Decisions section
+
+- [ ] **FG-250** `FLEETGRAPH.md` Architecture Decisions — framework choice
+- [ ] **FG-251** Node design rationale
+- [ ] **FG-252** State management approach
+- [ ] **FG-253** Deployment model
+- [ ] **FG-254** Each decision states the alternatives and why they lost
+
+## E6 · Developer documentation
+
+- [ ] **FG-255** `CHANGES.md` — what was built, written for the next engineer, not the grader
+- [ ] **FG-256** `CHANGES.md` — how to run and test locally
+- [ ] **FG-257** `CHANGES.md` — how to roll it back if it fails
+- [ ] **FG-258** README section covering the agent
+- [ ] **FG-259** `./start.sh` starts the agent alongside the app (Rule 6 — one-command local start)
+
+---
+
+# §F · Final Submission — due Sunday noon
+
+- [ ] **FG-260** Cost Analysis — actual dev spend, input/output token breakdown
+- [ ] **FG-261** Cost Analysis — total invocations during development
+- [ ] **FG-262** Production projections at 100 / 1,000 / 10,000 users
+- [ ] **FG-263** State the assumptions: proactive runs per project per day, on-demand per user per day, average tokens per invocation
+- [ ] **FG-264** Cost per run, estimated runs per day
+- [ ] **FG-265** Demo video, 3–5 minutes
+- [ ] **FG-266** Demo shows both modes and a human gate
+- [ ] **FG-267** Final pass: every brief requirement checked against the artifact
+- [ ] **FG-268** Merge to `main` via MR — no direct pushes
+
+---
+
+## Counts
+
+| Bucket | Tickets |
+|---|---|
+| §M · MVP — Tuesday | 220 |
+| §E · Early — Thursday | 39 |
+| §F · Final — Sunday | 9 |
+| **Total** | **268** |
+
+## Sequencing risks
+
+| Risk | Mitigation |
+|---|---|
+| `FG-015` (LangGraph JS durable `interrupt()`) fails | It is the **first** substantive ticket for a reason. If it fails, M6 changes shape and we need the time |
+| Destroy-and-redeploy breaks at the deadline | `FG-204` runs early with room to fix, and `FG-203` makes it repeatable |
+| Suppression bug burns tokens silently | `FG-021` and `FG-230` — the cost cliff from Q32 gets a constraint and a regression test |
+| One-database decision becomes irreversible | `FG-029`/`FG-030` — all cross-boundary joins in one module, with the reversal path written at the seam |

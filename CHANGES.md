@@ -1,12 +1,117 @@
 # CHANGES
 
-Developer documentation for changes made to this fork. Required by Implementation Rule 8
-(brief p.9): *"what was added, how to run it, how to test it, and how to roll it back."*
+Developer documentation for changes made to this fork.
 
-Written for the next engineer who inherits this, not for a grader. Audit findings live in
-`docs/audit/audit-report.md`; this file is only about what changed and how to undo it.
+Required by Week 5 engineering requirement 5 (brief p.4) — *"what was built, how to run and
+test it locally, and how to roll it back if it fails"* — which continues Week 4's
+Implementation Rule 8 rather than replacing it. Newest work first.
+
+Written for the next engineer who inherits this, not for a grader. Week 4 audit findings live
+in `docs/audit/audit-report.md`; Week 5 architecture reasoning lives in `PRESEARCH.md`. This
+file is only about what changed and how to undo it.
 
 ---
+
+# Week 5 — FleetGraph
+
+## The migration chain could not run against a fresh database
+
+**What was wrong.** `migrate.ts` applies `schema.sql` first, then every migration in order.
+`schema.sql` carries *current* state, so several migrations collided with objects it had
+already created. On a genuinely empty database the run died at `010_oauth_state`
+(`CREATE TABLE oauth_state` — already there), and an outer `catch` treated any
+`"already exists"` as benign, logged *"Database schema already exists, continuing..."*, and
+**abandoned every remaining migration**. Exit code 0. It looked like success.
+
+The effect: `011`–`037` silently never ran on any fresh database. Nothing structural was
+lost, because `schema.sql` is complete — which is exactly why nobody noticed. It was found
+while adding `038`, which would have been skipped the same way, on the fresh database that a
+destroy-and-redeploy produces.
+
+**What changed.**
+
+| File | Change |
+|---|---|
+| `010_oauth_state.sql` | `CREATE TABLE` / `CREATE INDEX` → `IF NOT EXISTS` |
+| `025_prevent_circular_parent.sql` | `ADD CONSTRAINT` guarded via `pg_constraint`; trigger `DROP ... IF EXISTS` first |
+| `033_sprint_to_week_rename.sql` | enum renames guarded on **both** labels — `017` re-adds `sprint_review`, so on a fresh database both old and new exist and a rename collides on the target |
+| `035_add_comments.sql` | `CREATE INDEX` → `IF NOT EXISTS` |
+| `migrate.ts` | every failure is fatal now, including `"already exists"` |
+
+Safe to change migrations after the fact: any database that ran them successfully has them
+recorded in `schema_migrations` and will never execute them again.
+
+**Before / after**, same command against a dropped-and-recreated `ship_dev`:
+
+```
+before   ✅ Schema applied → died at 010 → 9 migrations recorded, exit 0
+after    ✅ Schema applied → ✅ 42 migration(s) applied successfully → max = 037
+```
+
+**How to run it.** `pnpm docker:up`, then
+`DATABASE_URL=postgresql://ship:ship_dev_password@localhost:5433/ship_dev pnpm --filter @ship/api db:migrate`.
+There is no PostgreSQL on the host — the database comes from Docker.
+
+**How to test it.** Drop and recreate the database, run migrate, and check
+`select count(*) from schema_migrations` reaches 43 (42 + `038`). `agent/src/data/boundary.test.ts`
+also applies the whole chain against a fresh testcontainer on every run, so a future
+collision fails CI rather than silently truncating the chain.
+
+**How to roll it back.** `git revert` the commit. The guards are additive; reverting restores
+the previous (broken-on-fresh) behaviour without touching any database.
+
+---
+
+## FleetGraph data layer — migration 038
+
+**What was added.** `api/src/db/migrations/038_fleetgraph.sql`:
+
+- `idx_documents_workspace_updated` on `(workspace_id, updated_at DESC)`, partial on
+  not-archived/not-deleted — the proactive scan's access path
+- `api_tokens.scopes TEXT[]`, nullable; `NULL` means unscoped, which is what every existing
+  token already is
+- `fleetgraph_observations` — the agent's memory. **The unique index on
+  `(workspace_id, fingerprint)` is load-bearing**: without it the same finding is re-judged
+  every run, turning one finding into ~480 model calls a day with a cost graph as the only
+  symptom
+- `fleetgraph_notifications` — the delivery channel Ship has never had
+- `fleetgraph_watermarks` — how far the last *completed* scan got
+
+Plus `agent/src/data/boundary.ts` and `agent/src/data/pool.ts`.
+
+**Why `boundary.ts` exists.** Every query joining agent tables to Ship tables lives in that
+one file. FleetGraph shares Ship's database, which is reversible only while the joins are
+contained — the reversal path is written in the file header. If those joins spread inline
+across node code, splitting the database later stops being a config change.
+
+**Measured effect of the index**, 50,257 documents, three runs each:
+
+| | Before | After |
+|---|---|---|
+| Execution | 6.47 / 6.66 / 6.83 ms | 0.137 / 0.157 / 0.158 ms |
+| Buffers | 1589 | 36 |
+| Plan | Index Scan + **Sort** | Index Scan, no sort |
+
+The `Sort` node disappears because the index supplies the ordering.
+
+**How to run it.** Migrations apply automatically on boot (`Dockerfile:111`) and via
+`pnpm --filter @ship/api db:migrate` locally.
+
+**How to test it.** `pnpm --filter @ship/agent test` — 14 tests against a testcontainer
+Postgres, including the suppression constraint asserted twice: once through the upsert, and
+once with a raw duplicate insert that must be rejected. The second matters because the upsert
+would still pass if someone dropped the index — `ON CONFLICT` would simply never fire.
+
+**How to roll it back.** `git revert`, then by hand:
+`DROP TABLE fleetgraph_notifications, fleetgraph_observations, fleetgraph_watermarks;`
+`DROP INDEX idx_documents_workspace_updated;`
+`ALTER TABLE api_tokens DROP COLUMN scopes;`
+`DELETE FROM schema_migrations WHERE version = '038_fleetgraph';`
+Nothing outside the agent reads any of it, so dropping is safe while the agent is not running.
+
+---
+
+# Week 4 — ShipShape
 
 ## A gate for the target that was already lost once
 
