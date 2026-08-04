@@ -34,6 +34,8 @@ export const FLEETGRAPH_VERSION = '0.0.0';
  */
 export { compileGraph, buildGraph, NODES, proactiveThreadId, currentThreadId } from './graph/index.js';
 export { getCheckpointer, resetCheckpointer } from './graph/checkpointer.js';
+export { resumeApproval } from './graph/resume.js';
+export type { ResumeResult } from './graph/resume.js';
 export type { GraphDeps, JudgeFn, AnswerFn, ActFn, Db } from './graph/deps.js';
 export type { GraphStateType, Scope, Mode, Participant, ProposedAction, Pending } from './graph/state.js';
 export type { ApprovalDecision } from './graph/index.js';

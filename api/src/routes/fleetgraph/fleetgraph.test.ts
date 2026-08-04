@@ -160,6 +160,16 @@ describe('FleetGraph API', () => {
   beforeEach(async () => {
     // Cascades to fleetgraph_notifications, so no test leans on another's rows.
     await pool.query(`DELETE FROM fleetgraph_observations WHERE workspace_id = $1`, [workspaceId]);
+
+    // LangGraph's checkpoint tables too. The approval routes now resume a real
+    // graph, so a thread id left behind by an earlier test is a suspended run
+    // the next one will find and continue — which is exactly what happened:
+    // `resumed` came back true for a thread whose only checkpoints were
+    // written by a previous run of this same file. The tables are created by
+    // the library on first use, so the delete is guarded.
+    await pool
+      .query(`TRUNCATE checkpoints, checkpoint_blobs, checkpoint_writes`)
+      .catch(() => undefined);
     chatImpl = null;
     invokeAgentChat.mockClear();
   });

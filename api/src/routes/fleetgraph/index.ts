@@ -39,6 +39,7 @@ import { ZodError } from 'zod';
 import { addBusinessDays } from '@ship/shared';
 
 import { pool } from '../../db/client.js';
+import type { ApprovalDecision } from '@ship/agent';
 import { authMiddleware, requireAuth } from '../../middleware/auth.js';
 import { getVisibilityContext, VISIBILITY_FILTER_SQL } from '../../middleware/visibility.js';
 import { checkRateLimit } from '../../services/ai-analysis.js';
@@ -327,14 +328,27 @@ router.post('/notifications/:id/acknowledge', async (req: Request, res: Response
  * snooze horizon differ, so they share one handler factory — three copies of
  * this would be three places for the transaction boundary to be got wrong.
  *
- * `resumed: false` in every response is honest rather than optimistic: the
- * decision is durable, the graph has not run yet. Whoever wires
- * `agent/src/graph/` flips it, and the UI does not have to change to find out.
+ * `resumed` reports whether the suspended graph run was actually continued.
+ * The decision is persisted FIRST and the resume attempted after, so a
+ * checkpointer that is unreachable costs a proposed comment, never the human's
+ * decision. Losing the decision would resurface a finding someone dismissed,
+ * which is the fastest route to the agent being muted (Q23).
+ *
+ * `resumed: false` is also the normal answer for most findings: only gated
+ * mutations suspend at all, and an additive finding has no thread to resume.
  */
 function approvalHandler(
   resolution: 'accepted' | 'dismissed' | 'snoozed',
   computeSnoozeUntil?: (req: Request) => Date
 ) {
+  /** The resolution as the graph's `interrupt()` expects to receive it. */
+  const decisionFor = (req: Request): ApprovalDecision => {
+    if (resolution === 'accepted') return { decision: 'accept' };
+    if (resolution === 'dismissed') return { decision: 'dismiss' };
+    const days = snoozeBodySchema.parse(req.body ?? {}).days;
+    return { decision: 'snooze', businessDays: days as 1 | 3 | 5 };
+  };
+
   return async (req: Request, res: Response): Promise<void> => {
     let notificationId: string;
     let snoozeUntil: Date | null = null;
@@ -361,6 +375,8 @@ function approvalHandler(
         return;
       }
 
+      // Persist FIRST. See the header: a failed resume must not cost the
+      // decision.
       await persistDecision(
         notification.id,
         notification.observationId,
@@ -368,15 +384,23 @@ function approvalHandler(
         snoozeUntil
       );
 
+      const { resumeApproval, makeJudge, makeAnswer, makeShipAct } = await import('@ship/agent');
+      const resume = await resumeApproval({
+        threadId: notification.pendingThreadId,
+        decision: decisionFor(req),
+        db: pool,
+        judge: makeJudge(),
+        answer: makeAnswer(),
+        act: makeShipAct(),
+      });
+
       res.json({
         id: notification.id,
         observationId: notification.observationId,
         resolution,
         snoozeUntil: snoozeUntil ? snoozeUntil.toISOString() : null,
         threadId: notification.pendingThreadId,
-        // The graph at agent/src/graph/ is not wired; the decision is stored and
-        // the suspended run will consume it when it is.
-        resumed: false,
+        resumed: resume.resumed,
       });
     } catch (err) {
       console.error(`FleetGraph ${resolution} error:`, err);
