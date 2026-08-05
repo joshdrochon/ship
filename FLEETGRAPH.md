@@ -30,13 +30,13 @@ behaviour that has not been verified against the tree.
 | Cron entrypoint | **Built.** Per-workspace advisory lock, 4-minute deadline → `exit(2)`, one JSON log line per scan | `agent/src/entrypoints/cron.ts` |
 | `GET /ready` | **Built and wired** | `api/src/routes/ready.ts`, `app.ts:217` |
 | FleetGraph HTTP endpoints — six, plus schemas and tests | **Built and mounted** at `/api/fleetgraph` | `api/src/routes/fleetgraph/`, `app.ts:289` |
-| The API → graph seam | **Not built.** `invokeAgentChat` throws `agent_not_wired`; the approval routes persist the decision and return `resumed: false` | `api/src/routes/fleetgraph/agentBridge.ts:91`, `index.ts:377` |
+| The API → graph seam | **Built.** The approval routes load the checkpointer and issue `Command({ resume })`; `resumed` is the real outcome, not a constant | `api/src/routes/fleetgraph/agentBridge.ts`, `index.ts:403` |
 | UI surfaces — banner, chat, rail indicator | **Built and mounted** in `UnifiedEditor` and `App` | `web/src/components/fleetgraph/`, `web/src/hooks/useFleetGraphNotifications.ts` |
-| `render_cron_job` in Terraform | **Written and planned**, `*/3 * * * *`, same image and tag as the web service | `terraform/render/cron.tf`, `terraform/render/PLAN-ANNOTATED.md` |
+| `render_cron_job` in Terraform | **Applied and running**, `*/3 * * * *`, same image and tag as the web service | `terraform/render/cron.tf`, `terraform/render/PLAN-ANNOTATED.md` |
 | Dockerfile builds `agent/` | **Yes**, and fails the build if `agent/dist/entrypoints/cron.js` is absent | `Dockerfile:44`, `:58`, `:110` |
-| LangSmith tracing | Config is **reported, not enabled** — LangChain reads the env itself; `logTracingStatus()` warns on the quiet misconfigurations | `agent/src/observability/tracing.ts` |
-| LangSmith trace links | Not captured. No AWS credentials on this machine, so no run against a real provider | `FG-181`–`FG-185` |
-| CI deploy / automatic rollback | **Not built.** Neither `.gitlab-ci.yml` nor `.github/workflows/ci.yml` has a deploy stage | `FG-236`, `FG-237` |
+| LangSmith tracing | **Enabled in production.** Project `fleetgraph-prod`, 50+ runs; `logTracingStatus()` still warns on the quiet misconfigurations | `agent/src/observability/tracing.ts`, `terraform/render/cron.tf` |
+| LangSmith trace links | **Two captured and public** — a quiet proactive run and an on-demand answer, both from the deployed agent | "Traces from the deployed agent" below |
+| CI deploy / automatic rollback | **Written, not armed.** `deploy.yml` has `deploy` and `rollback-on-failed-ci`; both sit behind `vars.RENDER_DEPLOY_ENABLED`, blocked on a remote state backend | `.github/workflows/deploy.yml`, `FG-236` |
 
 Verified against `83aa33c`: `agent/` runs **162 tests in 19 files, all passing** (`npx vitest run`
 in `agent/`, 28 s, exit 0). The run also prints ten unhandled `57P01` errors attributed to
@@ -1314,10 +1314,12 @@ Render and registry secrets are paste-in work; the backend is not.
 Until that lands, requirement 1's *automatic* rollback is built and proven-by-construction but
 not armed. Stated plainly rather than counted as done.
 
-The remaining half is the apply. The cron resource is declared and planned; it has not been
-applied, so the seam is verified by construction and not by a running job.
-<!-- TODO(FG-196 – FG-205): terraform apply, the annotated plan against a real apply, and the
-     destroy-and-redeploy cycle. -->
+The apply is no longer outstanding. `terraform apply` ran against the real account, the cron
+resource is live on its `*/3 * * * *` schedule, and a later `terraform plan` reported
+`No changes. Your infrastructure matches the configuration.` — which is the proof, because it
+is the only statement that can only be true after a successful apply. The full
+destroy-and-redeploy cycle ran as well; `terraform/render/PLAN-ANNOTATED.md` records all three
+states rather than only the flattering one.
 
 
 ## Two caveats that are properties of the app, not the pipeline
@@ -1330,18 +1332,23 @@ applied, so the seam is verified by construction and not by a running job.
 - **Render's dashboard rollback also exists**, but using it puts the live service out of sync
   with Terraform state. Prefer `terraform apply`, so the configuration keeps describing reality.
 
-## What is not built yet
+## What is not armed yet
 
-**Neither pipeline has a deploy stage.** GitLab's has four — `setup`, `verify`, `audit`,
-`package` — and ends at publishing the image to the registry; GitHub's has ten jobs and no
-deploy or rollback among them. Promotion is a `terraform apply` an operator runs. The automatic
-rollback that engineering requirement 1 asks for therefore rests today on Render's health-check
-rollback, which is configured and real, plus the promotion gate, which is manual.
+This section used to say neither pipeline had a deploy stage. That is no longer true and the
+correction is worth making rather than quietly deleting: `.github/workflows/deploy.yml` exists,
+with a `deploy` job that promotes a SHA and reverts on a failed health check, and a
+`rollback-on-failed-ci` job that reacts to a CI failure on an already-deployed commit. GitLab's
+pipeline still ends at publishing the image, by design — GitHub owns promotion because that is
+where the Render credentials live.
 
-<!-- TODO(FG-236, FG-237): wire the CI-triggered automatic rollback. The pieces exist — the
-     image is addressed by SHA, the previous SHA is recoverable from git, and `terraform apply`
-     is idempotent — but no pipeline job performs the re-apply on a failed verify. Until that
-     job exists, this section describes a procedure, not an automation. -->
+What remains is arming it. `vars.RENDER_DEPLOY_ENABLED` is unset, so the `armed` job writes
+DORMANT into every run summary and neither deploy nor rollback fires. The blocking prerequisite
+is the remote state backend described above; the Render and registry secrets are paste-in work.
+
+So today's automatic rollback is **Render's own health-check rollback**, which is configured in
+`terraform/render/main.tf` and is real, plus a promotion gate an operator runs. The
+CI-triggered path is written and reviewable but has not fired. Counting it as done would be the
+one claim in this document that an incident, rather than a grader, would disprove.
 
 ---
 
