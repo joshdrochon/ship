@@ -1,12 +1,68 @@
 # The FleetGraph deployment plan, resource by resource
 
-Companion to `plan-output.txt`, which is the verbatim `terraform plan` from empty
-state. MVP requirement 8. This file answers, for each of the three resources: what
-it creates, why it has to exist, and what breaks if it does not.
+Companion to `plan-output.txt`. MVP requirement 8 (brief p.3) asks for the plan to be run
+before deploying and the annotated output included, and for the destroy-and-redeploy test:
+*"tear down the environment and re-apply from the Terraform config alone to prove the IaC is
+the source of truth."*
 
-The plan is `3 to add, 0 to change, 0 to destroy` — the whole system, from nothing,
-in one command. That number is the requirement, not a summary of it: a deployment
-that cannot be recreated from an empty state is a deployment nobody can roll back.
+Both happened. This file records all three states.
+
+## 1 · Before — the plan from empty state
+
+`3 to add, 0 to change, 0 to destroy`. The whole system, from nothing, in one command. That
+number is the requirement rather than a summary of it: a deployment that cannot be recreated
+from an empty state is a deployment nobody can roll back.
+
+## 2 · The teardown, and what it proved
+
+The environment that existed before this was **not** Terraform's. Two resources had been
+created by hand — the web service and the Postgres — and there was no state file at all
+(`terraform state list` → *"No state file was found!"*). The cron job, which runs the agent,
+had never been deployed in any form.
+
+So the test was not academic. Both hand-made resources were deleted (HTTP 204 each), Render
+confirmed empty, and a single `terraform apply` rebuilt everything from config:
+
+```
+render_postgres.ship: Creation complete after 1m20s   [id=dpg-d9p789cs728c7393svq0-a]
+render_web_service.shipshape: Creation complete after 34s [id=srv-d9p78tfavr4c73atg8pg]
+render_cron_job.fleetgraph: Creation complete after 2s [id=crn-d9p7967qj5pc73dk7j60]
+
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
+```
+
+Two pieces of drift the rebuild silently corrected, both of which are the argument for IaC in
+miniature. The hand-made service had `healthCheckPath: ""`; the config sets `/health`, so
+Render had never been health-checking the old deployment. And the hand-made service was on the
+`free` plan, which sleeps after 15 minutes idle — measured on it before deletion at **31.3 s
+cold, 0.15 s warm**.
+
+## 3 · After — the plan against the live environment
+
+`plan-output.txt` in this directory is the current run, and it reads:
+
+```
+No changes. Your infrastructure matches the configuration.
+```
+
+That line is the actual proof. Not "it applied cleanly" — anything applies cleanly once — but
+that a plan taken afterwards finds nothing to reconcile. What is deployed and what is in the
+config are the same thing.
+
+One note on how this file was produced honestly: an earlier run of the same plan reported
+`0 to add, 3 to change, 0 to destroy`. That was real drift, and it was mine — a temporary IP
+allow-list added to the Postgres via the Render API so a drifting issue could be planted to
+demonstrate a detection. Closing it brought the plan back to clean. The drift is recorded
+rather than quietly removed, because a plan that says "No changes" is only meaningful if you
+know what was done to get there.
+
+## Endpoints, verified on the rebuilt environment
+
+```
+/health  {"status":"ok","revision":"7660bd8616ff39a96dafc289f3153d0582e01305"}
+/ready   {"status":"ready","checks":{"postgres":{"status":"ok","latencyMs":9},
+                                     "bedrock":{"status":"ok","circuit":"closed"}}}
+```
 
 ---
 

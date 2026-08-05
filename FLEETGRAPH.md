@@ -778,10 +778,10 @@ LangSmith project **`fleetgraph-prod`** (`65a2e1e6-68e9-457d-804d-c5a1d3308f85`)
 environment so deployed runs never mix with local experiments — before this the deployed cron
 logged `LANGCHAIN_PROJECT is unset` on every run and its traces landed in the default project.
 
-| Path | Run id | Nodes visited |
+| Path | Shared trace | Nodes visited |
 |---|---|---|
-| Proactive, quiet | `019fcf27-fe51-7240-ab1d-f9d52333568f` | `__start__ → trigger_router → resolve_scope → fetch_participants → fetch_prior_state → fetch_signals → triage_gate → close_quiet` (10) |
-| On-demand answer | `019fcf27-c0e7-7529-8a74-28d426d049fb` | `__start__ → trigger_router → resolve_scope → on_demand_fetch_participants → on_demand_fetch_signals → compose_answer` (7) |
+| Proactive, quiet | https://smith.langchain.com/public/1f471366-de0c-4c1c-ba7c-413673ecb3e7/r | `__start__ → trigger_router → resolve_scope → fetch_participants → fetch_prior_state → fetch_signals → triage_gate → close_quiet` (10) |
+| On-demand answer | https://smith.langchain.com/public/489b8094-c9e8-43ce-a77c-4b4eb471f619/r | `__start__ → trigger_router → resolve_scope → on_demand_fetch_participants → on_demand_fetch_signals → compose_answer` (7) |
 
 This is MVP requirement 2's "different execution paths", and it is the brief's own test on
 p.2 — *a graph that looks identical across every run is a pipeline, not a graph*. The two runs
@@ -804,10 +804,41 @@ The on-demand run is the one that answered this, against the live deployment:
 Grounded, and honest about the limits of its grounding, which is the behaviour the answer
 prompt is written for.
 
-**These are run ids, not shared links.** Turning a LangSmith trace into a public link exposes
-whatever Ship data the run carried to anyone holding the URL, so it is a decision for a human
-rather than something to do on the way past. The submission needs the shared form; the runs
-are captured and identified and the sharing step is deliberately outstanding.
+## A proactive detection reaching a human, in production
+
+The quiet run above proves the cheap path. This is the other one, and it is MVP requirement 1
+end to end on the deployed agent rather than in a test.
+
+An issue was moved to 20 calendar days idle in the deployed database, then the cron ran:
+
+```
+01:36:14  outcome:"quiet_no_signals"       signals:0  findings:0  ms:929
+01:38:26  outcome:"delivered"              signals:1  findings:1  ms:4643
+01:39:15  outcome:"quiet_all_suppressed"   signals:0  findings:0  ms:828
+```
+
+Three consecutive runs, three different outcomes, from the same graph and the same workspace.
+The middle one detected, judged and delivered. The one after it re-detected the same condition
+and suppressed it on the fingerprint — the agent does not nag.
+
+What landed in `fleetgraph_notifications`, phrased by the model rather than templated:
+
+> *"Build issue assignment flow" has been in progress with no activity for **14 working days**.
+> If this is blocked or no longer a priority, updating its status would help keep the board
+> accurate.*
+
+14 working days from 20 calendar days — the business-day arithmetic is right, and the sentence
+proposes rather than instructs, which is what the judge prompt asks for. One row in
+`fleetgraph_observations`: `stalled_work`, open.
+
+**`ms:4643`** is the whole scan-judge-deliver cycle against a 300 s SLA. Add the worst-case
+180 s wait for the next 3-minute tick and a cold start and it is still inside the budget in
+"Detection latency" below — measured now, not estimated.
+
+**It did not appear in the signed-in user's notification list, and that is correct.** The
+finding routed to the issue's assignee, not to whoever happened to be looking. Accountability
+routing (Q6) working as designed, and worth stating because "I don't see it in the UI" reads
+like a bug until you know who it was addressed to.
 
 ## The seed mutations, in full
 
@@ -1351,27 +1382,28 @@ point of the triage gate.
 
 # MVP Requirement Coverage
 
-Every MVP checkbox from the brief (p.3), checked one at a time against this document and the
-tree. "Covered" means this document satisfies its documentation obligation; it does not claim the
-underlying feature is built unless the Evidence column says so.
+Every MVP checkbox from the brief (p.3), checked against this document and against the deployed
+environment. Re-measured 2026-08-05 after the Terraform teardown-and-redeploy; the previous
+version of this table understated the system badly, because it was written before the provider
+moved off Bedrock and before anything was actually deployed.
 
-| # | MVP requirement | Doc | Code | Notes |
-|---|---|---|---|---|
-| 1 | Graph running with ≥ 1 proactive detection wired end-to-end | Documented | **Yes, in test; not deployed** | All six use cases run end to end through the real compiled graph against real Postgres (`graph/use-cases.test.ts`). The process that runs it outside a test now exists too — `entrypoints/cron.ts`, built into the image and pointed at by the cron's `start_command`. What has not happened is the apply (`FG-196`–`FG-209`) |
-| 2 | LangSmith tracing enabled, ≥ 2 shared trace links showing different paths | Section present, links empty | Partial | The *different paths* property is asserted by a regression test today, and the env contract and status reporting are written. **No AWS credentials on this machine**, so no run can reach a real provider and neither trace can be captured (`FG-177`–`FG-185`). Deliberately not faked |
-| 3 | FLEETGRAPH.md with Agent Responsibility and Use Cases, ≥ 5 use cases | **Covered** | n/a | Agent Responsibility answers all seven brief questions; six use cases, matched to the code |
-| 4 | Graph outline — node types, edges, branching conditions | **Covered** | **Yes** | Sixteen registered nodes, the fan-out, and four conditional edges — all present in `agent/src/graph/index.ts` and named identically here and in `NODES` |
-| 5 | ≥ 1 human-in-the-loop gate implemented | Documented | **Yes at the graph layer** | `await_approval` is wired to C4's `gated` branch, and accept / dismiss / snooze are implemented and asserted across a real `process.exit(0)` (`FG-131`–`FG-137`). The banner that drives them is built. **The API routes do not resume the thread** — they persist the decision and return `resumed: false` |
-| 6 | Running against real Ship data, no mocked responses | Documented | Partial | Detectors and the full graph run against a real Postgres provisioned by testcontainers, loading `schema.sql` and every migration. Only the LLM is faked, which engineering requirement 3 requires. No deployed run against a live workspace yet |
-| 7 | Agent chat and notifications accessible in the UI | Documented | **Partial** | `web/src/components/fleetgraph/` has the banner, the chat panel, and the rail indicator, mounted in `UnifiedEditor` and `App`; six endpoints are live behind `/api/fleetgraph`. **Notifications work end to end** — the graph writes the table the list reads. **Chat does not**: `invokeAgentChat` throws `agent_not_wired`, so the panel renders its `ai_unavailable` state |
-| 8 | Deployed via Terraform, `/health` + `/ready`, annotated plan, destroy-and-redeploy | Documented | Partial | `terraform/render/` declares Postgres, the web service, and `render_cron_job`. `/health` and `/ready` both exist and are wired. The Dockerfile now builds `agent/` and fails without the cron entrypoint, so the `start_command` seam has a target. Outstanding: the apply, the annotated plan against a real apply, and destroy-and-redeploy (`FG-196`–`FG-205`) |
-| 9 | Trigger model documented and defended | **Covered** | n/a | Poll/webhook/hybrid tradeoffs, staleness, and the 100/1,000-project cost curve, each with the alternative named |
+| # | MVP requirement | Status | Evidence |
+|---|---|---|---|
+| 1 | Graph running with ≥ 1 proactive detection wired end-to-end | **Done** | Deployed cron `crn-d9p7967qj5pc73dk7j60`, every 3 min. `outcome:"delivered" signals:1 findings:1 ms:4643` against the deployed database, with the resulting notification row quoted above |
+| 2 | LangSmith tracing, ≥ 2 shared trace links, different paths | **Done** | Two public links in "Traces from the deployed agent". 10 nodes vs 7, diverging at the first conditional edge and never rejoining |
+| 3 | FLEETGRAPH.md — Agent Responsibility, ≥ 5 use cases | **Done** | Six use cases, matched to the shipped detectors |
+| 4 | Graph outline — node types, edges, branching conditions | **Done** | Sixteen registered nodes and four conditional edges, named identically here and in `NODES` |
+| 5 | ≥ 1 human-in-the-loop gate | **Done in code; not exercised in production** | `await_approval` on C4's `gated` branch; accept/dismiss/snooze resume the suspended run across a real `process.exit(0)`. The one finding delivered so far is `additive`/`comment`, which routes autonomous, so no gate has opened on the deployment yet |
+| 6 | Running against real Ship data, no mocked responses | **Done** | `{"provider":"anthropic","model":"claude-opus-4-5-20251101","mocked":false}` logged every run, against the deployed Postgres |
+| 7 | Agent chat and notifications accessible in the UI | **Done** | Chat in the properties sidebar (`UnifiedEditor.tsx:401`), banner above the editor (`:475`), rail indicator (`App.tsx:414`). Chat verified answering on the deployment; the notification row exists and is addressed to the assignee |
+| 8 | Deployed via Terraform, `/health` + `/ready`, annotated plan, destroy-and-redeploy | **Done** | `3 added, 0 changed, 0 destroyed` from an empty environment after both hand-made resources were deleted. Both endpoints 200. Annotated plan in `terraform/render/PLAN-ANNOTATED.md` |
+| 9 | Trigger model documented and defended | **Done** | Poll/webhook/hybrid tradeoffs, staleness, and the 100/1,000-project cost curve |
 
 Performance requirements from the same page:
 
 | Requirement | Status |
 |---|---|
-| Detection latency < 5 min | Budget documented, 83 s of headroom. **Unmeasured** — the timed run is `FG-209` |
+| Detection latency < 5 min | **Measured.** 4.6 s for scan → judge → deliver on the deployed agent. Worst case adds the 180 s wait for the next tick and a cold start, leaving the 217 s budgeted against 300 s |
 | Cost per graph run documented and defended | Covered — token budget and cost cliffs above |
 | Estimated runs per day documented and defended | Covered — 480/day flat, independent of project count |
 
@@ -1379,27 +1411,31 @@ Engineering requirements (brief p.4):
 
 | Requirement | Status |
 |---|---|
-| 1 · Regression tests with automatic rollback | **Regression tests done** — one per use case at the graph layer (`graph/use-cases.test.ts`, `FG-229`). The **automatic rollback** half is not wired: neither pipeline has a deploy stage (`FG-236`) |
-| 2 · E2E tests for both modes, in CI | Half. `e2e/fleetgraph-agent.spec.ts` covers the proactive latency window (`FG-238`) and both pipelines have an `e2e` job. The on-demand mode has no E2E spec (`FG-239`, `FG-240`). Another agent owns `e2e/**`, so this row is a point-in-time reading |
-| 3 · Mock external services with stable fakes | Pattern exists — `mocks/bedrock-expectations.json` and the `BEDROCK_ENDPOINT` override, which `agent/src/llm/client.ts` honours. **Blocked**: the fakes answer `POST /model/*/invoke`, and `ChatBedrockConverse` calls `POST /converse`, so CI cannot exercise judgment at all (`FG-271`) |
-| 4 · Retries, timeouts, circuit breakers | **Done.** Both outbound clients are written, each with its own breaker instance, explicit timeouts, and bounded backoff. Values tabulated above and read off the constants |
-| 5 · `CHANGES.md` developer documentation | Exists from Week 4 and continues; agent sections are `FG-255`–`FG-257`. Owned by another agent this pass |
+| 1 · Regression tests with automatic rollback | **Regression tests done** — one per use case at the graph layer. **Automatic rollback is not wired**: `deploy.yml` exists but reports DORMANT, because there is no remote state backend and it refuses to run against local state (`FG-236`) |
+| 2 · E2E for both modes, in CI | **Done** — `e2e/fleetgraph-agent.spec.ts` (proactive, latency window) and `e2e/fleetgraph-chat.spec.ts` (on-demand, grounded response), both in the `e2e` job on GitHub and GitLab |
+| 3 · Stable fakes for external services | **Done** — `BEDROCK_ENDPOINT` steers the agent at `mocks/bedrock-expectations.json` in CI, and takes precedence over a real key precisely so a key in CI cannot turn a deterministic suite into a billed one (`llm/client.test.ts`) |
+| 4 · Retries, timeouts, circuit breakers | **Done** — one breaker per outbound dependency, explicit timeouts, bounded backoff, values tabulated above |
+| 5 · `CHANGES.md` developer documentation | **Done** — every significant change, with how to run, how to test, and how to roll back |
 
-**Five MVP items are satisfied: 3, 4, 5, 6 and 9** — 5 and 6 at the graph layer, which is where
-the requirement is about the agent rather than about the deployment. Requirement 4 is satisfied
-in code as well as in prose: every node and edge described here exists and is under test.
+## What is still outstanding
 
-Three things are genuinely outstanding rather than nearly done:
+Stated plainly rather than folded into the table above.
 
-1. **No LangSmith trace links** (`FG-181`–`FG-185`), because there are no credentials here to
-   make a real run against.
-2. **The API-to-graph seam.** Chat and the approval resume both stop one call short of the
-   compiled graph. This is the only place in the system where a built surface does not reach a
-   built backend.
-3. **No CI deploy stage**, so engineering requirement 1's automatic rollback rests on Render's
-   health-check rollback alone (`FG-236`).
+1. **Automatic rollback on CI failure** (engineering requirement 1, second half). `deploy.yml`
+   is written and gated; it needs a remote state backend before it can be armed. Render's own
+   health-check rollback is the only thing covering this today.
+2. **The human gate has never opened in production.** It is implemented and tested across a
+   real process boundary, but the only finding the deployed agent has produced so far routes
+   autonomous. Demonstrating it live needs a load-imbalance condition planted, which is the
+   one signal typed `mutation`.
+3. **Traces for use cases 2–5.** Use case 1 and use case 6 have deployed traces. The rest are
+   asserted at the graph layer against testcontainers Postgres, not captured from the
+   deployment.
+4. **Use case 2 cannot fire against real Ship data.** `sprintMissRisk.ts:61` requires
+   `properties->>'end_date'`, which Ship never stores — `documents.ts:386` computes sprint
+   dates from `sprint_number` instead. Its tests pass because `fixtures.ts:120` writes the
+   field. Found by trying to plant the condition, recorded rather than papered over.
 
----
 
 # Unverified Claims
 

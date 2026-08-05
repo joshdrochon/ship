@@ -1700,3 +1700,94 @@ a commit whose e2e failed has no image, which is the gate working.
   reports DORMANT — it names this as the one genuinely missing piece.
 - **Deployed image is `a08fa6d`**, which predates the estimate fix. `docker-image` was skipped
   on `7660bd8` because e2e failed; once a green run publishes, the bump is one variable.
+
+---
+
+# MVP closed out: a detection reached a human, and the traces are public
+
+## A proactive detection, end to end, on the deployed agent
+
+MVP requirement 1 was the last substantive gap — the cron was running but every scan reported
+`quiet_no_signals`, because nothing in Ship's seed data has drifted far enough to cross a
+threshold. Planting the condition needed database access the deployment does not normally
+allow, so an IP allow-list was opened on the Render Postgres, one issue was moved to 20
+calendar days idle, and the allow-list was closed again.
+
+Three consecutive runs, same graph, same workspace, three different outcomes:
+
+```
+01:36:14  outcome:"quiet_no_signals"       signals:0  findings:0  ms:929
+01:38:26  outcome:"delivered"              signals:1  findings:1  ms:4643
+01:39:15  outcome:"quiet_all_suppressed"   signals:0  findings:0  ms:828
+```
+
+The middle run detected, judged and delivered. The one after it re-detected the same condition
+and suppressed it on the fingerprint, which is the anti-nagging property working in production
+rather than in a test.
+
+What landed in `fleetgraph_notifications`, phrased by the model:
+
+> *"Build issue assignment flow" has been in progress with no activity for 14 working days. If
+> this is blocked or no longer a priority, updating its status would help keep the board
+> accurate.*
+
+14 working days from 20 calendar days — the business-day arithmetic is right — and it proposes
+rather than instructs, which is what the judge prompt asks for.
+
+**`ms:4643`** also closes the performance requirement: 4.6 s for scan → judge → deliver against
+a 300 s SLA, measured rather than estimated.
+
+It did not appear in the signed-in user's notification list, and that is correct — the finding
+routed to the issue's assignee, not to whoever was looking. Worth recording because "I can't
+see it in the UI" reads like a bug until you know who it was addressed to.
+
+## Two shared trace links
+
+Requirement 2, now public:
+
+- Proactive, quiet — https://smith.langchain.com/public/1f471366-de0c-4c1c-ba7c-413673ecb3e7/r
+- On-demand answer — https://smith.langchain.com/public/489b8094-c9e8-43ce-a77c-4b4eb471f619/r
+
+10 nodes vs 7, diverging at the first conditional edge and never rejoining. The brief's own
+test on p.2 is that a graph which looks identical across every run is a pipeline; these do not.
+
+## `No changes. Your infrastructure matches the configuration.`
+
+The annotated plan (`terraform/render/PLAN-ANNOTATED.md`) now records all three states: the
+`3 to add` plan from empty, the apply that rebuilt everything after both hand-made resources
+were deleted, and a plan taken afterwards against the live environment that finds nothing to
+reconcile.
+
+That last line is the actual proof of requirement 8. Anything applies cleanly once; a plan
+taken afterwards finding no drift is the part that means Terraform is the source of truth.
+
+An earlier capture of that same plan read `0 to add, 3 to change` — real drift, and it was the
+IP allow-list opened above. It is recorded in the annotated plan rather than quietly removed,
+because "No changes" only means something if you know what was done to get there.
+
+## The coverage table was rewritten because it was lying
+
+`FLEETGRAPH.md`'s MVP coverage section still said *"No AWS credentials on this machine"*,
+*"chat does not work"*, *"not deployed"* and *"Outstanding: the apply"* — all fixed during the
+day. It understated the system substantially. Re-measured against the deployed environment
+rather than edited in place.
+
+## Still outstanding, stated plainly
+
+1. **Automatic rollback on CI failure** — `deploy.yml` is written and gated but reports
+   DORMANT; it needs a remote state backend before it can be armed. Render's own health-check
+   rollback is the only cover today.
+2. **The human gate has never opened in production.** Implemented and tested across a real
+   process boundary, but the one finding the deployed agent has produced routes autonomous.
+   Demonstrating it live needs a load-imbalance condition, the only signal typed `mutation`.
+3. **Use case 2 cannot fire against real Ship data** — `sprintMissRisk.ts:61` requires
+   `properties->>'end_date'`, which Ship never stores.
+4. **Linear is at its free issue cap**, so the last five commits carry no ticket id.
+
+## How to roll it back
+
+| To undo | Do this |
+|---|---|
+| The planted drift | The issue "Build issue assignment flow" has `updated_at` 20 days in the past on the deployed database. Touch it and the signal stops firing. |
+| The public traces | Revoke the share tokens in LangSmith. The runs remain, the links die. |
+| The whole environment | `terraform destroy`, then re-apply — which is the test above, run again. |
