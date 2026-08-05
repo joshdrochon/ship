@@ -25,6 +25,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY api/package.json ./api/
 COPY web/package.json ./web/
 COPY shared/package.json ./shared/
+COPY agent/package.json ./agent/
 
 # Full install — devDependencies are needed to compile TypeScript
 RUN pnpm install --frozen-lockfile --ignore-scripts
@@ -33,9 +34,23 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY tsconfig.json ./
 COPY shared/ ./shared/
 COPY api/ ./api/
+COPY agent/ ./agent/
 
-# shared must build first; api's tsconfig references its emitted types
-RUN pnpm build:shared && pnpm --filter @ship/api build
+# One script, not three filters spelled out, because spelling them out is how this
+# broke. The chain used to be shared -> api -> agent: the agent imported the circuit
+# breaker from api/dist, so api had to be built first. FG-280 moved the breaker to
+# shared/ and inverted the chain to shared -> agent -> api, so that api could import
+# the graph and POST /api/fleetgraph/chat could stop returning 503 agent_not_wired.
+#
+# Every place that named the order got updated except this line, and it failed with
+# TS2307 "Cannot find module '@ship/agent'" against api/src/routes/fleetgraph/*.
+# That is the fourth time one cross-package edit has been fixed in some of the
+# places that encode the order and not all of them (FG-283, FG-286, FG-287).
+#
+# `pnpm build:api` expands to build:shared -> build:agent -> api via the root
+# package.json. Deferring to it means the order lives in exactly one place and this
+# file cannot fall out of step with it again.
+RUN pnpm build:api
 
 # Frontend, served from the same origin as the API. Same-origin is required, not
 # preferred: the session cookie is sameSite:'strict', so a frontend on another
@@ -48,7 +63,8 @@ RUN test -f web/dist/index.html || (echo "web build produced no index.html" && e
 # Fail loudly here rather than at container start
 RUN test -f api/dist/index.js || (echo "api build produced no dist/index.js" && exit 1) \
  && test -f api/dist/db/schema.sql || (echo "schema.sql missing from api/dist/db" && exit 1) \
- && test -d api/dist/db/migrations || (echo "migrations missing from api/dist/db" && exit 1)
+ && test -d api/dist/db/migrations || (echo "migrations missing from api/dist/db" && exit 1) \
+ && test -f agent/dist/entrypoints/cron.js || (echo "agent build produced no cron entrypoint" && exit 1)
 
 # ---------------------------------------------------------------------------
 # Stage 2 — runtime
@@ -85,12 +101,22 @@ RUN npm install -g pnpm@9.15.4 && pnpm config set strict-ssl false
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY api/package.json ./api/
 COPY shared/package.json ./shared/
+COPY agent/package.json ./agent/
 
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts && pnpm store prune
 
 COPY --from=builder /app/shared/dist/ ./shared/dist/
 COPY --from=builder /app/api/dist/ ./api/dist/
 COPY --from=builder /app/web/dist/ ./web/dist/
+
+# The agent ships in the same image as the API, and the Render cron job selects
+# it with a start_command override (terraform/render/cron.tf). One image, two
+# entrypoints.
+#
+# Two images would mean two builds, two registry pushes, and a class of bug
+# where the cron runs a different commit than the API it is reading from — which
+# is exactly the kind of skew that produces a finding nobody can reproduce.
+COPY --from=builder /app/agent/dist/ ./agent/dist/
 
 EXPOSE 80
 

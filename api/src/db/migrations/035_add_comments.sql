@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 
 -- Indexes for common query patterns
-CREATE INDEX idx_comments_document_id ON comments(document_id);
-CREATE INDEX idx_comments_comment_id ON comments(comment_id);
-CREATE INDEX idx_comments_parent_id ON comments(parent_id);
+-- IF NOT EXISTS for the same reason as 010: schema.sql already creates these,
+-- and a bare CREATE INDEX aborts the migration run on any fresh database.
+CREATE INDEX IF NOT EXISTS idx_comments_document_id ON comments(document_id);
+CREATE INDEX IF NOT EXISTS idx_comments_comment_id ON comments(comment_id);
+CREATE INDEX IF NOT EXISTS idx_comments_parent_id ON comments(parent_id);

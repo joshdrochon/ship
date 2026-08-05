@@ -1,5 +1,6 @@
 [
   {
+    "id": "invoke-model-anthropic-messages",
     "httpRequest": {
       "method": "POST",
       "path": "/model/.*/invoke"
@@ -7,7 +8,9 @@
     "httpResponse": {
       "statusCode": 200,
       "headers": {
-        "content-type": ["application/json"]
+        "content-type": [
+          "application/json"
+        ]
       },
       "body": {
         "type": "JSON",
@@ -17,7 +20,10 @@
           "role": "assistant",
           "model": "mock-local-bedrock",
           "stop_reason": "end_turn",
-          "usage": { "input_tokens": 0, "output_tokens": 0 },
+          "usage": {
+            "input_tokens": 0,
+            "output_tokens": 0
+          },
           "content": [
             {
               "type": "text",
@@ -27,17 +33,24 @@
         }
       }
     },
-    "times": { "unlimited": true },
+    "times": {
+      "unlimited": true
+    },
     "priority": 10
   },
   {
+    "id": "invoke-with-response-stream-not-implemented",
     "httpRequest": {
       "method": "POST",
       "path": "/model/.*/invoke-with-response-stream"
     },
     "httpResponse": {
       "statusCode": 501,
-      "headers": { "content-type": ["application/json"] },
+      "headers": {
+        "content-type": [
+          "application/json"
+        ]
+      },
       "body": {
         "type": "JSON",
         "json": {
@@ -45,7 +58,116 @@
         }
       }
     },
-    "times": { "unlimited": true },
+    "times": {
+      "unlimited": true
+    },
     "priority": 5
+  },
+  {
+    "id": "converse-judgment-EMPTY-BY-DESIGN-see-agent-src-llm-converse-mock-test-ts",
+    "httpRequest": {
+      "method": "POST",
+      "path": "/model/.*/converse",
+      "body": {
+        "type": "JSON",
+        "json": {
+          "toolConfig": {
+            "tools": [
+              {
+                "toolSpec": {
+                  "name": "judgment"
+                }
+              }
+            ]
+          }
+        },
+        "matchType": "ONLY_MATCHING_FIELDS"
+      }
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "content-type": [
+          "application/json"
+        ]
+      },
+      "body": {
+        "type": "JSON",
+        "json": {
+          "output": {
+            "message": {
+              "role": "assistant",
+              "content": [
+                {
+                  "toolUse": {
+                    "toolUseId": "mock-local-judgment",
+                    "name": "judgment",
+                    "input": {
+                      "judgments": []
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "stopReason": "tool_use",
+          "usage": {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "totalTokens": 0
+          },
+          "metrics": {
+            "latencyMs": 0
+          }
+        }
+      }
+    },
+    "times": {
+      "unlimited": true
+    },
+    "priority": 20
+  },
+  {
+    "id": "converse-answer-plain-text-no-toolconfig",
+    "httpRequest": {
+      "method": "POST",
+      "path": "/model/.*/converse"
+    },
+    "httpResponse": {
+      "statusCode": 200,
+      "headers": {
+        "content-type": [
+          "application/json"
+        ]
+      },
+      "body": {
+        "type": "JSON",
+        "json": {
+          "output": {
+            "message": {
+              "role": "assistant",
+              "content": [
+                {
+                  "text": "MOCK RESPONSE from docker-compose.mocks.yml. This local stack answers Bedrock Converse with fixed text, so nothing here reflects the document you asked about. Unset BEDROCK_ENDPOINT and supply AWS credentials for a real grounded answer. The measured signals shown alongside this reply are real - they come from SQL, not from the model."
+                }
+              ]
+            }
+          },
+          "stopReason": "end_turn",
+          "usage": {
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "totalTokens": 0
+          },
+          "metrics": {
+            "latencyMs": 0
+          }
+        }
+      }
+    },
+    "times": {
+      "unlimited": true
+    },
+    "priority": 1
   }
 ]

@@ -34,6 +34,41 @@ locals {
     if v != null
   }
 
+  # The web service needs the model too, and it did not have it.
+  #
+  # `cron.tf` gained ANTHROPIC_API_KEY when the provider moved off Bedrock, and
+  # this file did not — so the deployed API had exactly three environment
+  # variables (DATABASE_URL, NODE_ENV, SESSION_SECRET) and no way to reach a
+  # model. `POST /api/fleetgraph/chat` answered every request with
+  # `503 {"error":"ai_unavailable","reason":"agent_unreachable"}`, verified
+  # against the live deployment.
+  #
+  # That is MVP requirement 7 (brief p.3), "agent chat and notifications are
+  # accessible in the UI": the panel mounts and the endpoint exists, but the
+  # answer never arrives. Two services run the same image and only one was given
+  # what the image needs — the same omission as the Bedrock one, one service over.
+  #
+  # Tracing goes here for a second reason. Requirement 2 asks for two shared
+  # trace links showing DIFFERENT execution paths, and the on-demand path is the
+  # other one — a proactive cron run and a chat invocation traverse different
+  # nodes of the same graph. Untraced, that link cannot be produced at all.
+  #
+  # LANGCHAIN_CALLBACKS_BACKGROUND is deliberately absent here, unlike in
+  # cron.tf. The API is a long-lived process, so the background upload queue does
+  # drain; forcing synchronous callbacks would put trace uploads on the request
+  # path and charge every chat response for them.
+  agent_env_values = {
+    ANTHROPIC_API_KEY    = var.anthropic_api_key
+    LANGCHAIN_API_KEY    = var.langchain_api_key
+    LANGCHAIN_TRACING_V2 = var.langchain_api_key == null ? null : "true"
+    LANGCHAIN_PROJECT    = var.langchain_api_key == null ? null : var.langchain_project
+  }
+
+  agent_env = {
+    for k, v in local.agent_env_values : k => { value = v }
+    if v != null
+  }
+
   # Supplied secret if there is one, otherwise let Render generate it. Rendered
   # as two different shapes because `generate_value` and `value` are mutually
   # exclusive in the provider's env var schema.
@@ -197,5 +232,6 @@ resource "render_web_service" "shipshape" {
       SESSION_SECRET = local.session_env
     },
     local.optional_env,
+    local.agent_env,
   )
 }

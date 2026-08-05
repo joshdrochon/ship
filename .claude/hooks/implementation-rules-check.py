@@ -28,7 +28,9 @@ SOURCE_SUFFIXES = (
 
 RULES = """\
  1. Before/after proof, same script, identical conditions
- 2. Tests still pass — `pnpm test` is api-only; web/ has 151 tests, 13 already failing
+ 2. Tests still pass — `pnpm test` is api-only; web/ has 267 tests, all passing
+    (was 151/13-failing; Week 4 fixed those, and M8 added 26. Re-measure before
+    citing this number again rather than inheriting it.)
  3. A regression test that would have caught the bug
  4. CI covers build, lint, type-check, test, coverage, pnpm audit, security scan, licence inventory
  5. Artifact built once, tagged with the commit SHA, promoted rather than rebuilt

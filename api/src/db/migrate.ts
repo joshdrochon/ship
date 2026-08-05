@@ -101,14 +101,23 @@ async function migrate() {
     }
 
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    // "already exists" errors from schema.sql are fine
-    if (errorMessage.includes('already exists')) {
-      console.log('Database schema already exists, continuing...');
-    } else {
-      console.error('Database migration failed:', error);
-      process.exit(1);
-    }
+    // Every failure is fatal, including "already exists".
+    //
+    // This used to special-case "already exists" and merely log
+    // "Database schema already exists, continuing..." — but the catch sits
+    // OUTSIDE the migration loop, so it did not continue anything. It abandoned
+    // every remaining migration and exited 0.
+    //
+    // The effect on a fresh database: schema.sql applied, 001-009 applied, 010
+    // collided with a table schema.sql had already created, and 011-037 silently
+    // never ran while the process reported success. Discovered 2026-08-03 while
+    // adding 038 — which would have been skipped the same way, on the fresh
+    // database that a destroy-and-redeploy produces.
+    //
+    // Collisions are now prevented at the source (010, 033 and 035 are
+    // idempotent). If a new one appears, it must be loud.
+    console.error('Database migration failed:', error);
+    process.exit(1);
   } finally {
     await pool.end();
   }

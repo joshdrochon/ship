@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "composite": true
+  },
+  "include": ["src/**/*"],
+  // Tests are type-checked by `tsc --noEmit` via the type-check script, but must
+  // not be COMPILED into dist/ — they would ship inside the Docker image, and
+  // vitest would then discover both the source and the built copy and run every
+  // suite twice.
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "vitest.config.ts"]
+}

@@ -92,6 +92,7 @@ build:
     expire_in: 1 week
     paths:
       - shared/dist/
+      - agent/dist/
       - api/dist/
       - web/dist/
       - dist-sha.txt
@@ -162,6 +163,65 @@ test:
       junit:
         - api/junit.xml
         - web/junit.xml
+
+# FG-247 / FG-248 / FG-235 — the agent package's own gate.
+#
+# Separate from `test` because the agent suite provisions its own Postgres per spec
+# file with testcontainers and never reads DATABASE_URL. Running it inside `test` would
+# put it in a job whose env points at a service container it ignores.
+#
+# `needs: ['build']` for api/dist: agent/src/actions/client.ts imports the circuit
+# breaker from there on purpose, so the agent reuses api/src/services/circuitBreaker.ts
+# instead of growing a second one (engineering requirement 4).
+#
+# ── Why this is allow_failure HERE and blocking on GitHub ──────────────────────────
+# Same split as `e2e`, for the same measured reason. 11 of the 19 agent spec files start
+# a `postgres:16` container, which needs a Docker daemon reachable from the job. That
+# means docker-in-docker, and this project's runner sets `privileged = false` — the
+# finding that already forced `e2e` onto a plain `postgres` service here.
+#
+# The daemon cannot be swapped for a service container the way e2e's was, because the
+# agent suite creates a database per FILE at runtime rather than reading one URL, and
+# rewriting 11 spec files to accept an injected pool would change what they test.
+#
+# So the job runs, reports, and publishes its junit — and does not gate a merge on
+# whether this particular runner grants privileged mode. GitHub's `agent-test` job is
+# the blocking gate, on a runner that has a daemon. If dind does turn out to work here
+# (the `docker-image` job below uses it), flip allow_failure to false — nothing else
+# needs to change.
+agent-test:
+  stage: verify
+  needs: ['build']
+  services:
+    - name: docker:27-dind
+      alias: docker
+  variables:
+    DOCKER_HOST: 'tcp://docker:2375'
+    DOCKER_TLS_CERTDIR: ''
+    # testcontainers publishes container ports on the DAEMON's host, which under dind is
+    # the `docker` service and not this job. Without the override it hands back
+    # `localhost:<port>`, which from here reaches nothing, and every suite times out in
+    # `beforeAll` with an error that reads like a slow image pull.
+    TESTCONTAINERS_HOST_OVERRIDE: 'docker'
+    # Ryuk is testcontainers' reaper sidecar. It needs to bind back to the client, which
+    # is the one thing that does not work across the dind boundary. The job is
+    # ephemeral, so the containers die with it.
+    TESTCONTAINERS_RYUK_DISABLED: 'true'
+  script:
+    # The expected minimum is the whole suite. A vitest path typo or a crashed worker
+    # exits 0 having run nothing, and that reads as a pass in a summary line. Exit 2 —
+    # VOID RUN — is deliberately distinct from a test failure. Raise the number when
+    # tests are added.
+    - scripts/assert-tests-ran.sh 162 -- pnpm --filter @ship/agent exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - agent/junit.xml
+    reports:
+      junit:
+        - agent/junit.xml
+  allow_failure: true
 
 coverage:
   stage: verify

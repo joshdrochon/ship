@@ -5,7 +5,7 @@ import {
   addBusinessDays,
   businessDaysBetween,
   getFederalHolidays,
-} from '../business-days.js';
+} from './business-days.js';
 
 describe('business-days', () => {
   describe('isBusinessDay', () => {

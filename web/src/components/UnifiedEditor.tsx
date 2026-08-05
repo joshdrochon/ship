@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Editor } from '@/components/Editor';
 import { PropertiesPanel } from '@/components/sidebars/PropertiesPanel';
 import { WeeklyReviewSubNav } from '@/components/review/WeeklyReviewSubNav';
@@ -16,6 +16,8 @@ import { DocumentTypeSelector, getMissingRequiredFields } from '@/components/sid
 import type { DocumentType as SelectableDocumentType } from '@/components/sidebars/DocumentTypeSelector';
 import { useAuth } from '@/hooks/useAuth';
 import { PlanQualityBanner, RetroQualityBanner } from '@/components/PlanQualityBanner';
+import { AgentBanner } from '@/components/fleetgraph/AgentBanner';
+import { AgentChat } from '@/components/fleetgraph/AgentChat';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import type { Person } from '@/components/PersonCombobox';
 import type { BelongsTo } from '@ship/shared';
@@ -365,11 +367,40 @@ export function UnifiedEditor({
     );
   }, [document, panelProps, onUpdate, missingFields, weeklyReviewState]);
 
+  /**
+   * FG-162/163/164/168 · Contextual chat, in the properties sidebar.
+   *
+   * The 256px `aside` is where `QualityAssistant` already lives, so the agent
+   * arrives as another panel section rather than a fifth panel or a floating
+   * dock — the 4-panel layout is untouched (FG-174). There is no standalone
+   * chatbot route, by the brief's explicit constraint.
+   *
+   * `tab` comes from the `documents/:id/*` wildcard, i.e. from route params —
+   * which, with the document id and type, is the entire request body. Nothing
+   * the editor has rendered is passed (Q7); the server schema is strict and
+   * would reject it if it were.
+   */
+  const { '*': wildcardPath } = useParams<{ '*'?: string }>();
+  const activeTab = wildcardPath?.split('/').filter(Boolean)[0] ?? null;
+
+  const agentChat = useMemo(() => (
+    <AgentChat
+      documentId={document.id}
+      documentType={document.document_type}
+      tab={activeTab}
+    />
+  ), [document.id, document.document_type, activeTab]);
+
   // Compose full sidebar with type selector
   const sidebar = useMemo(() => {
     // If we're not showing the type selector, just return the type-specific sidebar
     if (!showTypeSelector || !canChangeType) {
-      return typeSpecificSidebar;
+      return (
+        <>
+          {typeSpecificSidebar}
+          {agentChat}
+        </>
+      );
     }
 
     // Add type selector at the top
@@ -391,10 +422,11 @@ export function UnifiedEditor({
         {/* Type-specific sidebar */}
         <div className="flex-1 overflow-auto pb-20">
           {typeSpecificSidebar}
+          {agentChat}
         </div>
       </div>
     );
-  }, [showTypeSelector, canChangeType, typeSpecificSidebar, document.document_type, handleTypeChange, isChangingType, missingFields]);
+  }, [showTypeSelector, canChangeType, typeSpecificSidebar, agentChat, document.document_type, handleTypeChange, isChangingType, missingFields]);
 
   // Weekly plans and retros have computed titles (includes person name) - make read-only
   const isTitleReadOnly = document.document_type === 'weekly_plan' || document.document_type === 'weekly_retro';
@@ -426,6 +458,24 @@ export function UnifiedEditor({
     }
     return undefined;
   }, [document.id, document.document_type, editorContent, handlePlanAnalysisChange, handleRetroAnalysisChange]);
+
+  /**
+   * FG-156/169 · The agent's approval banner shares `contentBanner` with the AI
+   * quality banners — the same slot between the title and the editor, which is
+   * what Q22 specifies. It renders nothing when this document has no open
+   * finding, so stacking the two costs an empty fragment on every other page.
+   *
+   * This mount covers every document view, tabbed and not: the sprint, project
+   * and program tab sets all render their first tab through UnifiedEditor
+   * (WeekOverviewTab / ProjectDetailsTab / ProgramOverviewTab), which is what
+   * puts set-scoped findings on the week view rather than on an issue (FG-161).
+   */
+  const contentBanner = useMemo(() => (
+    <>
+      <AgentBanner documentId={document.id} />
+      {qualityBanner}
+    </>
+  ), [document.id, qualityBanner]);
 
   const secondaryHeader = useMemo(() => {
     if (!weeklyReviewState?.isReviewMode) return undefined;
@@ -460,7 +510,7 @@ export function UnifiedEditor({
       sidebar={sidebar}
       documentType={document.document_type}
       onPlanChange={document.document_type === 'sprint' || document.document_type === 'project' ? handlePlanChange : undefined}
-      contentBanner={qualityBanner}
+      contentBanner={contentBanner}
       onContentChange={isWeeklyDoc ? setEditorContent : undefined}
       aiScoringAnalysis={isWeeklyDoc ? aiScoringAnalysis : undefined}
       titleSuffix={titleSuffix}
