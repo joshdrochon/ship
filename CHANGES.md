@@ -1829,3 +1829,132 @@ No changes. Your infrastructure matches the configuration.
 - `PRESEARCH.md` and `FLEETGRAPH.md` are at the repository root, as p.5 requires.
 - No `.tfstate` or real `.tfvars` is tracked; only `*.example` files.
 - Working tree clean, nothing unpushed.
+
+---
+
+# Remote state, and the credential an armed deploy would have deleted
+
+`.github/workflows/deploy.yml` has been complete since it was written — a `deploy`
+job that promotes a SHA and reverts on a failed health check, and a
+`rollback-on-failed-ci` job that reacts to a CI failure on an already-deployed
+commit. It has also been switched off that entire time, reporting DORMANT into
+every run summary, because Terraform state for `terraform/render` was a local file.
+A CI `terraform apply` would have started with no knowledge of the running service
+and tried to create a second one.
+
+That is now fixed, and fixing it surfaced a worse problem than the one it solved.
+
+## State lives in GitLab
+
+`terraform/render/versions.tf` gains a `backend "http"` block pointed at the
+Terraform state API on `labs.gauntletai.com`, project 1609 — the same instance and
+project this repository is graded on.
+
+S3 was the first choice and it does not exist here: no `aws` CLI, no `~/.aws`, no
+`AWS_*` in the environment. Terraform Cloud works but adds a fifth external service
+and a fifth credential for one file. GitLab already holds the repository and already
+has a token in use, and its state API is enabled on this instance — an
+unauthenticated request to `/terraform/state/*` answers 401 where a disabled feature
+answers 404, and the same request with a token reaches the handler.
+
+The brief says nothing about where state lives. It requires a `terraform/` directory,
+an annotated plan, and a destroy-and-redeploy, none of which this affects.
+
+Migration, with the before and after taken the same way:
+
+```
+before   local file, serial 13
+         render_cron_job.fleetgraph, render_postgres.ship, render_web_service.shipshape
+
+after    terraform init -migrate-state  →  "Successfully configured the backend http"
+         terraform state list           →  the same three resources, read from GitLab
+         terraform plan                 →  No changes. Your infrastructure matches
+                                            the configuration.
+```
+
+That last line is the proof. It is the only statement that cannot be true unless the
+migrated state genuinely describes the running infrastructure.
+
+## The bug the migration exposed
+
+`variables.tf:318` declares `anthropic_api_key` with `default = null`, and `main.tf`
+and `cron.tf` omit the environment variable entirely when it is null rather than
+setting it empty. That was a deliberate choice and it is the right one — a blank key
+fails on the first call, where an absent one degrades honestly.
+
+But it means null does not mean *leave the running service alone*. It means *remove
+`ANTHROPIC_API_KEY` from it*.
+
+`deploy.yml` never passed that variable. Arming the workflow would have stripped the
+model credential off a healthy deployment on the next apply. The service would have
+stayed up, `/health` would have stayed green, and every judgement would have returned
+`ai_unavailable` — the exact silent failure `11c4a67` fixed, reintroduced through the
+deploy path instead of the code.
+
+Nothing catches this. `terraform plan` is correct; it correctly plans to delete the
+variable. There is no type error and no lint rule.
+
+So `scripts/check-tf-secrets.sh` asserts that every variable `variables.tf` marks
+`sensitive = true` is passed by `deploy.yml`. It runs in CI as the `tf-secrets` job
+and again in the deploy preflight, and it needs no credentials, so it runs on forks
+and pull requests too.
+
+Proved against the bug rather than asserted:
+
+```
+$ ./scripts/check-tf-secrets.sh
+check-tf-secrets: all 6 sensitive variables are passed by deploy.yml
+
+$ grep -v 'TF_VAR_anthropic_api_key:' deploy.yml > deploy.yml   # reintroduce it
+$ ./scripts/check-tf-secrets.sh
+MISSING  TF_VAR_anthropic_api_key is not passed by deploy.yml
+exit=1
+```
+
+## How to run it
+
+```bash
+. scripts/tf-env.sh                 # reads .env, exports TF_HTTP_* and TF_VAR_*, prints no values
+cd terraform/render
+terraform init                      # now talks to GitLab
+terraform plan -var image_tag=$(curl -s https://shipshape-7buc.onrender.com/health | jq -r .revision)
+```
+
+`scripts/tf-env.sh` is sourced, not executed. It reports which values are present and
+never prints one — a helper that echoes a token to prove it works is how tokens reach
+scrollback and screen recordings.
+
+## How to test it
+
+```bash
+./scripts/check-tf-secrets.sh       # no credentials needed
+```
+
+## How to roll it back
+
+The backend is a block in `versions.tf` and a copy of state in GitLab. To go back to
+a local file, delete the block and run `terraform init -migrate-state`, which copies
+state down in the same way it copied it up. The pre-migration file is unchanged on
+disk at `terraform/render/terraform.tfstate` — Terraform leaves it in place — so the
+worst case is `terraform init -reconfigure` against the local backend.
+
+Nothing about the running infrastructure changes either way. State migration moves the
+record, not the resources.
+
+## What is armed, and what is not, and why in that order
+
+`deploy.yml` triggers on `workflow_run` for CI on `main`, and GitHub runs the copy of
+a `workflow_run` workflow that is **on the default branch** — not the copy on the
+branch that opened the pull request. Arming before this merges would therefore have
+run main's `deploy.yml`, which is the one still missing `TF_VAR_anthropic_api_key`.
+
+So the order is: merge, then set `RENDER_DEPLOY_ENABLED`, then rehearse a rollback
+through `workflow_dispatch` before trusting the automatic path. Arming first would
+have caused precisely the outage this change exists to prevent.
+
+## Still outstanding
+
+The rehearsal. `deploy.yml` has never fired — not the deploy path, not the rollback
+path. Until it has, engineering requirement 1 is wired and unproven, which is a better
+place than blocked but is not done. Today's automatic rollback remains Render's own
+health-check rollback, which is configured in `main.tf` and is real.
