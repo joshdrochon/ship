@@ -17,11 +17,13 @@
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
-    "test": "echo \"no tests in @ship/shared\"",
-    "test:coverage": "echo \"no tests in @ship/shared\""
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@types/node": "22.19.5",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "^4.0.16",
+    "@vitest/coverage-v8": "^4.0.17"
   }
 }

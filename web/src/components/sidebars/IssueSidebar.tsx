@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Combobox } from '@/components/ui/Combobox';
 import { MultiAssociationChips } from '@/components/ui/MultiAssociationChips';
 import { PropertyRow } from '@/components/ui/PropertyRow';
@@ -118,6 +118,34 @@ export function IssueSidebar({
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [workspaceSprintStartDate, setWorkspaceSprintStartDate] = useState<Date | null>(null);
   const [sprintError, setSprintError] = useState<string | null>(null);
+
+  /**
+   * The estimate field holds its own text while the user is in it.
+   *
+   * It used to be driven straight off `issue.estimate`, which meant what you saw
+   * was whatever the React Query cache last held — so a document refetch that
+   * raced the save could blank the field after a successful PATCH, and it would
+   * stay blank with the correct value sitting in the database. Measured on an idle
+   * machine: 3 blank in 6 runs, and `issue-estimates.spec.ts:54` fails on it.
+   *
+   * A draft plus a focus guard makes what the user typed the thing that renders,
+   * rather than a value that has to survive a round trip to come back. The server
+   * value is still authoritative — it is re-synced whenever it changes and the
+   * field is not being edited, and again on blur.
+   *
+   * This does not fix the underlying cache race; it stops that race from eating
+   * keystrokes. See the note on `onMutate` in UnifiedDocumentPage.
+   */
+  const [estimateDraft, setEstimateDraft] = useState<string>(
+    issue.estimate != null ? String(issue.estimate) : ''
+  );
+  const estimateEditing = useRef(false);
+
+  useEffect(() => {
+    if (estimateEditing.current) return;
+    setEstimateDraft(issue.estimate != null ? String(issue.estimate) : '');
+  }, [issue.estimate]);
+
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   // Cascade warning state for closing parent with incomplete children
@@ -379,8 +407,18 @@ export function IssueSidebar({
             min="0"
             placeholder="—"
             aria-label="Estimate in hours"
-            value={issue.estimate ?? ''}
+            value={estimateDraft}
+            onFocus={() => {
+              estimateEditing.current = true;
+            }}
+            onBlur={() => {
+              estimateEditing.current = false;
+              // Re-sync to whatever the server settled on, so a rejected or
+              // coerced value does not linger as a draft that never existed.
+              setEstimateDraft(issue.estimate != null ? String(issue.estimate) : '');
+            }}
             onChange={(e) => {
+              setEstimateDraft(e.target.value);
               const value = e.target.value ? parseFloat(e.target.value) : null;
               onUpdate({ estimate: value });
               if (value) setSprintError(null);

@@ -42,6 +42,8 @@ export interface MockBedrock {
   url: string;
   /** Number of InvokeModel calls served — lets a test assert the mock was actually hit. */
   invocations: () => number;
+  /** Number of Converse calls served — the FleetGraph agent's path (FG-271). */
+  converseInvocations: () => number;
   close: () => Promise<void>;
 }
 
@@ -122,6 +124,84 @@ function readBody(req: Http2ServerRequest): Promise<string> {
   });
 }
 
+
+/**
+ * ── The Converse endpoint (FG-271) ──────────────────────────────────────────
+ *
+ * FleetGraph's agent uses `ChatBedrockConverse`, which calls
+ * `POST /model/{modelId}/converse` — a different operation from the
+ * `/invoke` above that `api/src/services/ai-analysis.ts` uses. Until this
+ * existed the mock 404'd it, so CI could not exercise judgement at ALL: every
+ * judged run degraded to `ai_unavailable`, and the tests accepted that as a
+ * pass. Exactly the failure this file was written to stop, one endpoint over.
+ *
+ * The response is derived from the request, and it has to be. `judgeSignals`
+ * copies each finding's fingerprint through, and `routeAction` drops any
+ * finding whose fingerprint does not match a measured signal. A canned response
+ * would therefore be silently discarded by the graph and the run would look
+ * quiet — indistinguishable from a healthy project, which is the one confusion
+ * this whole system is built to avoid.
+ */
+
+/** The Converse request body the SDK sends. */
+interface ConverseBody {
+  system?: Array<{ text?: string }>;
+  messages?: Array<{ role: string; content?: Array<{ text?: string }> }>;
+  toolConfig?: { tools?: Array<{ toolSpec?: { name?: string } }> };
+}
+
+/** Everything the mock needs from one rendered ITEM block. */
+interface ParsedItem {
+  fingerprint: string;
+  accountable: string | null;
+}
+
+/**
+ * Pull the measured items back out of the rendered judge prompt.
+ *
+ * Parses the shape `renderSignal` in `agent/src/llm/prompts/judge.ts` writes.
+ * Coupled to that format on purpose: if the prompt changes shape, this stops
+ * finding fingerprints and the graph starts discarding findings, which is a
+ * loud failure in the E2E run rather than a quiet one in production.
+ */
+function parseJudgeItems(text: string): ParsedItem[] {
+  const items: ParsedItem[] = [];
+  for (const block of text.split(/^ITEM \d+$/m).slice(1)) {
+    const fingerprint = /^\s*fingerprint:\s*(\S+)\s*$/m.exec(block)?.[1];
+    if (!fingerprint) continue;
+    const accountable = /^\s*accountable_user_id:\s*(\S+)\s*$/m.exec(block)?.[1] ?? null;
+    items.push({
+      fingerprint,
+      accountable: accountable && accountable !== 'unresolved' ? accountable : null,
+    });
+  }
+  return items;
+}
+
+/**
+ * A judgment for every item, all worth surfacing.
+ *
+ * Deliberately not selective. A mock that dropped items would make an E2E
+ * assertion about "the agent surfaced the stalled issue" depend on the mock's
+ * taste rather than the graph's wiring. Whether a finding is worth surfacing is
+ * the model's judgement in production and is tested against a fake judge in
+ * `agent/src/llm/judge.test.ts`; here the job is to prove the plumbing carries
+ * a finding end to end.
+ */
+function judgmentPayload(items: ParsedItem[]): unknown {
+  return {
+    judgments: items.map((item, i) => ({
+      fingerprint: item.fingerprint,
+      worth_surfacing: true,
+      // Varied rather than uniform so an assertion about ordering or severity
+      // has something to bite on.
+      severity: i === 0 ? 'high' : i === 1 ? 'medium' : 'low',
+      recipient: item.accountable,
+      phrasing: `MOCK JUDGEMENT from mock-bedrock: item ${i + 1} of ${items.length} crossed its threshold.`,
+    })),
+  };
+}
+
 /**
  * Start the mock on an ephemeral loopback port.
  *
@@ -130,12 +210,82 @@ function readBody(req: Http2ServerRequest): Promise<string> {
  */
 export async function startMockBedrock(): Promise<MockBedrock> {
   let invocations = 0;
+  let converseInvocations = 0;
 
   const server: Http2Server = createServer({ allowHTTP1: true }, (req, res) => {
     void (async () => {
       const path = req.url ?? '';
 
       // The SDK URL-encodes the model id, so match on the operation suffix.
+      if (req.method === 'POST' && path.endsWith('/converse')) {
+        converseInvocations++;
+        let body: ConverseBody;
+        try {
+          body = JSON.parse(await readBody(req)) as ConverseBody;
+        } catch {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ message: 'mock-bedrock: converse body was not JSON' }));
+          return;
+        }
+
+        const userText = (body.messages ?? [])
+          .flatMap((m) => m.content ?? [])
+          .map((c) => c.text ?? '')
+          .join('\n');
+
+        // The tool name is echoed from the request rather than guessed.
+        // `withStructuredOutput` picks it, and guessing would make this mock
+        // break on a LangChain upgrade for no reason.
+        const toolName = body.toolConfig?.tools?.[0]?.toolSpec?.name;
+
+        const payload = toolName
+          ? {
+              output: {
+                message: {
+                  role: 'assistant',
+                  content: [
+                    {
+                      toolUse: {
+                        toolUseId: `mock-tool-use-${converseInvocations}`,
+                        name: toolName,
+                        input: judgmentPayload(parseJudgeItems(userText)),
+                      },
+                    },
+                  ],
+                },
+              },
+              stopReason: 'tool_use',
+              usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+              metrics: { latencyMs: 0 },
+            }
+          : {
+              // No toolConfig means the grounded-answer path, which asks for
+              // prose rather than a schema.
+              output: {
+                message: {
+                  role: 'assistant',
+                  content: [
+                    {
+                      text:
+                        'MOCK ANSWER from mock-bedrock. The local stack is wired to a fake ' +
+                        'model, so this carries no analysis of the document.',
+                    },
+                  ],
+                },
+              },
+              stopReason: 'end_turn',
+              usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+              metrics: { latencyMs: 0 },
+            };
+
+        res.writeHead(200, {
+          'content-type': 'application/json',
+          'x-amzn-requestid': 'mock-e2e-converse',
+        });
+        res.end(JSON.stringify(payload));
+        return;
+      }
+
       if (req.method !== 'POST' || !path.endsWith('/invoke')) {
         // Loud rather than silent: a 404 surfaces in the API log as a Bedrock error
         // instead of quietly degrading to `ai_unavailable`.
@@ -190,6 +340,7 @@ export async function startMockBedrock(): Promise<MockBedrock> {
   return {
     url: `http://127.0.0.1:${port}`,
     invocations: () => invocations,
+    converseInvocations: () => converseInvocations,
     close: () =>
       new Promise<void>((resolve, reject) => {
         for (const socket of sockets) socket.destroy();

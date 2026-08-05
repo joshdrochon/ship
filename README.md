@@ -109,6 +109,7 @@ First run takes a few minutes while images build. Later runs are cached and take
 ./start.sh --logs       # start, then follow logs
 ./start.sh --down       # stop everything (data volume kept)
 ./start.sh --no-mocks   # skip the mock Bedrock service
+./start.sh --no-agent   # skip the one FleetGraph scan
 ./start.sh --help
 ```
 
@@ -186,6 +187,53 @@ port `api/.env.example` points at.
 the first free ports from 3000 and 5173 upward so multiple worktrees can run at once, and
 prints the pair it picked. Check that output rather than assuming 3000/5173.
 
+### The FleetGraph agent
+
+FleetGraph is a project-intelligence agent that reads Ship's data, decides what a human
+needs to know, and says it in the document the finding is about. It lives in `agent/` as
+its own workspace package.
+
+**It is a cron process, not a server.** One run scans every workspace, writes what it
+found, and exits — in production a Render cron job invokes it every three minutes. There
+is nothing to leave running, which is why `./start.sh` runs a single scan rather than
+starting a service.
+
+```bash
+# 1. The app and its database
+./start.sh
+
+# 2. Configure the agent (gitignored — never commit it)
+cp agent/.env.example agent/.env
+
+# 3. Build the API first. The agent imports Ship's circuit breaker from api/dist,
+#    so this is a real ordering requirement, not a suggestion.
+pnpm build:api
+
+# 4. Run one scan. agent/.env is NOT auto-loaded — source it yourself.
+set -a && . ./agent/.env && set +a
+pnpm --filter @ship/agent agent:cron
+```
+
+A run prints one JSON line. `"outcome":"quiet_no_signals"` means the detectors found
+nothing and the run cost no model tokens, which is the common case and the reason a
+three-minute schedule is affordable.
+
+```bash
+pnpm --filter @ship/agent test   # 146 tests against a testcontainer Postgres
+```
+
+Two things worth knowing before you debug anything:
+
+- **Judgement needs AWS credentials.** Without them a scan reports `ai_unavailable`,
+  the signals persist unjudged, and the next run judges them. `signals: 1, findings: 0`
+  is the signature — the detector worked, the model did not run.
+- **`LANGCHAIN_TRACING_V2` must be the literal string `"true"`.** `"1"` silently
+  disables tracing. Every run's first log line reports which it is.
+
+`agent/.env.example` documents every variable and why it exists. Operational detail —
+the full build order, how to make a detector fire, and how to roll the agent back layer
+by layer — is in [CHANGES.md](./CHANGES.md), "FleetGraph — the agent".
+
 ### Common Commands
 
 ```bash
@@ -204,11 +252,13 @@ pnpm test:e2e     # Run the Playwright end-to-end suite
 
 ### Architecture
 
-Ship is a monorepo with three packages:
+Ship is a monorepo with four packages:
 
 - **web/** — React frontend with TipTap editor for real-time collaboration
 - **api/** — Express backend with WebSocket support
 - **shared/** — TypeScript types used by both
+- **agent/** — FleetGraph, the project-intelligence agent (a LangGraph graph plus a cron
+  entrypoint). Depends on `api/dist`; nothing depends on it.
 
 ### Tech Stack
 
@@ -245,6 +295,15 @@ ship/
 │   │   ├── components/     # UI components
 │   │   ├── pages/          # Route pages
 │   │   └── hooks/          # Custom hooks
+│   └── package.json
+│
+├── agent/                  # FleetGraph agent
+│   ├── src/
+│   │   ├── detectors/      # SQL signal detection, no model involved
+│   │   ├── graph/          # LangGraph nodes, edges, Postgres checkpointer
+│   │   ├── llm/            # Batched judgement behind api/'s circuit breaker
+│   │   ├── actions/        # The only writes back into Ship
+│   │   └── entrypoints/    # cron.ts — one-shot proactive scan
 │   └── package.json
 │
 ├── shared/                 # Shared TypeScript types
@@ -328,6 +387,13 @@ production image, which is what the Elastic Beanstalk and Render deploys build.
 | `SESSION_SECRET` | Cookie signing secret | Required in production; dev falls back to an insecure default |
 | `CORS_ORIGIN` | Allowed frontend origin | `http://localhost:5173` |
 | `PORT` | API server port | `3000` |
+| `BEDROCK_ENDPOINT` | Redirects the Bedrock client at a mock. Unset in production, where the SDK resolves the real regional endpoint | Unset |
+
+The FleetGraph agent reads its own set — `DATABASE_URL`, `SHIP_API_TOKEN`,
+`LANGCHAIN_*`, `BEDROCK_ENDPOINT`, `FLEETGRAPH_WORKSPACE_ID`. They are documented, with
+the reason for each, in `agent/.env.example`. Copy it to `agent/.env` (gitignored) and
+fill it in; nothing in the agent loads that file automatically, so source it before
+running.
 
 ---
 

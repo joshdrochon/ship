@@ -52,6 +52,7 @@ jobs:
           retention-days: 7
           path: |
             shared/dist/
+            agent/dist/
             api/dist/
             web/dist/
             dist-sha.txt
@@ -95,10 +96,20 @@ jobs:
       # `needs: build` orders the jobs; it does not carry a filesystem between them.
       # api/ and web/ import @ship/shared, which resolves to shared/dist/index.d.ts, so
       # without this tsc reports TS2307 "Cannot find module '@ship/shared'" on ~40 files.
-      # The `test` job above already does exactly this, which is why it passed while this
-      # one failed. GitLab does not need it: `needs: ['build']` there downloads the build
-      # artifact, and shared/dist/ is in its paths.
-      - run: pnpm build:shared
+      #
+      # `pnpm build:shared` was enough until agent/ joined the workspace. `pnpm
+      # type-check` is `--recursive`, so it now compiles @ship/agent too, and
+      # agent/src/actions/client.ts imports the circuit breaker from `api/dist` on
+      # purpose (agent compiles with rootDir: ./src, so a .ts import outside it is a
+      # hard tsc error while the built .d.ts is not). Without api/dist that import is
+      # TS2307 and this job fails on a file nobody touched.
+      #
+      # Downloading the artifact rather than rebuilding is Rule 5, and it is what
+      # .gitlab-ci.yml already does — `needs: ['build']` there carries shared/dist/ and
+      # api/dist/ into the job.
+      - uses: actions/download-artifact@v4
+        with:
+          name: ship-dist-${{ github.sha }}
       - run: pnpm type-check
 
   # `pnpm type-check` proves the code compiles. It does not observe how much of that
@@ -144,7 +155,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build:shared
+      - run: pnpm build:agent   # shared -> agent; api imports @ship/agent
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
       # Both suites. `pnpm test` alone is api-only and would leave 151 web tests
       # unexecuted, which does not satisfy Rule 2.
@@ -157,6 +168,64 @@ jobs:
           path: |
             api/junit.xml
             web/junit.xml
+
+  # FG-247 / FG-248 / FG-235 — the agent package's own gate.
+  #
+  # Separate from `test` rather than a third line inside it, for one reason: the
+  # agent suite provisions its OWN Postgres per test file with testcontainers and does
+  # not use DATABASE_URL at all. Adding it to `test` would run it inside a job whose
+  # env points at a service container it ignores, and the next person to read the job
+  # would reasonably assume the service was what it was talking to.
+  #
+  # `ubuntu-latest` has a Docker daemon, which is what testcontainers needs. 11 of the
+  # 19 agent spec files start a `postgres:16` container; the other 8 are pure and would
+  # pass anywhere. Running the whole suite here means the gate covers both.
+  #
+  # The regression tests FG-229 through FG-234 live in this suite —
+  # agent/src/graph/use-cases.test.ts and agent/src/actions/autonomy.test.ts — so this
+  # job is what makes "all of them run in CI" true rather than aspirational.
+  #
+  # assert-tests-ran.sh is not decoration. A vitest path typo or a crashed worker exits
+  # 0 having run nothing, and 162 green tests and 0 executed tests look identical in a
+  # summary line. The expected minimum is the whole suite, taken from a known-good run.
+  # Raise it when tests are added; a SHORT RUN exits 2, which is distinct from a test
+  # failure on purpose.
+  agent-test:
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Rule 5: the compiled tree comes from `build`, it is not rebuilt here.
+      # agent/src/actions/client.ts imports the circuit breaker from api/dist —
+      # deliberately, so the agent reuses api/src/services/circuitBreaker.ts rather than
+      # growing a second one (engineering requirement 4). Without api/dist the whole
+      # actions layer fails to resolve.
+      - uses: actions/download-artifact@v4
+        with:
+          name: ship-dist-${{ github.sha }}
+
+      # Pre-pull so a slow registry does not eat the per-container start timeout inside
+      # the first `beforeAll`. Failing here says "the image could not be fetched", which
+      # is a much better error than a hook timeout 180 seconds later.
+      - run: docker pull postgres:16
+
+      - name: Agent suite
+        run: scripts/assert-tests-ran.sh 162 -- pnpm --filter @ship/agent exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-results-agent
+          path: agent/junit.xml
 
   coverage:
     runs-on: ubuntu-latest
@@ -188,7 +257,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build:shared
+      - run: pnpm build:agent   # shared -> agent; api imports @ship/agent
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
       - run: pnpm --filter @ship/api test:coverage
       # web needs --coverage.reportOnFailure explicitly; vitest defaults it to false,
@@ -248,11 +317,38 @@ jobs:
       # Connects to the `postgres` database, not `ship_test`: the fixture needs somewhere
       # to issue CREATE DATABASE from, and POSTGRES_USER is the image's superuser.
       E2E_DATABASE_URL: postgresql://ship:ship_test_password@localhost:5432/postgres
-      # 2, not the config's CI default of 4. Each worker runs an API server, a Vite
-      # preview and a Chromium — four of each was killed by the OOM reaper at test 510 of
-      # 874 in a 7.8 GB container, and `ubuntu-latest` is only 2 vCPU, so four also
-      # oversubscribes the CPU and tightens every timeout in the suite. Halving it trades
-      # roughly 15 minutes of wall clock for a run that finishes.
+      # 2. Tried at 3, measured, and put back — the runner has the memory for 3 and it
+      # still does not help.
+      #
+      # Each worker runs an API server, a Vite preview and a Chromium. Four of each was
+      # killed by the OOM reaper at test 510 of 874, which is where the pin to 2 came
+      # from, and that measurement was taken in a 7.8 GB container. The runner is now
+      # 15.6 GB — this repository is public, and GitHub gives public repositories the
+      # larger `ubuntu-latest` — so the memory half of the original argument no longer
+      # holds, and 3 looked safe.
+      #
+      # Same branch, same 877 tests, two consecutive runs:
+      #
+      #                    2 workers (dc36a77)   3 workers (f733527)
+      #   wall clock              18.5 min             15.1 min
+      #   passed                       869                  817
+      #   failed                         4                    4
+      #   flaky                          4                   10
+      #   DID NOT RUN                    0                   46
+      #
+      # 3.4 minutes faster, and it loses 46 tests. There is no `maxFailures` in
+      # playwright.config.ts, so tests that never ran mean a worker process went away
+      # and took its queue with it. `assert-tests-ran` catches that and voids the run,
+      # which is the whole reason that gate exists: a subset that happens to be green
+      # tells you nothing about the rest.
+      #
+      # So memory was never the binding constraint — CPU is, and that is the half of
+      # the argument the 3-worker attempt explicitly did not re-measure. Doubling the
+      # flake rate is the visible symptom of the same oversubscription.
+      #
+      # Do not raise this again without a bigger runner. The lever that would actually
+      # work is `runs-on: ubuntu-latest-4-core` or larger, not a higher worker count on
+      # the same two.
       PLAYWRIGHT_WORKERS: '2'
       SESSION_SECRET: ci-only-not-a-real-secret
     steps:
@@ -318,8 +414,18 @@ jobs:
           fetch-depth: 0
       # `comply` is the organisation's scanner but is not available in this runner, so
       # gitleaks stands in. The substitution is recorded in CHANGES.md.
+      #
+      # GITHUB_TOKEN is required, not optional, and only on `pull_request` events —
+      # the action resolves the PR's commit range through the API. Without it the job
+      # fails in 10 seconds with "GITHUB_TOKEN is now required to scan pull requests".
+      #
+      # That asymmetry is why this went unnoticed: the push-event run of the same
+      # commit passes this job, so the branch looked green from `gh run list` while
+      # every PR run had a red security-scan. It is the automatically-provided token,
+      # so nothing needs configuring in repository settings.
       - uses: gitleaks/gitleaks-action@v2
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'true'
 
   license-inventory:
@@ -366,9 +472,14 @@ jobs:
   # Credential: none to provision. GITHUB_TOKEN with `packages: write` is issued
   # to the job by Actions itself, which is the whole reason to publish from this
   # side rather than pushing to ghcr.io from GitLab with a long-lived PAT.
+  # `agent-test` is in `needs` for the reason FG-236 exists: the image this job
+  # publishes is the only thing that can be deployed, so a failing regression test
+  # must stop the artifact from existing rather than be caught after it is live.
+  # Blocking promotion is the cheap half of "a failing build never stays deployed";
+  # .github/workflows/deploy.yml is the other half.
   docker-image:
     runs-on: ubuntu-latest
-    needs: [build, lint, type-check, test]
+    needs: [build, lint, type-check, test, agent-test]
 
     # Least privilege, and not the default. Without `packages: write` the token
     # can read ghcr.io but not push; `contents: read` is all the rest of the job

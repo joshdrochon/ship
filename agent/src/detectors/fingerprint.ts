@@ -1,0 +1,78 @@
+/**
+ * Suppression keys.
+ *
+ * The fingerprint is what `fleetgraph_observations (workspace_id, fingerprint)`
+ * is unique on, and therefore what decides whether a finding is surfaced once or
+ * surfaced every three minutes forever. PRESEARCH.md Q32 names a suppression
+ * failure as the largest cost cliff in the architecture — one finding becoming
+ * ~480 model calls a day, with a cost graph as the only symptom.
+ *
+ * Three properties it must have:
+ *
+ *  1. STABLE — the same condition on the same target produces the same key on
+ *     every run, or nothing is ever suppressed.
+ *  2. BUCKETED — an issue idle 5 days and the same issue idle 20 days are
+ *     different findings. Without bucketing, a worsening condition is silently
+ *     suppressed by the first, milder observation of it.
+ *  3. COLLISION-RESISTANT across types — a stalled issue and a rework-churn
+ *     issue on the same document must not share a key.
+ */
+import { createHash } from 'node:crypto';
+import type { SignalType } from './types.js';
+
+/**
+ * Business-day buckets. Deliberately coarse and open-ended at the top.
+ *
+ * Bucketing on the raw day count would defeat the purpose: an issue idle 5 days
+ * becomes a new fingerprint on day 6, and on day 7, and the finding re-surfaces
+ * daily. Bucketing means it re-surfaces when the situation materially worsens
+ * and not merely because time passed.
+ */
+export function bucketOf(businessDays: number): string {
+  if (businessDays < 5) return '<5d';
+  if (businessDays < 10) return '5-9d';
+  if (businessDays < 20) return '10-19d';
+  return '20d+';
+}
+
+/** Counts — used by load imbalance and rework churn, which measure magnitude. */
+export function countBucket(n: number): string {
+  if (n <= 2) return '<=2';
+  if (n <= 4) return '3-4';
+  if (n <= 8) return '5-8';
+  return '9+';
+}
+
+/**
+ * The key itself.
+ *
+ * Hashed rather than concatenated so the column has a bounded width regardless
+ * of how many components a future signal type needs, and so a target id is not
+ * sitting in a second place in plaintext. Truncated to 32 hex chars — 128 bits,
+ * far past collision risk at this scale, and short enough to read in a log line.
+ *
+ * ── The `\0` separators are load-bearing ───────────────────────────────────
+ * Without them the components run together and ('ab','c') hashes identically to
+ * ('a','bc') — two different findings silently suppressing each other, which is
+ * invisible in every way except one of them never appearing.
+ *
+ * They are written as `\0` escapes rather than literal NUL bytes. They WERE
+ * literal bytes, and that had a cost with nothing to do with correctness: grep
+ * classifies a file containing NUL as binary and reports "Binary file matches"
+ * instead of the matching lines. A search of this package for an import path
+ * therefore skipped whichever files carried one — which is exactly how a stale
+ * `api/dist` import in `actions/client.ts` survived a grep that was looking for
+ * it (FG-283).
+ *
+ * Same bytes into the hash, so every existing fingerprint is unchanged.
+ */
+export function fingerprint(
+  signalType: SignalType,
+  targetId: string,
+  bucket: string
+): string {
+  return createHash('sha256')
+    .update(`${signalType}\0${targetId}\0${bucket}`)
+    .digest('hex')
+    .slice(0, 32);
+}

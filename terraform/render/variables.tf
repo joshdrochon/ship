@@ -104,7 +104,22 @@ variable "service_name" {
 variable "service_plan" {
   description = "Render instance plan. `free` costs nothing and sleeps after 15 minutes idle; `starter` is the first paid tier."
   type        = string
-  default     = "free"
+
+  # `starter`, not `free`, and the difference is measured rather than assumed. On
+  # `free` Render sleeps the service after 15 minutes idle, and the wake-up was
+  # timed against the live instance:
+  #
+  #   cold  31.3 s
+  #   warm   0.15 s
+  #
+  # 31 seconds is what anyone arriving at a link that has been quiet gets — which
+  # is the failure the deployment exists to prevent. `starter` does not sleep.
+  #
+  # The default carries it rather than a -var flag or a tfvars file, because the
+  # brief (p.3) requires re-applying "from the Terraform config alone". A plan
+  # supplied on the command line is not in the config, and the environment that
+  # came back would quietly be the sleeping one.
+  default = "starter"
 
   validation {
     condition     = contains(["free", "starter", "standard", "pro", "pro_plus", "pro_max", "pro_ultra"], var.service_plan)
@@ -195,6 +210,109 @@ variable "cdn_domain" {
 
 variable "session_secret" {
   description = "Express session secret. Left null so the provider generates one on create (generate_value = true), which is what keeps a clean-machine apply down to one credential. Supply a value only when sessions must survive the service being recreated."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+# ---------------------------------------------------------------------------
+# FleetGraph agent — render_cron_job.fleetgraph
+#
+# The cron job runs the same image as the web service, so nothing here selects a
+# source: image_repository, image_tag and the registry credential are shared. What
+# is separate is the schedule, the instance plan, the entrypoint, and the agent's
+# own two credentials. See cron.tf.
+# ---------------------------------------------------------------------------
+
+variable "agent_cron_name" {
+  description = "Render cron job name. Distinct from service_name because the two are separate Render services sharing one image; naming both 'shipshape' would make the dashboard ambiguous about which one failed."
+  type        = string
+  default     = "fleetgraph-agent"
+}
+
+variable "agent_cron_plan" {
+  description = "Render instance plan for the cron job. Unlike service_plan this cannot be `free` — Render offers no free instance type for cron jobs and bills them by runtime with a $1/month floor. `starter` is the smallest that exists; the job is a watermark query plus at most one bounded model call, so it is not sized by load."
+  type        = string
+  default     = "starter"
+
+  validation {
+    # `free` is excluded deliberately rather than by omission. It is a valid slug
+    # for a web service, so copying var.service_plan's default across would look
+    # right, plan clean, and fail only at apply against Render's API.
+    condition     = contains(["starter", "standard", "pro", "pro_plus", "pro_max", "pro_ultra"], var.agent_cron_plan)
+    error_message = "agent_cron_plan must be a paid Render instance plan slug. Render has no free tier for cron jobs, so `free` is rejected here even though it is valid for service_plan."
+  }
+}
+
+variable "agent_cron_schedule" {
+  description = "Cron expression, UTC. Every 3 minutes — PRESEARCH.md Q11/Q30. The interval is the dominant term in the < 5 minute detection budget (180 s of a 217 s worst case against a 300 s SLA), so widening it is a decision about breaching the requirement, not a tuning knob."
+  type        = string
+  default     = "*/3 * * * *"
+
+  validation {
+    # Five whitespace-separated fields. Deliberately shallow: this catches the
+    # typo class (a four-field or six-field expression, a stray quote) without
+    # pretending to validate cron semantics, which Render's scheduler owns.
+    condition     = can(regex("^\\S+( +\\S+){4}$", var.agent_cron_schedule))
+    error_message = "agent_cron_schedule must be a 5-field cron expression, e.g. \"*/3 * * * *\"."
+  }
+}
+
+variable "agent_start_command" {
+  description = <<-EOT
+    Command the cron container runs instead of the image's CMD. This override is
+    the whole "same image, two entrypoints" seam (cron.tf).
+
+    The default invokes the compiled agent entrypoint directly, by absolute path,
+    for two reasons. The image's final WORKDIR is /app/api, so a relative command
+    resolves in the wrong workspace package. And the runtime stage installs with
+    `--prod`, so `tsx` — which agent/package.json's `agent:cron` script uses to run
+    TypeScript from source — is not present in the deployed image. `pnpm agent:cron`
+    is the local development form; `node agent/dist/entrypoints/cron.js` is the
+    deployed one.
+
+    Two preconditions this depends on, neither of which lives in terraform/:
+      - agent/src/entrypoints/cron.ts exists and compiles to dist/
+      - the Dockerfile's runtime stage copies agent/dist/ and agent/package.json
+        alongside api/dist/ and shared/dist/
+    Until both hold, `terraform apply` succeeds and every scheduled run fails at
+    "Cannot find module" — which is why this is a variable with a documented
+    default rather than a hardcoded string.
+  EOT
+  type        = string
+  default     = "node /app/agent/dist/entrypoints/cron.js"
+}
+
+# ---------------------------------------------------------------------------
+# Agent credentials
+#
+# Same rule as render_api_key at the top of this file: no defaults, no committed
+# tfvars. Supply from the environment.
+#
+#   set -a; source .env; set +a     # exports TF_VAR_ship_api_token etc.
+# ---------------------------------------------------------------------------
+
+variable "ship_api_token" {
+  description = "Ship API token (an `api_tokens` row) for the FleetGraph service account, sent as `Authorization: Bearer`. No default: the cron authenticates as a real, revocable principal, and a default would either be a placeholder that fails at runtime or a real token in a tracked file. Set TF_VAR_ship_api_token. Issue it read-only — see PRESEARCH.md Q29 on migration 038 adding `api_tokens.scopes`."
+  type        = string
+  sensitive   = true
+}
+
+variable "langchain_api_key" {
+  description = "LangSmith API key for tracing agent runs. Null (the default) disables tracing entirely — the key and LANGCHAIN_TRACING_V2 are both omitted from the cron's environment rather than set empty, because a blank key fails on the first span instead of never starting a tracer. Set TF_VAR_langchain_api_key to turn tracing on."
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
+variable "langchain_project" {
+  description = "LangSmith project the deployed cron's traces land in. Unset, LangChain uses its default project and deployed runs mix with every local experiment — which does not break tracing but makes a specific run unfindable, and MVP requirement 2 (brief p.3) asks for two shared trace links showing different execution paths. Named per environment so a local run (fleetgraph-local) and the deployed cron never collide."
+  type        = string
+  default     = "fleetgraph-prod"
+}
+
+variable "anthropic_api_key" {
+  description = "Anthropic API key for judgement and on-demand answers. Null (the default) leaves the cron with no model credential, which is what this file previously did unintentionally: PRESEARCH.md Q25 chose Bedrock expecting an ambient AWS credential chain, and Render supplies no instance role, so every judgement returned ai_unavailable and the agent could detect but never surface. Omitted rather than set empty when null, so the agent falls back to the Bedrock path and degrades honestly instead of failing on a blank key. Set TF_VAR_anthropic_api_key."
   type        = string
   sensitive   = true
   default     = null

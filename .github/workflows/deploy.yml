@@ -1,0 +1,383 @@
+# Deploy, verify, and roll back automatically when CI is not green.
+#
+# FG-236 / engineering requirement 1: "CI failure must roll the deployment back
+# automatically — a failing build never stays deployed." A documented manual procedure
+# someone follows is explicitly not sufficient, so this file is the mechanism and
+# FLEETGRAPH.md's "Rollback Trigger and Procedure" section is its description. They run
+# the SAME commands; if you change one, change the other.
+#
+# ── Why a separate workflow and not a stage in ci.yml ──────────────────────────────
+# Because half of what it has to do happens when CI FAILS, and a job inside a failed
+# workflow run cannot see the outcome of the whole run — only of the jobs it declared in
+# `needs`. `workflow_run` fires after CI finishes with `conclusion` in hand, which is the
+# only trigger that can distinguish "green, promote it" from "red, get it off the box".
+#
+# It also keeps the deploy credential out of every PR pipeline. ci.yml runs on every
+# branch and every pull request, including forks; this runs only after a CI run on the
+# default branch.
+#
+# ── The two triggers, and what each does ──────────────────────────────────────────
+#
+#   CI succeeded  →  apply this SHA, poll /health until it reports this SHA, then move
+#                    the `deploy/green` tag. If the health check never passes, roll back
+#                    to `deploy/green` and fail this workflow.
+#
+#   CI failed     →  ask the live service which SHA it is running. If that is the SHA
+#                    whose CI just failed, apply `deploy/green`. If it is something
+#                    else, do nothing — the failing commit is not deployed, so there is
+#                    nothing to undo, and re-applying would be a deploy nobody asked for.
+#
+# The second branch is the one the requirement is actually about. A commit can be live
+# and then fail CI: a flaky-looking failure re-run after the deploy, a scheduled run, a
+# dependency advisory that turns `pnpm audit` red hours later. Blocking promotion (see
+# `docker-image` in ci.yml, which needs `agent-test`) does not help once the image is
+# already running.
+#
+# ── Promote, do not rebuild ───────────────────────────────────────────────────────
+# terraform/render uses `runtime_source.image`, so a deploy is "point Render at a tag CI
+# already built, tested and pushed" and a rollback is the same command with an older
+# tag. Nothing is compiled here. That is why a rollback cannot fail the way a redeploy
+# can: the image already exists, was already tested, and already ran.
+#
+# ── What this needs before it can do anything (FG-236, unfinished half) ───────────
+# The mechanism is complete; the credentials and the state backend are not. Until they
+# exist the `armed` job below reports the workflow as DORMANT on every run, loudly, so
+# its absence is never mistaken for its working.
+#
+#   1. Repository variable RENDER_DEPLOY_ENABLED = "true"     — the arming switch
+#   2. Secret  RENDER_API_KEY        (rnd_...)                — terraform/render/providers.tf
+#   3. Secret  RENDER_OWNER_ID       (tea_... / usr_...)
+#   4. Secret  REGISTRY_USERNAME / REGISTRY_TOKEN             — ghcr.io pull credential
+#   5. Secret  SESSION_SECRET, SHIP_API_TOKEN, LANGCHAIN_API_KEY
+#   6. A REMOTE STATE BACKEND in terraform/render. There is none today — state is a
+#      local file, so a CI job starts with no knowledge of what is deployed and
+#      `terraform apply` would try to create a service that already exists. The
+#      preflight step below fails on exactly this, by name, rather than discovering it
+#      as a confusing apply error.
+#
+# Until (6) is done this workflow cannot be armed, and that is the one genuinely
+# missing piece rather than a matter of pasting in secrets.
+
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+  # Manual rollback to an arbitrary SHA, using the same code path as the automatic one.
+  # A rollback procedure that only exists inside an `if: failure()` branch is a
+  # procedure nobody can rehearse.
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Commit SHA to deploy or roll back to (40 hex chars)'
+        required: true
+        type: string
+
+concurrency:
+  # Never cancel in progress. Cancelling a rollback halfway is worse than queueing it.
+  group: deploy-render
+  cancel-in-progress: false
+
+env:
+  # The image ci.yml publishes. Kept in sync with terraform/render/variables.tf's
+  # image_repository, which has the same value as its default.
+  IMAGE_REPOSITORY: ghcr.io/joshdrochon/ship
+  GREEN_TAG: deploy/green
+  TF_DIR: terraform/render
+
+jobs:
+  # Always runs, on every CI completion, armed or not. A deploy mechanism that is
+  # switched off should say so in the run log — the failure mode this guards against is
+  # a green pipeline that everyone assumes is deploying and rolling back.
+  armed:
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - id: check
+        env:
+          ENABLED: ${{ vars.RENDER_DEPLOY_ENABLED }}
+          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          set -euo pipefail
+          if [ "${ENABLED:-}" = "true" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Deploy/rollback is ARMED. CI conclusion: ${CI_CONCLUSION:-manual}"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Deploy workflow is DORMANT"
+              echo
+              echo 'Nothing was deployed and nothing would have been rolled back.'
+              echo 'Set the repository variable `RENDER_DEPLOY_ENABLED=true` and provide'
+              echo 'the secrets listed at the top of `.github/workflows/deploy.yml`.'
+              echo
+              echo 'The blocking prerequisite is a remote state backend in'
+              echo '`terraform/render` — see item 6 in that header.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  # ── CI was green: promote this SHA, and undo it if it does not come up ──────────
+  deploy:
+    needs: armed
+    if: >-
+      needs.armed.outputs.enabled == 'true' &&
+      (github.event_name == 'workflow_dispatch' ||
+       github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # moves the deploy/green tag
+    env:
+      TARGET_SHA: ${{ github.event.inputs.image_tag || github.event.workflow_run.head_sha }}
+      TF_VAR_render_api_key: ${{ secrets.RENDER_API_KEY }}
+      TF_VAR_render_owner_id: ${{ secrets.RENDER_OWNER_ID }}
+      TF_VAR_registry_username: ${{ secrets.REGISTRY_USERNAME }}
+      TF_VAR_registry_token: ${{ secrets.REGISTRY_TOKEN }}
+      TF_VAR_session_secret: ${{ secrets.SESSION_SECRET }}
+      TF_VAR_ship_api_token: ${{ secrets.SHIP_API_TOKEN }}
+      TF_VAR_langchain_api_key: ${{ secrets.LANGCHAIN_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the deploy/green tag has to be resolvable
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      # Named prerequisite checks, before anything is touched. Each failure here says
+      # what is missing; the alternative is an apply that fails halfway with a message
+      # about a resource that already exists.
+      - name: Preflight
+        run: |
+          set -euo pipefail
+          fail=0
+
+          if ! grep -rqE '^[[:space:]]*backend[[:space:]]+"' "$TF_DIR"; then
+            echo "::error::$TF_DIR has no remote state backend. A CI apply would start" \
+                 "with empty state and try to CREATE the service that is already running." \
+                 "Add a backend block (S3, or Terraform Cloud) before arming this workflow."
+            fail=1
+          fi
+
+          for v in TF_VAR_render_api_key TF_VAR_render_owner_id TF_VAR_registry_token; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error::$v is empty — the matching repository secret is not set."
+              fail=1
+            fi
+          done
+
+          case "$TARGET_SHA" in
+            [0-9a-f]*) : ;;
+            *) echo "::error::TARGET_SHA '$TARGET_SHA' is not a commit SHA."; fail=1 ;;
+          esac
+
+          exit "$fail"
+
+      # Recorded BEFORE the apply. This is the rollback target, and reading it
+      # afterwards would read the tag this run is about to move.
+      - name: Resolve the last known good SHA
+        id: green
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/$GREEN_TAG^{commit}" >/dev/null; then
+            prev=$(git rev-parse "refs/tags/$GREEN_TAG^{commit}")
+            echo "previous=$prev" >> "$GITHUB_OUTPUT"
+            echo "Last known good: $prev"
+          else
+            # Not fatal for a deploy — the first one has nothing to roll back to. It IS
+            # fatal for the rollback path below, which says so there.
+            echo "previous=" >> "$GITHUB_OUTPUT"
+            echo "::warning::No $GREEN_TAG tag yet. This deploy has no rollback target."
+          fi
+
+      - run: terraform init -input=false
+        working-directory: ${{ env.TF_DIR }}
+
+      - name: Apply ${{ env.TARGET_SHA }}
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -input=false -auto-approve -var "image_tag=$TARGET_SHA"
+
+      # The gate. Render reports the deploy as live before the process is necessarily
+      # answering, and /health is what carries the SHA back — so this is the check that
+      # says the thing running is the thing we asked for, not merely that terraform
+      # returned 0.
+      - name: Verify /health reports ${{ env.TARGET_SHA }}
+        id: verify
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          set -euo pipefail
+          url=$(terraform output -raw service_url)
+          echo "Polling $url/health for revision $TARGET_SHA"
+          for _ in $(seq 1 60); do
+            body=$(curl -fsS --max-time 10 "$url/health" || true)
+            case "$body" in
+              *"\"revision\":\"$TARGET_SHA\""*)
+                echo "live: $body"
+                exit 0
+                ;;
+            esac
+            sleep 10
+          done
+          echo "::error::/health never reported $TARGET_SHA. Last body: ${body:-<none>}"
+          exit 1
+
+      # ── The automatic rollback ────────────────────────────────────────────────
+      # `if: failure()` covers the apply failing as well as the health check never
+      # passing, because both leave the service in a state nobody verified.
+      - name: Roll back to the last known good SHA
+        if: failure()
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          PREVIOUS: ${{ steps.green.outputs.previous }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PREVIOUS" ]; then
+            echo "::error::Deploy failed and there is no $GREEN_TAG to roll back to." \
+                 "The service is on an unverified revision. Deploy a known good SHA by hand:" \
+                 "cd $TF_DIR && terraform apply -var image_tag=<sha>"
+            exit 1
+          fi
+
+          echo "Rolling back to $PREVIOUS"
+          terraform apply -input=false -auto-approve -var "image_tag=$PREVIOUS"
+
+          url=$(terraform output -raw service_url)
+          for _ in $(seq 1 60); do
+            body=$(curl -fsS --max-time 10 "$url/health" || true)
+            case "$body" in
+              *"\"revision\":\"$PREVIOUS\""*)
+                echo "rolled back: $body"
+                exit 0
+                ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Rollback to $PREVIOUS did not come up either. Escalate."
+          exit 1
+
+      # Only after /health confirmed the new SHA. The tag is the record of what is
+      # safe to fall back to, so moving it on an unverified deploy would make the next
+      # rollback a second outage.
+      - name: Move ${{ env.GREEN_TAG }} to ${{ env.TARGET_SHA }}
+        run: |
+          set -euo pipefail
+          git tag -f "$GREEN_TAG" "$TARGET_SHA"
+          git push -f origin "refs/tags/$GREEN_TAG"
+          echo "$GREEN_TAG -> $TARGET_SHA"
+
+      - name: Summary
+        if: always()
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          {
+            echo "### Deploy"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Target | \`$TARGET_SHA\` |"
+            echo "| Previous green | \`${{ steps.green.outputs.previous }}\` |"
+            echo "| Verify | \`${{ steps.verify.outcome }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ── CI was red: if the failing commit is live, take it off ──────────────────────
+  #
+  # This is the half that makes "a failing build never stays deployed" true rather than
+  # "a failing build is never promoted", which is a weaker and easier claim.
+  rollback-on-failed-ci:
+    needs: armed
+    if: >-
+      needs.armed.outputs.enabled == 'true' &&
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion != 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
+      TF_VAR_render_api_key: ${{ secrets.RENDER_API_KEY }}
+      TF_VAR_render_owner_id: ${{ secrets.RENDER_OWNER_ID }}
+      TF_VAR_registry_username: ${{ secrets.REGISTRY_USERNAME }}
+      TF_VAR_registry_token: ${{ secrets.REGISTRY_TOKEN }}
+      TF_VAR_session_secret: ${{ secrets.SESSION_SECRET }}
+      TF_VAR_ship_api_token: ${{ secrets.SHIP_API_TOKEN }}
+      TF_VAR_langchain_api_key: ${{ secrets.LANGCHAIN_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - run: terraform init -input=false
+        working-directory: ${{ env.TF_DIR }}
+
+      # Ask the service, do not assume. The failing commit may never have been deployed
+      # — a re-run of an old pipeline, a scheduled run, a job that went red after a
+      # later commit was already promoted. Rolling back in those cases would be an
+      # unrequested deploy that undoes someone else's release.
+      - name: Is the failing commit actually live?
+        id: live
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          set -euo pipefail
+          url=$(terraform output -raw service_url)
+          body=$(curl -fsS --max-time 10 "$url/health" || true)
+          echo "GET $url/health -> ${body:-<unreachable>}"
+
+          case "$body" in
+            *"\"revision\":\"$FAILED_SHA\""*)
+              echo "affected=true" >> "$GITHUB_OUTPUT"
+              echo "::warning::$FAILED_SHA failed CI and IS the live revision. Rolling back."
+              ;;
+            *)
+              echo "affected=false" >> "$GITHUB_OUTPUT"
+              echo "The failing commit is not live. Nothing to roll back."
+              ;;
+          esac
+
+      - name: Roll back to ${{ env.GREEN_TAG }}
+        if: steps.live.outputs.affected == 'true'
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          set -euo pipefail
+          if ! git rev-parse -q --verify "refs/tags/$GREEN_TAG^{commit}" >/dev/null; then
+            echo "::error::$FAILED_SHA is live and failing, and there is no $GREEN_TAG" \
+                 "to fall back to. Deploy a known good SHA by hand."
+            exit 1
+          fi
+          prev=$(git rev-parse "refs/tags/$GREEN_TAG^{commit}")
+
+          if [ "$prev" = "$FAILED_SHA" ]; then
+            # The failing commit is itself the last recorded green one — it passed CI
+            # when it was deployed and a later run of the same SHA went red. There is no
+            # safe automatic target, and picking "the commit before" would deploy
+            # something that was never verified.
+            echo "::error::$GREEN_TAG points at the failing SHA. No automatic target." \
+                 "Choose a SHA and run this workflow with workflow_dispatch."
+            exit 1
+          fi
+
+          echo "Rolling back $FAILED_SHA -> $prev"
+          terraform apply -input=false -auto-approve -var "image_tag=$prev"
+
+          url=$(terraform output -raw service_url)
+          for _ in $(seq 1 60); do
+            body=$(curl -fsS --max-time 10 "$url/health" || true)
+            case "$body" in
+              *"\"revision\":\"$prev\""*)
+                echo "rolled back: $body"
+                echo "### Rolled back" >> "$GITHUB_STEP_SUMMARY"
+                echo "\`$FAILED_SHA\` failed CI while live; the service is now on \`$prev\`." \
+                  >> "$GITHUB_STEP_SUMMARY"
+                exit 0
+                ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Rollback to $prev did not come up. Escalate."
+          exit 1

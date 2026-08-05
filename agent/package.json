@@ -1,0 +1,49 @@
+{
+  "name": "@ship/agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "FleetGraph - project intelligence agent for Ship",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "agent:cron": "tsx src/entrypoints/cron.ts"
+  },
+  "dependencies": {
+    "@langchain/anthropic": "^1.5.2",
+    "@langchain/aws": "^1.0.0",
+    "@langchain/core": "^1.0.0",
+    "@langchain/langgraph": "^1.4.8",
+    "@langchain/langgraph-checkpoint-postgres": "^1.0.4",
+    "@ship/shared": "workspace:*",
+    "langsmith": "^0.3.0",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "11.11.0",
+    "@types/node": "22.19.5",
+    "@types/pg": "^8.11.10",
+    "@vitest/coverage-v8": "^4.0.17",
+    "tsx": "^4.19.2",
+    "typescript": "5.9.3",
+    "vitest": "^4.0.16"
+  }
+}
