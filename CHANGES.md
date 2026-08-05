@@ -1958,3 +1958,110 @@ The rehearsal. `deploy.yml` has never fired — not the deploy path, not the rol
 path. Until it has, engineering requirement 1 is wired and unproven, which is a better
 place than blocked but is not done. Today's automatic rollback remains Render's own
 health-check rollback, which is configured in `main.tf` and is real.
+
+---
+
+# The E2E suite was rate-limiting itself
+
+877 tests, ~21 minutes, 2 workers, and a steady 4–10 flaky results per run that
+moved around between specs. It was treated as a test-quality problem for months —
+fixed sleeps, missing awaits, hydration races — and some of that was real. None of
+it was the cause.
+
+`api/src/collaboration/index.ts` capped WebSocket upgrades at
+`MAX_CONNECTIONS_PER_IP: 30` per minute. Every Playwright worker connects from
+127.0.0.1, so the entire suite shared one bucket. Each test opens two sockets, one
+for `/collaboration/{type}:{id}` and one for `/events`, which puts the suite at
+roughly 80 connections a minute against a limit of 30.
+
+Past the 30th connection in any minute, the upgrade got `HTTP/1.1 429 Too Many
+Requests`. Whether that failed a test depended on whether that test happened to need
+its socket — load-dependent, non-deterministic, worse on the heavier specs. One CI
+run logged **108** of them alongside 1 failure and 8 flaky.
+
+It also explains the 3-worker experiment that was tried and reverted earlier. Going
+from 2 workers to 3 made things worse (flaky 4 → 10), which made no sense as a
+resource problem and makes complete sense as a shared-quota one: more workers, same
+IP, same 30-per-minute budget.
+
+`app.ts:114` has had `isTestEnv ? 10000` on the HTTP limiter for a long time, because
+this exact problem was hit there first and solved there. The WebSocket limiter never
+got the same treatment.
+
+## What changed
+
+`api/src/collaboration/rateLimitConfig.ts` is new — the limits, in a module with no
+imports. `collaboration/index.ts` loads the database client at module scope, so
+asserting two numbers from there needed a running Postgres. A config assertion that
+a stopped container can break is one nobody trusts.
+
+`MAX_CONNECTIONS_PER_IP` is now `isTestEnv ? 10_000 : 30`. Production is unchanged.
+
+The message limit is deliberately untouched. It is per-connection rather than per-IP,
+so parallel workers never contend for it, and a test that trips 50 messages a second
+on one socket is describing a real bug rather than a busy runner.
+
+Two genuine test bugs were fixed alongside it, in `e2e/data-integrity.spec.ts`:
+
+- `(await locator.all()).length` does not retry. `.all()` is a snapshot taken the
+  instant it runs, so after `page.reload()` — when the editor hydrates
+  asynchronously — it read one image and asserted `1 !== 2`. Replaced with
+  `expect(locator).toHaveCount(2)`, which polls.
+- `[role="listbox"]` becomes visible before its options render, so the mentions test
+  snapshotted an empty array, its `if (options.length > 0)` guard silently skipped
+  the click, and the test carried on measuring a mention it never inserted. It now
+  waits for the first option.
+
+## The regression test, and why it asserts production too
+
+`api/src/collaboration/__tests__/rate-limit-config.test.ts`. Six assertions, no
+database.
+
+Two opposite one-line regressions are both possible here, and neither breaks anything
+else in the suite:
+
+1. Delete the ternary, keep 30. The flakes return and get blamed on the tests again.
+2. Delete the ternary, keep 10,000, because it reads tidier. **Production silently
+   loses connection-flood protection and nothing reports it.**
+
+The second is the one that matters, so it is asserted explicitly against
+`NODE_ENV=production` rather than inferred.
+
+Proved against both, not asserted:
+
+```
+revert to a flat 30      → Tests  2 failed | 4 passed   expected 30 to be 10000
+raise it globally        → Tests  2 failed | 4 passed   expected 10000 to be 30
+restored                 → Tests  6 passed (6)
+```
+
+## How to run it
+
+```bash
+pnpm docker:up            # Postgres on 5433
+cd api && npx vitest run src/collaboration/
+```
+
+Note the port. `api/.env.local` says 5432, which is what makes it look like there is
+a host Postgres install. There is not — it comes from Docker on 5433, and the
+container's credentials are `ship` / `ship_dev_password`.
+
+Measured: **73 passed (73)** across the collaboration directory, `pnpm type-check`
+clean in all four packages.
+
+## How to roll it back
+
+Delete `rateLimitConfig.ts`, restore the inline `RATE_LIMIT` object and
+`RATE_LIMIT_VIOLATION_THRESHOLD` in `collaboration/index.ts`, and drop the test.
+Nothing else imports the new module. The E2E spec changes are independent and worth
+keeping either way — `toHaveCount` is correct regardless of the rate limit.
+
+## What this does not claim
+
+The flake count after this change has not been measured. The mechanism is proven —
+the arithmetic, the 108 logged 429s, and the 3-worker result that matches the
+prediction — but the number that matters is how many flakes survive, and that comes
+from the next full CI run rather than from this file.
+
+Any that remain are a different bug, and they will be a smaller and much clearer one
+now that the suite is not fighting its own rate limiter.

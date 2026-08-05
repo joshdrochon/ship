@@ -292,10 +292,12 @@ test.describe('Data Integrity - Images', () => {
 
     await page.waitForTimeout(3000)
 
-    // Get image sources
-    const imgs = await editor.locator('img').all()
-    expect(imgs.length).toBe(2)
+    // `expect(locator).toHaveCount()` polls; `(await locator.all()).length` does not.
+    // `.all()` is a snapshot taken the instant it runs, so on a busy runner it read
+    // one image, asserted 1 !== 2, and failed a suite that was working correctly.
+    await expect(editor.locator('img')).toHaveCount(2)
 
+    const imgs = await editor.locator('img').all()
     const src1 = await imgs[0].getAttribute('src')
     const src2 = await imgs[1].getAttribute('src')
 
@@ -303,9 +305,12 @@ test.describe('Data Integrity - Images', () => {
     await page.reload()
     await expect(page.locator('.ProseMirror')).toBeVisible({ timeout: 5000 })
 
-    // Verify order preserved
+    // Verify order preserved. Same reason as above, and it matters more here:
+    // after a reload the editor hydrates asynchronously, so the images are
+    // reliably absent for a moment even when they persisted correctly.
+    await expect(page.locator('.ProseMirror img')).toHaveCount(2)
+
     const reloadedImgs = await page.locator('.ProseMirror img').all()
-    expect(reloadedImgs.length).toBe(2)
 
     const reloadedSrc1 = await reloadedImgs[0].getAttribute('src')
     const reloadedSrc2 = await reloadedImgs[1].getAttribute('src')
@@ -367,6 +372,12 @@ test.describe('Data Integrity - Mentions', () => {
     await page.keyboard.type('@')
     await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 5000 })
 
+    // The listbox becomes visible before its options render, so snapshotting with
+    // `.all()` here can legitimately return an empty array. The `if` below then
+    // skipped the click silently and the test carried on measuring a mention it
+    // never inserted. Wait for an option to exist first.
+    await expect(page.locator('[role="option"]').first()).toBeVisible({ timeout: 5000 })
+
     let options = await page.locator('[role="option"]').all()
     if (options.length > 0) {
       await options[0].click()
@@ -377,6 +388,7 @@ test.describe('Data Integrity - Mentions', () => {
     await page.keyboard.type(' Second: ')
     await page.keyboard.type('@')
     await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 5000 })
+    await expect(page.locator('[role="option"]').first()).toBeVisible({ timeout: 5000 })
 
     options = await page.locator('[role="option"]').all()
     if (options.length > 1) {
