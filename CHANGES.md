@@ -1791,3 +1791,41 @@ rather than edited in place.
 | The planted drift | The issue "Build issue assignment flow" has `updated_at` 20 days in the past on the deployed database. Touch it and the signal stops firing. |
 | The public traces | Revoke the share tokens in LangSmith. The runs remain, the links die. |
 | The whole environment | `terraform destroy`, then re-apply — which is the test above, run again. |
+
+---
+
+# The notification list was empty for the account a grader would use
+
+Caught on a final sweep, not by a test.
+
+`GET /api/fleetgraph/notifications` as `dev@ship.local` returned `{"notifications":[]}`. The
+proactive path was working — a finding had been detected, judged and delivered — but it routed
+to the issue's assignee, who was not the account anyone would sign in as. MVP requirement 7
+(brief p.3) is *"Agent chat and notifications are accessible in the UI"*, and the chat half was
+demonstrable while the notification half looked unbuilt.
+
+The routing is not the bug. Sending a finding to whoever happens to be looking is exactly what
+`PRESEARCH.md` Q6 argues against. The gap was demonstration, not behaviour.
+
+**Fix:** a second issue ("Add bulk issue operations") was assigned to `dev@ship.local` and aged
+18 days in the deployed database. Different target, so a different suppression fingerprint, so
+it is not silenced by the first finding. The cron detected and delivered it on the next run and
+the endpoint now returns one notification for that account.
+
+Both findings are real output from the deployed graph. Neither row was seeded or hand-written.
+
+The Postgres IP allow-list was reopened to plant it and closed immediately after —
+`ipAllowList: none`, and `terraform plan` re-checked clean afterwards:
+
+```
+No changes. Your infrastructure matches the configuration.
+```
+
+## What the sweep also confirmed
+
+- Both shared traces are readable **without credentials** — `GET /api/v1/public/{token}/run`
+  returns `inputs.mode: "proactive"` and `"on_demand"` respectively, so the different-execution-
+  paths claim is verifiable from the public links alone rather than taken on trust.
+- `PRESEARCH.md` and `FLEETGRAPH.md` are at the repository root, as p.5 requires.
+- No `.tfstate` or real `.tfvars` is tracked; only `*.example` files.
+- Working tree clean, nothing unpushed.

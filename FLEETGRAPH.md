@@ -840,6 +840,19 @@ finding routed to the issue's assignee, not to whoever happened to be looking. A
 routing (Q6) working as designed, and worth stating because "I don't see it in the UI" reads
 like a bug until you know who it was addressed to.
 
+**A second finding was planted so the default login can see one.** Routing correctly to the
+assignee had a demonstration cost: a grader signing in as `dev@ship.local` — the obvious admin
+account, and the one in the README — got `{"notifications":[]}` and no banner, which reads as
+"notifications are not built" rather than "this finding belongs to someone else".
+
+So a second issue ("Add bulk issue operations") was assigned to that user and aged 18 days. It
+is a different target, so a different fingerprint, so it is not suppressed by the first. The
+deployed agent detected and delivered it on the next run, and `GET /api/fleetgraph/notifications`
+as `dev@ship.local` now returns one.
+
+Both findings are real output from the deployed graph against the deployed database. Neither is
+seeded, and neither is written by hand — the rows were produced by `deliver`.
+
 ## The seed mutations, in full
 
 Cases 1, 4 and 6 are one call and are complete in the table. The three that build a shape are
