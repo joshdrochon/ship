@@ -2484,3 +2484,104 @@ assertion. The suite has been reporting green on partial uploads for a long time
 in `program-mode-week-ux` that appeared in run 6 and not run 5, which makes them
 candidates for genuine timing noise rather than a sixth mechanism. None has had its
 stack trace read. That is the next step, and it is the only step that has worked.
+
+---
+
+# The deploy fired for real, and the rehearsal found the inverse hazard
+
+`RENDER_DEPLOY_ENABLED=true` after the merge, not before — `workflow_run` runs the
+copy of `deploy.yml` on the default branch, so arming first would have run main's
+version, the one still missing `TF_VAR_anthropic_api_key`.
+
+Verified on `main` rather than on the branch before flipping it:
+
+```
+TF_VAR_anthropic_api_key in deploy.yml   2   (one per job)
+backend "http" in versions.tf            1
+scripts/check-tf-secrets.sh              present
+```
+
+Then CI went green on `3d5c6c3` and the deploy job ran on its own:
+
+```
+Apply complete! Resources: 1 added, 2 changed, 0 destroyed.
+/health   7660bd8 -> 3d5c6c3
+deploy/green tag moved to 3d5c6c3, AFTER /health confirmed
+```
+
+Engineering requirement 1's automatic path has now fired rather than merely existing.
+The run also logged `No deploy/green tag yet. This deploy has no rollback target.`,
+which is correct for a first deploy and is exactly the warning the next one will not
+produce.
+
+`ANTHROPIC_API_KEY` is present on both the web service and the cron after the
+automated apply. That was the specific thing arming could have destroyed, and it is
+the reason `check-tf-secrets.sh` exists.
+
+## What the rehearsal exposed
+
+`1 added` was `render_registry_credential.ghcr[0]` — a count-gated resource that CI
+creates because it supplies `TF_VAR_registry_username` and `TF_VAR_registry_token`.
+Chasing that led to a worse finding.
+
+A local `terraform plan` after the deploy wanted to change the web service. The diff
+was `env_vars`, and the cause was that `.env` had never contained
+`ANTHROPIC_API_KEY` or `SHIP_API_TOKEN`. `variables.tf` defaults both to null, and
+null means *remove this variable from the running service*.
+
+So the hazard fixed in CI existed in the opposite direction on the laptop: anyone
+running `terraform apply` locally would have stripped the model credential off a
+healthy production deployment. Service up, `/health` green, every judgement
+returning `ai_unavailable`. `check-tf-secrets.sh` guards `deploy.yml`; nothing
+guarded a shell.
+
+Two changes:
+
+- Both values copied from live Terraform state into `.env`, which is gitignored
+  (`.gitignore:12`). No value was printed at any point.
+- `scripts/tf-env.sh` now lists `TF_VAR_anthropic_api_key`, `TF_VAR_ship_api_token`
+  and `TF_VAR_langchain_api_key` among the values it refuses to stay quiet about.
+
+Proof the drift is closed — the same command that wanted a change now does not:
+
+```
+before   Plan: 0 to add, 1 to change, 0 to destroy.   (env_vars)
+after    No changes. Your infrastructure matches the configuration.
+```
+
+## A bug in the helper, found by using it
+
+`tf-env.sh` used `${!name}` for indirect expansion. That is bash syntax; zsh spells
+it `${(P)name}`, and neither accepts the other. The file carries a bash shebang, but
+it is **sourced**, so it runs in whatever interactive shell the user has — zsh here.
+It had never actually been executed until now, and the first run said
+`bad substitution`.
+
+Replaced with `eval "value=\${$name:-}"`, the one form both shells accept. Verified
+under both:
+
+```
+$ . scripts/tf-env.sh          # zsh
+tf-env: all required values present.
+$ bash -c '. scripts/tf-env.sh'
+tf-env: all required values present.
+```
+
+A helper whose whole purpose is to prevent a silent misconfiguration should not
+itself fail silently on a different shell.
+
+## How to test it
+
+```bash
+. scripts/tf-env.sh
+cd terraform/render && terraform plan -var image_tag=$(
+  curl -s https://shipshape-7buc.onrender.com/health | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).revision')
+```
+
+Expect `No changes.` Anything else means local and deployed have diverged.
+
+## How to roll it back
+
+Remove the three names from the loop in `tf-env.sh` and revert the `eval`. The `.env`
+additions are local-only and untracked. Nothing about the running infrastructure
+changes either way.
