@@ -2673,3 +2673,118 @@ job sat broken for so long. A daemon does not need privileged mode; it needs a
 socket, and the runner had mounted one the whole time. The wrong reason made the
 problem look like a runner permission nobody controlled instead of a service
 definition anybody could delete.
+
+---
+
+# Six trace links, and two rows that disagreed with the table
+
+The Early Submission deliverable is two FLEETGRAPH.md sections. Architecture Decisions
+has been written since `FG-250`–`FG-254`. Test Cases had its Ship-state and
+expected-output columns filled and its trace column empty, with `<!-- TODO -->` in all
+six cells.
+
+## Why it stayed empty, and what was actually needed
+
+Two earlier notes explained the emptiness: first "no AWS credentials on this machine",
+then "the deployed database sits behind an IP allow-list". Both were true. Neither was
+the reason, which was that nobody had checked what the requirement asks for.
+
+Brief p.9: *"the LangSmith trace link from a run against that state."* It says nothing
+about the deployed instance. That matters, because the deployed route is the one that
+sounds better and is worse:
+
+- It means opening a production database to an inbound IP — measured today,
+  `ipAllowList: []` on `dpg-d9p789cs…`, our egress `162.206.172.65`, connection
+  rejected in 279 ms.
+- It is not repeatable. `fleetgraph_observations` is unique on
+  `(workspace_id, fingerprint)`, so every recapture needs freshly planted production
+  targets.
+
+Requirement 2's "different execution paths under different conditions" is a separate
+claim and is met separately, by the two deployed traces already in the document.
+
+Also found while checking: `.env`'s `RENDER_DATABASE_URL_EXTERNAL` points at
+`dpg-d9kk5ea…`, a database destroyed in the teardown. The live one is `dpg-d9p789cs…`.
+
+## What was built
+
+`agent/scripts/capture-test-case-traces.ts`. Testcontainers Postgres loading
+`schema.sql` and every migration, each case in its own workspace so none can suppress
+another, the real assembled graph, the real detectors, and the real model —
+`{"provider":"anthropic","model":"claude-opus-4-5-20251101","mocked":false}`, printed
+before it starts. Only the Ship API is faked. It shares each run through the LangSmith
+API and prints a markdown table.
+
+Two bugs in it, both found by running it:
+
+- The project was looked up before the first run. LangSmith creates a project lazily
+  on its first trace, so a clean account fails with `no LangSmith project named …` —
+  which reads as a configuration error rather than an ordering one. Now resolved after
+  the first case.
+- `PUT /runs/{id}/share` 404s on a run that the query endpoint has already returned.
+  It is not "no such run", it is "not yet". Case 1 won that race and case 2 lost it.
+  Now retried.
+
+## The results
+
+All six live and public, verified `200`:
+
+| # | Use case | Nodes | Outcome |
+|---|---|---|---|
+| 1 | Stalled work | 10 | as predicted, `execute_autonomous → deliver` |
+| 2 | Sprint-miss risk | 10 | as predicted — but see below |
+| 3 | Load imbalance | 9 | as predicted, `route_action → __interrupt__`, the human gate |
+| 4 | Review bottleneck | 10 | as predicted, `execute_autonomous → deliver` |
+| 5 | Rework churn | 8 | **diverged** — `judge_signals → close_quiet` |
+| 6 | On-demand answer | 5 | as predicted, `compose_answer`, no execute node reachable |
+
+## Row 5 is the interesting one
+
+Predicted `deliver`. Observed `close_quiet`.
+
+The `rework_churn` signal was measured and passed the triage gate — that is what put
+`judge_signals` on the path. The real model then decided it was not worth surfacing, C3
+routed quiet, and the watermark advanced with nothing delivered.
+
+That is the graph working. C3 exists so a crossed threshold is not automatically a
+message to a human. The expected-output column was written from the detector's point of
+view and assumed judgment would agree.
+
+Every regression test to date injects a fake judge that surfaces everything, so they
+assert routing and structurally cannot assert this. Row 5 is the first evidence of what
+the real judge does with a marginal signal: it stays quiet.
+
+Left in the table as a divergence rather than re-run until it agreed. A table that only
+shows agreement is not evidence.
+
+## Row 2 runs against a state Ship cannot produce
+
+The trace is real and the path is as predicted. `sprintMissRisk.ts:61` filters on
+`s.properties->>'end_date' IS NOT NULL`, and Ship never writes that field —
+`documents.ts:87` computes `start_date` and `end_date` from `sprint_number` at read
+time. The detector passes every test it has because `fixtures.ts:120` writes `end_date`
+directly.
+
+Green in CI, green in the trace, dead against a real workspace. Named in the table so a
+reader comparing it to a running deployment does not conclude something subtler is
+wrong.
+
+The fix is a real choice and is not made: compute the window the way `documents.ts`
+does, or persist `end_date` on write and backfill. First keeps one source of truth and
+costs a more complex query; second denormalises.
+
+## How to run it
+
+```bash
+set -a && . .env && set +a
+LANGCHAIN_PROJECT=fleetgraph-testcases \
+  pnpm --filter @ship/agent exec tsx scripts/capture-test-case-traces.ts
+```
+
+Six model calls. Prints a markdown table of public links.
+
+## How to roll it back
+
+Delete the script and restore the `<!-- TODO -->` comments in the trace column. The
+shared traces stay shareable; unsharing is a separate LangSmith call. Nothing about the
+running system changes either way.

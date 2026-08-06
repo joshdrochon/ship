@@ -322,15 +322,15 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 ## M9 · Observability
 
 - [x] **FG-176** LangSmith env vars — `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`
-- [ ] **FG-177** Add LangSmith key to `.env` (never committed) and to Terraform as a secret var
-- [ ] **FG-178** Verify traces appear for a local proactive run
-- [ ] **FG-179** Verify traces appear for a local on-demand run
+- [x] **FG-177** Add LangSmith key to `.env` (never committed) and to Terraform as a secret var
+- [x] **FG-178** Verify traces appear for a local proactive run
+- [x] **FG-179** Verify traces appear for a local on-demand run
 - [x] **FG-180** Name graph nodes so traces are readable
-- [ ] **FG-181** **Capture trace link 1** — quiet run terminating at `triageGate`, zero tokens
-- [ ] **FG-182** **Capture trace link 2** — full run reaching an action, human gate hit
-- [ ] **FG-183** Confirm the two traces show visibly different paths (MVP requirement 2)
-- [ ] **FG-184** Make both trace links shareable/public
-- [ ] **FG-185** Record both links in `FLEETGRAPH.md`
+- [x] **FG-181** **Capture trace link 1** — quiet run terminating at `triageGate`, zero tokens
+- [x] **FG-182** **Capture trace link 2** — full run reaching an action, human gate hit
+- [x] **FG-183** Confirm the two traces show visibly different paths (MVP requirement 2)
+- [x] **FG-184** Make both trace links shareable/public
+- [x] **FG-185** Record both links in `FLEETGRAPH.md`
 
 ## M10 · Deployment
 

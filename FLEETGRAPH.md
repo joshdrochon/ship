@@ -35,7 +35,7 @@ behaviour that has not been verified against the tree.
 | `render_cron_job` in Terraform | **Applied and running**, `*/3 * * * *`, same image and tag as the web service | `terraform/render/cron.tf`, `terraform/render/PLAN-ANNOTATED.md` |
 | Dockerfile builds `agent/` | **Yes**, and fails the build if `agent/dist/entrypoints/cron.js` is absent | `Dockerfile:44`, `:58`, `:110` |
 | LangSmith tracing | **Enabled in production.** Project `fleetgraph-prod`, 50+ runs; `logTracingStatus()` still warns on the quiet misconfigurations | `agent/src/observability/tracing.ts`, `terraform/render/cron.tf` |
-| LangSmith trace links | **Two captured and public** — a quiet proactive run and an on-demand answer, both from the deployed agent | "Traces from the deployed agent" below |
+| LangSmith trace links | **Eight captured and public** — one per use case from `capture-test-case-traces.ts`, plus two from the deployed agent | Test Cases table, and "Traces from the deployed agent" |
 | CI deploy / automatic rollback | **Written, not armed.** `deploy.yml` has `deploy` and `rollback-on-failed-ci`; both sit behind `vars.RENDER_DEPLOY_ENABLED`, blocked on a remote state backend | `.github/workflows/deploy.yml`, `FG-236` |
 
 Verified against `83aa33c`: `agent/` runs **162 tests in 19 files, all passing** (`npx vitest run`
@@ -738,35 +738,89 @@ business days, and no seeded sprint is two days from its end with unstarted work
 therefore constructs its condition. "Make an issue stale" is not reproducible;
 `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20 })` is.
 
-**The trace links below are still empty, and no placeholder is written.** A fabricated or dead
-link would read as satisfied, which is worse than an empty cell.
+**Every trace below is a real run, and the column used to be empty.** Two earlier versions of
+this paragraph explained why it was empty — first "no AWS credentials on this machine", then
+"the deployed database sits behind an IP allow-list". Both were true when written. Neither was
+the reason it stayed empty, which was that nobody had asked what the requirement actually
+needs.
 
-The reason has changed, though, and the old one is worth correcting rather than quietly
-editing away. This paragraph used to say the blocker was "no AWS credentials on this machine".
-That was true and it was also not the whole truth: `terraform/render/*.tf` declared no AWS
-environment variables either, so the *deployed* agent had no model access. The provider has
-since moved to the direct Anthropic API and the deployed agent judges for real — see
-"Traces from the deployed agent" below.
+Brief p.9 asks for *"the LangSmith trace link from a run against that state"*. It does not ask
+for a run on the deployed instance. That distinction is worth stating plainly, because the
+deployed route is the one that sounds better and is worse: it means opening a production
+database to an inbound IP for a documentation task, and it is not repeatable — suppression is
+unique on `(workspace_id, fingerprint)`, so every recapture needs freshly planted targets in
+production.
 
-What is still missing is narrower. Rows 1–5 describe *planted* Ship states, and Ship's seed
-data triggers none of them: no seeded issue has sat in `in_progress` for five business days,
-and no seeded sprint carries an `end_date` at all (see the note under row 2). Producing those
-traces means writing that state into the deployed database, which needs a route through
-Render's Postgres IP allow-list that does not exist yet. Row 6 no longer needs one and is
-covered below.
+So these come from `agent/scripts/capture-test-case-traces.ts`, which anyone can rerun. Real
+assembled graph, real detectors, real Anthropic model —
+`{"provider":"anthropic","model":"claude-opus-4-5-20251101","mocked":false}`, printed by the
+script before it starts — against a real Postgres provisioned by testcontainers loading
+`schema.sql` and every migration. Each case gets its own workspace so no case can suppress or
+contaminate another. Only the Ship API is faked, which is engineering requirement 3.
 
-**None of these are runs of the deployed agent.** They run the assembled graph and the real
-detectors against a real Postgres provisioned by testcontainers, loading `schema.sql` and every
-migration, with the LLM injected as a fake — which is what engineering requirement 3 asks for.
+**Requirement 2's "different execution paths" is a separate claim and is met separately**, by
+the two deployed traces under "Traces from the deployed agent" below. The six here demonstrate
+that each use case does what this table says it does; those two demonstrate the graph behaving
+differently under different conditions in production.
+
+**Row 5 did not do what this table predicted, and the row says so.** That is the honest result
+of running the real judge instead of a fake that surfaces everything, and it is the C3 edge
+doing its job: measured is not the same as worth saying.
 
 | # | Use case | Ship state — seed mutation | Expected output | Trace |
 |---|---|---|---|---|
-| 1 | Stalled work | `createIssue(pool, ws, { state: 'in_progress', assigneeId: dev, updatedDaysAgo: 20 })` | One `stalled_work` signal · `targetType: 'issue'` · `measurement` = business days idle, ≥ `threshold` 5 · `accountableUserId` = the assignee. Action class `additive`/`comment`, so C4 routes **autonomous** → `execute_autonomous` → `deliver`, `outcome: 'delivered'` | <!-- TODO(FG-181, FG-222): no run against a real provider; no AWS credentials on this machine --> |
-| 2 | Sprint-miss risk | `createSprint(pool, ws, { endsInDays: 1, ownerId: owner })`, then 4× `createIssue(pool, ws, { state: 'todo' \| 'backlog', updatedDaysAgo: 0 })` + `attachToSprint` | **One** `sprint_miss_risk` signal for the sprint, not four for the issues · `targetType: 'sprint'` · `measurement` = 4 unstarted · `threshold` 2 (business days left) · `accountableUserId` = the sprint owner. `additive`/`comment` → autonomous | <!-- TODO(FG-181, FG-223): not captured --> |
-| 3 | Load imbalance | `createSprint(pool, ws, { endsInDays: 10, ownerId })`, then three people holding 1, 1 and 8 `in_progress` issues, all `updatedDaysAgo: 0`, each `attachToSprint` | One `load_imbalance` signal · `targetId` = the **sprint** · `measurement` 8 · `context.team_median` 1 · `context.team_size` 3 · `accountableUserId` = the sprint owner, **never** the overloaded person. The only signal typed `mutation`/`reassign`, so C4 routes **gated** → `await_approval`, `outcome: 'awaiting_approval'` | <!-- TODO(FG-182, FG-224): not captured --> |
-| 4 | Review bottleneck | `createIssue(pool, ws, { state: 'in_review', assigneeId, updatedDaysAgo: 12 })` | One `review_bottleneck` signal · `threshold` 2 · `context.reviewer_known` = `0`, set so the prompt cannot imply the recipient is the blocker · `accountableUserId` = the assignee, which is the caveat this detector ships with | <!-- TODO(FG-181, FG-225): not captured --> |
-| 5 | Rework churn | `createProject(pool, ws, { ownerId: owner })`, then 3× (`createIssue(… updatedDaysAgo: 0)` + `attachToProject` + `recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3)`) | **One** `rework_churn` signal for the project, not three for the issues · `targetType: 'project'` · `measurement` 3 · `threshold` 2 · `context.lookback_days` 30 · `accountableUserId` = the project owner. `additive`/`comment` → autonomous | <!-- TODO(FG-181, FG-226): not captured --> |
-| 6 | On-demand contextual answer | `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20, assigneeId })` + `recordStateChange(pool, issueId, 'todo', 'in_progress', ws.ownerId, 21)`, then invoke with `mode: 'on_demand'` and `scope: { workspaceId, documentId: issueId, documentType: 'issue' }`, one user message | Path is `trigger_router → resolve_scope → on_demand_fetch_signals ‖ on_demand_fetch_participants → compose_answer → END`, `outcome: 'answered'`. **No execute node is visited** — the action-client call count stays 0 and the answer call count is 1. The answer node is asserted to have received *that* `documentId` and the measured signals, and `recentHistory[].field` carries the real field name | <!-- TODO(FG-182, FG-227): not captured --> |
+| 1 | Stalled work | `createIssue(pool, ws, { state: 'in_progress', assigneeId: dev, updatedDaysAgo: 20 })` | One `stalled_work` signal · `targetType: 'issue'` · `measurement` = business days idle, ≥ `threshold` 5 · `accountableUserId` = the assignee. Action class `additive`/`comment`, so C4 routes **autonomous** → `execute_autonomous` → `deliver`, `outcome: 'delivered'` | [**path as predicted** — 10 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/1a0a0edf-8d72-430c-92fe-ebffe9194de7/r) |
+| 2 | Sprint-miss risk | `createSprint(pool, ws, { endsInDays: 1, ownerId: owner })`, then 4× `createIssue(pool, ws, { state: 'todo' \| 'backlog', updatedDaysAgo: 0 })` + `attachToSprint` | **One** `sprint_miss_risk` signal for the sprint, not four for the issues · `targetType: 'sprint'` · `measurement` = 4 unstarted · `threshold` 2 (business days left) · `accountableUserId` = the sprint owner. `additive`/`comment` → autonomous | [**path as predicted** — 10 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/11e2bd90-42c8-4375-9acf-b5a84f63e26b/r) · but see the note below: this state cannot occur in production |
+| 3 | Load imbalance | `createSprint(pool, ws, { endsInDays: 10, ownerId })`, then three people holding 1, 1 and 8 `in_progress` issues, all `updatedDaysAgo: 0`, each `attachToSprint` | One `load_imbalance` signal · `targetId` = the **sprint** · `measurement` 8 · `context.team_median` 1 · `context.team_size` 3 · `accountableUserId` = the sprint owner, **never** the overloaded person. The only signal typed `mutation`/`reassign`, so C4 routes **gated** → `await_approval`, `outcome: 'awaiting_approval'` | [**path as predicted** — 9 nodes, ends `route_action → __interrupt__`, the human gate](https://smith.langchain.com/public/8a28789c-25a4-4946-8ac8-4c3410e26109/r) |
+| 4 | Review bottleneck | `createIssue(pool, ws, { state: 'in_review', assigneeId, updatedDaysAgo: 12 })` | One `review_bottleneck` signal · `threshold` 2 · `context.reviewer_known` = `0`, set so the prompt cannot imply the recipient is the blocker · `accountableUserId` = the assignee, which is the caveat this detector ships with | [**path as predicted** — 10 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/7ca617b0-00d7-4889-9eb1-c443d7139fe7/r) |
+| 5 | Rework churn | `createProject(pool, ws, { ownerId: owner })`, then 3× (`createIssue(… updatedDaysAgo: 0)` + `attachToProject` + `recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3)`) | **One** `rework_churn` signal for the project, not three for the issues · `targetType: 'project'` · `measurement` 3 · `threshold` 2 · `context.lookback_days` 30 · `accountableUserId` = the project owner. `additive`/`comment` → autonomous | [**diverged** — 8 nodes, ends `judge_signals → close_quiet`](https://smith.langchain.com/public/3c5224a3-f647-403e-b9d7-dc5b698868b3/r). The detector fired; the real judge declined to surface it. See below |
+| 6 | On-demand contextual answer | `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20, assigneeId })` + `recordStateChange(pool, issueId, 'todo', 'in_progress', ws.ownerId, 21)`, then invoke with `mode: 'on_demand'` and `scope: { workspaceId, documentId: issueId, documentType: 'issue' }`, one user message | Path is `trigger_router → resolve_scope → on_demand_fetch_signals ‖ on_demand_fetch_participants → compose_answer → END`, `outcome: 'answered'`. **No execute node is visited** — the action-client call count stays 0 and the answer call count is 1. The answer node is asserted to have received *that* `documentId` and the measured signals, and `recentHistory[].field` carries the real field name | [**path as predicted** — 5 nodes, ends `compose_answer`, no execute node reachable](https://smith.langchain.com/public/66025ec9-adc4-4d9c-b734-fb1be0b65dbe/r) |
+
+## What the six runs disagreed with, and why that is left in
+
+Two rows did not behave the way the "Expected output" column predicts. Both are recorded
+rather than smoothed over, because a table that only shows agreement is not evidence of
+anything.
+
+### Row 5 — the detector fired and the judge declined
+
+Predicted: `additive`/`comment` → autonomous → `deliver`.
+Observed: `judge_signals → close_quiet`, 8 nodes.
+
+The `rework_churn` signal was measured and passed the triage gate — that is what put
+`judge_signals` on the path at all. The model then decided it was not worth surfacing, so C3
+routed quiet and the watermark advanced with nothing delivered.
+
+This is the graph working. C3 exists precisely so a measured threshold is not automatically a
+message to a human, and `FLEETGRAPH.md`'s own use-case section argues that three
+done→in_progress transitions in thirty days on a small project is weak evidence of churn. The
+expected-output column was written from the detector's point of view and assumed judgment
+would agree with it.
+
+What it means practically: the earlier regression tests inject a fake judge that surfaces
+everything, so they assert routing and cannot assert this. Row 5 is the first evidence of what
+the *real* judge does with a marginal signal, and the answer is that it stays quiet.
+
+### Row 2 — the trigger state cannot occur in production
+
+The trace is real and the path is as predicted. The state it ran against is not one Ship can
+produce.
+
+`agent/src/detectors/sprintMissRisk.ts:61` filters on `s.properties->>'end_date' IS NOT NULL`.
+Ship never writes that field: `api/src/routes/documents.ts:87` computes `start_date` and
+`end_date` from `sprint_number` and the workspace's `sprint_start_date` at read time, and the
+note in the source says so. The detector passes every test it has because
+`agent/src/detectors/fixtures.ts:120` writes `end_date` into `properties` directly.
+
+So this use case is green in CI, green in the trace above, and dead against a real workspace.
+Naming it here rather than in a backlog ticket, because a reader comparing this table to a
+running deployment would otherwise conclude the detector is broken in some subtler way.
+
+The fix is a choice between two things, and it is not made yet: teach the detector to compute
+the window the same way `documents.ts` does, or persist `end_date` on write. The first keeps
+one source of truth and costs a more complex query; the second denormalises and needs a
+backfill for existing sprints.
+
 
 ## Traces from the deployed agent
 
@@ -1508,6 +1562,6 @@ argument for re-reading this table against the tree rather than trusting it.
 
 | Section | Due | State |
 |---|---|---|
-| Test Cases — Ship state, expected output, trace link, per use case | Early Submission | **Written.** `FG-221`–`FG-228`. The trace-link column is empty and says why |
+| Test Cases — Ship state, expected output, trace link, per use case | Early Submission | **Complete.** All six rows carry a live public trace. Two rows diverged from their predicted output and say so |
 | Architecture Decisions — framework, node design, state management, deployment | Early Submission | **Written.** `FG-250`–`FG-254` |
 | Cost Analysis — development spend, production projections at 100 / 1,000 / 10,000 users | Final Submission | Not started. `FG-260`–`FG-264` |
