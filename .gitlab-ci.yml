@@ -363,30 +363,42 @@ e2e:
   # Non-blocking HERE, and blocking on GitHub. The job still runs, still reports, and its
   # artifacts are still published — it just does not gate a merge on this runner.
   #
-  # Why: 27 of the 30 tests that fail here are file or image uploads whose file chooser
-  # never opens, and the same suite passes on GitHub with 0 failures. Measurement ruled out
-  # parallelism (4, 2 and 1 worker are identical), memory (1 worker leaves headroom), the
-  # job timeout (raised to 150m) and the browser build (Chromium 143.0.7499.4,
-  # byte-identical on both platforms).
+  # Why: 27 tests fail here that pass on GitHub. This comment has been wrong twice about
+  # them and both corrections are worth keeping, because each wrong version pointed the
+  # next investigation at the wrong layer.
   #
-  # "Roughly five times slower per test" used to be here as the explanation and it is
-  # wrong -- see the timeout comment above for the per-spec numbers. Compared worker-for-
-  # worker against GitHub on the same commit, this runner is faster on every spec file
-  # measured. It is a 10-core arm64 laptop running arm64 images natively; `uname -m` is
-  # arm64, Docker reports aarch64, and node:22-bookworm reports arm64, so there is no
-  # emulation to blame either. What made the job long was 27 tests waiting out a 60 s
-  # timeout three times each, and that is now bounded at 10 s.
+  # Wrong #1 -- "roughly five times slower per test". Compared worker-for-worker against
+  # GitHub on the same commit, this runner is FASTER on every spec file measured. It is a
+  # 10-core arm64 laptop running arm64 images natively; `uname -m` is arm64, Docker
+  # reports aarch64, node:22-bookworm reports arm64, so there is no emulation either.
   #
-  # The cause of the upload failures is still NOT identified. A user-activation theory
-  # (the File command awaits a dynamic import before `input.click()`) was checked and does
-  # not hold: the Image command clicks synchronously and its tests fail too, and the chunk
-  # is served from localhost in milliseconds here. Nothing measured implicates the deployed
-  # application. Recorded in SUBMISSION.md.
+  # Wrong #2 -- "27 tests whose file chooser never opens". It is 13, all of them in
+  # file-attachments.spec.ts, all driven by the `/file` command. Counted directly: the
+  # string `waiting for event "filechooser"` appears 39 times in job 61094 = 13 x 3
+  # attempts. The other 14 DO get a chooser and fail afterwards, when the file never
+  # reaches the editor. Two failure modes, merged into one number, so every theory had to
+  # explain a symptom half of them did not have.
   #
-  # The framing: E2E blocks merges where it can be trusted to mean something, and reports
-  # without blocking where the runner cannot support it. Deleting the job would have hidden
-  # the result; leaving it blocking would have gated merges on a failure nobody has
-  # explained.
+  # The cause is in the APPLICATION, not in this file. `Editor.tsx` captured
+  # `imageUploadAbortRef.current.signal` inside a useMemo; the collaboration effect swaps
+  # that controller in its cleanup. React runs useMemo in the render phase and the
+  # previous cleanup in the commit phase -- render first -- so the memo always held the
+  # controller about to be aborted, and its deps do not change when the ref is swapped.
+  # `/file` checks `signal?.aborted` BEFORE creating the input (no chooser at all);
+  # `/image` clicks first and checks inside `reader.onload` (chooser opens, file dropped).
+  # That asymmetry is exactly the observed split. Fixed by reading the signal at command
+  # time -- see `getAbortSignal` in web/src/components/editor/SlashCommands.tsx.
+  #
+  # Ruled out by measurement, so nobody re-runs them: parallelism (4, 2 and 1 worker are
+  # identical), memory (1 worker leaves headroom), job timeout (raised to 150m), browser
+  # build (Chromium 143.0.7499.4, byte-identical on both platforms), and /dev/shm -- the
+  # runner does give the job Docker's default 64 M, but a standalone probe in the same
+  # image fired `filechooser` for sync clicks, post-`await import()` clicks and post-task
+  # clicks. The user-activation theory is dead with it.
+  #
+  # STILL allow_failure: true, deliberately. The fix above is believed to be the cause but
+  # has not yet been observed green on this runner, and flipping the gate on a belief is
+  # how the two wrong claims above survived so long. Flip it after one clean run here.
   allow_failure: true
 
 # ---------------------------------------------------------------------------

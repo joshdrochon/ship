@@ -142,7 +142,23 @@ const CASES: Case[] = [
     build: async (pool, ws) => {
       const owner = await createUser(pool, `owner-${ws.workspaceId}@ship.local`, 'Owner');
       const project = await createProject(pool, ws, { ownerId: owner });
-      for (let i = 0; i < 3; i++) {
+      // Nine, not three. The first capture seeded three against a threshold of two and
+      // the judge declined to surface it — correctly. JUDGE_SYSTEM_PROMPT says to set
+      // worth_surfacing false when "the measurement is only marginally past its
+      // threshold and nothing else in the batch makes it urgent", and three-against-two
+      // alone in a batch is exactly that sentence. The case was written weaker than the
+      // bar it was being judged against, so it tested the prompt rather than the
+      // detector.
+      //
+      // Nine is 4.5x REWORK_CHURN_REOPENS and lands in countBucket's '9+' rather than
+      // '3-4', so the fingerprint differs from the earlier run and suppression cannot
+      // silence the re-capture even in a shared workspace.
+      //
+      // Nothing else wakes up at this size: the issues are updatedDaysAgo 0 so
+      // stalledWork's 5-day rule cannot fire, none are in_review, and there is no sprint
+      // for loadImbalance or sprintMissRisk to attach to. The batch stays one signal,
+      // which is what the row claims.
+      for (let i = 0; i < 9; i++) {
         const id = await createIssue(pool, ws, { updatedDaysAgo: 0 });
         await attachToProject(pool, id, project);
         await recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3);

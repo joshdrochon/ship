@@ -2991,3 +2991,130 @@ Revert the helper and the call sites. `page.waitForEvent('filechooser')` is the 
 string that was replaced, in `data-integrity`, `file-attachments`, `images`,
 `race-conditions` and `security`; `performance.spec.ts` had `{ timeout: 45000 }`.
 Nothing about the application changes either way — this is test-side only.
+
+---
+
+# The upload failures were ours, and the 27 was two numbers
+
+Three things closed tonight: the two Test Cases rows that did not do what the table
+said, and the cause of the GitLab upload failures. The last one corrects this file
+twice over.
+
+## Row 5 — the case was written weaker than the bar it was judged against
+
+The seed planted three reopened issues against `REWORK_CHURN_REOPENS: 2`, alone in the
+batch. `JUDGE_SYSTEM_PROMPT` says to set `worth_surfacing` false when the measurement is
+only marginally past its threshold and nothing else in the batch makes it urgent. Three
+against two, alone, is that sentence almost word for word — so the case was testing the
+prompt's marginality rule, not the detector.
+
+Nine now: 4.5× the threshold, and in `countBucket`'s `9+` rather than `3-4`, so the
+fingerprint differs from the first capture and suppression cannot silence the recapture.
+Nothing else wakes up at that size. The row now ends `execute_autonomous → deliver`.
+
+## Row 2 — a fixture and a detector agreeing on a field Ship never writes
+
+`sprintMissRisk` filtered on `properties->>'end_date'`. Ship stores `sprint_number`;
+dates are computed, and `weeks.ts:185` says on the **frontend**. `computeSprintDates`
+(`WeekTimeline.tsx:20`) is the whole formula: `start = sprint_start_date +
+(sprint_number - 1) × 7`, `end = start + 6`.
+
+Now computed in SQL from those two columns, via `CASE` rather than a regex guard beside
+the cast — Postgres does not promise `WHERE` evaluation order, so the guard could not be
+relied on to run first. The fixture writes what `weeks.ts` writes and no dates at all.
+The regression test inserts a sprint by hand the way Ship inserts one.
+
+    detectors    53 → 56 passed
+    agent suite  174 → 186 passed  (escalation adds 9 more)
+
+## Escalation — designed since the start, unimplemented until now
+
+`escalation_count` existed from migration 038; nothing incremented it. It is now a graph
+node between `resolve_scope` and the proactive fan-out. Not inside `deliver`, for two
+independent reasons: a finding old enough to escalate is in the suppression set, so
+`triage_gate` removes it first; and `deliver` does not run on a quiet run, which is
+exactly when an unanswered finding needs escalating.
+
+One hop enforced by compare-and-set — `UPDATE … WHERE escalation_count = 0 RETURNING id`
+with the notification insert selecting from that CTE. A transaction was not available:
+`Queryable` is satisfied by a `Pool`, so `BEGIN`/`COMMIT` can land on different
+connections. Two statements come apart in both directions — crash after the increment
+loses the escalation, crash after the insert double-hops.
+
+FLEETGRAPH.md claimed escalation *stops at the project owner*. That guard never existed
+and cannot be written as stated; nothing marks a person as project owner in a way one hop
+can check. The sentence is removed rather than faked. "At most once" is the real bound.
+
+## The GitLab upload failures — an app bug, and this file was wrong about them twice
+
+**Wrong #1**, corrected earlier tonight: "roughly 6× is the honest ratio", attached to
+hardware. The runner is faster than GitHub's worker-for-worker.
+
+**Wrong #2**, corrected now: "27 tests whose file chooser never opens." It is **13**, all
+in `file-attachments.spec.ts`, all the `/file` command. Counted directly — `waiting for
+event "filechooser"` appears 39 times in job 61094, which is 13 × 3 attempts. The other
+14 **do** get a chooser and fail afterwards. Two failure modes reported as one number, so
+every theory had to explain a symptom half of them did not have.
+
+The decisive measurement: in that same job, on that same runner,
+`features-real.spec.ts:257` drove the same `/file` command to a working chooser in 6.6 s.
+The runner was never the variable.
+
+### The cause
+
+`Editor.tsx` captured `imageUploadAbortRef.current.signal` inside a `useMemo`. The
+collaboration effect swaps that controller in its cleanup. **React runs `useMemo` in the
+render phase and the previous cleanup in the commit phase — render first.** So the memo
+always held the controller about to be aborted, and `documentId` in the deps did not
+save it: the ref is swapped on every teardown of an effect with eight deps.
+
+The split falls straight out of where each command checks:
+
+| | check | symptom |
+|---|---|---|
+| `/file` | `if (signal?.aborted) return` **before** creating the input | no input, no click, no `filechooser` event at all |
+| `/image` | `input.click()` first, check inside `reader.onload` | chooser opens, file silently dropped |
+
+This is user-facing, not a test artifact: after any teardown, for the life of that
+document, `/file` is dead and `/image` eats the upload. Fixed by passing
+`getAbortSignal: () => imageUploadAbortRef.current.signal` and resolving it at command
+time.
+
+### Also dead, by measurement
+
+`/dev/shm` is Docker's default 64 M on this runner — the config fact is real, the theory
+is not. A standalone probe in `node:22-bookworm` arm64 at 64 M fired `filechooser` for
+sync clicks, post-`await import()` clicks and post-task clicks. The user-activation
+variant dies with it. `"user activation"` appears zero times in the job log.
+
+## What the 10-second bound actually bought
+
+    job          79.7 min  →  55.6 min
+    file-attach  39.7 min  →   9.2 min   (61.2 → 14.2 s/test)
+    everything else                       flat
+
+I predicted ~40 minutes. That assumed all 27 failures were chooser timeouts — the same
+conflation corrected above. Only 13 were. The other 14 never touched a 60-second timeout,
+so bounding it could not help them; the `AbortSignal` fix is what should.
+
+**`allow_failure: true` stays on GitLab's `e2e`.** The fix is believed to be the cause and
+has not been observed green on that runner. Flipping a gate on a belief is how both wrong
+claims above survived. Flip it after one clean run.
+
+## How to run it
+
+```bash
+pnpm --filter @ship/agent exec vitest run
+pnpm --filter web exec vitest run
+pnpm exec playwright test e2e/file-attachments.spec.ts e2e/images.spec.ts --workers=2
+set -a && . .env && set +a
+LANGCHAIN_PROJECT=fleetgraph-testcases \
+  pnpm --filter @ship/agent exec tsx scripts/capture-test-case-traces.ts
+```
+
+## How to roll it back
+
+Four independent reverts. `getAbortSignal` → `abortSignal` in `Editor.tsx` and
+`SlashCommands.tsx`; the `sprint_window` CTE in `sprintMissRisk.ts` plus the fixture;
+`escalate.ts` and its wiring in `graph/index.ts`; the row-5 seed 9 → 3. Nothing shares
+state with anything else. Only the first touches the running application.

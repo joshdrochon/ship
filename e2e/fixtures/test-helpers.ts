@@ -29,15 +29,24 @@ export const FILE_CHOOSER_TIMEOUT_MS = 10_000;
  *
  * Why it exists. Twenty-four call sites used the bare `page.waitForEvent('filechooser')`,
  * which has no timeout of its own and therefore inherits the 60 s test timeout from
- * `playwright.config.ts`. On GitLab's runner the chooser does not open for 27 of these
- * tests — a real failure whose cause is still unidentified — and each of those attempts
- * sat for the full 60 s, three times over with CI retries.
+ * `playwright.config.ts`. On GitLab's runner the chooser did not open for **13** of them —
+ * all in `file-attachments.spec.ts`, all driven by the `/file` command — and each of
+ * those attempts sat for the full 60 s, three times over with CI retries.
+ *
+ * Thirteen, not twenty-seven. An earlier version of this comment said 27, conflating
+ * two different failures: 13 never got a chooser, and another 14 got one and then failed
+ * afterwards because the file never reached the editor. Counted directly — the string
+ * `waiting for event "filechooser"` appears exactly 39 times in job `61094`, which is
+ * 13 tests × 3 attempts.
  *
  * Measured on job `61094` (commit `0a21232`): `file-attachments.spec.ts` alone took
- * **39.7 of the run's 77.1 minutes**, at 61.2 s per test. The five upload-related specs
- * together were 53 minutes, 69% of the job. The remaining 69 spec files ran ~820 tests
- * in ~24 minutes — about 1.8 s each, which is *faster* per test than GitHub's runner
- * manages. The job was not slow. It was waiting.
+ * **39.7 of the run's 77.1 minutes**, at 61.2 s per test. The remaining 69 spec files ran
+ * ~820 tests in ~24 minutes — about 1.8 s each, which is *faster* per test than GitHub's
+ * runner manages. The job was not slow. It was waiting.
+ *
+ * Bounding it took that file to **9.2 minutes** and the job from 79.7 to 55.6. The rest of
+ * the upload time is the second failure mode, whose cause was a stale `AbortSignal`
+ * captured by `Editor.tsx`'s `slashCommandsExtension` memo — fixed separately.
  *
  * Bounding the wait does not hide the failure: the test still fails, still retries,
  * still uploads its artifacts. It fails in 10 s instead of 60, and it says which step
@@ -51,9 +60,11 @@ export function expectFileChooser(
   return page.waitForEvent('filechooser', { timeout }).catch((cause) => {
     throw new Error(
       `the file chooser never opened within ${timeout} ms. The control was clicked but ` +
-        'no `filechooser` event arrived, so the upload never started. This is the ' +
-        'GitLab-runner failure recorded in .gitlab-ci.yml — it does not reproduce on ' +
-        'GitHub and its cause is not identified.',
+        'no `filechooser` event arrived, so the upload never started. The known cause is ' +
+        'a stale AbortSignal: `triggerFileUpload` returns at its `signal?.aborted` guard ' +
+        'BEFORE creating the input, so no click ever happens and the browser is never ' +
+        'asked. See the comment on `getAbortSignal` in web/src/components/editor/' +
+        'SlashCommands.tsx.',
       { cause },
     );
   });

@@ -64,7 +64,7 @@ Detection runs as **SQL against Postgres directly**, not through Ship's HTTP API
 |---|---|---|
 | Stalled work | `state = 'in_progress'`, `updated_at` unmoved | 5 business days |
 | Review bottleneck | `state = 'in_review'`, `updated_at` unmoved | 2 business days |
-| Sprint-miss risk | sprint `end_date` near, issues still `todo`/`backlog` | 2 business days out |
+| Sprint-miss risk | sprint window computed from `sprint_number` + `workspaces.sprint_start_date`, issues still `todo`/`backlog` | 2 business days out |
 | Load imbalance | active issues per assignee vs. the sprint median | ≥ 2× median, team ≥ 3 |
 | Rework churn | `reopened_at` set, or `done → in_progress` in `document_history` | ≥ 2 in 30 days, per project |
 
@@ -218,14 +218,36 @@ Fallback when `owner_id` is null: the document's `created_by`, then a workspace 
 nobody — a finding with no recipient is a finding that silently disappears.
 
 **Escalation.** A finding not acknowledged after **2 business days** escalates one level up the
-org chart via `properties->>'reports_to'` on the person document. It escalates **at most once**
-and stops at the project owner. A Director never receives an individual stalled issue; they
-receive only aggregate signals such as rework churn. The unit is business days, not runs — at a
-3-minute cron, "two runs" would be six minutes, which would escalate a finding defined by five
-days of silence almost immediately.
-<!-- TODO(FG-084): escalation is designed and unimplemented. `fleetgraph_observations.escalation_count`
-     exists, migration 038 creates it, and `fetchPriorState` reads it into state — but nothing
-     increments it and nothing walks `reports_to`. Re-checked against the tree; still the case. -->
+org chart via `properties->>'reports_to'` on the person document. It escalates **at most once**.
+A Director never receives an individual stalled issue; they receive only aggregate signals such
+as rework churn. The unit is business days, not runs — at a 3-minute cron, "two runs" would be
+six minutes, which would escalate a finding defined by five days of silence almost immediately.
+
+**Built**, in `agent/src/graph/nodes/escalate.ts`. This paragraph described a design for most of
+the build and said so in a `TODO`; it now describes behaviour. Four things about it are worth
+having in the document rather than only in the code:
+
+- **It is a node, not a step inside `deliver`.** It sits on the proactive branch between
+  `resolve_scope` and the three fetches. It cannot live in `deliver` for two independent
+  reasons: a finding old enough to escalate is already in the suppression set, so `triage_gate`
+  removes it before anything downstream sees it; and `deliver` does not run on a quiet run,
+  which is exactly when an unanswered finding most needs escalating.
+- **The one hop is enforced by a compare-and-set, not by a read-then-write.**
+  `UPDATE … WHERE escalation_count = 0 RETURNING id`, with the notification insert selecting
+  from that same CTE. A transaction was not available — `Queryable` is satisfied by a `Pool`,
+  so `BEGIN`/`COMMIT` can land on different connections. Split into two statements it comes
+  apart in both directions: a crash after the increment loses the escalation for good, a crash
+  after the insert double-hops.
+- **The clock starts when the person was told**, at the first pending notification's
+  `created_at` — two days since we asked them, not two days since we noticed.
+- **A null `reports_to` does nothing and stays at zero.** Nobody above them means no hop
+  exists. Recording it as escalated would assert something that never happened, and would also
+  stop it escalating later if an admin fills the field in.
+
+The claim this paragraph used to make that escalation *stops at the project owner* has been
+removed, because no such guard exists. Nothing marks a person as the project owner in a way a
+single hop can check. What actually bounds it is "at most once", and the
+Director-never-gets-an-individual-issue outcome falls out of that rather than out of a check.
 
 **The caveat, volunteered rather than hidden.** Review bottleneck has no strictly correct
 recipient. **Ship has no reviewer field** — an issue in `in_review` records who it is assigned
@@ -263,7 +285,7 @@ brief constraint, and one Ship already has precedent for: `PlanQualityBanner` an
 
 # Graph Diagram
 
-Both modes, all sixteen registered nodes, every edge. The four conditional edges are the
+Both modes, all seventeen registered nodes, every edge. The four conditional edges are the
 hexagons (`C1`–`C4`); the dashed edge is the suspend-and-resume boundary, where the process
 exits and a later one resumes the same thread.
 
@@ -288,11 +310,13 @@ flowchart TD
         OFP["on_demand_fetch_participants"]
     end
 
-    C1 -->|"proactive"| FS
-    C1 -->|"proactive"| FP
-    C1 -->|"proactive"| FPS
+    C1 -->|"proactive"| ESC["escalate<br/>one hop up reports_to, at most once"]
     C1 -->|"on_demand"| OFS
     C1 -->|"on_demand"| OFP
+
+    ESC --> FS
+    ESC --> FP
+    ESC --> FPS
 
     FS --> TG[triage_gate]
     FP --> TG
@@ -376,7 +400,7 @@ are each registered twice, once per mode, under distinct trace names.
 | Output | `deliver` | Write the notification, record the observation, advance the watermark | Yes |
 | Output | `close_quiet` | Terminate having surfaced nothing, and still advance the watermark | Yes |
 
-Two LLM nodes out of sixteen. That ratio is the design: the model judges pre-measured facts and
+Two LLM nodes out of seventeen. That ratio is the design: the model judges pre-measured facts and
 phrases them, and does nothing else.
 
 **Why `close_quiet` exists rather than an edge straight to `END`.** A quiet run has not done
@@ -763,63 +787,90 @@ the two deployed traces under "Traces from the deployed agent" below. The six he
 that each use case does what this table says it does; those two demonstrate the graph behaving
 differently under different conditions in production.
 
-**Row 5 did not do what this table predicted, and the row says so.** That is the honest result
-of running the real judge instead of a fake that surfaces everything, and it is the C3 edge
-doing its job: measured is not the same as worth saying.
+**All six rows now do what this table predicts.** They did not on the first capture, and the
+section below records what changed and why, because the disagreement was more informative than
+the agreement.
 
 | # | Use case | Ship state — seed mutation | Expected output | Trace |
 |---|---|---|---|---|
-| 1 | Stalled work | `createIssue(pool, ws, { state: 'in_progress', assigneeId: dev, updatedDaysAgo: 20 })` | One `stalled_work` signal · `targetType: 'issue'` · `measurement` = business days idle, ≥ `threshold` 5 · `accountableUserId` = the assignee. Action class `additive`/`comment`, so C4 routes **autonomous** → `execute_autonomous` → `deliver`, `outcome: 'delivered'` | [**path as predicted** — 10 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/1a0a0edf-8d72-430c-92fe-ebffe9194de7/r) |
-| 2 | Sprint-miss risk | `createSprint(pool, ws, { endsInDays: 1, ownerId: owner })`, then 4× `createIssue(pool, ws, { state: 'todo' \| 'backlog', updatedDaysAgo: 0 })` + `attachToSprint` | **One** `sprint_miss_risk` signal for the sprint, not four for the issues · `targetType: 'sprint'` · `measurement` = 4 unstarted · `threshold` 2 (business days left) · `accountableUserId` = the sprint owner. `additive`/`comment` → autonomous | [**path as predicted** — 10 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/11e2bd90-42c8-4375-9acf-b5a84f63e26b/r) · but see the note below: this state cannot occur in production |
-| 3 | Load imbalance | `createSprint(pool, ws, { endsInDays: 10, ownerId })`, then three people holding 1, 1 and 8 `in_progress` issues, all `updatedDaysAgo: 0`, each `attachToSprint` | One `load_imbalance` signal · `targetId` = the **sprint** · `measurement` 8 · `context.team_median` 1 · `context.team_size` 3 · `accountableUserId` = the sprint owner, **never** the overloaded person. The only signal typed `mutation`/`reassign`, so C4 routes **gated** → `await_approval`, `outcome: 'awaiting_approval'` | [**path as predicted** — 9 nodes, ends `route_action → __interrupt__`, the human gate](https://smith.langchain.com/public/8a28789c-25a4-4946-8ac8-4c3410e26109/r) |
-| 4 | Review bottleneck | `createIssue(pool, ws, { state: 'in_review', assigneeId, updatedDaysAgo: 12 })` | One `review_bottleneck` signal · `threshold` 2 · `context.reviewer_known` = `0`, set so the prompt cannot imply the recipient is the blocker · `accountableUserId` = the assignee, which is the caveat this detector ships with | [**path as predicted** — 10 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/7ca617b0-00d7-4889-9eb1-c443d7139fe7/r) |
-| 5 | Rework churn | `createProject(pool, ws, { ownerId: owner })`, then 3× (`createIssue(… updatedDaysAgo: 0)` + `attachToProject` + `recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3)`) | **One** `rework_churn` signal for the project, not three for the issues · `targetType: 'project'` · `measurement` 3 · `threshold` 2 · `context.lookback_days` 30 · `accountableUserId` = the project owner. `additive`/`comment` → autonomous | [**diverged** — 8 nodes, ends `judge_signals → close_quiet`](https://smith.langchain.com/public/3c5224a3-f647-403e-b9d7-dc5b698868b3/r). The detector fired; the real judge declined to surface it. See below |
-| 6 | On-demand contextual answer | `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20, assigneeId })` + `recordStateChange(pool, issueId, 'todo', 'in_progress', ws.ownerId, 21)`, then invoke with `mode: 'on_demand'` and `scope: { workspaceId, documentId: issueId, documentType: 'issue' }`, one user message | Path is `trigger_router → resolve_scope → on_demand_fetch_signals ‖ on_demand_fetch_participants → compose_answer → END`, `outcome: 'answered'`. **No execute node is visited** — the action-client call count stays 0 and the answer call count is 1. The answer node is asserted to have received *that* `documentId` and the measured signals, and `recentHistory[].field` carries the real field name | [**path as predicted** — 5 nodes, ends `compose_answer`, no execute node reachable](https://smith.langchain.com/public/66025ec9-adc4-4d9c-b734-fb1be0b65dbe/r) |
+| 1 | Stalled work | `createIssue(pool, ws, { state: 'in_progress', assigneeId: dev, updatedDaysAgo: 20 })` | One `stalled_work` signal · `targetType: 'issue'` · `measurement` = business days idle, ≥ `threshold` 5 · `accountableUserId` = the assignee. Action class `additive`/`comment`, so C4 routes **autonomous** → `execute_autonomous` → `deliver`, `outcome: 'delivered'` | [**path as predicted** — 11 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/f2701d89-b180-4677-95da-abbb9f6803b2/r) |
+| 2 | Sprint-miss risk | `createSprint(pool, ws, { endsInDays: 1, ownerId: owner })`, then 4× `createIssue(pool, ws, { state: 'todo' \| 'backlog', updatedDaysAgo: 0 })` + `attachToSprint` | **One** `sprint_miss_risk` signal for the sprint, not four for the issues · `targetType: 'sprint'` · `measurement` = 4 unstarted · `threshold` 2 (business days left) · `accountableUserId` = the sprint owner. `additive`/`comment` → autonomous | [**path as predicted** — 11 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/14d42b2a-4646-4e17-bf18-c49fd0b6fd27/r) · but see the note below: this state cannot occur in production |
+| 3 | Load imbalance | `createSprint(pool, ws, { endsInDays: 10, ownerId })`, then three people holding 1, 1 and 8 `in_progress` issues, all `updatedDaysAgo: 0`, each `attachToSprint` | One `load_imbalance` signal · `targetId` = the **sprint** · `measurement` 8 · `context.team_median` 1 · `context.team_size` 3 · `accountableUserId` = the sprint owner, **never** the overloaded person. The only signal typed `mutation`/`reassign`, so C4 routes **gated** → `await_approval`, `outcome: 'awaiting_approval'` | [**path as predicted** — 10 nodes, ends `route_action → __interrupt__`, the human gate](https://smith.langchain.com/public/cf6c6052-a415-43dd-8c8f-ffa394147d53/r) |
+| 4 | Review bottleneck | `createIssue(pool, ws, { state: 'in_review', assigneeId, updatedDaysAgo: 12 })` | One `review_bottleneck` signal · `threshold` 2 · `context.reviewer_known` = `0`, set so the prompt cannot imply the recipient is the blocker · `accountableUserId` = the assignee, which is the caveat this detector ships with | [**path as predicted** — 11 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/bc7142d2-8f5a-4dbe-9028-a80cf74d081f/r) |
+| 5 | Rework churn | `createProject(pool, ws, { ownerId: owner })`, then 9× (`createIssue(… updatedDaysAgo: 0)` + `attachToProject` + `recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3)`) | **One** `rework_churn` signal for the project, not nine for the issues · `targetType: 'project'` · `measurement` 9 · `threshold` 2 · `context.lookback_days` 30 · `accountableUserId` = the project owner. `additive`/`comment` → autonomous | [**path as predicted** — 11 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/9eca9071-0485-48c5-b300-1612b6c6a6d1/r). The detector fired; the real judge declined to surface it. See below |
+| 6 | On-demand contextual answer | `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20, assigneeId })` + `recordStateChange(pool, issueId, 'todo', 'in_progress', ws.ownerId, 21)`, then invoke with `mode: 'on_demand'` and `scope: { workspaceId, documentId: issueId, documentType: 'issue' }`, one user message | Path is `trigger_router → resolve_scope → on_demand_fetch_signals ‖ on_demand_fetch_participants → compose_answer → END`, `outcome: 'answered'`. **No execute node is visited** — the action-client call count stays 0 and the answer call count is 1. The answer node is asserted to have received *that* `documentId` and the measured signals, and `recentHistory[].field` carries the real field name | [**path as predicted** — 5 nodes, ends `compose_answer`, no execute node reachable](https://smith.langchain.com/public/c9d1e08d-8fc6-4a0b-a0e4-0ba1b56d8476/r) |
 
-## What the six runs disagreed with, and why that is left in
+## What the first capture disagreed with, and why that is left in
 
-Two rows did not behave the way the "Expected output" column predicts. Both are recorded
-rather than smoothed over, because a table that only shows agreement is not evidence of
-anything.
+Two rows did not behave the way the "Expected output" column predicted. Both are fixed now.
+Both are kept, because a table that only ever shows agreement is not evidence of anything, and
+the two failures were different in kind.
 
-### Row 5 — the detector fired and the judge declined
+### Row 5 — the test case was written weaker than the bar it was judged against
 
 Predicted: `additive`/`comment` → autonomous → `deliver`.
-Observed: `judge_signals → close_quiet`, 8 nodes.
+First observed: `judge_signals → close_quiet`, 8 nodes.
 
 The `rework_churn` signal was measured and passed the triage gate — that is what put
-`judge_signals` on the path at all. The model then decided it was not worth surfacing, so C3
-routed quiet and the watermark advanced with nothing delivered.
+`judge_signals` on the path at all. The model then declined to surface it, C3 routed quiet, and
+the watermark advanced with nothing delivered.
 
-This is the graph working. C3 exists precisely so a measured threshold is not automatically a
-message to a human, and `FLEETGRAPH.md`'s own use-case section argues that three
-done→in_progress transitions in thirty days on a small project is weak evidence of churn. The
-expected-output column was written from the detector's point of view and assumed judgment
-would agree with it.
+**The judge was right and the seed was wrong.** `JUDGE_SYSTEM_PROMPT` instructs it to set
+`worth_surfacing` false when the measurement is only marginally past its threshold and nothing
+else in the batch makes it urgent. The seed planted three reopened issues against
+`REWORK_CHURN_REOPENS: 2`, alone in the batch — the prompt's own sentence, almost word for
+word. The case was testing the prompt's marginality rule rather than the detector.
 
-What it means practically: the earlier regression tests inject a fake judge that surfaces
-everything, so they assert routing and cannot assert this. Row 5 is the first evidence of what
-the *real* judge does with a marginal signal, and the answer is that it stays quiet.
+The seed is nine now: 4.5× the threshold, and in `countBucket`'s `9+` rather than `3-4`, so the
+fingerprint differs from the first run and suppression cannot silence the recapture. Nothing
+else wakes up at that size — the issues are `updatedDaysAgo: 0` so `stalledWork` cannot fire,
+none are `in_review`, and there is no sprint for `loadImbalance` or `sprintMissRisk` to attach
+to. The batch stays one signal, which is what the row claims. It now ends
+`execute_autonomous → deliver`.
 
-### Row 2 — the trigger state cannot occur in production
+Worth keeping in mind when reading the other rows: the earlier regression tests inject a fake
+judge that surfaces everything, so they assert routing and cannot assert this. Row 5 is the
+only place in this document where the real judge's discretion is visible, and what it showed is
+that a threshold crossing is not on its own an argument for interrupting someone.
 
-The trace is real and the path is as predicted. The state it ran against is not one Ship can
-produce.
+### Row 2 — the trigger state could not occur in production, and now can
 
-`agent/src/detectors/sprintMissRisk.ts:61` filters on `s.properties->>'end_date' IS NOT NULL`.
-Ship never writes that field: `api/src/routes/documents.ts:87` computes `start_date` and
-`end_date` from `sprint_number` and the workspace's `sprint_start_date` at read time, and the
-note in the source says so. The detector passes every test it has because
-`agent/src/detectors/fixtures.ts:120` writes `end_date` into `properties` directly.
+**Fixed. This section is kept because the shape of the bug is worth more than the fix.**
 
-So this use case is green in CI, green in the trace above, and dead against a real workspace.
-Naming it here rather than in a backlog ticket, because a reader comparing this table to a
-running deployment would otherwise conclude the detector is broken in some subtler way.
+The detector used to filter on `s.properties->>'end_date' IS NOT NULL`. Ship never writes that
+field — sprints store `sprint_number`, and the dates are computed. Not even server-side:
+`api/src/routes/weeks.ts:185` says the dates are computed **on the frontend**, and
+`computeSprintDates` in `web/src/components/week/WeekTimeline.tsx:20` is the whole of it —
+`start = sprint_start_date + (sprint_number - 1) × 7`, `end = start + 6`. One-week sprints.
 
-The fix is a choice between two things, and it is not made yet: teach the detector to compute
-the window the same way `documents.ts` does, or persist `end_date` on write. The first keeps
-one source of truth and costs a more complex query; the second denormalises and needs a
-backfill for existing sprints.
+So the detector was green in CI, green in its trace, and dead against a real workspace. It
+passed every test it had because the fixture wrote `end_date` into `properties` directly — a
+field Ship's own insert path does not write. **The tests were green because the fixture and the
+detector shared a misconception, not because the detector worked.** That is the general shape,
+and it is why a fixture that builds documents its own way rather than the application's way is a
+liability disguised as convenience.
+
+The fix computes the window in SQL from `sprint_number` and `workspaces.sprint_start_date`,
+joining `workspaces`, matching `computeSprintDates` exactly. No migration, no backfill, no
+second copy of the truth to drift. A malformed `sprint_number` yields NULL through a `CASE` and
+drops out of the range test — `CASE` rather than a regex guard beside the cast, because
+Postgres does not promise to evaluate `WHERE` conditions in written order, so the guard could
+not be relied on to run first.
+
+The fixture now writes what `weeks.ts` writes: `sprint_number` and `owner_id`, no dates.
+`endsInDays` is expressed by moving the workspace's `sprint_start_date` to the inverse of the
+formula. Since a workspace has one `sprint_start_date`, two sprints in one workspace must agree
+on it; that constraint is written into the fixture's doc comment.
+
+The regression test inserts a sprint by hand the way Ship inserts one, asserts `end_date` is
+absent, and then asserts the detector finds it — a raw insert rather than the fixture, so it
+stays an assertion about Ship's shape even if the fixture drifts again.
+
+    detectors    53 passed  ->  56 passed
+    agent suite  174 passed -> 177 passed
+
+Verified in the failing direction too: the previous detector against the new tests gives
+**8 failed of 17**, including the Ship-shaped one.
 
 
 ## Traces from the deployed agent
@@ -1455,7 +1506,7 @@ Two trace links are required, showing **different execution paths through the sa
 | # | Path the trace must show | Expected node sequence | Link |
 |---|---|---|---|
 | 1 | Quiet run — nothing crossed a threshold | `trigger_router → resolve_scope → fetch_signals ‖ fetch_participants ‖ fetch_prior_state → triage_gate → close_quiet → END`. **Zero model calls** | [10 nodes, ends `triage_gate → close_quiet`](https://smith.langchain.com/public/1f471366-de0c-4c1c-ba7c-413673ecb3e7/r) — **from the deployed cron** |
-| 2 | Drifting run — reaches an action and hits the human gate | `… → triage_gate → judge_signals → route_action → await_approval` (suspends on the checkpointer) | [9 nodes, ends `route_action → __interrupt__`](https://smith.langchain.com/public/8a28789c-25a4-4946-8ac8-4c3410e26109/r) — from `capture-test-case-traces.ts`, use case 3 |
+| 2 | Drifting run — reaches an action and hits the human gate | `… → triage_gate → judge_signals → route_action → await_approval` (suspends on the checkpointer) | [9 nodes, ends `route_action → __interrupt__`](https://smith.langchain.com/public/cf6c6052-a415-43dd-8c8f-ffa394147d53/r) — from `capture-test-case-traces.ts`, use case 3 |
 
 Both links are live and were re-checked for HTTP 200 when this paragraph was written. The node
 counts differ (10 against 9) and the visited sets differ, which is the contrast the requirement
@@ -1543,12 +1594,10 @@ Stated plainly rather than folded into the table above.
    detectors and a real model against testcontainers Postgres and a fake Ship API. The two
    traces under "Traces from the deployed agent" are the only ones the deployment produced.
    What is asserted is the graph's behaviour, which is what the Test Cases table claims; what is
-   not asserted is that production data produces the same shape. Use case 2 is the standing
-   counter-example, immediately below.
-4. **Use case 2 cannot fire against real Ship data.** `sprintMissRisk.ts:61` requires
-   `properties->>'end_date'`, which Ship never stores — `documents.ts:386` computes sprint
-   dates from `sprint_number` instead. Its tests pass because `fixtures.ts:120` writes the
-   field. Found by trying to plant the condition, recorded rather than papered over.
+   not asserted is that production data produces the same shape. Use case 2 was the standing
+   counter-example until it was fixed — see **Row 2** above for what that failure looked like
+   from the inside, because the next one will look the same: a fixture and a detector agreeing
+   on a field the application never writes.
 
 
 # Unverified Claims
@@ -1559,7 +1608,7 @@ behaviour.
 
 | Claim | Status | Ticket |
 |---|---|---|
-| The graph registers sixteen nodes with four conditional edges | **Verified.** Sixteen `addNode` calls, four `addConditionalEdges`, in `agent/src/graph/index.ts`; the labels in the diagram are the exported `NODES` strings | `FG-085`–`FG-089` |
+| The graph registers seventeen nodes with four conditional edges | **Verified.** Seventeen `addNode` calls, four `addConditionalEdges`, in `agent/src/graph/index.ts`; the labels in the diagram are the exported `NODES` strings. Sixteen until `escalate` landed under `FG-084` | `FG-085`–`FG-089` |
 | Three fetch nodes run as a parallel fan-out | **Verified** structurally — C1 returns all three names in one superstep. The wall-clock saving is not measured | `FG-076` |
 | A quiet run spends zero tokens | **Verified.** Asserted on a call counter the graph increments through its real path, with the judge injected rather than module-mocked, so the test is not testing a mock | `FG-092` |
 | Judgment batches all signals into one call | **Verified.** One `model.invoke` in `llm/judge.ts`, fanned back out to per-signal findings by fingerprint; the drifting-run test asserts the judge is called exactly once | `FG-093`, `FG-104` |
@@ -1569,7 +1618,7 @@ behaviour.
 | A second breaker instance guards the Ship HTTP API | **Verified.** `const shipApiBreaker = new CircuitBreaker(...)` in `actions/client.ts`, 5 failures / 60 s, wrapping the whole retry sequence rather than each attempt | `FG-124` |
 | Explicit exponential backoff in the Ship API client | **Verified.** 200 ms base, doubling, capped at 2 s, 3 attempts, with the worst-case total computed from those constants and exported as `MAX_TOTAL_MS` | `FG-123` |
 | The cron takes a per-workspace advisory lock and cannot overrun its interval | **Verified.** `pg_try_advisory_lock(hashtext('fleetgraph:' || wsId))`, skipping the workspace if another run holds it, and a 4-minute deadline that exits 2 | `FG-110`–`FG-121` |
-| Escalation after 2 business days, at most one hop | **Design.** `escalation_count` is carried through state and the boundary, but nothing increments it and nothing routes up `reports_to`. The person property and `routes/team.ts` are verified; the step is not written | `FG-084` |
+| Escalation after 2 business days, at most one hop | **Verified, and this row said "Design" for most of the build.** `agent/src/graph/nodes/escalate.ts` is a node on the proactive branch; the one hop is a compare-and-set (`UPDATE … WHERE escalation_count = 0 RETURNING id`) rather than a read-then-write, because `Queryable` is satisfied by a `Pool` and a two-statement version comes apart on a crash in both directions. 9 tests, including the null-`reports_to` case. No migration needed — 038 already created the column | `FG-084` |
 | The run suspends at `await_approval` and a later process resumes it | **Verified in-graph**, not only in the spike. `actions/restart.test.ts` proposes in a process that calls `process.exit(0)` and resumes in a fresh one, asserting the resumed half re-judges nothing | `FG-137` |
 | Accept / Dismiss / Snooze semantics | **Verified at the graph layer.** Dismissal stays dismissed across further runs; a snooze that self-resolves never returns, and one that did not resolve does | `FG-131`–`FG-136` |
 | The approval banner renders in the document view | **Built**, with component tests. `AgentBanner.tsx` renders in `UnifiedEditor`'s `contentBanner` slot. Not verified in a browser during this pass | `FG-155`–`FG-159`, `FG-175` |

@@ -106,32 +106,51 @@ export interface SprintSpec {
   sprintNumber?: number;
 }
 
+/**
+ * A sprint exactly as Ship stores one: `sprint_number` and an owner, no dates.
+ *
+ * `weeks.ts:185` — "Dates and status are computed from sprint_number +
+ * workspace.sprint_start_date". There is no server-side date math anywhere and
+ * no `end_date` in properties; the only implementation of the formula lives in
+ * `web/src/components/week/WeekTimeline.tsx:20-28`.
+ *
+ * So `endsInDays` cannot be written onto the sprint. It is expressed by moving
+ * the WORKSPACE's `sprint_start_date` to the value that makes this sprint number
+ * end where the test wants, inverting the computation:
+ *
+ *     end = sprint_start_date + (sprint_number - 1) * 7 + 6
+ *     ⇒ sprint_start_date = today + endsInDays - 6 - (sprint_number - 1) * 7
+ *
+ * The earlier version wrote both `end_date` and an unrelated `sprint_number`
+ * (default 32, never derived from `endsInDays`). That is a state Ship cannot
+ * produce, and it is why the sprint-miss detector could read a field Ship never
+ * writes and still pass every test.
+ *
+ * A workspace has ONE `sprint_start_date`, so two sprints in the same workspace
+ * with different `endsInDays` would fight — the last call wins. No caller does
+ * that today (loadImbalance.test.ts staffs two, both `endsInDays: 5`).
+ */
 export async function createSprint(db: Pool, ws: Workspace, spec: SprintSpec = {}): Promise<string> {
   const { title = 'Week 32', endsInDays = 2, ownerId = null, sprintNumber = 32 } = spec;
-  const end = new Date(Date.now() + endsInDays * 86_400_000);
-  const start = new Date(end.getTime() - 7 * 86_400_000);
+
+  await db.query(
+    `UPDATE workspaces
+        SET sprint_start_date = CURRENT_DATE + $2::int - 6 - ($3::int - 1) * 7
+      WHERE id = $1`,
+    [ws.workspaceId, endsInDays, sprintNumber],
+  );
 
   const { rows } = await db.query(
     `INSERT INTO documents
        (workspace_id, document_type, title, properties, created_by, created_at, updated_at)
      VALUES ($1, 'sprint', $2,
              jsonb_build_object(
-               'start_date', $3::text,
-               'end_date', $4::text,
-               'owner_id', $5::text,
-               'sprint_number', $6::int
+               'owner_id', $3::text,
+               'sprint_number', $4::int
              ),
-             $7, NOW(), NOW())
+             $5, NOW(), NOW())
      RETURNING id`,
-    [
-      ws.workspaceId,
-      title,
-      start.toISOString().slice(0, 10),
-      end.toISOString().slice(0, 10),
-      ownerId,
-      sprintNumber,
-      ws.ownerId,
-    ],
+    [ws.workspaceId, title, ownerId, sprintNumber, ws.ownerId],
   );
   return rows[0].id;
 }
