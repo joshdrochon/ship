@@ -2788,3 +2788,94 @@ Six model calls. Prints a markdown table of public links.
 Delete the script and restore the `<!-- TODO -->` comments in the trace column. The
 shared traces stay shareable; unsharing is a separate LangSmith call. Nothing about the
 running system changes either way.
+
+---
+
+# A swallowed Enter, found by a drag test
+
+CI was red on `fix/local-apply-strips-credentials`. Two unrelated things had gone
+wrong in the same run and only one of them was ours.
+
+Four jobs — `security-scan`, `type-violations`, `license-inventory`, `type-check` —
+never started: `Failed to resolve action download info. Error: Service Unavailable`,
+three times each, at 16:02 UTC. That is GitHub Actions failing to resolve a marketplace
+action, not a build failure, and it needs a re-run rather than a fix.
+
+The real one was `e2e/drag-handle.spec.ts` → "drag preserves full paragraph content",
+failing all three attempts.
+
+## What the artifact showed
+
+`error-context.md` from the third attempt had the editor holding **one** paragraph:
+
+```
+- paragraph: "This is a longer paragraph with multiple words and some special chars: @#$%Second block"
+```
+
+Two blocks merged into one. Further down the same snapshot, the reason:
+
+```
+- paragraph: No results found
+```
+
+The mention popup was open when Enter was pressed.
+
+## The bug is in the app, not the test
+
+`MentionList.onKeyDown` returned `true` for Enter and both arrows regardless of whether
+anything matched. TipTap's suggestion plugin reads `true` as "consumed" and stops, so
+ProseMirror never saw the key. `selectItem` already guarded against the empty list, so
+nothing happened and nothing was reported — the keystroke simply vanished.
+
+`ArrowUp`/`ArrowDown` were worse in a quieter way: `(prev + items.length - 1) % 0` is
+`NaN`, which then became `selectedIndex`.
+
+`allowSpaces: true` (`MentionExtension.ts:167`) is what makes this reachable in ordinary
+use. The mention query does not terminate at a space, so a single `@` anywhere in a line
+leaves the popup open for the rest of it, and **every Enter until the caret leaves that
+block is dropped**. Type an email address into a document and the next Enter does nothing.
+
+The fix is to return `false` when `items.length === 0` and let the editor have the key.
+
+## Why the test could not see it
+
+`addParagraphs` waited for `.ProseMirror` to contain the *last* string it typed. A merged
+paragraph satisfies that exactly as well as two separate ones, so the guard passed on a
+broken document and the run died three lines later inside `dragBlockToPosition` with
+`locator.elementHandle: Timeout 10000ms exceeded` — which reads like a slow element
+rather than a missing one.
+
+It now waits on the paragraph *count* after each Enter. Counting is the only assertion
+that can tell a split from a merge.
+
+## Before and after
+
+Same command, same machine, both runs at ~0.5 GB free:
+
+```
+before   1 failed | 18 passed (2.2m)     ← failed 3 of 3 attempts
+after    19 passed (40.8s)               ← no retries
+```
+
+`MentionList.test.tsx` is new and pins the behaviour directly, in milliseconds rather
+than in a browser:
+
+```
+fix reverted   3 failed | 6 passed (9)   ← the three no-results passthrough cases
+fix applied    9 passed (9)
+```
+
+Full web suite after: **27 files, 276 tests, all passing** (was 267 before this file).
+
+## How to run it
+
+```bash
+pnpm --filter web exec vitest run src/components/editor/MentionList.test.tsx
+pnpm exec playwright test e2e/drag-handle.spec.ts --reporter=line --workers=2
+```
+
+## How to roll it back
+
+Revert the `items.length === 0` guard in `MentionList.tsx`. The E2E guard in
+`addParagraphs` should stay either way — it is what turned an unreadable timeout into a
+named cause, and it is correct independently of the app fix.

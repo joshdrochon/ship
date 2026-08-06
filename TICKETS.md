@@ -255,6 +255,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [ ] **FG-283** **Bug.** The FG-280 breaker move missed `agent/src/actions/client.ts`, which still imported from `api/dist` — so the build cycle was never actually broken. Type-checks and 774 unit tests all passed on stale incremental artifacts; only a clean `pnpm build:api` (via E2E global-setup) revealed it, along with TS5055 and TS2742.
 - [ ] **FG-275** Fix the `Closes:` trailer block. A blank line before `Co-Authored-By` splits it, git parses only the last paragraph, and fourteen commits' worth of closures were inert. `--verify` caught it.
 - [ ] **FG-276** `scripts/check-api-coverage.sh` scanned `api/src/routes/*.ts` only, so directory route modules (`routes/fleetgraph/index.ts`) read as missing endpoints. Fixed to scan `*/index.ts` and take the mount name from the directory.
+- [ ] **FG-284** **Bug.** `MentionList.onKeyDown` returned `true` for Enter and both arrows even with zero matches, so TipTap treated the key as consumed and ProseMirror never saw it — `selectItem` already ignored the empty list, making the swallow silent. With `allowSpaces: true` one `@` mid-line kills Enter for the rest of the block. Found by `e2e/drag-handle.spec.ts`, whose fixture text ends in `@#$%`; its guard could not see the merge because it asserted on the editor's whole text rather than the paragraph count.
 
 ## M6 · Actions and human-in-the-loop
 

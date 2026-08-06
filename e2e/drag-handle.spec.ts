@@ -27,28 +27,41 @@ test.describe('Drag Handle - Block Reordering', () => {
   }
 
   // Helper to add multiple paragraphs to the editor
+  //
+  // Every caller here starts from `createNewDocument`, so the editor holds exactly one
+  // empty paragraph on entry and each Enter must add exactly one more. That invariant is
+  // what the waits below assert; a caller that types markdown (`## `, `- `) would convert
+  // a paragraph to another node type and break it.
   async function addParagraphs(page: Page, texts: string[]) {
     const editor = page.locator('.ProseMirror')
     await editor.click()
+    const paragraphs = editor.locator('p')
 
     for (let i = 0; i < texts.length; i++) {
       await page.keyboard.type(texts[i])
+
+      // Wait on the paragraph this text belongs in, not on the editor's whole text
+      // content. The old guard asserted `.ProseMirror` contained the *last* string, and
+      // "…@#$%Second block" satisfies that whether it is two paragraphs or one merged
+      // one — so a dropped Enter sailed past it and surfaced three lines later, in
+      // `dragBlockToPosition`, as `locator.elementHandle: Timeout 10000ms exceeded`
+      // against a paragraph that was never going to exist.
+      //
+      // `toContainText` rather than `toHaveText`: the collaboration cursor renders a
+      // label span inside the paragraph, which `getParagraphTexts` strips for the same
+      // reason.
+      await expect(paragraphs.nth(i)).toContainText(texts[i], { timeout: 15000 })
+
       if (i < texts.length - 1) {
         await page.keyboard.press('Enter')
+
+        // The split is a transaction, not a keystroke. Typing the next block before it
+        // commits appends to the current paragraph instead of starting a new one — the
+        // merge above. Counting is the only assertion that can see that happen, and
+        // `toHaveCount` polls, so it costs nothing when the split is already in.
+        await expect(paragraphs).toHaveCount(i + 2, { timeout: 15000 })
       }
     }
-
-    // Wait for the typing to actually land, not for 300 ms to elapse.
-    //
-    // `dragBlockToPosition` then looks up `.ProseMirror p:nth-child(N)`. If the last
-    // paragraph had not been created yet, that selector matches nothing and the lookup
-    // times out -- reported as `locator.elementHandle: Timeout exceeded`, which reads like
-    // a slow element rather than a missing one. Raising that timeout did not help, because
-    // the paragraph was never coming: the test had moved on before the editor caught up.
-    // Seen on CI, where typing into ProseMirror is far slower than on a laptop.
-    await expect(page.locator('.ProseMirror')).toContainText(texts[texts.length - 1], {
-      timeout: 15000,
-    })
   }
 
   // Helper to get paragraph texts in order (excludes collaboration cursor labels and empty paragraphs)
