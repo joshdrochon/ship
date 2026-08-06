@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { waitForSlashMenu } from './fixtures/test-helpers'
+import { chooseSlashMenuItem } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -382,34 +382,20 @@ test.describe('Performance - Many Images', () => {
       await page.keyboard.type(`Image ${i + 1}:`)
       await page.keyboard.press('Enter')
       await page.keyboard.type('/image')
-      // Wait for slash command dropdown to appear - give extra time under load
-      await waitForSlashMenu(page)
-
-      // Retry if dropdown didn't appear (slash menu items are buttons, not options)
-      const optionLocator = page.getByRole('button', { name: /Image.*Upload/i })
-      let dropdownVisible = false
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (await optionLocator.isVisible()) {
-          dropdownVisible = true
-          break
-        }
-        // Try triggering the dropdown again
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.type('/image')
-        await waitForSlashMenu(page)
-      }
-      expect(dropdownVisible, `Slash command dropdown not visible for image ${i + 1}`).toBe(true)
-
       const tmpPath = createTestImageFile()
       imagePaths.push(tmpPath)
 
+      // This loop used to hand-roll the retry: check that the Image button is
+      // visible, retype `/image` up to three times if not, then press Enter. It
+      // half-solved the problem — it confirmed the button had rendered, and then
+      // pressed Enter anyway, which depends on where the keyboard cursor is rather
+      // than on which button was found. `toHaveCount(i + 1)` below caught the
+      // result: `Expected: 3, Received: 2`, the third upload never started.
+      //
+      // chooseSlashMenuItem clicks the button it waited for. Same fix now applied
+      // in data-integrity.spec.ts and images.spec.ts.
       const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 45000 })
-      await page.keyboard.press('Enter')
+      await chooseSlashMenuItem(page, /Image/i)
 
       const fileChooser = await fileChooserPromise
       await fileChooser.setFiles(tmpPath)
@@ -464,35 +450,16 @@ test.describe('Performance - Many Images', () => {
       await page.waitForTimeout(300)
 
       await page.keyboard.type('/image')
-      // Wait for slash command dropdown to appear - give extra time under load
-      await waitForSlashMenu(page)
-
-      // Retry if dropdown didn't appear (slash menu items are buttons, not options)
-      const optionLocator = page.getByRole('button', { name: /Image.*Upload/i })
-      let dropdownVisible = false
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (await optionLocator.isVisible()) {
-          dropdownVisible = true
-          break
-        }
-        // Try triggering the dropdown again
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.type('/image')
-        await waitForSlashMenu(page)
-      }
-      expect(dropdownVisible, `Slash command dropdown not visible for image ${i + 1}`).toBe(true)
-
       const tmpPath = createTestImageFile()
       imagePaths.push(tmpPath)
 
-      // Click the button directly to trigger file chooser (more reliable than keyboard.press)
+      // This loop already clicked the button rather than pressing Enter, and its
+      // comment already said why — "more reliable than keyboard.press". It was
+      // right, it was never flaky, and it sat four hundred lines from the loop
+      // that pressed Enter and was. Two implementations of the same step is how
+      // the working one stayed a local discovery.
       const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 45000 })
-      await optionLocator.click()
+      await chooseSlashMenuItem(page, /Image/i)
 
       const fileChooser = await fileChooserPromise
       await fileChooser.setFiles(tmpPath)

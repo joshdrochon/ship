@@ -2323,3 +2323,96 @@ test, fix exactly what it points at, measure, repeat.
 `session-timeout:205`, `:225`, `:629`. The session-timeout trio is the obvious next
 cluster — three tests in one file, all timer-driven. No guesses recorded here; read
 their traces.
+
+---
+
+# Run 5: flaky halved, and the assertion I tightened found a real one
+
+```
+        failed   flaky   passed   duration
+run 1      1       8       868      20.7m     baseline
+run 5      2       4       871      16.2m     after five fixes
+```
+
+Flaky halved. Four and a half minutes faster, because tests that used to burn a 60 s
+timeout before retrying now do not. `data-integrity.spec.ts` and `images.spec.ts` —
+between them six of the original flakes — are entirely absent from the list.
+
+## The one new failure is the point
+
+`performance.spec.ts:367` failed, and it failed because of the assertion tightened
+two commits ago:
+
+```
+expect(locator).toHaveCount(expected) failed
+Locator:  locator('.ProseMirror').locator('img')
+Expected: 3
+Received: 2
+Timeout:  30000ms
+  34 × locator resolved to 2 elements
+```
+
+The third of five image uploads never started. Thirty-four polls over thirty
+seconds, never more than two images. That is not a timing wobble; the upload did not
+happen.
+
+Under the old assertion — `expect(imgCount).toBeGreaterThanOrEqual(1)` — this test
+reported green with two of five images. It had presumably been doing so for a long
+time.
+
+## Why the third upload never started
+
+The same blind-Enter bug, in the one file that had already half-fixed it.
+
+`performance.spec.ts` wrapped its slash-menu step in a hand-rolled retry: check that
+`getByRole('button', { name: /Image.*Upload/i })` is visible, retype `/image` up to
+three times if not — and then press Enter. It confirmed the button had rendered and
+then ignored it, because Enter selects `selectedIndex`, not the button that was
+found.
+
+Four hundred lines below, a second upload loop in the same file does
+`await optionLocator.click()`, with a comment reading *"more reliable than
+keyboard.press"*. That loop has never been flaky. Someone had already found this
+exact bug, written down the reason, fixed their own test, and had no way to tell the
+rest of the suite.
+
+Two implementations of one step is how a working fix stays a local discovery. Both
+now call `chooseSlashMenuItem`.
+
+## The sweep, and a mistake in it
+
+Three more blind-Enter sites in `features-real.spec.ts`. A textual
+find-and-replace on `waitForSlashMenu` + `press('Enter')` matched **six**, not
+three — the other three were `/file`, `/table`, `/toggle` and `/code`, and all of
+them were rewritten to select **Image**.
+
+Caught by diffing before committing, and repaired by reading the `keyboard.type('/x')`
+line above each call. Recorded because the near-miss is the interesting part: a
+mechanical sweep across a suite nobody runs locally would have produced four
+confidently-passing tests exercising the wrong feature.
+
+`chooseSlashMenuItem` also now takes `.first()`. A menu button's accessible name is
+its title *and* its description (`SlashCommands.tsx:137-140`), so `/Table/i` matches
+both "Table" and "Table of Contents", and a strict locator throws. First-match is not
+a weakening — pressing Enter, which is what all these sites did before, selects
+`selectedIndex`, and that starts at 0.
+
+## Five root causes, all code
+
+| # | Cause | Status |
+|---|---|---|
+| 1 | WS connection rate limit shared across workers | fixed, 94 `429`s → 0 |
+| 2 | `waitForTimeout` equal to the persist debounce | fixed, 4 sites |
+| 3 | Slash menu container visible before its items | fixed, 11 sites |
+| 4 | `.all()` snapshots read after a re-render | fixed, 4 sites |
+| 5 | `toBeGreaterThanOrEqual(1)` hiding a failed upload | fixed, now `toHaveCount(5)` |
+
+Nothing here needed a bigger runner, more workers, or a paid service. Every one was a
+defect in this repository.
+
+## Still open
+
+`autosave-race-conditions:368`, `drag-handle:467`, `session-timeout:629`,
+`session-timeout:941`, and `project-weeks:134`. Undiagnosed, and deliberately not
+guessed at — the method that worked was reading the stack trace attached to the
+failing test, and these have not had theirs read yet.

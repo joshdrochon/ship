@@ -302,7 +302,15 @@ export function textOfContent(content: unknown): string {
  */
 export async function chooseSlashMenuItem(page: Page, name: RegExp): Promise<void> {
   await waitForSlashMenu(page);
-  const item = page.getByTestId('slash-menu').getByRole('button', { name });
+
+  // `.first()` rather than requiring a unique match. A menu button's accessible
+  // name is its title AND its description joined (`SlashCommands.tsx:137-140`), so
+  // `/Table/i` legitimately matches both "Table" and "Table of Contents" and a
+  // strict locator would throw. Taking the first is not a weakening: pressing
+  // Enter — what every one of these call sites did before — selects
+  // `selectedIndex`, which starts at 0. This is the same choice, made after
+  // waiting for the item to exist instead of before.
+  const item = page.getByTestId('slash-menu').getByRole('button', { name }).first();
   await expect(
     item,
     `slash menu item ${name} never rendered — the menu container being visible does not mean its items are`,
