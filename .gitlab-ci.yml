@@ -192,20 +192,34 @@ test:
 agent-test:
   stage: verify
   needs: ['build']
-  services:
-    - name: docker:27-dind
-      alias: docker
+  # ── Docker-outside-of-Docker, not dind ────────────────────────────────────────────
+  # This job used to run a `docker:27-dind` service. On this project's runner that
+  # never worked, and the job log said so twice on every run:
+  #
+  #   WARNING: Skipping alias "docker" for service "docker:27-dind": alias is
+  #            already in use by another service
+  #   WARNING: Possibly zombie container ...-docker-0-wait-for-service is
+  #            disconnected from network bridge
+  #
+  # The dind service never attached to the job's network, so `tcp://docker:2375`
+  # resolved to nothing, every testcontainer died in `beforeAll` at
+  # `container.getConnectionUri()`, and 10 of 20 spec files failed at setup while 93
+  # tests still passed — a shape that reads like a flaky suite and is not one.
+  #
+  # dind was never needed. The runner already mounts the host daemon:
+  #
+  #   [runners.docker]
+  #   volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
+  #
+  # so the job can talk to the Mac's Docker directly. Containers it starts are
+  # siblings rather than children, which is why the host override changes: they
+  # publish on the Docker host, reachable from here as `host.docker.internal`.
   variables:
-    DOCKER_HOST: 'tcp://docker:2375'
-    DOCKER_TLS_CERTDIR: ''
-    # testcontainers publishes container ports on the DAEMON's host, which under dind is
-    # the `docker` service and not this job. Without the override it hands back
-    # `localhost:<port>`, which from here reaches nothing, and every suite times out in
-    # `beforeAll` with an error that reads like a slow image pull.
-    TESTCONTAINERS_HOST_OVERRIDE: 'docker'
-    # Ryuk is testcontainers' reaper sidecar. It needs to bind back to the client, which
-    # is the one thing that does not work across the dind boundary. The job is
-    # ephemeral, so the containers die with it.
+    TESTCONTAINERS_HOST_OVERRIDE: 'host.docker.internal'
+    # Ryuk is testcontainers' reaper sidecar and it binds back to the client. Under
+    # DooD that means binding back into this job's container, which the sibling has
+    # no route to. The job is ephemeral and the runner reaps its own containers, so
+    # the reaper has nothing to do here either way.
     TESTCONTAINERS_RYUK_DISABLED: 'true'
   script:
     # The expected minimum is the whole suite. A vitest path typo or a crashed worker

@@ -2585,3 +2585,64 @@ Expect `No changes.` Anything else means local and deployed have diverged.
 Remove the three names from the loop in `tf-env.sh` and revert the `eval`. The `.env`
 additions are local-only and untracked. Nothing about the running infrastructure
 changes either way.
+
+---
+
+# GitLab: one job was misdiagnosed, the other was never broken
+
+## `agent-test` — dind that never attached
+
+The job ran a `docker:27-dind` service so testcontainers had a daemon. On this
+project's runner that never worked, and the log said so twice on every run:
+
+```
+WARNING: Skipping alias "docker" for service "docker:27-dind": alias is already
+         in use by another service
+WARNING: Possibly zombie container ...-docker-0-wait-for-service is disconnected
+         from network bridge
+```
+
+The service never attached to the job's network, so `DOCKER_HOST=tcp://docker:2375`
+resolved to nothing and every suite died in `beforeAll` at
+`container.getConnectionUri()`. The result was 10 of 20 spec files failing at setup
+while 93 tests passed — a shape that reads like a flaky suite and is not one.
+
+**dind was never needed here.** The runner already mounts the host daemon:
+
+```toml
+[runners.docker]
+volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
+```
+
+So the job can drive the Mac's Docker directly. Containers it starts are siblings
+rather than children, which is why the host override changes with it: they publish
+on the Docker host, reachable from the job as `host.docker.internal` rather than as
+`docker`.
+
+`TESTCONTAINERS_RYUK_DISABLED` stays, for a different reason than before. The reaper
+binds back to its client; under DooD that means binding into this job's container,
+which a sibling has no route to. The runner reaps its own containers anyway.
+
+`allow_failure: true` is left in place until a run proves the change. Flipping it in
+the same commit that attempts the fix would mean a red pipeline is the first thing
+anyone learns about it.
+
+Config validated against the server before pushing — `POST /ci/lint` returned
+`valid: true`, which catches a YAML mistake without spending a pipeline.
+
+## `e2e` — not broken, and I cancelled it for the wrong reason
+
+Earlier tonight I cancelled GitLab's `e2e` job at 46 minutes, describing it as
+stalled because GitHub's finishes in 15–17. That was wrong, and `.gitlab-ci.yml`
+already said so eleven lines above the job:
+
+> 150m, not the default. Measured on this project's runner: 266 of 874 tests in
+> 30 minutes at 2 workers, with zero failures — so roughly 100 minutes for a clean
+> run.
+
+46 minutes is a job halfway through, not a job hung. The runner is a laptop running
+Docker Desktop; GitHub's is a dedicated cloud VM. Roughly 6× is the honest ratio and
+it has been measured before.
+
+Nothing to fix. The `timeout: 150m` and the `allow_failure` are both already correct,
+and the only change worth making is to stop reading 46 minutes as a symptom.
