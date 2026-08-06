@@ -310,9 +310,11 @@ test.describe('Data Integrity - Images', () => {
     // one image, asserted 1 !== 2, and failed a suite that was working correctly.
     await expect(editor.locator('img')).toHaveCount(2)
 
-    const imgs = await editor.locator('img').all()
-    const src1 = await imgs[0].getAttribute('src')
-    const src2 = await imgs[1].getAttribute('src')
+    // Indexed locators, not `.all()`. `.all()` materialises an array once; every
+    // element in it is a handle to a DOM node that TipTap can replace on its next
+    // render, and the array itself never re-resolves. `.nth(i)` re-queries at use.
+    const src1 = await editor.locator('img').nth(0).getAttribute('src')
+    const src2 = await editor.locator('img').nth(1).getAttribute('src')
 
     // Reload
     await page.reload()
@@ -323,13 +325,13 @@ test.describe('Data Integrity - Images', () => {
     // reliably absent for a moment even when they persisted correctly.
     await expect(page.locator('.ProseMirror img')).toHaveCount(2)
 
-    const reloadedImgs = await page.locator('.ProseMirror img').all()
-
-    const reloadedSrc1 = await reloadedImgs[0].getAttribute('src')
-    const reloadedSrc2 = await reloadedImgs[1].getAttribute('src')
-
-    expect(reloadedSrc1).toBe(src1)
-    expect(reloadedSrc2).toBe(src2)
+    // `toHaveAttribute` polls; reading through a materialised array does not. The
+    // previous version passed `toHaveCount(2)` and then threw
+    // `Cannot read properties of undefined` four lines later, because TipTap
+    // re-rendered between the count and the `.all()` and the array came back short.
+    const reloaded = page.locator('.ProseMirror img')
+    await expect(reloaded.nth(0)).toHaveAttribute('src', src1 ?? '')
+    await expect(reloaded.nth(1)).toHaveAttribute('src', src2 ?? '')
 
     fs.unlinkSync(tmpPath1)
     fs.unlinkSync(tmpPath2)
@@ -387,32 +389,29 @@ test.describe('Data Integrity - Mentions', () => {
     await page.keyboard.type('@')
     await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 5000 })
 
-    // The listbox becomes visible before its options render, so snapshotting with
-    // `.all()` here can legitimately return an empty array. The `if` below then
-    // skipped the click silently and the test carried on measuring a mention it
-    // never inserted. Wait for an option to exist first.
-    await expect(page.locator('[role="option"]').first()).toBeVisible({ timeout: 5000 })
-
-    let options = await page.locator('[role="option"]').all()
-    if (options.length > 0) {
-      await options[0].click()
-      await page.waitForTimeout(500)
-    }
+    // The listbox becomes visible before its options render. The original code
+    // snapshotted with `.all()` and guarded the click with `if (length > 0)`, so an
+    // empty snapshot skipped the click silently and the test went on to measure a
+    // mention it never inserted — a pass that proved nothing, and a flake when the
+    // later assertions noticed. Indexed locators re-query, and the click is now
+    // unconditional so a missing option fails loudly.
+    const firstOptions = page.locator('[role="option"]')
+    await expect(firstOptions.nth(0)).toBeVisible({ timeout: 5000 })
+    await firstOptions.nth(0).click()
+    await expect(editor.locator('.mention')).toHaveCount(1, { timeout: 5000 })
 
     // Insert second mention
     await page.keyboard.type(' Second: ')
     await page.keyboard.type('@')
     await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 5000 })
-    await expect(page.locator('[role="option"]').first()).toBeVisible({ timeout: 5000 })
-
-    options = await page.locator('[role="option"]').all()
-    if (options.length > 1) {
-      await options[1].click()
-      await page.waitForTimeout(500)
-    } else if (options.length > 0) {
-      await options[0].click()
-      await page.waitForTimeout(500)
-    }
+    // Same treatment. The second mention prefers a different person when the list
+    // offers one, but either way a click must happen — the old three-branch guard
+    // could fall through to no click at all.
+    const secondOptions = page.locator('[role="option"]')
+    await expect(secondOptions.nth(0)).toBeVisible({ timeout: 5000 })
+    const wanted = (await secondOptions.count()) > 1 ? 1 : 0
+    await secondOptions.nth(wanted).click()
+    await expect(editor.locator('.mention')).toHaveCount(2, { timeout: 5000 })
 
     // Was `waitForTimeout(2000)` — same zero-margin race as the image tests.
     // The count is read from the DOM first so the persisted state can be asserted

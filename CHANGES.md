@@ -2251,3 +2251,75 @@ That this fixes all ten. Six share this mechanism and are addressed. The other f
 — `autosave-race-conditions:368`, `project-weeks:134` and `:184`,
 `session-timeout:225` — have not been diagnosed, and the pattern of the last two
 commits says not to guess at them. Read their stack traces first.
+
+---
+
+# `.all()` is a snapshot, and four tests were reading a stale one
+
+The slash-menu fix worked: `images.spec.ts` went from four flaky tests to zero, and
+its whole failure mode — `waitForEvent('filechooser')` timing out at 60 s — is gone
+from the log. The aggregate barely moved, though, because the next mechanism was
+waiting underneath.
+
+`data-integrity:274` now fails differently, and the new error is the useful one:
+
+```
+TypeError: Cannot read properties of undefined (reading 'getAttribute')
+  > 328 |  const reloadedSrc1 = await reloadedImgs[0].getAttribute('src')
+```
+
+Four lines above it, `await expect(page.locator('.ProseMirror img')).toHaveCount(2)`
+had already passed. So the count reached two and the array came back short — TipTap
+re-rendered in between, and `.all()` had materialised handles to DOM nodes that no
+longer existed.
+
+That is the property that makes `.all()` wrong here, and it is worth stating
+precisely because `toHaveCount` looks like it should have protected it: `.all()`
+resolves once and never re-queries. Every element in the returned array is a handle
+to one DOM node. A locator built with `.nth(i)` re-queries on each use, and
+`expect(locator).toHaveAttribute(...)` polls on top of that.
+
+## What changed, in `data-integrity.spec.ts`
+
+| Was | Now |
+|---|---|
+| `const imgs = await editor.locator('img').all()` then `imgs[0]`, `imgs[1]` | `editor.locator('img').nth(0)` / `.nth(1)` |
+| `toHaveCount(2)` then `.all()` then compare `src` | `expect(reloaded.nth(i)).toHaveAttribute('src', srcN)` |
+| `options = await …all(); if (options.length > 0) options[0].click()` | indexed locator, **unconditional** click |
+
+The mention guards deserve their own note. `if (options.length > 0)` meant an empty
+snapshot skipped the click *silently*, and the test went on to measure a mention it
+had never inserted — a pass that proved nothing, and a flake only when a later
+assertion happened to notice. The click is now unconditional, so a missing option
+fails loudly and immediately, and each click is followed by
+`expect(editor.locator('.mention')).toHaveCount(n)` so the insertion is confirmed
+rather than assumed.
+
+Side effect worth having: `npx tsc --noEmit` errors in this file went from **7 to 0**.
+All seven were `TS2532: Object is possibly 'undefined'` on exactly these array
+dereferences. TypeScript had been pointing at the bug the whole time; `pnpm
+type-check` does not cover `e2e/`, so nothing enforced it.
+
+## Four attempts, honestly
+
+| Attempt | Real bug found | Aggregate flake count |
+|---|---|---|
+| baseline | — | 1 failed / 8 flaky |
+| WS connection rate limit | 94 `429`s → 0 | 2 failed / 8 flaky |
+| persist debounce race | zero-margin bet on 2000 ms | 1 failed / 10 flaky |
+| slash-menu blind Enter | 6 of 10, `images.spec` cleared | 2 failed / 8 flaky |
+| `.all()` snapshots | this one | measuring |
+
+Every one of those was a genuine defect and three of them are permanently gone. The
+aggregate has not fallen because this is a long tail of distinct bugs, not one cause
+with many symptoms — which is the thing the first three commits each assumed.
+
+The method that finally worked is dull: read the stack trace attached to the failing
+test, fix exactly what it points at, measure, repeat.
+
+## Still undiagnosed
+
+`autosave-race-conditions:368`, `drag-handle:467`, `project-weeks:134` and `:184`,
+`session-timeout:205`, `:225`, `:629`. The session-timeout trio is the obvious next
+cluster — three tests in one file, all timer-driven. No guesses recorded here; read
+their traces.
