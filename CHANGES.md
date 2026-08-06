@@ -2416,3 +2416,71 @@ defect in this repository.
 `session-timeout:941`, and `project-weeks:134`. Undiagnosed, and deliberately not
 guessed at — the method that worked was reading the stack trace attached to the
 failing test, and these have not had theirs read yet.
+
+---
+
+# Run 6: the caret was landing on an image
+
+```
+        failed   flaky   passed   duration
+run 1      1       8       868      20.7m
+run 5      2       4       871      16.2m
+run 6      1       5       871      19.2m
+```
+
+Broadly flat against run 5 and clearly better than baseline. `performance.spec.ts:367`
+still fails, but it fails *further along* — and the movement is the diagnosis:
+
+```
+run 5    Expected: 3   Received: 2
+run 6    Expected: 4   Received: 3
+```
+
+The slash-menu fix bought one more upload. Something else stops the next one.
+
+## `editor.click()` clicks the centre
+
+```ts
+await editor.click()        // the CENTRE of .ProseMirror
+await page.waitForTimeout(300)
+await page.keyboard.type(`Image ${i + 1}:`)
+```
+
+Fine on an empty document. Wrong on this one. By the third iteration the centre of
+the editor *is an image*, and clicking an image in ProseMirror selects the node
+rather than placing a caret. The `/image` that follows is typed into a node
+selection and goes nowhere, so the fourth upload never starts — which is exactly
+what the 30-second stall at `Received: 3` was showing.
+
+Replaced with a deterministic caret placement:
+
+```ts
+await editor.locator('> *').last().click()
+await page.keyboard.press('ControlOrMeta+End')
+```
+
+Click the last block, then move to the true end of the document. Applied to both
+upload loops in the file. The second one uploads three images rather than five and
+had not tripped yet — luck, not a difference, since the centre becomes an image
+either way.
+
+## Six root causes
+
+| # | Cause | Where it lived |
+|---|---|---|
+| 1 | WS connection rate limit shared across all workers | `collaboration/index.ts` |
+| 2 | `waitForTimeout` equal to the persist debounce | 4 sites |
+| 3 | Slash-menu container visible before its items | 11 sites |
+| 4 | `.all()` snapshot read after a re-render | 4 sites |
+| 5 | `toBeGreaterThanOrEqual(1)` hiding a failed upload | `performance:367` |
+| 6 | `editor.click()` selecting an image instead of placing a caret | 2 loops |
+
+Two of these — 5 and 6 — were only findable *because* an earlier fix tightened an
+assertion. The suite has been reporting green on partial uploads for a long time.
+
+## Still open
+
+`autosave-race-conditions:368`, `project-weeks:184`, `session-timeout:629`, and two
+in `program-mode-week-ux` that appeared in run 6 and not run 5, which makes them
+candidates for genuine timing noise rather than a sixth mechanism. None has had its
+stack trace read. That is the next step, and it is the only step that has worked.

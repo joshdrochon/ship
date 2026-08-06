@@ -375,9 +375,16 @@ test.describe('Performance - Many Images', () => {
 
     // Upload 5 images
     for (let i = 0; i < 5; i++) {
-      // Re-focus editor each iteration (focus can be lost after file chooser)
-      await editor.click()
-      await page.waitForTimeout(300)
+      // `editor.click()` clicks the CENTRE of `.ProseMirror`. That is fine on an
+      // empty document and wrong on this one: by the third iteration the centre of
+      // the editor is an image, and clicking an image selects the node instead of
+      // placing a caret, so the keystrokes below went nowhere. The run before this
+      // one stalled at `Expected: 4, Received: 3` for the full 30 s — the fourth
+      // upload never started because the `/image` was never typed anywhere.
+      //
+      // Click the last block, then move the caret to the true end of the document.
+      await editor.locator('> *').last().click()
+      await page.keyboard.press('ControlOrMeta+End')
 
       await page.keyboard.type(`Image ${i + 1}:`)
       await page.keyboard.press('Enter')
@@ -445,9 +452,11 @@ test.describe('Performance - Many Images', () => {
 
     // Upload 3 images
     for (let i = 0; i < 3; i++) {
-      // Re-focus editor each iteration (focus can be lost after file chooser)
-      await editor.click()
-      await page.waitForTimeout(300)
+      // Same caret placement as the loop above. This one uploads three images
+      // rather than five and has not tripped yet, which is luck rather than a
+      // difference — the centre of the editor becomes an image either way.
+      await editor.locator('> *').last().click()
+      await page.keyboard.press('ControlOrMeta+End')
 
       await page.keyboard.type('/image')
       const tmpPath = createTestImageFile()
