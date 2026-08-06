@@ -17,15 +17,11 @@ const messageAwareness = 1;
 const messageCustomEvent = 2;
 const messageClearCache = 3; // Tells browser to clear IndexedDB cache before sync
 
-// Rate limiting configuration
-const RATE_LIMIT = {
-  // Connection rate limiting: max connections per IP in time window
-  CONNECTION_WINDOW_MS: 60_000,  // 1 minute window
-  MAX_CONNECTIONS_PER_IP: 30,    // 30 connections per minute per IP
-  // Message rate limiting: max messages per connection in time window
-  MESSAGE_WINDOW_MS: 1_000,      // 1 second window
-  MAX_MESSAGES_PER_SECOND: 50,   // 50 messages per second per connection
-};
+// Rate limits live in their own zero-dependency module so they can be asserted
+// without a database. See rateLimitConfig.ts for why the connection limit differs
+// under test and the message limit does not.
+export { RATE_LIMIT, RATE_LIMIT_VIOLATION_THRESHOLD } from './rateLimitConfig.js';
+import { RATE_LIMIT, RATE_LIMIT_VIOLATION_THRESHOLD } from './rateLimitConfig.js';
 
 // Track connection attempts per IP (sliding window)
 const connectionAttempts = new Map<string, number[]>();
@@ -35,7 +31,6 @@ const messageTimestamps = new Map<WebSocket, number[]>();
 
 // DDoS protection: Track rate limit violations per connection for progressive penalties
 const rateLimitViolations = new Map<WebSocket, number>();
-const RATE_LIMIT_VIOLATION_THRESHOLD = 50; // Close connection after 50 violations
 
 // Clean up old connection attempts periodically
 setInterval(() => {

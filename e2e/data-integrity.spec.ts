@@ -1,5 +1,12 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { expectDocumentTitleSaved, waitForSlashMenu } from './fixtures/test-helpers'
+import {
+  expectDocumentTitleSaved,
+  waitForSlashMenu,
+  chooseSlashMenuItem,
+  expectContentPersisted,
+  expectTextPersisted,
+  countNodesOfType,
+} from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -157,7 +164,10 @@ test.describe('Data Integrity - Document Persistence', () => {
     await page.keyboard.press('Shift+Tab')
     await page.keyboard.type('Parent item 2')
 
-    await page.waitForTimeout(2000)
+    // Was `waitForTimeout(2000)` — exactly PERSIST_DEBOUNCE_MS, measured from the
+    // wrong clock. `Parent item 2` is the last thing typed, so the server holding
+    // it means the whole nested structure has landed.
+    await expectTextPersisted(page, 'Parent item 2')
 
     // Reload
     await page.reload()
@@ -214,11 +224,13 @@ test.describe('Data Integrity - Images', () => {
 
     // Upload image
     await page.keyboard.type('/image')
-    await waitForSlashMenu(page)
 
     const tmpPath = createTestImageFile()
     const fileChooserPromise = page.waitForEvent('filechooser')
-    await page.keyboard.press('Enter')
+    // Was `waitForSlashMenu` + blind Enter. The menu container renders before its
+    // items do, so Enter selected nothing and the chooser never opened — a 60 s
+    // test timeout, and six of ten flaky tests in one run.
+    await chooseSlashMenuItem(page, /Image/i)
 
     const fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tmpPath)
@@ -239,7 +251,10 @@ test.describe('Data Integrity - Images', () => {
     const img = editor.locator('img').first()
     const originalSrc = await img.getAttribute('src')
 
-    await page.waitForTimeout(2000)
+    // Was `waitForTimeout(2000)`, which is exactly PERSIST_DEBOUNCE_MS and therefore
+    // never long enough — the server's 2 s starts when the update arrives, not when
+    // this test started counting. Wait for the image to be in the persisted content.
+    await expectContentPersisted(page, (c) => countNodesOfType(c, 'image') >= 1)
 
     // Reload page
     await page.reload()
@@ -266,11 +281,9 @@ test.describe('Data Integrity - Images', () => {
     await page.keyboard.type('Image 1:')
     await page.keyboard.press('Enter')
     await page.keyboard.type('/image')
-    await waitForSlashMenu(page)
-
     const tmpPath1 = createTestImageFile()
     let fileChooserPromise = page.waitForEvent('filechooser')
-    await page.keyboard.press('Enter')
+    await chooseSlashMenuItem(page, /Image/i)
     let fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tmpPath1)
 
@@ -282,36 +295,43 @@ test.describe('Data Integrity - Images', () => {
     await page.keyboard.type('Image 2:')
     await page.keyboard.press('Enter')
     await page.keyboard.type('/image')
-    await waitForSlashMenu(page)
-
     const tmpPath2 = createTestImageFile()
     fileChooserPromise = page.waitForEvent('filechooser')
-    await page.keyboard.press('Enter')
+    await chooseSlashMenuItem(page, /Image/i)
     fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tmpPath2)
 
-    await page.waitForTimeout(3000)
+    // Was `waitForTimeout(3000)` — exactly PERSIST_MAX_WAIT_MS, so the same
+    // zero-margin race as the single-image test above.
+    await expectContentPersisted(page, (c) => countNodesOfType(c, 'image') >= 2)
 
-    // Get image sources
-    const imgs = await editor.locator('img').all()
-    expect(imgs.length).toBe(2)
+    // `expect(locator).toHaveCount()` polls; `(await locator.all()).length` does not.
+    // `.all()` is a snapshot taken the instant it runs, so on a busy runner it read
+    // one image, asserted 1 !== 2, and failed a suite that was working correctly.
+    await expect(editor.locator('img')).toHaveCount(2)
 
-    const src1 = await imgs[0].getAttribute('src')
-    const src2 = await imgs[1].getAttribute('src')
+    // Indexed locators, not `.all()`. `.all()` materialises an array once; every
+    // element in it is a handle to a DOM node that TipTap can replace on its next
+    // render, and the array itself never re-resolves. `.nth(i)` re-queries at use.
+    const src1 = await editor.locator('img').nth(0).getAttribute('src')
+    const src2 = await editor.locator('img').nth(1).getAttribute('src')
 
     // Reload
     await page.reload()
     await expect(page.locator('.ProseMirror')).toBeVisible({ timeout: 5000 })
 
-    // Verify order preserved
-    const reloadedImgs = await page.locator('.ProseMirror img').all()
-    expect(reloadedImgs.length).toBe(2)
+    // Verify order preserved. Same reason as above, and it matters more here:
+    // after a reload the editor hydrates asynchronously, so the images are
+    // reliably absent for a moment even when they persisted correctly.
+    await expect(page.locator('.ProseMirror img')).toHaveCount(2)
 
-    const reloadedSrc1 = await reloadedImgs[0].getAttribute('src')
-    const reloadedSrc2 = await reloadedImgs[1].getAttribute('src')
-
-    expect(reloadedSrc1).toBe(src1)
-    expect(reloadedSrc2).toBe(src2)
+    // `toHaveAttribute` polls; reading through a materialised array does not. The
+    // previous version passed `toHaveCount(2)` and then threw
+    // `Cannot read properties of undefined` four lines later, because TipTap
+    // re-rendered between the count and the `.all()` and the array came back short.
+    const reloaded = page.locator('.ProseMirror img')
+    await expect(reloaded.nth(0)).toHaveAttribute('src', src1 ?? '')
+    await expect(reloaded.nth(1)).toHaveAttribute('src', src2 ?? '')
 
     fs.unlinkSync(tmpPath1)
     fs.unlinkSync(tmpPath2)
@@ -344,7 +364,9 @@ test.describe('Data Integrity - Mentions', () => {
       // Wait for mention to be inserted
       await expect(editor.locator('.mention')).toBeVisible({ timeout: 3000 })
 
-      await page.waitForTimeout(2000)
+      // Was `waitForTimeout(2000)` — exactly PERSIST_DEBOUNCE_MS, measured from the
+      // wrong clock.
+      await expectContentPersisted(page, (c) => countNodesOfType(c, 'mention') >= 1)
 
       // Reload
       await page.reload()
@@ -367,30 +389,38 @@ test.describe('Data Integrity - Mentions', () => {
     await page.keyboard.type('@')
     await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 5000 })
 
-    let options = await page.locator('[role="option"]').all()
-    if (options.length > 0) {
-      await options[0].click()
-      await page.waitForTimeout(500)
-    }
+    // The listbox becomes visible before its options render. The original code
+    // snapshotted with `.all()` and guarded the click with `if (length > 0)`, so an
+    // empty snapshot skipped the click silently and the test went on to measure a
+    // mention it never inserted — a pass that proved nothing, and a flake when the
+    // later assertions noticed. Indexed locators re-query, and the click is now
+    // unconditional so a missing option fails loudly.
+    const firstOptions = page.locator('[role="option"]')
+    await expect(firstOptions.nth(0)).toBeVisible({ timeout: 5000 })
+    await firstOptions.nth(0).click()
+    await expect(editor.locator('.mention')).toHaveCount(1, { timeout: 5000 })
 
     // Insert second mention
     await page.keyboard.type(' Second: ')
     await page.keyboard.type('@')
     await expect(page.locator('[role="listbox"]')).toBeVisible({ timeout: 5000 })
+    // Same treatment. The second mention prefers a different person when the list
+    // offers one, but either way a click must happen — the old three-branch guard
+    // could fall through to no click at all.
+    const secondOptions = page.locator('[role="option"]')
+    await expect(secondOptions.nth(0)).toBeVisible({ timeout: 5000 })
+    const wanted = (await secondOptions.count()) > 1 ? 1 : 0
+    await secondOptions.nth(wanted).click()
+    await expect(editor.locator('.mention')).toHaveCount(2, { timeout: 5000 })
 
-    options = await page.locator('[role="option"]').all()
-    if (options.length > 1) {
-      await options[1].click()
-      await page.waitForTimeout(500)
-    } else if (options.length > 0) {
-      await options[0].click()
-      await page.waitForTimeout(500)
-    }
-
-    // Wait for save
-    await page.waitForTimeout(2000)
-
+    // Was `waitForTimeout(2000)` — same zero-margin race as the image tests.
+    // The count is read from the DOM first so the persisted state can be asserted
+    // against the number this test actually produced, rather than a guess.
     const mentionCount = await editor.locator('.mention').count()
+    await expectContentPersisted(
+      page,
+      (c) => countNodesOfType(c, 'mention') >= mentionCount,
+    )
 
     // Reload
     await page.reload()

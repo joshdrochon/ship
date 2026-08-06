@@ -1829,3 +1829,658 @@ No changes. Your infrastructure matches the configuration.
 - `PRESEARCH.md` and `FLEETGRAPH.md` are at the repository root, as p.5 requires.
 - No `.tfstate` or real `.tfvars` is tracked; only `*.example` files.
 - Working tree clean, nothing unpushed.
+
+---
+
+# Remote state, and the credential an armed deploy would have deleted
+
+`.github/workflows/deploy.yml` has been complete since it was written — a `deploy`
+job that promotes a SHA and reverts on a failed health check, and a
+`rollback-on-failed-ci` job that reacts to a CI failure on an already-deployed
+commit. It has also been switched off that entire time, reporting DORMANT into
+every run summary, because Terraform state for `terraform/render` was a local file.
+A CI `terraform apply` would have started with no knowledge of the running service
+and tried to create a second one.
+
+That is now fixed, and fixing it surfaced a worse problem than the one it solved.
+
+## State lives in GitLab
+
+`terraform/render/versions.tf` gains a `backend "http"` block pointed at the
+Terraform state API on `labs.gauntletai.com`, project 1609 — the same instance and
+project this repository is graded on.
+
+S3 was the first choice and it does not exist here: no `aws` CLI, no `~/.aws`, no
+`AWS_*` in the environment. Terraform Cloud works but adds a fifth external service
+and a fifth credential for one file. GitLab already holds the repository and already
+has a token in use, and its state API is enabled on this instance — an
+unauthenticated request to `/terraform/state/*` answers 401 where a disabled feature
+answers 404, and the same request with a token reaches the handler.
+
+The brief says nothing about where state lives. It requires a `terraform/` directory,
+an annotated plan, and a destroy-and-redeploy, none of which this affects.
+
+Migration, with the before and after taken the same way:
+
+```
+before   local file, serial 13
+         render_cron_job.fleetgraph, render_postgres.ship, render_web_service.shipshape
+
+after    terraform init -migrate-state  →  "Successfully configured the backend http"
+         terraform state list           →  the same three resources, read from GitLab
+         terraform plan                 →  No changes. Your infrastructure matches
+                                            the configuration.
+```
+
+That last line is the proof. It is the only statement that cannot be true unless the
+migrated state genuinely describes the running infrastructure.
+
+## The bug the migration exposed
+
+`variables.tf:318` declares `anthropic_api_key` with `default = null`, and `main.tf`
+and `cron.tf` omit the environment variable entirely when it is null rather than
+setting it empty. That was a deliberate choice and it is the right one — a blank key
+fails on the first call, where an absent one degrades honestly.
+
+But it means null does not mean *leave the running service alone*. It means *remove
+`ANTHROPIC_API_KEY` from it*.
+
+`deploy.yml` never passed that variable. Arming the workflow would have stripped the
+model credential off a healthy deployment on the next apply. The service would have
+stayed up, `/health` would have stayed green, and every judgement would have returned
+`ai_unavailable` — the exact silent failure `11c4a67` fixed, reintroduced through the
+deploy path instead of the code.
+
+Nothing catches this. `terraform plan` is correct; it correctly plans to delete the
+variable. There is no type error and no lint rule.
+
+So `scripts/check-tf-secrets.sh` asserts that every variable `variables.tf` marks
+`sensitive = true` is passed by `deploy.yml`. It runs in CI as the `tf-secrets` job
+and again in the deploy preflight, and it needs no credentials, so it runs on forks
+and pull requests too.
+
+Proved against the bug rather than asserted:
+
+```
+$ ./scripts/check-tf-secrets.sh
+check-tf-secrets: all 6 sensitive variables are passed by deploy.yml
+
+$ grep -v 'TF_VAR_anthropic_api_key:' deploy.yml > deploy.yml   # reintroduce it
+$ ./scripts/check-tf-secrets.sh
+MISSING  TF_VAR_anthropic_api_key is not passed by deploy.yml
+exit=1
+```
+
+## How to run it
+
+```bash
+. scripts/tf-env.sh                 # reads .env, exports TF_HTTP_* and TF_VAR_*, prints no values
+cd terraform/render
+terraform init                      # now talks to GitLab
+terraform plan -var image_tag=$(curl -s https://shipshape-7buc.onrender.com/health | jq -r .revision)
+```
+
+`scripts/tf-env.sh` is sourced, not executed. It reports which values are present and
+never prints one — a helper that echoes a token to prove it works is how tokens reach
+scrollback and screen recordings.
+
+## How to test it
+
+```bash
+./scripts/check-tf-secrets.sh       # no credentials needed
+```
+
+## How to roll it back
+
+The backend is a block in `versions.tf` and a copy of state in GitLab. To go back to
+a local file, delete the block and run `terraform init -migrate-state`, which copies
+state down in the same way it copied it up. The pre-migration file is unchanged on
+disk at `terraform/render/terraform.tfstate` — Terraform leaves it in place — so the
+worst case is `terraform init -reconfigure` against the local backend.
+
+Nothing about the running infrastructure changes either way. State migration moves the
+record, not the resources.
+
+## What is armed, and what is not, and why in that order
+
+`deploy.yml` triggers on `workflow_run` for CI on `main`, and GitHub runs the copy of
+a `workflow_run` workflow that is **on the default branch** — not the copy on the
+branch that opened the pull request. Arming before this merges would therefore have
+run main's `deploy.yml`, which is the one still missing `TF_VAR_anthropic_api_key`.
+
+So the order is: merge, then set `RENDER_DEPLOY_ENABLED`, then rehearse a rollback
+through `workflow_dispatch` before trusting the automatic path. Arming first would
+have caused precisely the outage this change exists to prevent.
+
+## Still outstanding
+
+The rehearsal. `deploy.yml` has never fired — not the deploy path, not the rollback
+path. Until it has, engineering requirement 1 is wired and unproven, which is a better
+place than blocked but is not done. Today's automatic rollback remains Render's own
+health-check rollback, which is configured in `main.tf` and is real.
+
+---
+
+# The E2E suite was rate-limiting itself
+
+877 tests, ~21 minutes, 2 workers, and a steady 4–10 flaky results per run that
+moved around between specs. It was treated as a test-quality problem for months —
+fixed sleeps, missing awaits, hydration races — and some of that was real. None of
+it was the cause.
+
+`api/src/collaboration/index.ts` capped WebSocket upgrades at
+`MAX_CONNECTIONS_PER_IP: 30` per minute. Every Playwright worker connects from
+127.0.0.1, so the entire suite shared one bucket. Each test opens two sockets, one
+for `/collaboration/{type}:{id}` and one for `/events`, which puts the suite at
+roughly 80 connections a minute against a limit of 30.
+
+Past the 30th connection in any minute, the upgrade got `HTTP/1.1 429 Too Many
+Requests`. Whether that failed a test depended on whether that test happened to need
+its socket — load-dependent, non-deterministic, worse on the heavier specs. One CI
+run logged **108** of them alongside 1 failure and 8 flaky.
+
+It also explains the 3-worker experiment that was tried and reverted earlier. Going
+from 2 workers to 3 made things worse (flaky 4 → 10), which made no sense as a
+resource problem and makes complete sense as a shared-quota one: more workers, same
+IP, same 30-per-minute budget.
+
+`app.ts:114` has had `isTestEnv ? 10000` on the HTTP limiter for a long time, because
+this exact problem was hit there first and solved there. The WebSocket limiter never
+got the same treatment.
+
+## What changed
+
+`api/src/collaboration/rateLimitConfig.ts` is new — the limits, in a module with no
+imports. `collaboration/index.ts` loads the database client at module scope, so
+asserting two numbers from there needed a running Postgres. A config assertion that
+a stopped container can break is one nobody trusts.
+
+`MAX_CONNECTIONS_PER_IP` is now `isTestEnv ? 10_000 : 30`. Production is unchanged.
+
+The message limit is deliberately untouched. It is per-connection rather than per-IP,
+so parallel workers never contend for it, and a test that trips 50 messages a second
+on one socket is describing a real bug rather than a busy runner.
+
+Two genuine test bugs were fixed alongside it, in `e2e/data-integrity.spec.ts`:
+
+- `(await locator.all()).length` does not retry. `.all()` is a snapshot taken the
+  instant it runs, so after `page.reload()` — when the editor hydrates
+  asynchronously — it read one image and asserted `1 !== 2`. Replaced with
+  `expect(locator).toHaveCount(2)`, which polls.
+- `[role="listbox"]` becomes visible before its options render, so the mentions test
+  snapshotted an empty array, its `if (options.length > 0)` guard silently skipped
+  the click, and the test carried on measuring a mention it never inserted. It now
+  waits for the first option.
+
+## The regression test, and why it asserts production too
+
+`api/src/collaboration/__tests__/rate-limit-config.test.ts`. Six assertions, no
+database.
+
+Two opposite one-line regressions are both possible here, and neither breaks anything
+else in the suite:
+
+1. Delete the ternary, keep 30. The flakes return and get blamed on the tests again.
+2. Delete the ternary, keep 10,000, because it reads tidier. **Production silently
+   loses connection-flood protection and nothing reports it.**
+
+The second is the one that matters, so it is asserted explicitly against
+`NODE_ENV=production` rather than inferred.
+
+Proved against both, not asserted:
+
+```
+revert to a flat 30      → Tests  2 failed | 4 passed   expected 30 to be 10000
+raise it globally        → Tests  2 failed | 4 passed   expected 10000 to be 30
+restored                 → Tests  6 passed (6)
+```
+
+## How to run it
+
+```bash
+pnpm docker:up            # Postgres on 5433
+cd api && npx vitest run src/collaboration/
+```
+
+Note the port. `api/.env.local` says 5432, which is what makes it look like there is
+a host Postgres install. There is not — it comes from Docker on 5433, and the
+container's credentials are `ship` / `ship_dev_password`.
+
+Measured: **73 passed (73)** across the collaboration directory, `pnpm type-check`
+clean in all four packages.
+
+## How to roll it back
+
+Delete `rateLimitConfig.ts`, restore the inline `RATE_LIMIT` object and
+`RATE_LIMIT_VIOLATION_THRESHOLD` in `collaboration/index.ts`, and drop the test.
+Nothing else imports the new module. The E2E spec changes are independent and worth
+keeping either way — `toHaveCount` is correct regardless of the rate limit.
+
+## What this does not claim
+
+The flake count after this change has not been measured. The mechanism is proven —
+the arithmetic, the 108 logged 429s, and the 3-worker result that matches the
+prediction — but the number that matters is how many flakes survive, and that comes
+from the next full CI run rather than from this file.
+
+Any that remain are a different bug, and they will be a smaller and much clearer one
+now that the suite is not fighting its own rate limiter.
+
+---
+
+# The persistence flakes were betting against a number in the server
+
+The rate-limit fix removed 94 of 94 `429`s and moved nothing else: 1 failed / 8 flaky
+became 2 failed / 8 flaky. So the 429s were a real bug and not the flake driver. This
+is the driver.
+
+Editor content is a Yjs CRDT synced over the collaboration socket, and the
+collaboration server writes it to Postgres on a debounce:
+
+```
+api/src/collaboration/index.ts:184   PERSIST_DEBOUNCE_MS = 2000
+api/src/collaboration/index.ts:195   PERSIST_MAX_WAIT_MS  = 3000
+```
+
+Four of the eight flaky tests did this:
+
+```ts
+await page.waitForTimeout(2000)   // exactly PERSIST_DEBOUNCE_MS
+await page.reload()
+// ...assert the content survived
+```
+
+That wait can never be long enough. It is measured from the test's clock, which
+starts before the last Yjs update has reached the server, while the server's 2000 ms
+starts when the update *arrives* and is followed by a database write. The test
+reloads at or before the moment the data lands. It passes on timing luck, and luck
+gets worse under load — which is exactly what a flake is.
+
+The multi-image test used `waitForTimeout(3000)` against `PERSIST_MAX_WAIT_MS = 3000`.
+Same race, same margin of zero.
+
+## What changed
+
+Two helpers in `e2e/fixtures/test-helpers.ts`, siblings of the existing
+`expectDocumentTitleSaved`, which already solved this shape for titles:
+
+- `expectContentPersisted(page, predicate)` — polls `GET /api/documents/:id` until
+  the persisted content satisfies a predicate.
+- `expectTextPersisted(page, text)` — the text-shaped case, which is what most call
+  sites want.
+
+Plus `countNodesOfType` and `textOfContent` so callers do not each re-walk the
+TipTap tree. `textOfContent` joins node text with newlines rather than concatenating,
+so `Parent item 1` and `Parent item 2` in separate blocks cannot satisfy a search for
+`Parent item 12`.
+
+Applied to all four of the flaky cluster:
+
+| Test | Was | Now |
+|---|---|---|
+| `data-integrity:209` images persist | `waitForTimeout(2000)` | waits for 1 image node in persisted content |
+| `data-integrity:259` image order | `waitForTimeout(3000)` | waits for 2 image nodes |
+| `data-integrity:364` mentions | `waitForTimeout(2000)` | waits for the mention count it just produced |
+| `performance:367` many images | `waitForTimeout(2000)` × 5 + 3000 | `toHaveCount(i + 1)` per iteration |
+
+`performance:367` also stopped hedging. Its assertion was
+`expect(imgCount).toBeGreaterThanOrEqual(1)`, which passed with four of five images
+silently missing — the outcome the test exists to catch. It is now `toHaveCount(5)`.
+
+## Deliberately NOT fixed by lowering the debounce
+
+Shortening `PERSIST_DEBOUNCE_MS` under test would make all of this pass and would be
+wrong. The 2 s coalescing window is behaviour under test; a suite that only passes
+against a faster one is not testing the shipped system. The rate limit was different
+— that was an environment quota with no behavioural content, which is why the test
+escape there is legitimate and this one would not be.
+
+## 21 more sites, named rather than swept
+
+The same `sleep-then-reload` pattern appears **25 times across 15 spec files**. Four
+are fixed here. Twelve of the remaining twenty-one sleep for *less* than 2000 ms, so
+they are losing the same bet by a wider margin and pass only because the reload
+itself is slow enough to cover it:
+
+```
+autosave-race-conditions:400   backlinks:89,166,209,272,351
+drag-handle:649                edge-cases:88,114,290,338
+features-real:207,356          file-attachments:220
+images:194                     inline-code:160
+inline-comments:187,278        race-conditions:83,327
+tables:441                     toggle:259
+wiki-document-properties:110
+```
+
+They are not changed in this commit because each needs the right predicate, and a
+blanket edit across fifteen files with no measurement between them is how a
+green suite becomes a differently-broken one. The helper is there; the sweep is a
+separate, measurable change.
+
+## How to test it
+
+```bash
+/e2e-test-runner e2e/data-integrity.spec.ts e2e/performance.spec.ts
+```
+
+Never `pnpm test:e2e` directly — 877 tests of output crashes the session.
+
+## How to roll it back
+
+Revert the four call sites to their `waitForTimeout` values. The helpers are
+additive and unused elsewhere, so they can stay or go independently.
+
+## What is not claimed
+
+That this fixes all eight. Four are addressed with a named mechanism; the other four
+(`autosave-race-conditions:368`, `session-timeout:205` and `:629`,
+`project-weeks:184`) have not been diagnosed and may well be a different cause. The
+number that settles it is the next full CI run.
+
+---
+
+# The image flakes: a menu that renders before its items
+
+The previous commit's persistence fix did not move the number. 8 flaky became 10.
+Reading the actual failure rather than the plausible one:
+
+```
+Test timeout of 60000ms exceeded.
+Error: page.waitForEvent: Test timeout of 60000ms exceeded.
+waiting for event "filechooser"
+  > 229 |  const fileChooserPromise = page.waitForEvent('filechooser')
+```
+
+Line 229. The persistence code was at line 247 and never ran. The debounce race
+diagnosed in that commit is real and worth having fixed, but it is not what was
+firing.
+
+`waitForSlashMenu` asserts the menu *container* is visible —
+`[data-testid="slash-menu"]` — and nothing about its contents. Tests then pressed
+Enter to take whatever was highlighted. When the container has rendered but the
+filtered items have not, Enter selects nothing, the file chooser never opens, and
+the test sits in `waitForEvent('filechooser')` until the 60 s test timeout.
+
+That one mechanism was **six of the ten flaky tests**: every image upload in
+`data-integrity.spec.ts` and `images.spec.ts`, all reporting the identical error.
+
+`performance.spec.ts` already worked around it, with a hand-rolled three-attempt
+retry loop that checked `getByRole('button', { name: /Image.*Upload/i })` and
+retyped the command in between. That workaround was correct and undiscoverable —
+it lived inside one test and nothing pointed the other specs at it.
+
+## What changed
+
+`chooseSlashMenuItem(page, /Image/i)` in `e2e/fixtures/test-helpers.ts`: waits for
+the menu, then waits for the named item, then clicks it. Applied to all five
+blind-Enter upload sites — three in `data-integrity.spec.ts`, two in
+`images.spec.ts`.
+
+Clicking rather than pressing Enter is deliberate. `selectItem(index)` is bound to
+the button's `onClick` (`SlashCommands.tsx:126`), so a click exercises the same code
+path with no dependence on where the keyboard cursor happens to be.
+
+The failure message names the cause rather than the symptom:
+
+> slash menu item /Image/i never rendered — the menu container being visible does
+> not mean its items are
+
+## The lesson worth keeping
+
+Two commits went at plausible causes — a rate limit, then a debounce — before
+anyone read the stack trace attached to the failing test. Both were real bugs. The
+94 `429`s were real and are gone; the zero-margin debounce race was real and is
+gone. Neither was what turned these tests red.
+
+The stack trace was in the CI log the whole time.
+
+## How to test it
+
+```bash
+/e2e-test-runner e2e/images.spec.ts e2e/data-integrity.spec.ts
+```
+
+## How to roll it back
+
+Revert the five call sites to `waitForSlashMenu` plus `keyboard.press('Enter')`.
+`chooseSlashMenuItem` is additive and unused elsewhere.
+
+## What is not claimed
+
+That this fixes all ten. Six share this mechanism and are addressed. The other four
+— `autosave-race-conditions:368`, `project-weeks:134` and `:184`,
+`session-timeout:225` — have not been diagnosed, and the pattern of the last two
+commits says not to guess at them. Read their stack traces first.
+
+---
+
+# `.all()` is a snapshot, and four tests were reading a stale one
+
+The slash-menu fix worked: `images.spec.ts` went from four flaky tests to zero, and
+its whole failure mode — `waitForEvent('filechooser')` timing out at 60 s — is gone
+from the log. The aggregate barely moved, though, because the next mechanism was
+waiting underneath.
+
+`data-integrity:274` now fails differently, and the new error is the useful one:
+
+```
+TypeError: Cannot read properties of undefined (reading 'getAttribute')
+  > 328 |  const reloadedSrc1 = await reloadedImgs[0].getAttribute('src')
+```
+
+Four lines above it, `await expect(page.locator('.ProseMirror img')).toHaveCount(2)`
+had already passed. So the count reached two and the array came back short — TipTap
+re-rendered in between, and `.all()` had materialised handles to DOM nodes that no
+longer existed.
+
+That is the property that makes `.all()` wrong here, and it is worth stating
+precisely because `toHaveCount` looks like it should have protected it: `.all()`
+resolves once and never re-queries. Every element in the returned array is a handle
+to one DOM node. A locator built with `.nth(i)` re-queries on each use, and
+`expect(locator).toHaveAttribute(...)` polls on top of that.
+
+## What changed, in `data-integrity.spec.ts`
+
+| Was | Now |
+|---|---|
+| `const imgs = await editor.locator('img').all()` then `imgs[0]`, `imgs[1]` | `editor.locator('img').nth(0)` / `.nth(1)` |
+| `toHaveCount(2)` then `.all()` then compare `src` | `expect(reloaded.nth(i)).toHaveAttribute('src', srcN)` |
+| `options = await …all(); if (options.length > 0) options[0].click()` | indexed locator, **unconditional** click |
+
+The mention guards deserve their own note. `if (options.length > 0)` meant an empty
+snapshot skipped the click *silently*, and the test went on to measure a mention it
+had never inserted — a pass that proved nothing, and a flake only when a later
+assertion happened to notice. The click is now unconditional, so a missing option
+fails loudly and immediately, and each click is followed by
+`expect(editor.locator('.mention')).toHaveCount(n)` so the insertion is confirmed
+rather than assumed.
+
+Side effect worth having: `npx tsc --noEmit` errors in this file went from **7 to 0**.
+All seven were `TS2532: Object is possibly 'undefined'` on exactly these array
+dereferences. TypeScript had been pointing at the bug the whole time; `pnpm
+type-check` does not cover `e2e/`, so nothing enforced it.
+
+## Four attempts, honestly
+
+| Attempt | Real bug found | Aggregate flake count |
+|---|---|---|
+| baseline | — | 1 failed / 8 flaky |
+| WS connection rate limit | 94 `429`s → 0 | 2 failed / 8 flaky |
+| persist debounce race | zero-margin bet on 2000 ms | 1 failed / 10 flaky |
+| slash-menu blind Enter | 6 of 10, `images.spec` cleared | 2 failed / 8 flaky |
+| `.all()` snapshots | this one | measuring |
+
+Every one of those was a genuine defect and three of them are permanently gone. The
+aggregate has not fallen because this is a long tail of distinct bugs, not one cause
+with many symptoms — which is the thing the first three commits each assumed.
+
+The method that finally worked is dull: read the stack trace attached to the failing
+test, fix exactly what it points at, measure, repeat.
+
+## Still undiagnosed
+
+`autosave-race-conditions:368`, `drag-handle:467`, `project-weeks:134` and `:184`,
+`session-timeout:205`, `:225`, `:629`. The session-timeout trio is the obvious next
+cluster — three tests in one file, all timer-driven. No guesses recorded here; read
+their traces.
+
+---
+
+# Run 5: flaky halved, and the assertion I tightened found a real one
+
+```
+        failed   flaky   passed   duration
+run 1      1       8       868      20.7m     baseline
+run 5      2       4       871      16.2m     after five fixes
+```
+
+Flaky halved. Four and a half minutes faster, because tests that used to burn a 60 s
+timeout before retrying now do not. `data-integrity.spec.ts` and `images.spec.ts` —
+between them six of the original flakes — are entirely absent from the list.
+
+## The one new failure is the point
+
+`performance.spec.ts:367` failed, and it failed because of the assertion tightened
+two commits ago:
+
+```
+expect(locator).toHaveCount(expected) failed
+Locator:  locator('.ProseMirror').locator('img')
+Expected: 3
+Received: 2
+Timeout:  30000ms
+  34 × locator resolved to 2 elements
+```
+
+The third of five image uploads never started. Thirty-four polls over thirty
+seconds, never more than two images. That is not a timing wobble; the upload did not
+happen.
+
+Under the old assertion — `expect(imgCount).toBeGreaterThanOrEqual(1)` — this test
+reported green with two of five images. It had presumably been doing so for a long
+time.
+
+## Why the third upload never started
+
+The same blind-Enter bug, in the one file that had already half-fixed it.
+
+`performance.spec.ts` wrapped its slash-menu step in a hand-rolled retry: check that
+`getByRole('button', { name: /Image.*Upload/i })` is visible, retype `/image` up to
+three times if not — and then press Enter. It confirmed the button had rendered and
+then ignored it, because Enter selects `selectedIndex`, not the button that was
+found.
+
+Four hundred lines below, a second upload loop in the same file does
+`await optionLocator.click()`, with a comment reading *"more reliable than
+keyboard.press"*. That loop has never been flaky. Someone had already found this
+exact bug, written down the reason, fixed their own test, and had no way to tell the
+rest of the suite.
+
+Two implementations of one step is how a working fix stays a local discovery. Both
+now call `chooseSlashMenuItem`.
+
+## The sweep, and a mistake in it
+
+Three more blind-Enter sites in `features-real.spec.ts`. A textual
+find-and-replace on `waitForSlashMenu` + `press('Enter')` matched **six**, not
+three — the other three were `/file`, `/table`, `/toggle` and `/code`, and all of
+them were rewritten to select **Image**.
+
+Caught by diffing before committing, and repaired by reading the `keyboard.type('/x')`
+line above each call. Recorded because the near-miss is the interesting part: a
+mechanical sweep across a suite nobody runs locally would have produced four
+confidently-passing tests exercising the wrong feature.
+
+`chooseSlashMenuItem` also now takes `.first()`. A menu button's accessible name is
+its title *and* its description (`SlashCommands.tsx:137-140`), so `/Table/i` matches
+both "Table" and "Table of Contents", and a strict locator throws. First-match is not
+a weakening — pressing Enter, which is what all these sites did before, selects
+`selectedIndex`, and that starts at 0.
+
+## Five root causes, all code
+
+| # | Cause | Status |
+|---|---|---|
+| 1 | WS connection rate limit shared across workers | fixed, 94 `429`s → 0 |
+| 2 | `waitForTimeout` equal to the persist debounce | fixed, 4 sites |
+| 3 | Slash menu container visible before its items | fixed, 11 sites |
+| 4 | `.all()` snapshots read after a re-render | fixed, 4 sites |
+| 5 | `toBeGreaterThanOrEqual(1)` hiding a failed upload | fixed, now `toHaveCount(5)` |
+
+Nothing here needed a bigger runner, more workers, or a paid service. Every one was a
+defect in this repository.
+
+## Still open
+
+`autosave-race-conditions:368`, `drag-handle:467`, `session-timeout:629`,
+`session-timeout:941`, and `project-weeks:134`. Undiagnosed, and deliberately not
+guessed at — the method that worked was reading the stack trace attached to the
+failing test, and these have not had theirs read yet.
+
+---
+
+# Run 6: the caret was landing on an image
+
+```
+        failed   flaky   passed   duration
+run 1      1       8       868      20.7m
+run 5      2       4       871      16.2m
+run 6      1       5       871      19.2m
+```
+
+Broadly flat against run 5 and clearly better than baseline. `performance.spec.ts:367`
+still fails, but it fails *further along* — and the movement is the diagnosis:
+
+```
+run 5    Expected: 3   Received: 2
+run 6    Expected: 4   Received: 3
+```
+
+The slash-menu fix bought one more upload. Something else stops the next one.
+
+## `editor.click()` clicks the centre
+
+```ts
+await editor.click()        // the CENTRE of .ProseMirror
+await page.waitForTimeout(300)
+await page.keyboard.type(`Image ${i + 1}:`)
+```
+
+Fine on an empty document. Wrong on this one. By the third iteration the centre of
+the editor *is an image*, and clicking an image in ProseMirror selects the node
+rather than placing a caret. The `/image` that follows is typed into a node
+selection and goes nowhere, so the fourth upload never starts — which is exactly
+what the 30-second stall at `Received: 3` was showing.
+
+Replaced with a deterministic caret placement:
+
+```ts
+await editor.locator('> *').last().click()
+await page.keyboard.press('ControlOrMeta+End')
+```
+
+Click the last block, then move to the true end of the document. Applied to both
+upload loops in the file. The second one uploads three images rather than five and
+had not tripped yet — luck, not a difference, since the centre becomes an image
+either way.
+
+## Six root causes
+
+| # | Cause | Where it lived |
+|---|---|---|
+| 1 | WS connection rate limit shared across all workers | `collaboration/index.ts` |
+| 2 | `waitForTimeout` equal to the persist debounce | 4 sites |
+| 3 | Slash-menu container visible before its items | 11 sites |
+| 4 | `.all()` snapshot read after a re-render | 4 sites |
+| 5 | `toBeGreaterThanOrEqual(1)` hiding a failed upload | `performance:367` |
+| 6 | `editor.click()` selecting an image instead of placing a caret | 2 loops |
+
+Two of these — 5 and 6 — were only findable *because* an earlier fix tightened an
+assertion. The suite has been reporting green on partial uploads for a long time.
+
+## Still open
+
+`autosave-race-conditions:368`, `project-weeks:184`, `session-timeout:629`, and two
+in `program-mode-week-ux` that appeared in run 6 and not run 5, which makes them
+candidates for genuine timing noise rather than a sixth mechanism. None has had its
+stack trace read. That is the next step, and it is the only step that has worked.
