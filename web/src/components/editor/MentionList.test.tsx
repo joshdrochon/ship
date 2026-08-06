@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createRef } from 'react';
+import { createRef, type RefObject } from 'react';
 import { render, act } from '@testing-library/react';
 import { MentionList, MentionItem } from './MentionList';
 
@@ -34,8 +34,17 @@ function mount(items: MentionItem[]) {
   return { ref, command };
 }
 
-const press = (ref: React.RefObject<MentionListRef | null>, key: string) =>
-  ref.current!.onKeyDown({ event: new KeyboardEvent('keydown', { key }) });
+// Checked rather than asserted with `!`. A missing handle means `useImperativeHandle`
+// never ran, which is a different failure from "the key was handled wrongly" and
+// deserves to say so — and `check-type-violations.sh` counts every `!` against a
+// whole-repo ceiling, so the assertion would not have been free either way.
+function press(ref: RefObject<MentionListRef | null>, key: string): boolean {
+  const handle = ref.current;
+  if (!handle) {
+    throw new Error('MentionList never attached its imperative handle');
+  }
+  return handle.onKeyDown({ event: new KeyboardEvent('keydown', { key }) });
+}
 
 describe('MentionList key handling', () => {
   describe('with no matching items', () => {
