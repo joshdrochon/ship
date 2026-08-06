@@ -269,3 +269,43 @@ export function textOfContent(content: unknown): string {
   if (!Array.isArray(node.content)) return '';
   return node.content.map(textOfContent).join('\n');
 }
+
+/**
+ * Pick an item from the slash menu by name, and wait until it is actually there.
+ *
+ * WHY THIS EXISTS. `waitForSlashMenu` asserts that the menu *container* is visible
+ * — `[data-testid="slash-menu"]` — and nothing about its contents. Tests then press
+ * Enter to take whatever is highlighted. When the container has rendered but the
+ * filtered items have not, Enter selects nothing, the file chooser never opens, and
+ * the test sits in `page.waitForEvent('filechooser')` until the 60 s test timeout.
+ *
+ * That single mechanism was six of the ten flaky tests in one run — every image
+ * upload in `data-integrity.spec.ts` and `images.spec.ts`. All of them reported the
+ * same thing:
+ *
+ *   Test timeout of 60000ms exceeded.
+ *   Error: page.waitForEvent: Test timeout of 60000ms exceeded.
+ *   waiting for event "filechooser"
+ *
+ * `performance.spec.ts` already worked around it with a hand-rolled retry loop
+ * (`getByRole('button', { name: /Image.*Upload/i })`, three attempts, retyping the
+ * command in between). That workaround was correct and undiscoverable — it lived
+ * inside one test and nothing pointed the other specs at it. This is that fix,
+ * promoted to where every caller can reach it.
+ *
+ * Clicking rather than pressing Enter is deliberate: `selectItem(index)` is bound to
+ * the button's onClick (`SlashCommands.tsx:126`), so a click exercises the same code
+ * path with no dependence on which item the keyboard cursor happens to be on.
+ *
+ * @param page - The Playwright page
+ * @param name - Accessible-name pattern for the item, e.g. /Image.*Upload/i
+ */
+export async function chooseSlashMenuItem(page: Page, name: RegExp): Promise<void> {
+  await waitForSlashMenu(page);
+  const item = page.getByTestId('slash-menu').getByRole('button', { name });
+  await expect(
+    item,
+    `slash menu item ${name} never rendered — the menu container being visible does not mean its items are`,
+  ).toBeVisible({ timeout: 15000 });
+  await item.click();
+}

@@ -2176,3 +2176,78 @@ That this fixes all eight. Four are addressed with a named mechanism; the other 
 (`autosave-race-conditions:368`, `session-timeout:205` and `:629`,
 `project-weeks:184`) have not been diagnosed and may well be a different cause. The
 number that settles it is the next full CI run.
+
+---
+
+# The image flakes: a menu that renders before its items
+
+The previous commit's persistence fix did not move the number. 8 flaky became 10.
+Reading the actual failure rather than the plausible one:
+
+```
+Test timeout of 60000ms exceeded.
+Error: page.waitForEvent: Test timeout of 60000ms exceeded.
+waiting for event "filechooser"
+  > 229 |  const fileChooserPromise = page.waitForEvent('filechooser')
+```
+
+Line 229. The persistence code was at line 247 and never ran. The debounce race
+diagnosed in that commit is real and worth having fixed, but it is not what was
+firing.
+
+`waitForSlashMenu` asserts the menu *container* is visible —
+`[data-testid="slash-menu"]` — and nothing about its contents. Tests then pressed
+Enter to take whatever was highlighted. When the container has rendered but the
+filtered items have not, Enter selects nothing, the file chooser never opens, and
+the test sits in `waitForEvent('filechooser')` until the 60 s test timeout.
+
+That one mechanism was **six of the ten flaky tests**: every image upload in
+`data-integrity.spec.ts` and `images.spec.ts`, all reporting the identical error.
+
+`performance.spec.ts` already worked around it, with a hand-rolled three-attempt
+retry loop that checked `getByRole('button', { name: /Image.*Upload/i })` and
+retyped the command in between. That workaround was correct and undiscoverable —
+it lived inside one test and nothing pointed the other specs at it.
+
+## What changed
+
+`chooseSlashMenuItem(page, /Image/i)` in `e2e/fixtures/test-helpers.ts`: waits for
+the menu, then waits for the named item, then clicks it. Applied to all five
+blind-Enter upload sites — three in `data-integrity.spec.ts`, two in
+`images.spec.ts`.
+
+Clicking rather than pressing Enter is deliberate. `selectItem(index)` is bound to
+the button's `onClick` (`SlashCommands.tsx:126`), so a click exercises the same code
+path with no dependence on where the keyboard cursor happens to be.
+
+The failure message names the cause rather than the symptom:
+
+> slash menu item /Image/i never rendered — the menu container being visible does
+> not mean its items are
+
+## The lesson worth keeping
+
+Two commits went at plausible causes — a rate limit, then a debounce — before
+anyone read the stack trace attached to the failing test. Both were real bugs. The
+94 `429`s were real and are gone; the zero-margin debounce race was real and is
+gone. Neither was what turned these tests red.
+
+The stack trace was in the CI log the whole time.
+
+## How to test it
+
+```bash
+/e2e-test-runner e2e/images.spec.ts e2e/data-integrity.spec.ts
+```
+
+## How to roll it back
+
+Revert the five call sites to `waitForSlashMenu` plus `keyboard.press('Enter')`.
+`chooseSlashMenuItem` is additive and unused elsewhere.
+
+## What is not claimed
+
+That this fixes all ten. Six share this mechanism and are addressed. The other four
+— `autosave-race-conditions:368`, `project-weeks:134` and `:184`,
+`session-timeout:225` — have not been diagnosed, and the pattern of the last two
+commits says not to guess at them. Read their stack traces first.

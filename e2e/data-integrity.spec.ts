@@ -2,6 +2,7 @@ import { test, expect, Page } from './fixtures/isolated-env'
 import {
   expectDocumentTitleSaved,
   waitForSlashMenu,
+  chooseSlashMenuItem,
   expectContentPersisted,
   expectTextPersisted,
   countNodesOfType,
@@ -223,11 +224,13 @@ test.describe('Data Integrity - Images', () => {
 
     // Upload image
     await page.keyboard.type('/image')
-    await waitForSlashMenu(page)
 
     const tmpPath = createTestImageFile()
     const fileChooserPromise = page.waitForEvent('filechooser')
-    await page.keyboard.press('Enter')
+    // Was `waitForSlashMenu` + blind Enter. The menu container renders before its
+    // items do, so Enter selected nothing and the chooser never opened — a 60 s
+    // test timeout, and six of ten flaky tests in one run.
+    await chooseSlashMenuItem(page, /Image/i)
 
     const fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tmpPath)
@@ -278,11 +281,9 @@ test.describe('Data Integrity - Images', () => {
     await page.keyboard.type('Image 1:')
     await page.keyboard.press('Enter')
     await page.keyboard.type('/image')
-    await waitForSlashMenu(page)
-
     const tmpPath1 = createTestImageFile()
     let fileChooserPromise = page.waitForEvent('filechooser')
-    await page.keyboard.press('Enter')
+    await chooseSlashMenuItem(page, /Image/i)
     let fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tmpPath1)
 
@@ -294,11 +295,9 @@ test.describe('Data Integrity - Images', () => {
     await page.keyboard.type('Image 2:')
     await page.keyboard.press('Enter')
     await page.keyboard.type('/image')
-    await waitForSlashMenu(page)
-
     const tmpPath2 = createTestImageFile()
     fileChooserPromise = page.waitForEvent('filechooser')
-    await page.keyboard.press('Enter')
+    await chooseSlashMenuItem(page, /Image/i)
     fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tmpPath2)
 
