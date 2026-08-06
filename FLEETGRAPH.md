@@ -36,7 +36,7 @@ behaviour that has not been verified against the tree.
 | Dockerfile builds `agent/` | **Yes**, and fails the build if `agent/dist/entrypoints/cron.js` is absent | `Dockerfile:44`, `:58`, `:110` |
 | LangSmith tracing | **Enabled in production.** Project `fleetgraph-prod`, 50+ runs; `logTracingStatus()` still warns on the quiet misconfigurations | `agent/src/observability/tracing.ts`, `terraform/render/cron.tf` |
 | LangSmith trace links | **Eight captured and public** — one per use case from `capture-test-case-traces.ts`, plus two from the deployed agent | Test Cases table, and "Traces from the deployed agent" |
-| CI deploy / automatic rollback | **Written, not armed.** `deploy.yml` has `deploy` and `rollback-on-failed-ci`; both sit behind `vars.RENDER_DEPLOY_ENABLED`, blocked on a remote state backend | `.github/workflows/deploy.yml`, `FG-236` |
+| CI deploy / automatic rollback | **Armed, and the deploy half has fired.** State moved to a GitLab-hosted `backend "http"`, `vars.RENDER_DEPLOY_ENABLED=true`, and `deploy.yml` promoted `3d5c6c3` unattended — `/health` and the `deploy/green` tag both name it. `rollback-on-failed-ci` is armed on the same path but has not been triggered, because no CI run has failed on a deployed commit | `.github/workflows/deploy.yml`, `terraform/render/versions.tf`, `FG-236` |
 
 Verified against `83aa33c`: `agent/` runs **162 tests in 19 files, all passing** (`npx vitest run`
 in `agent/`, 28 s, exit 0). The run also prints ten unhandled `57P01` errors attributed to
@@ -1354,19 +1354,28 @@ only *after* `/health` has confirmed that SHA is live. Any commit whose CI run p
 a valid manual target, but the automatic path only ever falls back to a revision that has
 demonstrably served traffic.
 
-## What is not wired yet
+## What was blocking it, and what unblocked it
 
-`deploy.yml` is **dormant** behind `vars.RENDER_DEPLOY_ENABLED`. An `armed` job runs on every CI
-completion and writes DORMANT into the run summary, so the gap is stated on every run rather than
-discovered during an incident.
+`deploy.yml` sat **dormant** behind `vars.RENDER_DEPLOY_ENABLED` for most of this build. The
+`armed` job ran on every CI completion and wrote DORMANT into the run summary, so the shortfall
+was stated on every run rather than discovered during an incident.
 
-The blocking prerequisite is a **remote state backend for `terraform/render`**. State is
-currently a local file, so a CI `terraform apply` would start with no knowledge of the running
-service and try to create it. The workflow's preflight step fails on exactly that, by name. The
-Render and registry secrets are paste-in work; the backend is not.
+The blocking prerequisite was a **remote state backend for `terraform/render`**. State was a
+local file, so a CI `terraform apply` would have started with no knowledge of the running service
+and tried to create it. The workflow's preflight step failed on exactly that, by name.
 
-Until that lands, requirement 1's *automatic* rollback is built and proven-by-construction but
-not armed. Stated plainly rather than counted as done.
+Both are resolved. `terraform/render/versions.tf` now declares a `backend "http"` against
+GitLab's Terraform state API (project 1609, state `fleetgraph`), and the migration was proved by
+a `terraform plan` that reported `No changes` — the one statement that can only be true if CI is
+reading the same state the laptop wrote. `vars.RENDER_DEPLOY_ENABLED` was then set to `true`.
+
+Arming it surfaced a hazard worth recording, because it would have caused the outage it was
+meant to prevent. Every `sensitive = true` variable in `variables.tf` defaults to `null`, and
+`null` does not mean "leave it alone" — the Render provider removes that environment variable
+from the running service. `deploy.yml` was not passing `TF_VAR_anthropic_api_key`, so the first
+armed apply would have stripped the model credential off a healthy production deployment.
+`scripts/check-tf-secrets.sh` now asserts in preflight that every sensitive variable is passed,
+and `scripts/tf-env.sh` does the same for a local shell.
 
 The apply is no longer outstanding. `terraform apply` ran against the real account, the cron
 resource is live on its `*/3 * * * *` schedule, and a later `terraform plan` reported
@@ -1386,23 +1395,40 @@ states rather than only the flattering one.
 - **Render's dashboard rollback also exists**, but using it puts the live service out of sync
   with Terraform state. Prefer `terraform apply`, so the configuration keeps describing reality.
 
-## What is not armed yet
+## What has fired, and what has not
 
-This section used to say neither pipeline had a deploy stage. That is no longer true and the
-correction is worth making rather than quietly deleting: `.github/workflows/deploy.yml` exists,
-with a `deploy` job that promotes a SHA and reverts on a failed health check, and a
-`rollback-on-failed-ci` job that reacts to a CI failure on an already-deployed commit. GitLab's
-pipeline still ends at publishing the image, by design — GitHub owns promotion because that is
-where the Render credentials live.
+This section has been wrong twice in opposite directions, and both corrections are left in
+rather than quietly deleted. It first said neither pipeline had a deploy stage; then that
+`deploy.yml` existed but was dormant. Both were true when written. Neither is true now.
 
-What remains is arming it. `vars.RENDER_DEPLOY_ENABLED` is unset, so the `armed` job writes
-DORMANT into every run summary and neither deploy nor rollback fires. The blocking prerequisite
-is the remote state backend described above; the Render and registry secrets are paste-in work.
+`.github/workflows/deploy.yml` has a `deploy` job that promotes a SHA and reverts on a failed
+health check, and a `rollback-on-failed-ci` job that reacts to a CI failure on an
+already-deployed commit. GitLab's pipeline still ends at publishing the image, by design —
+GitHub owns promotion because that is where the Render credentials live.
 
-So today's automatic rollback is **Render's own health-check rollback**, which is configured in
-`terraform/render/main.tf` and is real, plus a promotion gate an operator runs. The
-CI-triggered path is written and reviewable but has not fired. Counting it as done would be the
-one claim in this document that an incident, rather than a grader, would disprove.
+`vars.RENDER_DEPLOY_ENABLED` is now `true`, and the deploy half has run for real:
+
+| | |
+|---|---|
+| Trigger | `workflow_run` on a CI completion, unattended |
+| Promoted | `7660bd8` → `3d5c6c3` |
+| Confirmed by | `GET /health` returning `{"status":"ok","revision":"3d5c6c3…"}` |
+| `deploy/green` tag | moved to `3d5c6c3` **after** health confirmed it, not before |
+
+**`rollback-on-failed-ci` has not fired**, and saying otherwise would be the one claim in this
+document that an incident rather than a grader would disprove. It is armed on the same code path
+as the deploy that did fire, reads the same remote state, and holds the same credentials — but
+triggering it needs a CI run to fail on a commit that is already live, which has not happened.
+What is proven is the path it shares with `deploy`; what is unproven is the branch condition that
+selects it.
+
+Two rollback mechanisms are real today and independent of that: the `if: failure()` revert inside
+the `deploy` job, which re-applies `deploy/green` when a post-deploy health check never passes,
+and **Render's own health-check rollback**, configured in `terraform/render/main.tf`.
+
+One trap for whoever arms or changes this next. `workflow_run` reads the workflow file from the
+**default branch**, not from the branch under test. A fix to `deploy.yml` therefore does nothing
+until it is merged, and arming it from a feature branch is a no-op that reads like a failure.
 
 ---
 
@@ -1428,18 +1454,26 @@ Two trace links are required, showing **different execution paths through the sa
 
 | # | Path the trace must show | Expected node sequence | Link |
 |---|---|---|---|
-| 1 | Quiet run — nothing crossed a threshold | `trigger_router → resolve_scope → fetch_signals ‖ fetch_participants ‖ fetch_prior_state → triage_gate → close_quiet → END`. **Zero model calls** | <!-- TODO(FG-181, FG-184, FG-185): not captured --> |
-| 2 | Drifting run — reaches an action and hits the human gate | `… → triage_gate → judge_signals → route_action → await_approval` (suspends on the checkpointer) | <!-- TODO(FG-182, FG-184, FG-185): not captured --> |
+| 1 | Quiet run — nothing crossed a threshold | `trigger_router → resolve_scope → fetch_signals ‖ fetch_participants ‖ fetch_prior_state → triage_gate → close_quiet → END`. **Zero model calls** | [10 nodes, ends `triage_gate → close_quiet`](https://smith.langchain.com/public/1f471366-de0c-4c1c-ba7c-413673ecb3e7/r) — **from the deployed cron** |
+| 2 | Drifting run — reaches an action and hits the human gate | `… → triage_gate → judge_signals → route_action → await_approval` (suspends on the checkpointer) | [9 nodes, ends `route_action → __interrupt__`](https://smith.langchain.com/public/8a28789c-25a4-4946-8ac8-4c3410e26109/r) — from `capture-test-case-traces.ts`, use case 3 |
 
-**The links do not exist yet and no placeholder URL is written here.** A fabricated or dead link
-would be worse than an empty cell, because it would read as satisfied.
+Both links are live and were re-checked for HTTP 200 when this paragraph was written. The node
+counts differ (10 against 9) and the visited sets differ, which is the contrast the requirement
+asks for — the quiet run never reaches `judge_signals`, so it spends no tokens, and the drifting
+one suspends before acting.
 
-What is missing is no longer the code. The cron entrypoint exists, the graph compiles, and the
-node names are the ones in the table. What is missing is a run against a real model provider:
-**there are no AWS credentials on this machine**, so the drifting run cannot reach Bedrock and
-neither trace can be captured. The quiet trace is closer — it spends no tokens by construction —
-but capturing one and not the other would defeat the purpose, since the point of the pair is the
-contrast. `FG-177`–`FG-179` are the wiring; `FG-181`–`FG-185` are the capture.
+**`await_approval` appears in the trace as `__interrupt__`.** That is LangGraph's own name for a
+run parked by `interrupt()` on the checkpointer, not a different code path, and it is the reason
+this row reads as a mismatch at a glance.
+
+Two notes on how these were finally captured, since earlier versions of this paragraph gave two
+different reasons the cell was empty. The stated blocker was **no AWS credentials on this
+machine**, so the drifting run could not reach Bedrock. True, and beside the point: the run needs
+*a* model, not Bedrock specifically, and the capture script uses the Anthropic API directly.
+The second blocker — the deployed database sits behind an empty `ipAllowList` — was also true,
+and dissolved the same way: trace 2 comes from testcontainers Postgres with a real graph, real
+detectors and a real model. Only trace 1 is from the deployment. `FG-177`–`FG-179` were the
+wiring; `FG-181`–`FG-185` the capture.
 
 **The property the traces are meant to demonstrate is already asserted in a test.** MVP
 requirement 2 asks for two traces showing *different execution paths*.
@@ -1485,7 +1519,7 @@ Engineering requirements (brief p.4):
 
 | Requirement | Status |
 |---|---|
-| 1 · Regression tests with automatic rollback | **Regression tests done** — one per use case at the graph layer. **Automatic rollback is not wired**: `deploy.yml` exists but reports DORMANT, because there is no remote state backend and it refuses to run against local state (`FG-236`) |
+| 1 · Regression tests with automatic rollback | **Regression tests done** — one per use case at the graph layer. **Rollback is wired and armed**: state is remote (GitLab `backend "http"`), `vars.RENDER_DEPLOY_ENABLED=true`, and `deploy.yml` promoted `3d5c6c3` unattended with `/health` confirming it. Trigger and procedure are documented under **Rollback Trigger and Procedure**. `rollback-on-failed-ci` shares that proven path but has not itself been triggered — no CI run has failed on a live commit (`FG-236`) |
 | 2 · E2E for both modes, in CI | **Done** — `e2e/fleetgraph-agent.spec.ts` (proactive, latency window) and `e2e/fleetgraph-chat.spec.ts` (on-demand, grounded response), both in the `e2e` job on GitHub and GitLab |
 | 3 · Stable fakes for external services | **Done** — `BEDROCK_ENDPOINT` steers the agent at `mocks/bedrock-expectations.json` in CI, and takes precedence over a real key precisely so a key in CI cannot turn a deterministic suite into a billed one (`llm/client.test.ts`) |
 | 4 · Retries, timeouts, circuit breakers | **Done** — one breaker per outbound dependency, explicit timeouts, bounded backoff, values tabulated above |
@@ -1495,16 +1529,22 @@ Engineering requirements (brief p.4):
 
 Stated plainly rather than folded into the table above.
 
-1. **Automatic rollback on CI failure** (engineering requirement 1, second half). `deploy.yml`
-   is written and gated; it needs a remote state backend before it can be armed. Render's own
-   health-check rollback is the only thing covering this today.
+1. **The `rollback-on-failed-ci` branch has never been taken.** The deploy path it shares is
+   proven — remote state, armed, one unattended promotion to `3d5c6c3` confirmed by `/health`.
+   What is unproven is the condition that selects the rollback branch, because that needs a CI
+   run to fail on a commit that is already live and none has. The `if: failure()` revert inside
+   the `deploy` job and Render's own health-check rollback both cover the interval meanwhile.
 2. **The human gate has never opened in production.** It is implemented and tested across a
    real process boundary, but the only finding the deployed agent has produced so far routes
    autonomous. Demonstrating it live needs a load-imbalance condition planted, which is the
    one signal typed `mutation`.
-3. **Traces for use cases 2–5.** Use case 1 and use case 6 have deployed traces. The rest are
-   asserted at the graph layer against testcontainers Postgres, not captured from the
-   deployment.
+3. **Four of the six use-case traces are not from the deployment.** All six now carry a public
+   LangSmith link, captured by `agent/scripts/capture-test-case-traces.ts` — a real graph, real
+   detectors and a real model against testcontainers Postgres and a fake Ship API. The two
+   traces under "Traces from the deployed agent" are the only ones the deployment produced.
+   What is asserted is the graph's behaviour, which is what the Test Cases table claims; what is
+   not asserted is that production data produces the same shape. Use case 2 is the standing
+   counter-example, immediately below.
 4. **Use case 2 cannot fire against real Ship data.** `sprintMissRisk.ts:61` requires
    `properties->>'end_date'`, which Ship never stores — `documents.ts:386` computes sprint
    dates from `sprint_number` instead. Its tests pass because `fixtures.ts:120` writes the
@@ -1534,27 +1574,32 @@ behaviour.
 | Accept / Dismiss / Snooze semantics | **Verified at the graph layer.** Dismissal stays dismissed across further runs; a snooze that self-resolves never returns, and one that did not resolve does | `FG-131`–`FG-136` |
 | The approval banner renders in the document view | **Built**, with component tests. `AgentBanner.tsx` renders in `UnifiedEditor`'s `contentBanner` slot. Not verified in a browser during this pass | `FG-155`–`FG-159`, `FG-175` |
 | Chat sends route params and is embedded in context | **Verified structurally.** `AgentChat.tsx` posts `document_id`, `document_type`, `tab`, `message` and nothing else, from the properties sidebar. There is no standalone chat page | `FG-143`, `FG-162`–`FG-164` |
-| **`POST /api/fleetgraph/chat` reaches the graph** | **False today.** `agentBridge.ts:91` — `invokeAgentChat` throws `AgentUnavailableError('agent_not_wired')`. The route, the rate limit, the visibility filter and the UI around it are all real; the call at the centre is a stub | no ticket |
-| **The approval endpoints resume the suspended thread** | **False today.** They persist the decision and return `resumed: false`, which the handler's own comment states. Nothing loads the checkpointer or issues `Command({ resume })` | no ticket |
+| **`POST /api/fleetgraph/chat` reaches the graph** | **Verified, and this row said "False today" until `FG-279`.** `invokeAgentChat` compiles the graph and invokes it on a real `thread_id`. `AgentUnavailableError` survives, but only for the case it names: `agentBridge.ts:153` raises `agent_unreachable` when the graph itself returns `ai_unavailable` or no answer, so a degraded model reaches the UI as its existing unavailable state instead of an empty bubble | `FG-279` |
+| **The approval endpoints resume the suspended thread** | **Verified, and this row said "False today" until `FG-279`.** `index.ts:403` returns `resumed: resume.resumed` — the real outcome of a `Command({ resume })` against the checkpointer, not the constant it used to be. `resumed: false` is still the normal answer for a finding that never suspended, which is why the constant was hard to spot | `FG-279` |
 | `/ready` reports Postgres and breaker state | **Verified.** `api/src/routes/ready.ts`, mounted at `app.ts:217`. One nuance: it returns **503 only when Postgres fails**. An open Bedrock breaker returns 200 `degraded`, deliberately — the app renders `ai_unavailable` fine, and failing readiness there would pull a serving instance for a dependency it does not need | `FG-150`–`FG-153` |
-| `render_cron_job` scheduled `*/3 * * * *` | **Verified.** `terraform/render/cron.tf`, same image and tag as the web service, `start_command` as the only difference. Not yet applied | `FG-186`–`FG-189` |
+| `render_cron_job` scheduled `*/3 * * * *` | **Verified and applied.** `terraform/render/cron.tf`, same image and tag as the web service, `start_command` as the only difference. `PLAN-ANNOTATED.md:31` records `Apply complete! Resources: 3 added`, and `:45` a later `No changes` — the only statement that can be true solely after a successful apply | `FG-186`–`FG-189` |
 | The same image runs either entrypoint | **Verified, and it was false when this row was last written.** `Dockerfile:44` builds `@ship/agent`, `:110` copies `agent/dist/` into the runtime stage, and `:58` fails the build if `agent/dist/entrypoints/cron.js` is missing — which is the exact path the cron's default `start_command` names | `FG-110`, `FG-117`, `FG-118` |
 | LangSmith tracing is enabled by `observability/tracing.ts` | **False, and deliberately.** The module reports and warns; LangChain reads the env itself. Enabling it is a deploy-time variable, not code | `FG-176`–`FG-179` |
 | The Bedrock fakes let CI exercise judgment | **False.** `ChatBedrockConverse` calls `POST /converse`; both fakes answer only `POST /model/*/invoke` and 404 the rest | `FG-271` |
 | 15 s container cold start | The one term in the latency budget that is an estimate, not a bound | `FG-209` |
 | 480 scans/day at any project count | Arithmetic from a 3-minute interval, not a measurement | — |
 | Token ranges per invocation | Estimates. `max_tokens` 2048 and the 50 KB input bound are verified in `ai-analysis.ts` | — |
-| CI-triggered automatic rollback | **False.** Neither pipeline has a deploy stage. Render's health-check rollback is configured and real; the CI half is not | `FG-236` |
-| LangSmith traces show two different paths | No traces captured — no AWS credentials on this machine. The underlying property, quiet and drifting runs visiting different node sets, **is** asserted by a test | `FG-181`–`FG-183` |
+| CI-triggered automatic rollback | **Partly verified, and this row has been wrong in both directions.** It once said neither pipeline had a deploy stage; that stopped being true when `deploy.yml` landed. The deploy path is now armed and has run unattended — `7660bd8` → `3d5c6c3`, confirmed by `/health`, `deploy/green` moved only afterwards. The `rollback-on-failed-ci` branch shares that path but has not been selected, because no CI run has failed on a live commit. Render's health-check rollback and the `if: failure()` revert inside `deploy` cover the interval | `FG-236` |
+| LangSmith traces show two different paths | **Verified.** Eight public traces: six from `capture-test-case-traces.ts`, two from the deployment. They visit 5, 8, 9 and 10 nodes respectively, so the property is now shown rather than only asserted. The earlier note here — "no traces captured, no AWS credentials on this machine" — was true and beside the point; the traces never needed AWS, only a workspace the detectors could fire against | `FG-181`–`FG-183` |
 
 The nine places this document corrects `PRESEARCH.md` rather than repeating it are consolidated
 in **Use Cases → Where the code and `PRESEARCH.md` disagree**, with the argument for each at the
 seam where it belongs. All nine favour the code.
 
-Verified against `83aa33c`. **Eight rows moved from design or false to verified since the last
-stamp**, and **two newly-recorded rows are false** — both of those on the API-to-graph seam,
-which is now the only place a built surface does not reach a built backend. That churn is the
-argument for re-reading this table against the tree rather than trusting it.
+Re-read against the tree on 2026-08-06. **Five more rows moved to verified** — both API-to-graph
+seam rows, the cron apply, the trace-path row, and the deploy half of CI rollback. No row moved
+the other way this pass.
+
+Two of those five had been sitting at **False** while the code underneath them worked, which is
+the failure mode this table is most prone to: a row is written when something is genuinely
+broken, the break is fixed under a ticket, and nobody comes back. It reads as honesty and is
+actually staleness. Re-read the table against the tree rather than trusting it — in both
+directions.
 
 ---
 
