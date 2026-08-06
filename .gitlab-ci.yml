@@ -174,21 +174,30 @@ test:
 # breaker from there on purpose, so the agent reuses api/src/services/circuitBreaker.ts
 # instead of growing a second one (engineering requirement 4).
 #
-# ── Why this is allow_failure HERE and blocking on GitHub ──────────────────────────
-# Same split as `e2e`, for the same measured reason. 11 of the 19 agent spec files start
-# a `postgres:16` container, which needs a Docker daemon reachable from the job. That
-# means docker-in-docker, and this project's runner sets `privileged = false` — the
-# finding that already forced `e2e` onto a plain `postgres` service here.
+# ── This was allow_failure, and is not any more ────────────────────────────────────
+# The reason it was: 11 of the 19 agent spec files start a `postgres:16` container via
+# testcontainers, which needs a Docker daemon reachable from the job. The note here
+# used to say that meant docker-in-docker, and that dind was unavailable because this
+# runner sets `privileged = false`.
 #
-# The daemon cannot be swapped for a service container the way e2e's was, because the
-# agent suite creates a database per FILE at runtime rather than reading one URL, and
-# rewriting 11 spec files to accept an injected pool would change what they test.
+# The conclusion was right and the reason was wrong, which is why it went unfixed. A
+# daemon does not require privileged mode — it requires a socket, and this runner has
+# mounted one the whole time:
 #
-# So the job runs, reports, and publishes its junit — and does not gate a merge on
-# whether this particular runner grants privileged mode. GitHub's `agent-test` job is
-# the blocking gate, on a runner that has a daemon. If dind does turn out to work here
-# (the `docker-image` job below uses it), flip allow_failure to false — nothing else
-# needs to change.
+#   [runners.docker]
+#   volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
+#
+# What actually failed was the dind SERVICE, which never attached to the job's network
+# (see the block on the job below). Removing it and talking to the mounted daemon
+# directly took the suite from 10 of 20 spec files dying in `beforeAll` to:
+#
+#   Test Files  20 passed (20)
+#        Tests  174 passed (174)
+#   assert-tests-ran: 174 tests executed (>= 162); command exit 0
+#
+# So this now gates a merge on both platforms, which is what the requirement asks for.
+# The old note ended "if dind does turn out to work here, flip allow_failure to false".
+# It was not dind, but the flip is the same.
 agent-test:
   stage: verify
   needs: ['build']
@@ -235,7 +244,7 @@ agent-test:
     reports:
       junit:
         - agent/junit.xml
-  allow_failure: true
+  allow_failure: false
 
 coverage:
   stage: verify

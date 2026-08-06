@@ -2646,3 +2646,30 @@ it has been measured before.
 
 Nothing to fix. The `timeout: 150m` and the `allow_failure` are both already correct,
 and the only change worth making is to stop reading 46 minutes as a symptom.
+
+## `agent-test` is now blocking on GitLab too
+
+The DooD change was proved before the gate was flipped, not alongside it:
+
+```
+before   Test Files  10 failed | 10 passed (20)
+         Tests       93 passed | 81 skipped (174)
+         exit 1
+
+after    Test Files  20 passed (20)
+         Tests      174 passed (174)
+         assert-tests-ran: 174 tests executed (>= 162); command exit 0
+         60s
+```
+
+`allow_failure: true` → `false`. Engineering requirement 1 asks for a regression test
+per agent behaviour and a CI gate on it; those tests now gate a merge on both
+platforms rather than only on GitHub.
+
+The old comment justifying `allow_failure` was half right in a way worth recording.
+Its conclusion — "this runner cannot give the job a Docker daemon" — matched the
+symptom. Its reason — "because `privileged = false`" — was wrong, and that is why the
+job sat broken for so long. A daemon does not need privileged mode; it needs a
+socket, and the runner had mounted one the whole time. The wrong reason made the
+problem look like a runner permission nobody controlled instead of a service
+definition anybody could delete.
