@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { waitForSlashMenu } from './fixtures/test-helpers';
+import { waitForSlashMenu, chooseSlashMenuItem } from './fixtures/test-helpers';
 import path from 'path';
 import fs from 'fs';
 
@@ -159,8 +159,7 @@ test.describe('TIER 1: Image Upload - REAL TESTS', () => {
 
     // Use /image command
     await page.keyboard.type('/image');
-    await waitForSlashMenu(page);
-    await page.keyboard.press('Enter');
+    await chooseSlashMenuItem(page, /Image/i);
 
     // File chooser should appear
     const [fileChooser] = await Promise.all([
@@ -191,8 +190,7 @@ test.describe('TIER 1: Image Upload - REAL TESTS', () => {
 
     // Upload image
     await page.keyboard.type('/image');
-    await waitForSlashMenu(page);
-    await page.keyboard.press('Enter');
+    await chooseSlashMenuItem(page, /Image/i);
 
     const [fileChooser] = await Promise.all([
       page.waitForEvent('filechooser', { timeout: 5000 }),
@@ -260,8 +258,7 @@ test.describe('TIER 2: File Attachments - REAL TESTS', () => {
     await loginAndCreateDoc(page);
 
     await page.keyboard.type('/file');
-    await waitForSlashMenu(page);
-    await page.keyboard.press('Enter');
+    await chooseSlashMenuItem(page, /File|Attach/i);
 
     const [fileChooser] = await Promise.all([
       page.waitForEvent('filechooser', { timeout: 5000 }),
@@ -294,8 +291,7 @@ test.describe('TIER 2: Tables - REAL TESTS', () => {
     await loginAndCreateDoc(page);
 
     await page.keyboard.type('/table');
-    await waitForSlashMenu(page);
-    await page.keyboard.press('Enter');
+    await chooseSlashMenuItem(page, /Table/i);
     await page.waitForTimeout(1000);
 
     // Should have a table - if not, the /table command isn't working
@@ -367,8 +363,7 @@ test.describe('TIER 2: Toggle/Collapsible - REAL TESTS', () => {
     await loginAndCreateDoc(page);
 
     await page.keyboard.type('/toggle');
-    await waitForSlashMenu(page);
-    await page.keyboard.press('Enter');
+    await chooseSlashMenuItem(page, /Toggle|Collaps/i);
     await page.waitForTimeout(1000);
 
     // Should have a details element (or toggle component) - if not, /toggle command isn't working
@@ -455,8 +450,7 @@ test.describe('TIER 3: Syntax Highlighting - REAL TESTS', () => {
 
     // Create code block using / command which is more reliable
     await page.keyboard.type('/code');
-    await waitForSlashMenu(page);
-    await page.keyboard.press('Enter');
+    await chooseSlashMenuItem(page, /Code/i);
     await page.waitForTimeout(500);
 
     // Type code

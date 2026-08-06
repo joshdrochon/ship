@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { waitForSlashMenu } from './fixtures/test-helpers'
+import { chooseSlashMenuItem } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -375,46 +375,43 @@ test.describe('Performance - Many Images', () => {
 
     // Upload 5 images
     for (let i = 0; i < 5; i++) {
-      // Re-focus editor each iteration (focus can be lost after file chooser)
-      await editor.click()
-      await page.waitForTimeout(300)
+      // `editor.click()` clicks the CENTRE of `.ProseMirror`. That is fine on an
+      // empty document and wrong on this one: by the third iteration the centre of
+      // the editor is an image, and clicking an image selects the node instead of
+      // placing a caret, so the keystrokes below went nowhere. The run before this
+      // one stalled at `Expected: 4, Received: 3` for the full 30 s — the fourth
+      // upload never started because the `/image` was never typed anywhere.
+      //
+      // Click the last block, then move the caret to the true end of the document.
+      await editor.locator('> *').last().click()
+      await page.keyboard.press('ControlOrMeta+End')
 
       await page.keyboard.type(`Image ${i + 1}:`)
       await page.keyboard.press('Enter')
       await page.keyboard.type('/image')
-      // Wait for slash command dropdown to appear - give extra time under load
-      await waitForSlashMenu(page)
-
-      // Retry if dropdown didn't appear (slash menu items are buttons, not options)
-      const optionLocator = page.getByRole('button', { name: /Image.*Upload/i })
-      let dropdownVisible = false
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (await optionLocator.isVisible()) {
-          dropdownVisible = true
-          break
-        }
-        // Try triggering the dropdown again
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.type('/image')
-        await waitForSlashMenu(page)
-      }
-      expect(dropdownVisible, `Slash command dropdown not visible for image ${i + 1}`).toBe(true)
-
       const tmpPath = createTestImageFile()
       imagePaths.push(tmpPath)
 
+      // This loop used to hand-roll the retry: check that the Image button is
+      // visible, retype `/image` up to three times if not, then press Enter. It
+      // half-solved the problem — it confirmed the button had rendered, and then
+      // pressed Enter anyway, which depends on where the keyboard cursor is rather
+      // than on which button was found. `toHaveCount(i + 1)` below caught the
+      // result: `Expected: 3, Received: 2`, the third upload never started.
+      //
+      // chooseSlashMenuItem clicks the button it waited for. Same fix now applied
+      // in data-integrity.spec.ts and images.spec.ts.
       const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 45000 })
-      await page.keyboard.press('Enter')
+      await chooseSlashMenuItem(page, /Image/i)
 
       const fileChooser = await fileChooserPromise
       await fileChooser.setFiles(tmpPath)
 
-      await page.waitForTimeout(2000) // Give more time for upload under load
+      // Was `waitForTimeout(2000)`, which under load was routinely short of the
+      // upload round-trip and left the next iteration typing into a document whose
+      // previous image had not landed. Wait for the image itself instead — the
+      // count is known exactly at this point in the loop.
+      await expect(editor.locator('img')).toHaveCount(i + 1, { timeout: 30000 })
 
       // Add newline after image for next iteration
       await page.keyboard.press('Enter')
@@ -423,12 +420,10 @@ test.describe('Performance - Many Images', () => {
       await expect(editor).toBeVisible()
     }
 
-    // Wait for all uploads to complete
-    await page.waitForTimeout(3000)
-
-    // Verify at least some images are present (timing may vary)
-    const imgCount = await editor.locator('img').count()
-    expect(imgCount).toBeGreaterThanOrEqual(1)
+    // All five are already awaited above, one per iteration, so there is nothing
+    // left to sleep for. The assertion can also stop hedging: `>= 1` passed with
+    // four images silently missing, which is the outcome this test exists to catch.
+    await expect(editor.locator('img')).toHaveCount(5, { timeout: 30000 })
 
     // Editor should still be usable
     await editor.click()
@@ -457,40 +452,23 @@ test.describe('Performance - Many Images', () => {
 
     // Upload 3 images
     for (let i = 0; i < 3; i++) {
-      // Re-focus editor each iteration (focus can be lost after file chooser)
-      await editor.click()
-      await page.waitForTimeout(300)
+      // Same caret placement as the loop above. This one uploads three images
+      // rather than five and has not tripped yet, which is luck rather than a
+      // difference — the centre of the editor becomes an image either way.
+      await editor.locator('> *').last().click()
+      await page.keyboard.press('ControlOrMeta+End')
 
       await page.keyboard.type('/image')
-      // Wait for slash command dropdown to appear - give extra time under load
-      await waitForSlashMenu(page)
-
-      // Retry if dropdown didn't appear (slash menu items are buttons, not options)
-      const optionLocator = page.getByRole('button', { name: /Image.*Upload/i })
-      let dropdownVisible = false
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (await optionLocator.isVisible()) {
-          dropdownVisible = true
-          break
-        }
-        // Try triggering the dropdown again
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.press('Backspace')
-        await page.keyboard.type('/image')
-        await waitForSlashMenu(page)
-      }
-      expect(dropdownVisible, `Slash command dropdown not visible for image ${i + 1}`).toBe(true)
-
       const tmpPath = createTestImageFile()
       imagePaths.push(tmpPath)
 
-      // Click the button directly to trigger file chooser (more reliable than keyboard.press)
+      // This loop already clicked the button rather than pressing Enter, and its
+      // comment already said why — "more reliable than keyboard.press". It was
+      // right, it was never flaky, and it sat four hundred lines from the loop
+      // that pressed Enter and was. Two implementations of the same step is how
+      // the working one stayed a local discovery.
       const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 45000 })
-      await optionLocator.click()
+      await chooseSlashMenuItem(page, /Image/i)
 
       const fileChooser = await fileChooserPromise
       await fileChooser.setFiles(tmpPath)

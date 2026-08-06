@@ -171,3 +171,149 @@ export async function setDocumentTitle(page: Page, title: string): Promise<void>
   await titleInput.fill(title);
   await expectDocumentTitleSaved(page, title);
 }
+
+/**
+ * Wait until the server actually holds the editor content this test just produced.
+ *
+ * WHY THIS EXISTS. Editor content is a Yjs CRDT synced over the collaboration
+ * socket, and the collaboration server writes it to Postgres on a debounce:
+ *
+ *   api/src/collaboration/index.ts:184   PERSIST_DEBOUNCE_MS = 2000
+ *   api/src/collaboration/index.ts:195   PERSIST_MAX_WAIT_MS  = 3000
+ *
+ * Several tests bet against those numbers directly — `waitForTimeout(2000)` and
+ * then `page.reload()`. That wait can never be long enough. It is measured from
+ * the test's clock, which starts before the last Yjs update has reached the
+ * server, while the server's 2000 ms starts when the update arrives and is
+ * followed by a database write. The test reloads at or before the moment the
+ * data lands, so it passes on timing luck and fails more often under load.
+ *
+ * That is the whole image- and mention-persistence flake cluster: four of the
+ * eight flaky tests in the run that prompted this, all of them "mutate, sleep,
+ * reload, assert it survived".
+ *
+ * Waiting on the outcome removes the bet. `GET /api/documents/:id` serves the
+ * persisted content, so when the predicate passes, the reload is safe by
+ * construction rather than by arithmetic. Same reasoning as
+ * `expectDocumentTitleSaved` above, applied to the body instead of the title.
+ *
+ * Deliberately NOT solved by lowering the debounce under test. The debounce is
+ * behaviour under test — a 2 s coalescing window is what production runs, and a
+ * suite that only passes with a faster one is not testing the shipped system.
+ *
+ * @param page - Playwright page, used for its baseURL-aware request context
+ * @param predicate - Given the document's persisted content JSON, is it saved yet?
+ * @param docId - Document id; defaults to the one in the page's current URL
+ */
+export async function expectContentPersisted(
+  page: Page,
+  predicate: (content: unknown) => boolean,
+  docId?: string,
+): Promise<void> {
+  const id = docId ?? documentIdFromUrl(page.url());
+  await expect(async () => {
+    const resp = await page.request.get(`/api/documents/${id}`);
+    expect(resp.ok(), `GET /api/documents/${id} should succeed`).toBeTruthy();
+    const body = await resp.json();
+    expect(
+      predicate(body.content),
+      `document ${id} content has not reached the expected state yet`,
+    ).toBeTruthy();
+  }).toPass({ timeout: 20000 });
+}
+
+/**
+ * Count nodes of a given TipTap type anywhere in a document's content tree.
+ *
+ * Used with `expectContentPersisted` to assert "the server has N images" without
+ * every caller re-implementing the walk. Returns 0 for null/undefined content,
+ * which is the shape a freshly created document has before its first save.
+ */
+export function countNodesOfType(content: unknown, type: string): number {
+  if (!content || typeof content !== 'object') return 0;
+  const node = content as { type?: string; content?: unknown[] };
+  let n = node.type === type ? 1 : 0;
+  if (Array.isArray(node.content)) {
+    for (const child of node.content) n += countNodesOfType(child, type);
+  }
+  return n;
+}
+
+/**
+ * Wait until the server's persisted content contains `text`.
+ *
+ * The text-shaped sibling of `expectContentPersisted`, and the one most call sites
+ * want: the great majority of "sleep, then reload, then assert the text survived"
+ * tests are asserting exactly this. See that function's header for why the sleep
+ * they replace can never be long enough.
+ */
+export async function expectTextPersisted(
+  page: Page,
+  text: string,
+  docId?: string,
+): Promise<void> {
+  await expectContentPersisted(page, (c) => textOfContent(c).includes(text), docId);
+}
+
+/**
+ * Flatten a TipTap content tree to its text, the way the editor renders it.
+ *
+ * Node text is joined with newlines rather than concatenated, so `Parent item 1`
+ * and `Parent item 2` in separate blocks cannot accidentally satisfy a search for
+ * `Parent item 12`.
+ */
+export function textOfContent(content: unknown): string {
+  if (!content || typeof content !== 'object') return '';
+  const node = content as { type?: string; text?: string; content?: unknown[] };
+  if (typeof node.text === 'string') return node.text;
+  if (!Array.isArray(node.content)) return '';
+  return node.content.map(textOfContent).join('\n');
+}
+
+/**
+ * Pick an item from the slash menu by name, and wait until it is actually there.
+ *
+ * WHY THIS EXISTS. `waitForSlashMenu` asserts that the menu *container* is visible
+ * — `[data-testid="slash-menu"]` — and nothing about its contents. Tests then press
+ * Enter to take whatever is highlighted. When the container has rendered but the
+ * filtered items have not, Enter selects nothing, the file chooser never opens, and
+ * the test sits in `page.waitForEvent('filechooser')` until the 60 s test timeout.
+ *
+ * That single mechanism was six of the ten flaky tests in one run — every image
+ * upload in `data-integrity.spec.ts` and `images.spec.ts`. All of them reported the
+ * same thing:
+ *
+ *   Test timeout of 60000ms exceeded.
+ *   Error: page.waitForEvent: Test timeout of 60000ms exceeded.
+ *   waiting for event "filechooser"
+ *
+ * `performance.spec.ts` already worked around it with a hand-rolled retry loop
+ * (`getByRole('button', { name: /Image.*Upload/i })`, three attempts, retyping the
+ * command in between). That workaround was correct and undiscoverable — it lived
+ * inside one test and nothing pointed the other specs at it. This is that fix,
+ * promoted to where every caller can reach it.
+ *
+ * Clicking rather than pressing Enter is deliberate: `selectItem(index)` is bound to
+ * the button's onClick (`SlashCommands.tsx:126`), so a click exercises the same code
+ * path with no dependence on which item the keyboard cursor happens to be on.
+ *
+ * @param page - The Playwright page
+ * @param name - Accessible-name pattern for the item, e.g. /Image.*Upload/i
+ */
+export async function chooseSlashMenuItem(page: Page, name: RegExp): Promise<void> {
+  await waitForSlashMenu(page);
+
+  // `.first()` rather than requiring a unique match. A menu button's accessible
+  // name is its title AND its description joined (`SlashCommands.tsx:137-140`), so
+  // `/Table/i` legitimately matches both "Table" and "Table of Contents" and a
+  // strict locator would throw. Taking the first is not a weakening: pressing
+  // Enter — what every one of these call sites did before — selects
+  // `selectedIndex`, which starts at 0. This is the same choice, made after
+  // waiting for the item to exist instead of before.
+  const item = page.getByTestId('slash-menu').getByRole('button', { name }).first();
+  await expect(
+    item,
+    `slash menu item ${name} never rendered — the menu container being visible does not mean its items are`,
+  ).toBeVisible({ timeout: 15000 });
+  await item.click();
+}

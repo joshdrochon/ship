@@ -39,24 +39,28 @@
 # tag. Nothing is compiled here. That is why a rollback cannot fail the way a redeploy
 # can: the image already exists, was already tested, and already ran.
 #
-# ── What this needs before it can do anything (FG-236, unfinished half) ───────────
-# The mechanism is complete; the credentials and the state backend are not. Until they
-# exist the `armed` job below reports the workflow as DORMANT on every run, loudly, so
-# its absence is never mistaken for its working.
+# ── What this needs before it can do anything (FG-236) ────────────────────────────
+# The `armed` job below reports DORMANT on every run while any of these is absent, so
+# a switched-off deploy mechanism announces itself rather than being mistaken for a
+# working one.
 #
 #   1. Repository variable RENDER_DEPLOY_ENABLED = "true"     — the arming switch
 #   2. Secret  RENDER_API_KEY        (rnd_...)                — terraform/render/providers.tf
 #   3. Secret  RENDER_OWNER_ID       (tea_... / usr_...)
 #   4. Secret  REGISTRY_USERNAME / REGISTRY_TOKEN             — ghcr.io pull credential
 #   5. Secret  SESSION_SECRET, SHIP_API_TOKEN, LANGCHAIN_API_KEY
-#   6. A REMOTE STATE BACKEND in terraform/render. There is none today — state is a
-#      local file, so a CI job starts with no knowledge of what is deployed and
-#      `terraform apply` would try to create a service that already exists. The
-#      preflight step below fails on exactly this, by name, rather than discovering it
-#      as a confusing apply error.
+#   6. Secret  GITLAB_STATE_TOKEN                             — reads/writes remote state
 #
-# Until (6) is done this workflow cannot be armed, and that is the one genuinely
-# missing piece rather than a matter of pasting in secrets.
+# Item 6 used to read "a REMOTE STATE BACKEND, of which there is none". That was the
+# one genuinely missing piece rather than paste-in work, and it is now done: state
+# lives in GitLab's Terraform state API, configured in terraform/render/versions.tf
+# with the reasoning for choosing it over S3 and Terraform Cloud. What is left here is
+# the token that reaches it.
+#
+# The backend is credentialed through TF_HTTP_USERNAME / TF_HTTP_PASSWORD, which
+# Terraform reads from the environment. They are set on every job that runs `init`.
+# Miss them and `init` fails with a bare 401 that says nothing about which of the two
+# halves — state auth, or the Render provider — was wrong; the preflight names it.
 
 name: Deploy
 
@@ -114,8 +118,9 @@ jobs:
               echo 'Set the repository variable `RENDER_DEPLOY_ENABLED=true` and provide'
               echo 'the secrets listed at the top of `.github/workflows/deploy.yml`.'
               echo
-              echo 'The blocking prerequisite is a remote state backend in'
-              echo '`terraform/render` — see item 6 in that header.'
+              echo 'Remote state is no longer the blocker — it lives in GitLab, see'
+              echo '`terraform/render/versions.tf`. What remains is `GITLAB_STATE_TOKEN`'
+              echo 'and the Render secrets listed in item 2 onward.'
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
@@ -132,6 +137,10 @@ jobs:
       contents: write # moves the deploy/green tag
     env:
       TARGET_SHA: ${{ github.event.inputs.image_tag || github.event.workflow_run.head_sha }}
+      # State backend auth. Read by `terraform init`, not by the configuration —
+      # which is why these are TF_HTTP_* and not TF_VAR_*.
+      TF_HTTP_USERNAME: ${{ vars.GITLAB_STATE_USERNAME || 'joshrochon' }}
+      TF_HTTP_PASSWORD: ${{ secrets.GITLAB_STATE_TOKEN }}
       TF_VAR_render_api_key: ${{ secrets.RENDER_API_KEY }}
       TF_VAR_render_owner_id: ${{ secrets.RENDER_OWNER_ID }}
       TF_VAR_registry_username: ${{ secrets.REGISTRY_USERNAME }}
@@ -139,6 +148,13 @@ jobs:
       TF_VAR_session_secret: ${{ secrets.SESSION_SECRET }}
       TF_VAR_ship_api_token: ${{ secrets.SHIP_API_TOKEN }}
       TF_VAR_langchain_api_key: ${{ secrets.LANGCHAIN_API_KEY }}
+      # Absent from this list until now, and that was a live hazard rather than an
+      # omission of convenience. `variables.tf:318` defaults it to null, and null is
+      # not "leave it alone" — the provider omits the variable from the service's
+      # environment, so an armed apply would have *removed* ANTHROPIC_API_KEY from a
+      # running web service and cron. The agent would keep running and every judgement
+      # would return ai_unavailable, which is the exact failure 11c4a67 fixed.
+      TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -156,10 +172,24 @@ jobs:
           set -euo pipefail
           fail=0
 
+          # Catches a sensitive variable this workflow forgot to pass, which for a
+          # null-defaulted one means silently deleting it from the live service.
+          ./scripts/check-tf-secrets.sh || fail=1
+
           if ! grep -rqE '^[[:space:]]*backend[[:space:]]+"' "$TF_DIR"; then
             echo "::error::$TF_DIR has no remote state backend. A CI apply would start" \
                  "with empty state and try to CREATE the service that is already running." \
-                 "Add a backend block (S3, or Terraform Cloud) before arming this workflow."
+                 "See terraform/render/versions.tf — the backend block belongs there."
+            fail=1
+          fi
+
+          # Checked separately from the TF_VAR_* loop below because it fails
+          # differently: a missing state credential 401s during `init`, before any
+          # variable is read, and the error names neither the backend nor the token.
+          if [ -z "${TF_HTTP_PASSWORD:-}" ]; then
+            echo "::error::TF_HTTP_PASSWORD is empty. The GitLab-hosted state backend" \
+                 "cannot be read, so init will fail with a bare 401. Set the" \
+                 "GITLAB_STATE_TOKEN repository secret (personal access token, api scope)."
             fail=1
           fi
 
@@ -297,6 +327,11 @@ jobs:
     timeout-minutes: 30
     env:
       FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
+      # Same state-backend auth as the deploy job. A rollback that cannot read
+      # state is a rollback that cannot happen, and this is the path that runs
+      # when something is already wrong.
+      TF_HTTP_USERNAME: ${{ vars.GITLAB_STATE_USERNAME || 'joshrochon' }}
+      TF_HTTP_PASSWORD: ${{ secrets.GITLAB_STATE_TOKEN }}
       TF_VAR_render_api_key: ${{ secrets.RENDER_API_KEY }}
       TF_VAR_render_owner_id: ${{ secrets.RENDER_OWNER_ID }}
       TF_VAR_registry_username: ${{ secrets.REGISTRY_USERNAME }}
@@ -304,6 +339,13 @@ jobs:
       TF_VAR_session_secret: ${{ secrets.SESSION_SECRET }}
       TF_VAR_ship_api_token: ${{ secrets.SHIP_API_TOKEN }}
       TF_VAR_langchain_api_key: ${{ secrets.LANGCHAIN_API_KEY }}
+      # Absent from this list until now, and that was a live hazard rather than an
+      # omission of convenience. `variables.tf:318` defaults it to null, and null is
+      # not "leave it alone" — the provider omits the variable from the service's
+      # environment, so an armed apply would have *removed* ANTHROPIC_API_KEY from a
+      # running web service and cron. The agent would keep running and every judgement
+      # would return ai_unavailable, which is the exact failure 11c4a67 fixed.
+      TF_VAR_anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
