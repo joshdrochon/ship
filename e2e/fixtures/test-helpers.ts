@@ -4,7 +4,60 @@
  * These helpers encapsulate retry logic for common interactions that
  * fail under parallel test load due to timing issues.
  */
-import { expect, type Page, type Locator } from '@playwright/test';
+import { expect, type Page, type Locator, type FileChooser } from '@playwright/test';
+
+/**
+ * How long to wait for the OS file chooser after clicking an upload control.
+ *
+ * Ten seconds is a bound, not a guess. `features-real.spec.ts` has waited 5000 ms for
+ * the same event since it was written and passes wherever the chooser opens at all;
+ * this is double that. When the chooser works it opens in milliseconds — the value is
+ * sized for a loaded runner, not for a broken one.
+ */
+export const FILE_CHOOSER_TIMEOUT_MS = 10_000;
+
+/**
+ * Wait for the file chooser, with a bound and a message.
+ *
+ * Call it *before* the click that opens the chooser and await the returned promise
+ * after, exactly as with `page.waitForEvent('filechooser')` — this is a drop-in for
+ * that call:
+ *
+ *     const chooser = expectFileChooser(page)
+ *     await page.getByRole('button', { name: 'Upload' }).click()
+ *     await (await chooser).setFiles(path)
+ *
+ * Why it exists. Twenty-four call sites used the bare `page.waitForEvent('filechooser')`,
+ * which has no timeout of its own and therefore inherits the 60 s test timeout from
+ * `playwright.config.ts`. On GitLab's runner the chooser does not open for 27 of these
+ * tests — a real failure whose cause is still unidentified — and each of those attempts
+ * sat for the full 60 s, three times over with CI retries.
+ *
+ * Measured on job `61094` (commit `0a21232`): `file-attachments.spec.ts` alone took
+ * **39.7 of the run's 77.1 minutes**, at 61.2 s per test. The five upload-related specs
+ * together were 53 minutes, 69% of the job. The remaining 69 spec files ran ~820 tests
+ * in ~24 minutes — about 1.8 s each, which is *faster* per test than GitHub's runner
+ * manages. The job was not slow. It was waiting.
+ *
+ * Bounding the wait does not hide the failure: the test still fails, still retries,
+ * still uploads its artifacts. It fails in 10 s instead of 60, and it says which step
+ * gave up. `Test timeout of 60000ms exceeded` named no step at all, which is part of
+ * why the cause went unidentified for so long.
+ */
+export function expectFileChooser(
+  page: Page,
+  timeout: number = FILE_CHOOSER_TIMEOUT_MS,
+): Promise<FileChooser> {
+  return page.waitForEvent('filechooser', { timeout }).catch((cause) => {
+    throw new Error(
+      `the file chooser never opened within ${timeout} ms. The control was clicked but ` +
+        'no `filechooser` event arrived, so the upload never started. This is the ' +
+        'GitLab-runner failure recorded in .gitlab-ci.yml — it does not reproduce on ' +
+        'GitHub and its cause is not identified.',
+      { cause },
+    );
+  });
+}
 
 /**
  * Trigger the TipTap mention autocomplete popup by typing '@' in the editor.

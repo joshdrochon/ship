@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { waitForSlashMenu } from './fixtures/test-helpers';
+import { waitForSlashMenu, expectFileChooser } from './fixtures/test-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -84,7 +84,7 @@ test.describe('File Attachments', () => {
     const tmpPath = createTestFile('test-document.pdf', 'PDF file content');
 
     // Click the File option and wait for file chooser
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await fileOption.click();
 
     // Handle file chooser
@@ -113,7 +113,7 @@ test.describe('File Attachments', () => {
     const tmpPath = createTestFile('large-file.zip', 'x'.repeat(10000));
 
     // Select file option
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -139,7 +139,7 @@ test.describe('File Attachments', () => {
 
     const tmpPath = createTestFile('download-test.txt', 'Test content');
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -173,7 +173,7 @@ test.describe('File Attachments', () => {
     // Create a potentially restricted file type (e.g., .exe)
     const tmpPath = createTestFile('potentially-dangerous.exe', 'Not really an exe');
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -204,7 +204,7 @@ test.describe('File Attachments', () => {
 
     const tmpPath = createTestFile('persist-test.pdf', 'Persistent content');
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -250,7 +250,7 @@ test.describe('File Attachments', () => {
 
     const tmpPath = createTestFile('icon-test.pdf', 'PDF content');
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -282,7 +282,7 @@ test.describe('File Attachments', () => {
     const content = 'x'.repeat(1024 * 5); // ~5KB
     const tmpPath = createTestFile('size-test.txt', content);
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -320,7 +320,7 @@ test.describe('File Attachments', () => {
     // Note: Real .docx is a ZIP archive, but for MIME detection we just need the extension
     const tmpPath = createTestFile('word-document.docx', 'Test Word document content');
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -359,7 +359,7 @@ test.describe('File Attachments', () => {
 
     const tmpPath = createTestFile('legacy-document.doc', 'Legacy Word document');
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -397,7 +397,7 @@ test.describe('File Attachments', () => {
     // Create a .psd file (was NOT in old allowlist)
     const tmpPath = createTestFile('design-file.psd', 'Photoshop file content');
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -441,7 +441,7 @@ test.describe('File Attachments', () => {
       await dialog.accept();
     });
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -487,7 +487,7 @@ test.describe('File Attachments', () => {
     // Create a very small test file (the actual size check happens in JS)
     const tmpPath = createTestFile('large-file-test.zip', 'small content');
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);
@@ -521,7 +521,7 @@ test.describe('File Attachments', () => {
     // Create a slightly larger file to give time for navigation attempt
     const tmpPath = createTestFile('nav-warning-test.txt', 'x'.repeat(50000));
 
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await page.getByRole('button', { name: /^File Upload a file attachment/i }).click();
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(tmpPath);

@@ -1,4 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
+import { expectFileChooser } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -170,7 +171,7 @@ test.describe('Security - XSS Prevention', () => {
     const tmpPath = path.join(os.tmpdir(), safeFilename)
     fs.writeFileSync(tmpPath, pngBuffer)
 
-    const fileChooserPromise = page.waitForEvent('filechooser')
+    const fileChooserPromise = expectFileChooser(page)
     // Click the Image option in slash command menu
     await imageOption.click()
 
@@ -261,7 +262,7 @@ test.describe('Security - File Upload Validation', () => {
     const htmlFile = path.join(os.tmpdir(), `fake-image-${Date.now()}.png`)
     fs.writeFileSync(htmlFile, '<html><script>alert("XSS")</script></html>')
 
-    const fileChooserPromise = page.waitForEvent('filechooser')
+    const fileChooserPromise = expectFileChooser(page)
     // Click the Image option in slash command menu
     await imageOption.click()
 
@@ -315,7 +316,7 @@ test.describe('Security - File Upload Validation', () => {
     // MZ header indicates Windows executable
     fs.writeFileSync(exeFile, Buffer.from([0x4D, 0x5A, 0x90, 0x00]))
 
-    const fileChooserPromise = page.waitForEvent('filechooser')
+    const fileChooserPromise = expectFileChooser(page)
     // Click the Image option in slash command menu
     await imageOption.click()
 

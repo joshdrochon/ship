@@ -2647,6 +2647,15 @@ it has been measured before.
 Nothing to fix. The `timeout: 150m` and the `allow_failure` are both already correct,
 and the only change worth making is to stop reading 46 minutes as a symptom.
 
+> **Later correction.** The ratio is real; the explanation in the paragraph above is
+> not. "Roughly 6×" was inferred from two totals and I attached it to the hardware —
+> a laptop against a cloud VM — without checking where the 80 minutes went. It goes
+> almost entirely into 27 upload tests waiting out a 60-second timeout three times
+> each. Worker-for-worker this runner is *faster* than GitHub's on every spec file
+> measured. See **GitLab's e2e job was not slow, it was waiting** at the end of this
+> file. The conclusion here still stands — 46 minutes was not a hang — but for a
+> different reason than the one given.
+
 ## `agent-test` is now blocking on GitLab too
 
 The DooD change was proved before the gate was flipped, not alongside it:
@@ -2879,3 +2888,106 @@ pnpm exec playwright test e2e/drag-handle.spec.ts --reporter=line --workers=2
 Revert the `items.length === 0` guard in `MentionList.tsx`. The E2E guard in
 `addParagraphs` should stay either way — it is what turned an unreadable timeout into a
 named cause, and it is correct independently of the app fix.
+
+---
+
+# GitLab's e2e job was not slow, it was waiting
+
+`e2e` on GitLab takes ~80 minutes against GitHub's ~16. Twice tonight I explained that
+as a slow runner — once in chat, once in the section above, where I wrote that "roughly
+6× is the honest ratio and it has been measured before." `.gitlab-ci.yml` said the same
+thing in stronger terms: "roughly five times slower per test."
+
+That is wrong. It was an inference from two totals, never a measurement of where the time
+went.
+
+## Where the time actually goes
+
+Every progress line in job `61094` (commit `0a21232`) attributed to its spec file:
+
+```
+spec                                        min   tests   s/test
+file-attachments.spec.ts                   39.7      39     61.2
+images.spec.ts                              5.4      19     17.0
+performance.spec.ts                         3.6      18     12.0
+data-integrity.spec.ts                      2.5      16      9.3
+race-conditions.spec.ts                     1.9      13      8.6
+the other 69 spec files                    ~24     ~820     ~1.8
+                                           ----
+                                           77.1
+```
+
+One file is **51.5% of the run**. The five upload-related specs are **69%**. And 61.2
+s/test is not a coincidence — it is the 60-second test timeout in `playwright.config.ts`.
+
+## The runner is faster than GitHub's
+
+Worker-for-worker on the same commit, doubling GitHub's wall clock because it runs two
+workers to GitLab's one:
+
+```
+spec                          GitLab (1w)   GitHub (worker-min)
+program-mode-week-ux                  1.5                   2.4
+bulk-selection                        1.3                   1.8
+session-timeout                       1.3                   1.8
+features-real                         1.3                   1.4
+drag-handle                           1.1                   1.4
+```
+
+Faster on every one. It is a 10-core arm64 laptop running arm64 images natively —
+`uname -m` is `arm64`, Docker reports `aarch64`, `node:22-bookworm` reports `arm64`, so
+there is no emulation either. Three runs measured 78.9, 81.7 and 79.7 minutes, so the
+number is stable; only the explanation was wrong.
+
+## The cause, and the fix
+
+Twenty-five call sites did this:
+
+```ts
+const fileChooserPromise = page.waitForEvent('filechooser')
+```
+
+`waitForEvent` has no timeout of its own, so it inherits the 60-second test timeout. On
+this runner the chooser does not open for 27 tests — a real failure whose cause is still
+unidentified — and each attempt sat for the full minute, three times over with CI
+retries.
+
+`expectFileChooser(page)` in `e2e/fixtures/test-helpers.ts` bounds it at 10 seconds. Ten
+is not a guess: `features-real.spec.ts` has waited 5000 ms for the same event since it
+was written and passes wherever the chooser opens at all. When it works it opens in
+milliseconds.
+
+Nothing is hidden by this. The tests still fail, still retry, still upload artifacts.
+They fail in 10 seconds instead of 60, and the message now names the step that gave up —
+`Test timeout of 60000ms exceeded` named nothing, which is some of why the cause went
+unidentified for as long as it did.
+
+Expected: **~80 min → ~40 min**, with the 27 failures costing ~14 minutes instead of ~53.
+The real number comes from the next pipeline; this paragraph will be wrong if it does not.
+
+`retries: 2` is deliberately untouched. Dropping it on GitLab would save another ~9
+minutes and would also stop distinguishing a flake from a failure on the noisiest job
+in the pipeline.
+
+## Left alone, and worth its own ticket
+
+`features-real.spec.ts` wraps its chooser wait in `.catch(() => [null])` and then
+`if (fileChooser)`. Those four tests **pass on GitLab by skipping their upload
+assertion** when the chooser does not open. That is a different problem from this one and
+is not fixed here.
+
+## How to run it
+
+```bash
+pnpm exec playwright test e2e/file-attachments.spec.ts e2e/images.spec.ts \
+  --reporter=line --workers=2
+```
+
+Locally, where the chooser works: 20 passed in 51.4 s.
+
+## How to roll it back
+
+Revert the helper and the call sites. `page.waitForEvent('filechooser')` is the exact
+string that was replaced, in `data-integrity`, `file-attachments`, `images`,
+`race-conditions` and `security`; `performance.spec.ts` had `{ timeout: 45000 }`.
+Nothing about the application changes either way — this is test-side only.
