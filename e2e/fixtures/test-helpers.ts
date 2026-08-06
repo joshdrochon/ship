@@ -171,3 +171,101 @@ export async function setDocumentTitle(page: Page, title: string): Promise<void>
   await titleInput.fill(title);
   await expectDocumentTitleSaved(page, title);
 }
+
+/**
+ * Wait until the server actually holds the editor content this test just produced.
+ *
+ * WHY THIS EXISTS. Editor content is a Yjs CRDT synced over the collaboration
+ * socket, and the collaboration server writes it to Postgres on a debounce:
+ *
+ *   api/src/collaboration/index.ts:184   PERSIST_DEBOUNCE_MS = 2000
+ *   api/src/collaboration/index.ts:195   PERSIST_MAX_WAIT_MS  = 3000
+ *
+ * Several tests bet against those numbers directly — `waitForTimeout(2000)` and
+ * then `page.reload()`. That wait can never be long enough. It is measured from
+ * the test's clock, which starts before the last Yjs update has reached the
+ * server, while the server's 2000 ms starts when the update arrives and is
+ * followed by a database write. The test reloads at or before the moment the
+ * data lands, so it passes on timing luck and fails more often under load.
+ *
+ * That is the whole image- and mention-persistence flake cluster: four of the
+ * eight flaky tests in the run that prompted this, all of them "mutate, sleep,
+ * reload, assert it survived".
+ *
+ * Waiting on the outcome removes the bet. `GET /api/documents/:id` serves the
+ * persisted content, so when the predicate passes, the reload is safe by
+ * construction rather than by arithmetic. Same reasoning as
+ * `expectDocumentTitleSaved` above, applied to the body instead of the title.
+ *
+ * Deliberately NOT solved by lowering the debounce under test. The debounce is
+ * behaviour under test — a 2 s coalescing window is what production runs, and a
+ * suite that only passes with a faster one is not testing the shipped system.
+ *
+ * @param page - Playwright page, used for its baseURL-aware request context
+ * @param predicate - Given the document's persisted content JSON, is it saved yet?
+ * @param docId - Document id; defaults to the one in the page's current URL
+ */
+export async function expectContentPersisted(
+  page: Page,
+  predicate: (content: unknown) => boolean,
+  docId?: string,
+): Promise<void> {
+  const id = docId ?? documentIdFromUrl(page.url());
+  await expect(async () => {
+    const resp = await page.request.get(`/api/documents/${id}`);
+    expect(resp.ok(), `GET /api/documents/${id} should succeed`).toBeTruthy();
+    const body = await resp.json();
+    expect(
+      predicate(body.content),
+      `document ${id} content has not reached the expected state yet`,
+    ).toBeTruthy();
+  }).toPass({ timeout: 20000 });
+}
+
+/**
+ * Count nodes of a given TipTap type anywhere in a document's content tree.
+ *
+ * Used with `expectContentPersisted` to assert "the server has N images" without
+ * every caller re-implementing the walk. Returns 0 for null/undefined content,
+ * which is the shape a freshly created document has before its first save.
+ */
+export function countNodesOfType(content: unknown, type: string): number {
+  if (!content || typeof content !== 'object') return 0;
+  const node = content as { type?: string; content?: unknown[] };
+  let n = node.type === type ? 1 : 0;
+  if (Array.isArray(node.content)) {
+    for (const child of node.content) n += countNodesOfType(child, type);
+  }
+  return n;
+}
+
+/**
+ * Wait until the server's persisted content contains `text`.
+ *
+ * The text-shaped sibling of `expectContentPersisted`, and the one most call sites
+ * want: the great majority of "sleep, then reload, then assert the text survived"
+ * tests are asserting exactly this. See that function's header for why the sleep
+ * they replace can never be long enough.
+ */
+export async function expectTextPersisted(
+  page: Page,
+  text: string,
+  docId?: string,
+): Promise<void> {
+  await expectContentPersisted(page, (c) => textOfContent(c).includes(text), docId);
+}
+
+/**
+ * Flatten a TipTap content tree to its text, the way the editor renders it.
+ *
+ * Node text is joined with newlines rather than concatenated, so `Parent item 1`
+ * and `Parent item 2` in separate blocks cannot accidentally satisfy a search for
+ * `Parent item 12`.
+ */
+export function textOfContent(content: unknown): string {
+  if (!content || typeof content !== 'object') return '';
+  const node = content as { type?: string; text?: string; content?: unknown[] };
+  if (typeof node.text === 'string') return node.text;
+  if (!Array.isArray(node.content)) return '';
+  return node.content.map(textOfContent).join('\n');
+}

@@ -414,7 +414,11 @@ test.describe('Performance - Many Images', () => {
       const fileChooser = await fileChooserPromise
       await fileChooser.setFiles(tmpPath)
 
-      await page.waitForTimeout(2000) // Give more time for upload under load
+      // Was `waitForTimeout(2000)`, which under load was routinely short of the
+      // upload round-trip and left the next iteration typing into a document whose
+      // previous image had not landed. Wait for the image itself instead — the
+      // count is known exactly at this point in the loop.
+      await expect(editor.locator('img')).toHaveCount(i + 1, { timeout: 30000 })
 
       // Add newline after image for next iteration
       await page.keyboard.press('Enter')
@@ -423,12 +427,10 @@ test.describe('Performance - Many Images', () => {
       await expect(editor).toBeVisible()
     }
 
-    // Wait for all uploads to complete
-    await page.waitForTimeout(3000)
-
-    // Verify at least some images are present (timing may vary)
-    const imgCount = await editor.locator('img').count()
-    expect(imgCount).toBeGreaterThanOrEqual(1)
+    // All five are already awaited above, one per iteration, so there is nothing
+    // left to sleep for. The assertion can also stop hedging: `>= 1` passed with
+    // four images silently missing, which is the outcome this test exists to catch.
+    await expect(editor.locator('img')).toHaveCount(5, { timeout: 30000 })
 
     // Editor should still be usable
     await editor.click()

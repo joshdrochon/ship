@@ -1,5 +1,11 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { expectDocumentTitleSaved, waitForSlashMenu } from './fixtures/test-helpers'
+import {
+  expectDocumentTitleSaved,
+  waitForSlashMenu,
+  expectContentPersisted,
+  expectTextPersisted,
+  countNodesOfType,
+} from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -157,7 +163,10 @@ test.describe('Data Integrity - Document Persistence', () => {
     await page.keyboard.press('Shift+Tab')
     await page.keyboard.type('Parent item 2')
 
-    await page.waitForTimeout(2000)
+    // Was `waitForTimeout(2000)` — exactly PERSIST_DEBOUNCE_MS, measured from the
+    // wrong clock. `Parent item 2` is the last thing typed, so the server holding
+    // it means the whole nested structure has landed.
+    await expectTextPersisted(page, 'Parent item 2')
 
     // Reload
     await page.reload()
@@ -239,7 +248,10 @@ test.describe('Data Integrity - Images', () => {
     const img = editor.locator('img').first()
     const originalSrc = await img.getAttribute('src')
 
-    await page.waitForTimeout(2000)
+    // Was `waitForTimeout(2000)`, which is exactly PERSIST_DEBOUNCE_MS and therefore
+    // never long enough — the server's 2 s starts when the update arrives, not when
+    // this test started counting. Wait for the image to be in the persisted content.
+    await expectContentPersisted(page, (c) => countNodesOfType(c, 'image') >= 1)
 
     // Reload page
     await page.reload()
@@ -290,7 +302,9 @@ test.describe('Data Integrity - Images', () => {
     fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tmpPath2)
 
-    await page.waitForTimeout(3000)
+    // Was `waitForTimeout(3000)` — exactly PERSIST_MAX_WAIT_MS, so the same
+    // zero-margin race as the single-image test above.
+    await expectContentPersisted(page, (c) => countNodesOfType(c, 'image') >= 2)
 
     // `expect(locator).toHaveCount()` polls; `(await locator.all()).length` does not.
     // `.all()` is a snapshot taken the instant it runs, so on a busy runner it read
@@ -349,7 +363,9 @@ test.describe('Data Integrity - Mentions', () => {
       // Wait for mention to be inserted
       await expect(editor.locator('.mention')).toBeVisible({ timeout: 3000 })
 
-      await page.waitForTimeout(2000)
+      // Was `waitForTimeout(2000)` — exactly PERSIST_DEBOUNCE_MS, measured from the
+      // wrong clock.
+      await expectContentPersisted(page, (c) => countNodesOfType(c, 'mention') >= 1)
 
       // Reload
       await page.reload()
@@ -399,10 +415,14 @@ test.describe('Data Integrity - Mentions', () => {
       await page.waitForTimeout(500)
     }
 
-    // Wait for save
-    await page.waitForTimeout(2000)
-
+    // Was `waitForTimeout(2000)` — same zero-margin race as the image tests.
+    // The count is read from the DOM first so the persisted state can be asserted
+    // against the number this test actually produced, rather than a guess.
     const mentionCount = await editor.locator('.mention').count()
+    await expectContentPersisted(
+      page,
+      (c) => countNodesOfType(c, 'mention') >= mentionCount,
+    )
 
     // Reload
     await page.reload()

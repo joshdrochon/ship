@@ -2065,3 +2065,114 @@ from the next full CI run rather than from this file.
 
 Any that remain are a different bug, and they will be a smaller and much clearer one
 now that the suite is not fighting its own rate limiter.
+
+---
+
+# The persistence flakes were betting against a number in the server
+
+The rate-limit fix removed 94 of 94 `429`s and moved nothing else: 1 failed / 8 flaky
+became 2 failed / 8 flaky. So the 429s were a real bug and not the flake driver. This
+is the driver.
+
+Editor content is a Yjs CRDT synced over the collaboration socket, and the
+collaboration server writes it to Postgres on a debounce:
+
+```
+api/src/collaboration/index.ts:184   PERSIST_DEBOUNCE_MS = 2000
+api/src/collaboration/index.ts:195   PERSIST_MAX_WAIT_MS  = 3000
+```
+
+Four of the eight flaky tests did this:
+
+```ts
+await page.waitForTimeout(2000)   // exactly PERSIST_DEBOUNCE_MS
+await page.reload()
+// ...assert the content survived
+```
+
+That wait can never be long enough. It is measured from the test's clock, which
+starts before the last Yjs update has reached the server, while the server's 2000 ms
+starts when the update *arrives* and is followed by a database write. The test
+reloads at or before the moment the data lands. It passes on timing luck, and luck
+gets worse under load — which is exactly what a flake is.
+
+The multi-image test used `waitForTimeout(3000)` against `PERSIST_MAX_WAIT_MS = 3000`.
+Same race, same margin of zero.
+
+## What changed
+
+Two helpers in `e2e/fixtures/test-helpers.ts`, siblings of the existing
+`expectDocumentTitleSaved`, which already solved this shape for titles:
+
+- `expectContentPersisted(page, predicate)` — polls `GET /api/documents/:id` until
+  the persisted content satisfies a predicate.
+- `expectTextPersisted(page, text)` — the text-shaped case, which is what most call
+  sites want.
+
+Plus `countNodesOfType` and `textOfContent` so callers do not each re-walk the
+TipTap tree. `textOfContent` joins node text with newlines rather than concatenating,
+so `Parent item 1` and `Parent item 2` in separate blocks cannot satisfy a search for
+`Parent item 12`.
+
+Applied to all four of the flaky cluster:
+
+| Test | Was | Now |
+|---|---|---|
+| `data-integrity:209` images persist | `waitForTimeout(2000)` | waits for 1 image node in persisted content |
+| `data-integrity:259` image order | `waitForTimeout(3000)` | waits for 2 image nodes |
+| `data-integrity:364` mentions | `waitForTimeout(2000)` | waits for the mention count it just produced |
+| `performance:367` many images | `waitForTimeout(2000)` × 5 + 3000 | `toHaveCount(i + 1)` per iteration |
+
+`performance:367` also stopped hedging. Its assertion was
+`expect(imgCount).toBeGreaterThanOrEqual(1)`, which passed with four of five images
+silently missing — the outcome the test exists to catch. It is now `toHaveCount(5)`.
+
+## Deliberately NOT fixed by lowering the debounce
+
+Shortening `PERSIST_DEBOUNCE_MS` under test would make all of this pass and would be
+wrong. The 2 s coalescing window is behaviour under test; a suite that only passes
+against a faster one is not testing the shipped system. The rate limit was different
+— that was an environment quota with no behavioural content, which is why the test
+escape there is legitimate and this one would not be.
+
+## 21 more sites, named rather than swept
+
+The same `sleep-then-reload` pattern appears **25 times across 15 spec files**. Four
+are fixed here. Twelve of the remaining twenty-one sleep for *less* than 2000 ms, so
+they are losing the same bet by a wider margin and pass only because the reload
+itself is slow enough to cover it:
+
+```
+autosave-race-conditions:400   backlinks:89,166,209,272,351
+drag-handle:649                edge-cases:88,114,290,338
+features-real:207,356          file-attachments:220
+images:194                     inline-code:160
+inline-comments:187,278        race-conditions:83,327
+tables:441                     toggle:259
+wiki-document-properties:110
+```
+
+They are not changed in this commit because each needs the right predicate, and a
+blanket edit across fifteen files with no measurement between them is how a
+green suite becomes a differently-broken one. The helper is there; the sweep is a
+separate, measurable change.
+
+## How to test it
+
+```bash
+/e2e-test-runner e2e/data-integrity.spec.ts e2e/performance.spec.ts
+```
+
+Never `pnpm test:e2e` directly — 877 tests of output crashes the session.
+
+## How to roll it back
+
+Revert the four call sites to their `waitForTimeout` values. The helpers are
+additive and unused elsewhere, so they can stay or go independently.
+
+## What is not claimed
+
+That this fixes all eight. Four are addressed with a named mechanism; the other four
+(`autosave-race-conditions:368`, `session-timeout:205` and `:629`,
+`project-weeks:184`) have not been diagnosed and may well be a different cause. The
+number that settles it is the next full CI run.
