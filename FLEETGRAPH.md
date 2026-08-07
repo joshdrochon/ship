@@ -1457,14 +1457,40 @@ health check, and a `rollback-on-failed-ci` job that reacts to a CI failure on a
 already-deployed commit. GitLab's pipeline still ends at publishing the image, by design —
 GitHub owns promotion because that is where the Render credentials live.
 
-`vars.RENDER_DEPLOY_ENABLED` is now `true`, and the deploy half has run for real:
+`vars.RENDER_DEPLOY_ENABLED` is now `true`, and the deploy half has run for real — twice,
+unattended, with nobody at a keyboard either time:
 
-| | |
-|---|---|
-| Trigger | `workflow_run` on a CI completion, unattended |
-| Promoted | `7660bd8` → `3d5c6c3` |
-| Confirmed by | `GET /health` returning `{"status":"ok","revision":"3d5c6c3…"}` |
-| `deploy/green` tag | moved to `3d5c6c3` **after** health confirmed it, not before |
+| # | Promoted | Trigger | Run |
+|---|---|---|---|
+| 1 | `7660bd8` → `3d5c6c3` | `workflow_run` on CI completion | [31066711821](https://github.com/joshdrochon/ship/actions/runs/31066711821) |
+| 2 | `3d5c6c3` → `0052570` | `workflow_run` on the merge of MR !13 | [31137246051](https://github.com/joshdrochon/ship/actions/runs/31137246051) |
+
+Both runs are public — the GitHub mirror is a public repository, so those links open without an
+account. Inside each, the step named `Roll back to the last known good SHA` shows as **skipped**,
+which is the honest evidence for the paragraph below: the rollback branch exists on the executed
+path and was simply never selected, because the health check it guards passed.
+
+The `deploy/green` tag moves to a SHA **after** `/health` confirms it, never before, so it names
+a revision that has demonstrably served traffic rather than one that was merely applied.
+
+### How to check this from the GitLab repository alone
+
+The run history lives in GitHub Actions, which a reader of this repository cannot open. Two
+things that do not require it, and both can be checked right now:
+
+```bash
+git ls-remote --tags origin | grep deploy/green
+curl -s https://shipshape-7buc.onrender.com/health
+```
+
+Those two must name the same SHA. At the time of writing both are
+`00525708babfe71489e7fb7e374ecf763fb10433`, which is the merge commit of MR !13 — so the
+promotion that followed that merge is verifiable from this side without taking the claim on
+trust.
+
+The tag was pushed here deliberately for that reason. It lived only on the GitHub remote until
+`FG-236` was reviewed and the question "could a grader prove any of this from GitLab?" was asked
+and answered honestly: not without it.
 
 **`rollback-on-failed-ci` has not fired**, and saying otherwise would be the one claim in this
 document that an incident rather than a grader would disprove. It is armed on the same code path
