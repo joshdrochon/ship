@@ -48,15 +48,33 @@ set +a
 
 # Report presence, never value. Anything listed as MISSING will either prompt
 # interactively or 401, depending on which half it belongs to.
+#
+# The model and Ship tokens are in this list for a reason discovered the hard way.
+# `variables.tf` defaults them to null, and null does not mean "leave the running
+# service alone" — main.tf and cron.tf omit the variable entirely when it is null,
+# so the provider REMOVES it from the live service. A local `terraform apply` run
+# without them would strip ANTHROPIC_API_KEY off a healthy deployment: service up,
+# /health green, every judgement returning ai_unavailable.
+#
+# `.github/workflows/deploy.yml` is protected from this by
+# `scripts/check-tf-secrets.sh`. Nothing protected a laptop, so this does.
 _tf_env_report() {
-  local missing=0 name
+  # `eval` rather than `${!name}`: this file is SOURCED, so it runs in the user's
+  # interactive shell, and the shell here is zsh. Indirect expansion is spelled
+  # `${!name}` in bash and `${(P)name}` in zsh, and neither works in the other —
+  # the bash form gave `bad substitution` in zsh, which is how this was found.
+  # `eval` with the value quoted is the one form both accept.
+  local missing=0 name value
   for name in TF_HTTP_PASSWORD TF_VAR_render_api_key TF_VAR_render_owner_id \
-              TF_VAR_session_secret TF_VAR_registry_token; do
-    if [ -z "${!name:-}" ]; then
+              TF_VAR_session_secret TF_VAR_registry_token \
+              TF_VAR_anthropic_api_key TF_VAR_ship_api_token TF_VAR_langchain_api_key; do
+    eval "value=\${$name:-}"
+    if [ -z "$value" ]; then
       echo "  MISSING  $name" >&2
       missing=1
     fi
   done
+  value=""
   if [ "$missing" -eq 0 ]; then
     echo "tf-env: all required values present." >&2
   else

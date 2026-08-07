@@ -2484,3 +2484,703 @@ assertion. The suite has been reporting green on partial uploads for a long time
 in `program-mode-week-ux` that appeared in run 6 and not run 5, which makes them
 candidates for genuine timing noise rather than a sixth mechanism. None has had its
 stack trace read. That is the next step, and it is the only step that has worked.
+
+---
+
+# The deploy fired for real, and the rehearsal found the inverse hazard
+
+`RENDER_DEPLOY_ENABLED=true` after the merge, not before — `workflow_run` runs the
+copy of `deploy.yml` on the default branch, so arming first would have run main's
+version, the one still missing `TF_VAR_anthropic_api_key`.
+
+Verified on `main` rather than on the branch before flipping it:
+
+```
+TF_VAR_anthropic_api_key in deploy.yml   2   (one per job)
+backend "http" in versions.tf            1
+scripts/check-tf-secrets.sh              present
+```
+
+Then CI went green on `3d5c6c3` and the deploy job ran on its own:
+
+```
+Apply complete! Resources: 1 added, 2 changed, 0 destroyed.
+/health   7660bd8 -> 3d5c6c3
+deploy/green tag moved to 3d5c6c3, AFTER /health confirmed
+```
+
+Engineering requirement 1's automatic path has now fired rather than merely existing.
+The run also logged `No deploy/green tag yet. This deploy has no rollback target.`,
+which is correct for a first deploy and is exactly the warning the next one will not
+produce.
+
+`ANTHROPIC_API_KEY` is present on both the web service and the cron after the
+automated apply. That was the specific thing arming could have destroyed, and it is
+the reason `check-tf-secrets.sh` exists.
+
+## What the rehearsal exposed
+
+`1 added` was `render_registry_credential.ghcr[0]` — a count-gated resource that CI
+creates because it supplies `TF_VAR_registry_username` and `TF_VAR_registry_token`.
+Chasing that led to a worse finding.
+
+A local `terraform plan` after the deploy wanted to change the web service. The diff
+was `env_vars`, and the cause was that `.env` had never contained
+`ANTHROPIC_API_KEY` or `SHIP_API_TOKEN`. `variables.tf` defaults both to null, and
+null means *remove this variable from the running service*.
+
+So the hazard fixed in CI existed in the opposite direction on the laptop: anyone
+running `terraform apply` locally would have stripped the model credential off a
+healthy production deployment. Service up, `/health` green, every judgement
+returning `ai_unavailable`. `check-tf-secrets.sh` guards `deploy.yml`; nothing
+guarded a shell.
+
+Two changes:
+
+- Both values copied from live Terraform state into `.env`, which is gitignored
+  (`.gitignore:12`). No value was printed at any point.
+- `scripts/tf-env.sh` now lists `TF_VAR_anthropic_api_key`, `TF_VAR_ship_api_token`
+  and `TF_VAR_langchain_api_key` among the values it refuses to stay quiet about.
+
+Proof the drift is closed — the same command that wanted a change now does not:
+
+```
+before   Plan: 0 to add, 1 to change, 0 to destroy.   (env_vars)
+after    No changes. Your infrastructure matches the configuration.
+```
+
+## A bug in the helper, found by using it
+
+`tf-env.sh` used `${!name}` for indirect expansion. That is bash syntax; zsh spells
+it `${(P)name}`, and neither accepts the other. The file carries a bash shebang, but
+it is **sourced**, so it runs in whatever interactive shell the user has — zsh here.
+It had never actually been executed until now, and the first run said
+`bad substitution`.
+
+Replaced with `eval "value=\${$name:-}"`, the one form both shells accept. Verified
+under both:
+
+```
+$ . scripts/tf-env.sh          # zsh
+tf-env: all required values present.
+$ bash -c '. scripts/tf-env.sh'
+tf-env: all required values present.
+```
+
+A helper whose whole purpose is to prevent a silent misconfiguration should not
+itself fail silently on a different shell.
+
+## How to test it
+
+```bash
+. scripts/tf-env.sh
+cd terraform/render && terraform plan -var image_tag=$(
+  curl -s https://shipshape-7buc.onrender.com/health | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).revision')
+```
+
+Expect `No changes.` Anything else means local and deployed have diverged.
+
+## How to roll it back
+
+Remove the three names from the loop in `tf-env.sh` and revert the `eval`. The `.env`
+additions are local-only and untracked. Nothing about the running infrastructure
+changes either way.
+
+---
+
+# GitLab: one job was misdiagnosed, the other was never broken
+
+## `agent-test` — dind that never attached
+
+The job ran a `docker:27-dind` service so testcontainers had a daemon. On this
+project's runner that never worked, and the log said so twice on every run:
+
+```
+WARNING: Skipping alias "docker" for service "docker:27-dind": alias is already
+         in use by another service
+WARNING: Possibly zombie container ...-docker-0-wait-for-service is disconnected
+         from network bridge
+```
+
+The service never attached to the job's network, so `DOCKER_HOST=tcp://docker:2375`
+resolved to nothing and every suite died in `beforeAll` at
+`container.getConnectionUri()`. The result was 10 of 20 spec files failing at setup
+while 93 tests passed — a shape that reads like a flaky suite and is not one.
+
+**dind was never needed here.** The runner already mounts the host daemon:
+
+```toml
+[runners.docker]
+volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
+```
+
+So the job can drive the Mac's Docker directly. Containers it starts are siblings
+rather than children, which is why the host override changes with it: they publish
+on the Docker host, reachable from the job as `host.docker.internal` rather than as
+`docker`.
+
+`TESTCONTAINERS_RYUK_DISABLED` stays, for a different reason than before. The reaper
+binds back to its client; under DooD that means binding into this job's container,
+which a sibling has no route to. The runner reaps its own containers anyway.
+
+`allow_failure: true` is left in place until a run proves the change. Flipping it in
+the same commit that attempts the fix would mean a red pipeline is the first thing
+anyone learns about it.
+
+Config validated against the server before pushing — `POST /ci/lint` returned
+`valid: true`, which catches a YAML mistake without spending a pipeline.
+
+## `e2e` — not broken, and I cancelled it for the wrong reason
+
+Earlier tonight I cancelled GitLab's `e2e` job at 46 minutes, describing it as
+stalled because GitHub's finishes in 15–17. That was wrong, and `.gitlab-ci.yml`
+already said so eleven lines above the job:
+
+> 150m, not the default. Measured on this project's runner: 266 of 874 tests in
+> 30 minutes at 2 workers, with zero failures — so roughly 100 minutes for a clean
+> run.
+
+46 minutes is a job halfway through, not a job hung. The runner is a laptop running
+Docker Desktop; GitHub's is a dedicated cloud VM. Roughly 6× is the honest ratio and
+it has been measured before.
+
+Nothing to fix. The `timeout: 150m` and the `allow_failure` are both already correct,
+and the only change worth making is to stop reading 46 minutes as a symptom.
+
+> **Later correction.** The ratio is real; the explanation in the paragraph above is
+> not. "Roughly 6×" was inferred from two totals and I attached it to the hardware —
+> a laptop against a cloud VM — without checking where the 80 minutes went. It goes
+> almost entirely into 27 upload tests waiting out a 60-second timeout three times
+> each. Worker-for-worker this runner is *faster* than GitHub's on every spec file
+> measured. See **GitLab's e2e job was not slow, it was waiting** at the end of this
+> file. The conclusion here still stands — 46 minutes was not a hang — but for a
+> different reason than the one given.
+
+## `agent-test` is now blocking on GitLab too
+
+The DooD change was proved before the gate was flipped, not alongside it:
+
+```
+before   Test Files  10 failed | 10 passed (20)
+         Tests       93 passed | 81 skipped (174)
+         exit 1
+
+after    Test Files  20 passed (20)
+         Tests      174 passed (174)
+         assert-tests-ran: 174 tests executed (>= 162); command exit 0
+         60s
+```
+
+`allow_failure: true` → `false`. Engineering requirement 1 asks for a regression test
+per agent behaviour and a CI gate on it; those tests now gate a merge on both
+platforms rather than only on GitHub.
+
+The old comment justifying `allow_failure` was half right in a way worth recording.
+Its conclusion — "this runner cannot give the job a Docker daemon" — matched the
+symptom. Its reason — "because `privileged = false`" — was wrong, and that is why the
+job sat broken for so long. A daemon does not need privileged mode; it needs a
+socket, and the runner had mounted one the whole time. The wrong reason made the
+problem look like a runner permission nobody controlled instead of a service
+definition anybody could delete.
+
+---
+
+# Six trace links, and two rows that disagreed with the table
+
+The Early Submission deliverable is two FLEETGRAPH.md sections. Architecture Decisions
+has been written since `FG-250`–`FG-254`. Test Cases had its Ship-state and
+expected-output columns filled and its trace column empty, with `<!-- TODO -->` in all
+six cells.
+
+## Why it stayed empty, and what was actually needed
+
+Two earlier notes explained the emptiness: first "no AWS credentials on this machine",
+then "the deployed database sits behind an IP allow-list". Both were true. Neither was
+the reason, which was that nobody had checked what the requirement asks for.
+
+Brief p.9: *"the LangSmith trace link from a run against that state."* It says nothing
+about the deployed instance. That matters, because the deployed route is the one that
+sounds better and is worse:
+
+- It means opening a production database to an inbound IP — measured today,
+  `ipAllowList: []` on `dpg-d9p789cs…`, our egress `162.206.172.65`, connection
+  rejected in 279 ms.
+- It is not repeatable. `fleetgraph_observations` is unique on
+  `(workspace_id, fingerprint)`, so every recapture needs freshly planted production
+  targets.
+
+Requirement 2's "different execution paths under different conditions" is a separate
+claim and is met separately, by the two deployed traces already in the document.
+
+Also found while checking: `.env`'s `RENDER_DATABASE_URL_EXTERNAL` points at
+`dpg-d9kk5ea…`, a database destroyed in the teardown. The live one is `dpg-d9p789cs…`.
+
+## What was built
+
+`agent/scripts/capture-test-case-traces.ts`. Testcontainers Postgres loading
+`schema.sql` and every migration, each case in its own workspace so none can suppress
+another, the real assembled graph, the real detectors, and the real model —
+`{"provider":"anthropic","model":"claude-opus-4-5-20251101","mocked":false}`, printed
+before it starts. Only the Ship API is faked. It shares each run through the LangSmith
+API and prints a markdown table.
+
+Two bugs in it, both found by running it:
+
+- The project was looked up before the first run. LangSmith creates a project lazily
+  on its first trace, so a clean account fails with `no LangSmith project named …` —
+  which reads as a configuration error rather than an ordering one. Now resolved after
+  the first case.
+- `PUT /runs/{id}/share` 404s on a run that the query endpoint has already returned.
+  It is not "no such run", it is "not yet". Case 1 won that race and case 2 lost it.
+  Now retried.
+
+## The results
+
+All six live and public, verified `200`:
+
+| # | Use case | Nodes | Outcome |
+|---|---|---|---|
+| 1 | Stalled work | 10 | as predicted, `execute_autonomous → deliver` |
+| 2 | Sprint-miss risk | 10 | as predicted — but see below |
+| 3 | Load imbalance | 9 | as predicted, `route_action → __interrupt__`, the human gate |
+| 4 | Review bottleneck | 10 | as predicted, `execute_autonomous → deliver` |
+| 5 | Rework churn | 8 | **diverged** — `judge_signals → close_quiet` |
+| 6 | On-demand answer | 5 | as predicted, `compose_answer`, no execute node reachable |
+
+## Row 5 is the interesting one
+
+Predicted `deliver`. Observed `close_quiet`.
+
+The `rework_churn` signal was measured and passed the triage gate — that is what put
+`judge_signals` on the path. The real model then decided it was not worth surfacing, C3
+routed quiet, and the watermark advanced with nothing delivered.
+
+That is the graph working. C3 exists so a crossed threshold is not automatically a
+message to a human. The expected-output column was written from the detector's point of
+view and assumed judgment would agree.
+
+Every regression test to date injects a fake judge that surfaces everything, so they
+assert routing and structurally cannot assert this. Row 5 is the first evidence of what
+the real judge does with a marginal signal: it stays quiet.
+
+Left in the table as a divergence rather than re-run until it agreed. A table that only
+shows agreement is not evidence.
+
+## Row 2 runs against a state Ship cannot produce
+
+The trace is real and the path is as predicted. `sprintMissRisk.ts:61` filters on
+`s.properties->>'end_date' IS NOT NULL`, and Ship never writes that field —
+`documents.ts:87` computes `start_date` and `end_date` from `sprint_number` at read
+time. The detector passes every test it has because `fixtures.ts:120` writes `end_date`
+directly.
+
+Green in CI, green in the trace, dead against a real workspace. Named in the table so a
+reader comparing it to a running deployment does not conclude something subtler is
+wrong.
+
+The fix is a real choice and is not made: compute the window the way `documents.ts`
+does, or persist `end_date` on write and backfill. First keeps one source of truth and
+costs a more complex query; second denormalises.
+
+## How to run it
+
+```bash
+set -a && . .env && set +a
+LANGCHAIN_PROJECT=fleetgraph-testcases \
+  pnpm --filter @ship/agent exec tsx scripts/capture-test-case-traces.ts
+```
+
+Six model calls. Prints a markdown table of public links.
+
+## How to roll it back
+
+Delete the script and restore the `<!-- TODO -->` comments in the trace column. The
+shared traces stay shareable; unsharing is a separate LangSmith call. Nothing about the
+running system changes either way.
+
+---
+
+# A swallowed Enter, found by a drag test
+
+CI was red on `fix/local-apply-strips-credentials`. Two unrelated things had gone
+wrong in the same run and only one of them was ours.
+
+Four jobs — `security-scan`, `type-violations`, `license-inventory`, `type-check` —
+never started: `Failed to resolve action download info. Error: Service Unavailable`,
+three times each, at 16:02 UTC. That is GitHub Actions failing to resolve a marketplace
+action, not a build failure, and it needs a re-run rather than a fix.
+
+The real one was `e2e/drag-handle.spec.ts` → "drag preserves full paragraph content",
+failing all three attempts.
+
+## What the artifact showed
+
+`error-context.md` from the third attempt had the editor holding **one** paragraph:
+
+```
+- paragraph: "This is a longer paragraph with multiple words and some special chars: @#$%Second block"
+```
+
+Two blocks merged into one. Further down the same snapshot, the reason:
+
+```
+- paragraph: No results found
+```
+
+The mention popup was open when Enter was pressed.
+
+## The bug is in the app, not the test
+
+`MentionList.onKeyDown` returned `true` for Enter and both arrows regardless of whether
+anything matched. TipTap's suggestion plugin reads `true` as "consumed" and stops, so
+ProseMirror never saw the key. `selectItem` already guarded against the empty list, so
+nothing happened and nothing was reported — the keystroke simply vanished.
+
+`ArrowUp`/`ArrowDown` were worse in a quieter way: `(prev + items.length - 1) % 0` is
+`NaN`, which then became `selectedIndex`.
+
+`allowSpaces: true` (`MentionExtension.ts:167`) is what makes this reachable in ordinary
+use. The mention query does not terminate at a space, so a single `@` anywhere in a line
+leaves the popup open for the rest of it, and **every Enter until the caret leaves that
+block is dropped**. Type an email address into a document and the next Enter does nothing.
+
+The fix is to return `false` when `items.length === 0` and let the editor have the key.
+
+## Why the test could not see it
+
+`addParagraphs` waited for `.ProseMirror` to contain the *last* string it typed. A merged
+paragraph satisfies that exactly as well as two separate ones, so the guard passed on a
+broken document and the run died three lines later inside `dragBlockToPosition` with
+`locator.elementHandle: Timeout 10000ms exceeded` — which reads like a slow element
+rather than a missing one.
+
+It now waits on the paragraph *count* after each Enter. Counting is the only assertion
+that can tell a split from a merge.
+
+## Before and after
+
+Same command, same machine, both runs at ~0.5 GB free:
+
+```
+before   1 failed | 18 passed (2.2m)     ← failed 3 of 3 attempts
+after    19 passed (40.8s)               ← no retries
+```
+
+`MentionList.test.tsx` is new and pins the behaviour directly, in milliseconds rather
+than in a browser:
+
+```
+fix reverted   3 failed | 6 passed (9)   ← the three no-results passthrough cases
+fix applied    9 passed (9)
+```
+
+Full web suite after: **27 files, 276 tests, all passing** (was 267 before this file).
+
+## How to run it
+
+```bash
+pnpm --filter web exec vitest run src/components/editor/MentionList.test.tsx
+pnpm exec playwright test e2e/drag-handle.spec.ts --reporter=line --workers=2
+```
+
+## How to roll it back
+
+Revert the `items.length === 0` guard in `MentionList.tsx`. The E2E guard in
+`addParagraphs` should stay either way — it is what turned an unreadable timeout into a
+named cause, and it is correct independently of the app fix.
+
+---
+
+# GitLab's e2e job was not slow, it was waiting
+
+`e2e` on GitLab takes ~80 minutes against GitHub's ~16. Twice tonight I explained that
+as a slow runner — once in chat, once in the section above, where I wrote that "roughly
+6× is the honest ratio and it has been measured before." `.gitlab-ci.yml` said the same
+thing in stronger terms: "roughly five times slower per test."
+
+That is wrong. It was an inference from two totals, never a measurement of where the time
+went.
+
+## Where the time actually goes
+
+Every progress line in job `61094` (commit `0a21232`) attributed to its spec file:
+
+```
+spec                                        min   tests   s/test
+file-attachments.spec.ts                   39.7      39     61.2
+images.spec.ts                              5.4      19     17.0
+performance.spec.ts                         3.6      18     12.0
+data-integrity.spec.ts                      2.5      16      9.3
+race-conditions.spec.ts                     1.9      13      8.6
+the other 69 spec files                    ~24     ~820     ~1.8
+                                           ----
+                                           77.1
+```
+
+One file is **51.5% of the run**. The five upload-related specs are **69%**. And 61.2
+s/test is not a coincidence — it is the 60-second test timeout in `playwright.config.ts`.
+
+## The runner is faster than GitHub's
+
+Worker-for-worker on the same commit, doubling GitHub's wall clock because it runs two
+workers to GitLab's one:
+
+```
+spec                          GitLab (1w)   GitHub (worker-min)
+program-mode-week-ux                  1.5                   2.4
+bulk-selection                        1.3                   1.8
+session-timeout                       1.3                   1.8
+features-real                         1.3                   1.4
+drag-handle                           1.1                   1.4
+```
+
+Faster on every one. It is a 10-core arm64 laptop running arm64 images natively —
+`uname -m` is `arm64`, Docker reports `aarch64`, `node:22-bookworm` reports `arm64`, so
+there is no emulation either. Three runs measured 78.9, 81.7 and 79.7 minutes, so the
+number is stable; only the explanation was wrong.
+
+## The cause, and the fix
+
+Twenty-five call sites did this:
+
+```ts
+const fileChooserPromise = page.waitForEvent('filechooser')
+```
+
+`waitForEvent` has no timeout of its own, so it inherits the 60-second test timeout. On
+this runner the chooser does not open for 27 tests — a real failure whose cause is still
+unidentified — and each attempt sat for the full minute, three times over with CI
+retries.
+
+`expectFileChooser(page)` in `e2e/fixtures/test-helpers.ts` bounds it at 10 seconds. Ten
+is not a guess: `features-real.spec.ts` has waited 5000 ms for the same event since it
+was written and passes wherever the chooser opens at all. When it works it opens in
+milliseconds.
+
+Nothing is hidden by this. The tests still fail, still retry, still upload artifacts.
+They fail in 10 seconds instead of 60, and the message now names the step that gave up —
+`Test timeout of 60000ms exceeded` named nothing, which is some of why the cause went
+unidentified for as long as it did.
+
+Expected: **~80 min → ~40 min**, with the 27 failures costing ~14 minutes instead of ~53.
+The real number comes from the next pipeline; this paragraph will be wrong if it does not.
+
+`retries: 2` is deliberately untouched. Dropping it on GitLab would save another ~9
+minutes and would also stop distinguishing a flake from a failure on the noisiest job
+in the pipeline.
+
+## Left alone, and worth its own ticket
+
+`features-real.spec.ts` wraps its chooser wait in `.catch(() => [null])` and then
+`if (fileChooser)`. Those four tests **pass on GitLab by skipping their upload
+assertion** when the chooser does not open. That is a different problem from this one and
+is not fixed here.
+
+## How to run it
+
+```bash
+pnpm exec playwright test e2e/file-attachments.spec.ts e2e/images.spec.ts \
+  --reporter=line --workers=2
+```
+
+Locally, where the chooser works: 20 passed in 51.4 s.
+
+## How to roll it back
+
+Revert the helper and the call sites. `page.waitForEvent('filechooser')` is the exact
+string that was replaced, in `data-integrity`, `file-attachments`, `images`,
+`race-conditions` and `security`; `performance.spec.ts` had `{ timeout: 45000 }`.
+Nothing about the application changes either way — this is test-side only.
+
+---
+
+# The upload failures were ours, and the 27 was two numbers
+
+Three things closed tonight: the two Test Cases rows that did not do what the table
+said, and the cause of the GitLab upload failures. The last one corrects this file
+twice over.
+
+## Row 5 — the case was written weaker than the bar it was judged against
+
+The seed planted three reopened issues against `REWORK_CHURN_REOPENS: 2`, alone in the
+batch. `JUDGE_SYSTEM_PROMPT` says to set `worth_surfacing` false when the measurement is
+only marginally past its threshold and nothing else in the batch makes it urgent. Three
+against two, alone, is that sentence almost word for word — so the case was testing the
+prompt's marginality rule, not the detector.
+
+Nine now: 4.5× the threshold, and in `countBucket`'s `9+` rather than `3-4`, so the
+fingerprint differs from the first capture and suppression cannot silence the recapture.
+Nothing else wakes up at that size. The row now ends `execute_autonomous → deliver`.
+
+## Row 2 — a fixture and a detector agreeing on a field Ship never writes
+
+`sprintMissRisk` filtered on `properties->>'end_date'`. Ship stores `sprint_number`;
+dates are computed, and `weeks.ts:185` says on the **frontend**. `computeSprintDates`
+(`WeekTimeline.tsx:20`) is the whole formula: `start = sprint_start_date +
+(sprint_number - 1) × 7`, `end = start + 6`.
+
+Now computed in SQL from those two columns, via `CASE` rather than a regex guard beside
+the cast — Postgres does not promise `WHERE` evaluation order, so the guard could not be
+relied on to run first. The fixture writes what `weeks.ts` writes and no dates at all.
+The regression test inserts a sprint by hand the way Ship inserts one.
+
+    detectors    53 → 56 passed
+    agent suite  174 → 186 passed  (escalation adds 9 more)
+
+## Escalation — designed since the start, unimplemented until now
+
+`escalation_count` existed from migration 038; nothing incremented it. It is now a graph
+node between `resolve_scope` and the proactive fan-out. Not inside `deliver`, for two
+independent reasons: a finding old enough to escalate is in the suppression set, so
+`triage_gate` removes it first; and `deliver` does not run on a quiet run, which is
+exactly when an unanswered finding needs escalating.
+
+One hop enforced by compare-and-set — `UPDATE … WHERE escalation_count = 0 RETURNING id`
+with the notification insert selecting from that CTE. A transaction was not available:
+`Queryable` is satisfied by a `Pool`, so `BEGIN`/`COMMIT` can land on different
+connections. Two statements come apart in both directions — crash after the increment
+loses the escalation, crash after the insert double-hops.
+
+FLEETGRAPH.md claimed escalation *stops at the project owner*. That guard never existed
+and cannot be written as stated; nothing marks a person as project owner in a way one hop
+can check. The sentence is removed rather than faked. "At most once" is the real bound.
+
+## The GitLab upload failures — an app bug, and this file was wrong about them twice
+
+**Wrong #1**, corrected earlier tonight: "roughly 6× is the honest ratio", attached to
+hardware. The runner is faster than GitHub's worker-for-worker.
+
+**Wrong #2**, corrected now: "27 tests whose file chooser never opens." It is **13**, all
+in `file-attachments.spec.ts`, all the `/file` command. Counted directly — `waiting for
+event "filechooser"` appears 39 times in job 61094, which is 13 × 3 attempts. The other
+14 **do** get a chooser and fail afterwards. Two failure modes reported as one number, so
+every theory had to explain a symptom half of them did not have.
+
+The decisive measurement: in that same job, on that same runner,
+`features-real.spec.ts:257` drove the same `/file` command to a working chooser in 6.6 s.
+The runner was never the variable.
+
+### The cause
+
+`Editor.tsx` captured `imageUploadAbortRef.current.signal` inside a `useMemo`. The
+collaboration effect swaps that controller in its cleanup. **React runs `useMemo` in the
+render phase and the previous cleanup in the commit phase — render first.** So the memo
+always held the controller about to be aborted, and `documentId` in the deps did not
+save it: the ref is swapped on every teardown of an effect with eight deps.
+
+The split falls straight out of where each command checks:
+
+| | check | symptom |
+|---|---|---|
+| `/file` | `if (signal?.aborted) return` **before** creating the input | no input, no click, no `filechooser` event at all |
+| `/image` | `input.click()` first, check inside `reader.onload` | chooser opens, file silently dropped |
+
+This is user-facing, not a test artifact: after any teardown, for the life of that
+document, `/file` is dead and `/image` eats the upload. Fixed by passing
+`getAbortSignal: () => imageUploadAbortRef.current.signal` and resolving it at command
+time.
+
+### Also dead, by measurement
+
+`/dev/shm` is Docker's default 64 M on this runner — the config fact is real, the theory
+is not. A standalone probe in `node:22-bookworm` arm64 at 64 M fired `filechooser` for
+sync clicks, post-`await import()` clicks and post-task clicks. The user-activation
+variant dies with it. `"user activation"` appears zero times in the job log.
+
+## What the 10-second bound actually bought
+
+    job          79.7 min  →  55.6 min
+    file-attach  39.7 min  →   9.2 min   (61.2 → 14.2 s/test)
+    everything else                       flat
+
+I predicted ~40 minutes. That assumed all 27 failures were chooser timeouts — the same
+conflation corrected above. Only 13 were. The other 14 never touched a 60-second timeout,
+so bounding it could not help them; the `AbortSignal` fix is what should.
+
+**`allow_failure: true` stays on GitLab's `e2e`.** The fix is believed to be the cause and
+has not been observed green on that runner. Flipping a gate on a belief is how both wrong
+claims above survived. Flip it after one clean run.
+
+## How to run it
+
+```bash
+pnpm --filter @ship/agent exec vitest run
+pnpm --filter web exec vitest run
+pnpm exec playwright test e2e/file-attachments.spec.ts e2e/images.spec.ts --workers=2
+set -a && . .env && set +a
+LANGCHAIN_PROJECT=fleetgraph-testcases \
+  pnpm --filter @ship/agent exec tsx scripts/capture-test-case-traces.ts
+```
+
+## How to roll it back
+
+Four independent reverts. `getAbortSignal` → `abortSignal` in `Editor.tsx` and
+`SlashCommands.tsx`; the `sprint_window` CTE in `sprintMissRisk.ts` plus the fixture;
+`escalate.ts` and its wiring in `graph/index.ts`; the row-5 seed 9 → 3. Nothing shares
+state with anything else. Only the first touches the running application.
+
+---
+
+# The same misconception, one layer up
+
+The `sprintMissRisk` fix broke `e2e/fleetgraph-agent.spec.ts:198` — *surfaces an event
+introduced into Ship inside the 5-minute latency window*, which is one of the two E2E
+tests p.4 requires by name.
+
+```
+Error: exactly one detector should fire: sprint_miss_risk on the week that ends today
+Expected: 1   Received: 0
+```
+
+`seedFleetGraphScenario` wrote `end_date: today` into the week's properties — the exact
+field the detector stopped reading. So the E2E fixture was a **second copy of the same
+misconception** the unit fixture had, one layer up, and fixing the detector exposed it
+rather than causing it. Two fixtures independently agreed on a field Ship never writes.
+
+The fixture now expresses "ends today" the way Ship would, by placing the workspace epoch
+so week 99 computes to today:
+
+```
+end = sprint_start_date + (sprint_number - 1) * 7 + 6
+```
+
+and writes no dates at all. Moving the workspace epoch is safe here and would not be in a
+shared fixture: the E2E database resets per spec FILE, and `seedFleetGraphScenario` has
+exactly one caller.
+
+```
+before   Expected: 1  Received: 0
+after    1 passed (24.2s) — event -> surfaced in 1061ms, SLA 300000ms
+```
+
+## What the AbortSignal fix actually did
+
+First GitLab run carrying it, same job, same runner:
+
+```
+             failed   flaky   passed   wall clock
+before          27       2      848      79.7 min
+after            2       1      874      28.8 min
+```
+
+Both remaining failures are accounted for: this fixture, now fixed, and
+`data-integrity.spec.ts:382` (mentions after reload), which was already flaky at
+`0a21232` — two commits before `MentionList` was touched — and passes 2/2 locally.
+
+That is the confirmation the earlier entry said was still owed. The cause was the
+application, not the runner, and 25 of the 27 failures were one React render/commit
+ordering bug.
+
+## How to run it
+
+```bash
+pnpm exec playwright test e2e/fleetgraph-agent.spec.ts e2e/fleetgraph-chat.spec.ts \
+  --reporter=line --workers=1
+```
+
+## How to roll it back
+
+Restore `start_date`/`end_date` in `seedFleetGraphScenario`'s properties and drop the
+`UPDATE workspaces SET sprint_start_date` above it. That only makes sense alongside
+reverting the detector — the two have to agree on where the window comes from, and that
+they did not is the whole story.

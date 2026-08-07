@@ -86,6 +86,33 @@ export interface SuppressedRef {
 }
 
 /**
+ * One finding routed a hop up the org chart because nobody answered it.
+ *
+ * Recorded in state rather than left to the database, for the same reason
+ * `suppressed` is: an escalation that only exists as an incremented counter is
+ * indistinguishable in a trace from an escalation that never ran. This is the
+ * evidence that the node did something, and to whom.
+ */
+export interface Escalation {
+  observationId: string;
+  fingerprint: string;
+  /** Who was told first and did not respond. */
+  fromUserId: string;
+  /**
+   * One hop up `reports_to`.
+   *
+   * NULL is a real, deliberate outcome and not a failure: the recipient is at
+   * the top of the chain, so there is no hop to make. Nothing is written —
+   * `escalation_count` stays 0 — and the finding remains with its original
+   * recipient. The row is still recorded here so "due but nobody above them" is
+   * visible in the trace rather than looking like the node skipped it.
+   */
+  toUserId: string | null;
+  /** Business days between being told and this run. */
+  silentBusinessDays: number;
+}
+
+/**
  * The action a finding proposes, classified by blast radius (Q3/Q4).
  *
  * `additive` runs without asking. `mutation` never does. The classification is
@@ -160,6 +187,20 @@ export const GraphState = Annotation.Root({
   }),
 
   suppressed: Annotation<SuppressedRef[]>({
+    reducer: (_prev, next) => next,
+    default: () => [],
+  }),
+
+  /**
+   * Findings routed one hop up `reports_to` this run (Q6).
+   *
+   * Sits with the measured fields rather than the judged ones on purpose:
+   * escalation is a ROUTING decision driven entirely by two stored facts — the
+   * notification is still pending, and it has been pending for 2 business days.
+   * No model is consulted, and nothing new is measured about the project. It
+   * changes who hears about a finding, never what the finding says.
+   */
+  escalated: Annotation<Escalation[]>({
     reducer: (_prev, next) => next,
     default: () => [],
   }),

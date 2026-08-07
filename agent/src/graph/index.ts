@@ -30,9 +30,15 @@
  *
  * ── The fan-out ────────────────────────────────────────────────────────────
  * The three proactive fetches are independent reads with no ordering
- * dependency, so the conditional returns all three node names at once and
- * LangGraph runs them in one superstep, joining at `triage_gate` (Q16). Their
- * combined latency is the slowest of the three rather than the sum.
+ * dependency, so `escalate` fans out to all three at once and LangGraph runs
+ * them in one superstep, joining at `triage_gate` (Q16). Their combined latency
+ * is the slowest of the three rather than the sum.
+ *
+ * `escalate` is deliberately AHEAD of the fan-out rather than a fourth member
+ * of it. It writes to the same `fleetgraph_observations` rows that
+ * `fetch_prior_state` reads, and it answers a different question — what became
+ * of what the last run said, before this one measures anything. Its header has
+ * the full argument.
  *
  * On-demand runs need signals and participants but not prior state — there is
  * nothing to suppress in a conversation. Those two are registered under
@@ -61,6 +67,7 @@ import { routeAction, routeByBlastRadius } from './nodes/routeAction.js';
 import { makeExecuteAutonomous } from './nodes/executeAutonomous.js';
 import { makeAwaitApproval } from './nodes/awaitApproval.js';
 import { makeExecuteApproved } from './nodes/executeApproved.js';
+import { makeEscalate } from './nodes/escalate.js';
 import { makeDeliver, makeCloseQuiet } from './nodes/deliver.js';
 
 /**
@@ -74,6 +81,7 @@ import { makeDeliver, makeCloseQuiet } from './nodes/deliver.js';
 export const NODES = {
   triggerRouter: 'trigger_router',
   resolveScope: 'resolve_scope',
+  escalate: 'escalate',
   fetchSignals: 'fetch_signals',
   fetchParticipants: 'fetch_participants',
   fetchPriorState: 'fetch_prior_state',
@@ -99,6 +107,11 @@ export function buildGraph(deps: GraphDeps) {
       .addNode(NODES.triggerRouter, triggerRouter)
       .addNode(NODES.resolveScope, makeResolveScope(deps))
 
+      // Proactive only. Acts on what the LAST run said, before this one
+      // measures anything — see the header of nodes/escalate.ts for why it is
+      // ahead of the fan-out rather than inside it.
+      .addNode(NODES.escalate, makeEscalate(deps))
+
       // Proactive fan-out.
       .addNode(NODES.fetchSignals, fetchSignals)
       .addNode(NODES.fetchParticipants, fetchParticipants)
@@ -123,22 +136,24 @@ export function buildGraph(deps: GraphDeps) {
       .addEdge(NODES.triggerRouter, NODES.resolveScope)
 
       // ── Conditional edge 1: invocation mode (FG-086) ────────────────────
-      // Returns several node names at once on the proactive side; that is the
-      // fan-out (Q16), not a list of alternatives.
+      // The proactive side goes to `escalate` first, which then fans out. The
+      // on-demand side never reaches it: escalation writes a notification, and
+      // chat cannot act (Q3). That is the same one-way structural guarantee as
+      // the execute nodes — enforced by the absent edge, not by a check.
       .addConditionalEdges(
         NODES.resolveScope,
         (state) =>
           routeByMode(state) === 'on_demand'
             ? [NODES.odFetchSignals, NODES.odFetchParticipants]
-            : [NODES.fetchSignals, NODES.fetchParticipants, NODES.fetchPriorState],
-        [
-          NODES.odFetchSignals,
-          NODES.odFetchParticipants,
-          NODES.fetchSignals,
-          NODES.fetchParticipants,
-          NODES.fetchPriorState,
-        ]
+            : [NODES.escalate],
+        [NODES.odFetchSignals, NODES.odFetchParticipants, NODES.escalate]
       )
+
+      // The fan-out (Q16): three independent reads in one superstep, so their
+      // combined latency is the slowest of the three rather than the sum.
+      .addEdge(NODES.escalate, NODES.fetchSignals)
+      .addEdge(NODES.escalate, NODES.fetchParticipants)
+      .addEdge(NODES.escalate, NODES.fetchPriorState)
 
       // The fan-out joins here. LangGraph waits for all three.
       .addEdge(NODES.fetchSignals, NODES.triageGate)

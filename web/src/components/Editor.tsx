@@ -542,9 +542,20 @@ export function Editor({
       onCreateSubDocument,
       onNavigateToDocument,
       documentType,
-      abortSignal: imageUploadAbortRef.current.signal,
+      // A getter, read when the command runs. Capturing `.signal` here read it in the
+      // RENDER phase, while the collaboration effect swaps the controller in its
+      // cleanup, which runs in the COMMIT phase — render always first. So the memo
+      // held the controller that was about to be aborted, and `documentId` in the deps
+      // did not save it: the ref is swapped on every teardown of that effect, and that
+      // effect has eight deps, several of which move when async data arrives.
+      //
+      // The result was permanent for the life of the document: `/file` returned at its
+      // aborted-guard before creating an input, so no file chooser opened at all, and
+      // `/image` opened one and then dropped the file inside `reader.onload`. On CI it
+      // read as the runner refusing to open a chooser.
+      getAbortSignal: () => imageUploadAbortRef.current.signal,
     });
-  }, [onCreateSubDocument, onNavigateToDocument, documentType, documentId]);
+  }, [onCreateSubDocument, onNavigateToDocument, documentType]);
 
   // Create mention extension (memoized to avoid recreation)
   const mentionExtension = useMemo(() => {

@@ -133,6 +133,91 @@ describe('detectSprintMissRisk', () => {
     expect(signals[0]!.measurement).toBe(1);
   });
 
+  it('detects a sprint stored the way SHIP stores one — sprint_number, no end_date', async () => {
+    // The regression test for the original bug. The detector read
+    // `properties->>'end_date'`, which Ship never writes (`weeks.ts:185`:
+    // "Dates and status are computed from sprint_number +
+    // workspace.sprint_start_date"), so it was green in CI and permanently
+    // silent against real data. The sprint is inserted by hand rather than
+    // through `createSprint` so this stays an assertion about SHIP's shape even
+    // if the fixture changes: sprint_number and owner_id in properties, the
+    // window from workspaces.sprint_start_date, nothing date-shaped on the row.
+    await pool.query(`UPDATE workspaces SET sprint_start_date = CURRENT_DATE - 5 WHERE id = $1`, [
+      ws.workspaceId,
+    ]);
+    const inserted = await pool.query(
+      `INSERT INTO documents
+         (workspace_id, document_type, title, properties, created_by, created_at, updated_at)
+       VALUES ($1, 'sprint', 'Week 1',
+               jsonb_build_object('sprint_number', 1, 'owner_id', $2::text),
+               $3, NOW(), NOW())
+       RETURNING id, properties`,
+      [ws.workspaceId, owner, ws.ownerId],
+    );
+    const sprint = inserted.rows[0].id;
+    expect(inserted.rows[0].properties.end_date, 'Ship stores no end_date').toBeUndefined();
+
+    const i = await createIssue(pool, ws, { state: 'todo' });
+    await attachToSprint(pool, i, sprint);
+
+    const signals = await detectSprintMissRisk(ws.workspaceId, pool);
+
+    expect(signals, 'a Ship-shaped sprint must be visible to the detector').toHaveLength(1);
+    expect(signals[0]!.targetId).toBe(sprint);
+    // start = sprint_start_date + (1 - 1) * 7, end = start + 6 → five days back
+    // plus six is tomorrow. Asked of Postgres so the comparison is in the same
+    // timezone the detector computed it in.
+    const { rows: expected } = await pool.query(`SELECT (CURRENT_DATE + 1)::text AS d`);
+    expect(signals[0]!.context.end_date).toBe(expected[0].d);
+  });
+
+  it('derives the window from sprint_number, not from a fixed sprint', async () => {
+    // The fixture's inverse of the same formula: a different sprint_number has
+    // to move sprint_start_date to keep the sprint ending tomorrow. If either
+    // side of the arithmetic were wrong this lands on the wrong date.
+    const sprint = await createSprint(pool, ws, {
+      endsInDays: 1,
+      ownerId: owner,
+      sprintNumber: 7,
+    });
+    const stored = await pool.query(`SELECT properties FROM documents WHERE id = $1`, [sprint]);
+    expect(stored.rows[0].properties.end_date, 'the fixture must not write end_date').toBeUndefined();
+
+    const i = await createIssue(pool, ws, { state: 'todo' });
+    await attachToSprint(pool, i, sprint);
+
+    const [s] = await detectSprintMissRisk(ws.workspaceId, pool);
+    const { rows: expected } = await pool.query(`SELECT (CURRENT_DATE + 1)::text AS d`);
+    expect(s!.context.end_date).toBe(expected[0].d);
+  });
+
+  it('skips a malformed sprint_number instead of failing the whole scan', async () => {
+    // A bare (properties->>'sprint_number')::int raises invalid input syntax,
+    // which would cost every other sprint in the workspace as well — one bad row
+    // silencing the detector is the failure mode this detector already had once.
+    const good = await createSprint(pool, ws, { endsInDays: 1, ownerId: owner });
+    const live = await createIssue(pool, ws, { state: 'todo' });
+    await attachToSprint(pool, live, good);
+
+    // One sprint_number that is not a number, one with no sprint_number at all.
+    for (const props of [`jsonb_build_object('sprint_number', 'week-two')`, `'{}'::jsonb`]) {
+      const bad = await pool.query(
+        `INSERT INTO documents
+           (workspace_id, document_type, title, properties, created_by, created_at, updated_at)
+         VALUES ($1, 'sprint', 'Malformed', ${props}, $2, NOW(), NOW())
+         RETURNING id`,
+        [ws.workspaceId, ws.ownerId],
+      );
+      const orphan = await createIssue(pool, ws, { state: 'todo' });
+      await attachToSprint(pool, orphan, bad.rows[0].id);
+    }
+
+    const signals = await detectSprintMissRisk(ws.workspaceId, pool);
+
+    expect(signals, 'the well-formed sprint still reports').toHaveLength(1);
+    expect(signals[0]!.targetId).toBe(good);
+  });
+
   it('carries a null owner rather than dropping the sprint', async () => {
     const sprint = await createSprint(pool, ws, { endsInDays: 1, ownerId: null });
     const i = await createIssue(pool, ws, { state: 'todo' });

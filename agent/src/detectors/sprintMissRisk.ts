@@ -15,6 +15,23 @@
  * rather than any assignee (PRESEARCH.md Q6) — the issues may have no assignee
  * at all, which is frequently the point.
  *
+ * ── The end date is COMPUTED, never stored ──────────────────────────────────
+ * Ship stores `sprint_number` on the sprint and nothing else date-shaped; the
+ * window is derived from `workspaces.sprint_start_date` (`schema.sql:9`) at read
+ * time. `weeks.ts:185` and `documents.ts:87,386,743,1116` all say so, and the
+ * only implementation of the formula is `computeSprintDates` in
+ * `web/src/components/week/WeekTimeline.tsx:20-28`:
+ *
+ *     start = sprint_start_date + (sprint_number - 1) * 7 days
+ *     end   = start + 6 days                        (one-week sprints)
+ *
+ * This detector used to read `properties->>'end_date'`, a field Ship never
+ * writes. It passed its tests only because the fixture wrote that field too, so
+ * it was green in CI and permanently silent against real data. The SQL below
+ * recomputes the same expression rather than persisting a copy, because a stored
+ * end date would drift from the one the UI shows the moment sprint_start_date
+ * moves.
+ *
  * ── Associations, not legacy columns ────────────────────────────────────────
  * Issue→sprint is resolved through `document_associations` with
  * relationship_type = 'sprint'. The legacy `sprint_id` column was dropped by
@@ -40,13 +57,32 @@ export async function detectSprintMissRisk(
   const today = now.toISOString().slice(0, 10);
 
   const { rows } = await db.query(
-    `SELECT s.id,
+    `WITH sprint_window AS (
+       SELECT s.id,
+              s.title,
+              s.properties->>'owner_id' AS owner_id,
+              -- CASE, not a bare cast: it is the only construct whose evaluation
+              -- order Postgres guarantees, so a row whose sprint_number is absent
+              -- or non-numeric yields NULL and drops out of the range test below
+              -- instead of failing the whole scan with an invalid-input error.
+              (w.sprint_start_date
+                 + (CASE WHEN s.properties->>'sprint_number' ~ '^[0-9]+$'
+                         THEN (s.properties->>'sprint_number')::int - 1 END) * 7
+                 + 6)::text AS end_date
+         FROM documents s
+         JOIN workspaces w ON w.id = s.workspace_id
+        WHERE s.workspace_id = $1
+          AND s.document_type = 'sprint'
+          AND s.archived_at IS NULL
+          AND s.deleted_at IS NULL
+     )
+     SELECT s.id,
             s.title,
-            s.properties->>'end_date' AS end_date,
-            s.properties->>'owner_id' AS owner_id,
+            s.end_date,
+            s.owner_id,
             COUNT(i.id) FILTER (WHERE i.properties->>'state' = ANY($3)) AS unstarted,
             COUNT(i.id) AS total
-       FROM documents s
+       FROM sprint_window s
        LEFT JOIN document_associations da
          ON da.related_id = s.id AND da.relationship_type = 'sprint'
        LEFT JOIN documents i
@@ -54,16 +90,12 @@ export async function detectSprintMissRisk(
         AND i.document_type = 'issue'
         AND i.archived_at IS NULL
         AND i.deleted_at IS NULL
-      WHERE s.workspace_id = $1
-        AND s.document_type = 'sprint'
-        AND s.archived_at IS NULL
-        AND s.deleted_at IS NULL
-        AND s.properties->>'end_date' IS NOT NULL
+      WHERE s.end_date IS NOT NULL
         -- Ends in the future (or today) but not far off. The business-day rule
         -- is applied below; this is only a cheap calendar-day narrowing.
-        AND (s.properties->>'end_date')::date >= $2::date
-        AND (s.properties->>'end_date')::date <= $2::date + INTERVAL '14 days'
-      GROUP BY s.id, s.title, s.properties`,
+        AND s.end_date::date >= $2::date
+        AND s.end_date::date <= $2::date + INTERVAL '14 days'
+      GROUP BY s.id, s.title, s.end_date, s.owner_id`,
     [workspaceId, today, UNSTARTED]
   );
 

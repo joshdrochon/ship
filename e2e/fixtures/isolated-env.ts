@@ -1217,7 +1217,7 @@ export async function seedFleetGraphScenario(dbUrl: string): Promise<FleetGraphS
       ]
     );
 
-    // `end_date` is TODAY, not "in two days".
+    // The week must END TODAY, and Ship does not store that date anywhere.
     //
     // `detectSprintMissRisk` keeps a week whose end date is today or later and whose
     // `businessDaysBetween(today, end_date)` is within SPRINT_MISS_DAYS. Today gives 0,
@@ -1226,9 +1226,29 @@ export async function seedFleetGraphScenario(dbUrl: string): Promise<FleetGraphS
     // Any future offset has to be counted in business days against
     // `@ship/shared`'s holiday calendar, and a fixture that only triggers on some
     // weekdays is a fixture that fails a Friday CI run for reasons nobody will find.
-    const today = new Date().toISOString().slice(0, 10);
-    const weekStart = new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10);
-    const weekTitle = 'Week 99 · FleetGraph scenario';
+    //
+    // What changed: this used to write `end_date` into the sprint's properties, and the
+    // detector used to read it. Neither was how Ship works — sprints store
+    // `sprint_number`, and the window is computed from the workspace's
+    // `sprint_start_date` (`computeSprintDates`, web/src/components/week/WeekTimeline.tsx).
+    // The detector now computes it too, so this fixture has to express "ends today" the
+    // way Ship would: by placing the workspace epoch such that week 99 lands on today.
+    //
+    //   end = sprint_start_date + (sprint_number - 1) * 7 + 6
+    //
+    // Moving the workspace epoch is safe here and would not be in a shared fixture: the
+    // E2E database resets per spec FILE, and `seedFleetGraphScenario` has exactly one
+    // caller, `fleetgraph-agent.spec.ts`.
+    const WEEK_NUMBER = 99;
+    const epochOffsetDays = (WEEK_NUMBER - 1) * 7 + 6;
+    const weekTitle = `Week ${WEEK_NUMBER} · FleetGraph scenario`;
+
+    await pool.query(
+      `UPDATE workspaces
+          SET sprint_start_date = CURRENT_DATE - ($2::int)
+        WHERE id = $1`,
+      [workspaceId, epochOffsetDays]
+    );
 
     const { rows: weekRows } = await pool.query(
       `INSERT INTO documents (workspace_id, document_type, title, properties, created_by,
@@ -1239,13 +1259,15 @@ export async function seedFleetGraphScenario(dbUrl: string): Promise<FleetGraphS
         workspaceId,
         weekTitle,
         JSON.stringify({
-          sprint_number: 99,
+          sprint_number: WEEK_NUMBER,
           // The accountable party for a sprint_miss_risk finding is the week owner,
           // never an assignee — the unstarted issues may have no assignee at all
           // (PRESEARCH.md Q6). This is the id the notification must be addressed to.
           owner_id: ownerUserId,
-          start_date: weekStart,
-          end_date: today,
+          // No `start_date` / `end_date`. `api/src/routes/weeks.ts` does not write them
+          // and neither does anything else in Ship, so putting them here would let the
+          // detector pass against a document the application cannot produce — which is
+          // exactly the failure this fixture used to hide.
         }),
         ownerUserId,
       ]

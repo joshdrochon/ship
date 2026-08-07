@@ -255,6 +255,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [ ] **FG-283** **Bug.** The FG-280 breaker move missed `agent/src/actions/client.ts`, which still imported from `api/dist` — so the build cycle was never actually broken. Type-checks and 774 unit tests all passed on stale incremental artifacts; only a clean `pnpm build:api` (via E2E global-setup) revealed it, along with TS5055 and TS2742.
 - [ ] **FG-275** Fix the `Closes:` trailer block. A blank line before `Co-Authored-By` splits it, git parses only the last paragraph, and fourteen commits' worth of closures were inert. `--verify` caught it.
 - [ ] **FG-276** `scripts/check-api-coverage.sh` scanned `api/src/routes/*.ts` only, so directory route modules (`routes/fleetgraph/index.ts`) read as missing endpoints. Fixed to scan `*/index.ts` and take the mount name from the directory.
+- [ ] **FG-284** **Bug.** `MentionList.onKeyDown` returned `true` for Enter and both arrows even with zero matches, so TipTap treated the key as consumed and ProseMirror never saw it — `selectItem` already ignored the empty list, making the swallow silent. With `allowSpaces: true` one `@` mid-line kills Enter for the rest of the block. Found by `e2e/drag-handle.spec.ts`, whose fixture text ends in `@#$%`; its guard could not see the merge because it asserted on the editor's whole text rather than the paragraph count.
 
 ## M6 · Actions and human-in-the-loop
 
@@ -322,15 +323,15 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 ## M9 · Observability
 
 - [x] **FG-176** LangSmith env vars — `LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`
-- [ ] **FG-177** Add LangSmith key to `.env` (never committed) and to Terraform as a secret var
-- [ ] **FG-178** Verify traces appear for a local proactive run
-- [ ] **FG-179** Verify traces appear for a local on-demand run
+- [x] **FG-177** Add LangSmith key to `.env` (never committed) and to Terraform as a secret var
+- [x] **FG-178** Verify traces appear for a local proactive run
+- [x] **FG-179** Verify traces appear for a local on-demand run
 - [x] **FG-180** Name graph nodes so traces are readable
-- [ ] **FG-181** **Capture trace link 1** — quiet run terminating at `triageGate`, zero tokens
-- [ ] **FG-182** **Capture trace link 2** — full run reaching an action, human gate hit
-- [ ] **FG-183** Confirm the two traces show visibly different paths (MVP requirement 2)
-- [ ] **FG-184** Make both trace links shareable/public
-- [ ] **FG-185** Record both links in `FLEETGRAPH.md`
+- [x] **FG-181** **Capture trace link 1** — quiet run terminating at `triageGate`, zero tokens
+- [x] **FG-182** **Capture trace link 2** — full run reaching an action, human gate hit
+- [x] **FG-183** Confirm the two traces show visibly different paths (MVP requirement 2)
+- [x] **FG-184** Make both trace links shareable/public
+- [x] **FG-185** Record both links in `FLEETGRAPH.md`
 
 ## M10 · Deployment
 

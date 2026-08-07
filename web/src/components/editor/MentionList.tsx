@@ -44,6 +44,24 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
 
     useImperativeHandle(ref, () => ({
       onKeyDown: ({ event }: { event: KeyboardEvent }) => {
+        // Nothing matched, so this popup has no key to handle. Returning true here
+        // told TipTap's suggestion plugin the key was consumed, and ProseMirror never
+        // saw it: Enter did not split the block, and the arrows did not move the caret.
+        // `selectItem` already guarded against the empty list, so the swallow was
+        // silent — the keystroke simply vanished.
+        //
+        // `allowSpaces: true` (MentionExtension.ts:167) is what made this reachable in
+        // ordinary use rather than only right after an `@`. The query does not end at a
+        // space, so one `@` mid-sentence leaves the popup open for the rest of the line,
+        // and every Enter until the caret leaves that block is dropped.
+        //
+        // Found by e2e/drag-handle.spec.ts "drag preserves full paragraph content",
+        // whose fixture text ends in `@#$%`: the two paragraphs it types merged into
+        // one, and the drag then timed out looking for a block that was never created.
+        if (items.length === 0) {
+          return false;
+        }
+
         if (event.key === 'ArrowUp') {
           setSelectedIndex((prev) => (prev + items.length - 1) % items.length);
           return true;

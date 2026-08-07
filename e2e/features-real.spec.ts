@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { waitForSlashMenu, chooseSlashMenuItem } from './fixtures/test-helpers';
+import { waitForSlashMenu, chooseSlashMenuItem, expectFileChooser } from './fixtures/test-helpers';
 import path from 'path';
 import fs from 'fs';
 
@@ -157,29 +157,25 @@ test.describe('TIER 1: Image Upload - REAL TESTS', () => {
   test('can upload image via /image command', async ({ page }) => {
     await loginAndCreateDoc(page);
 
-    // Use /image command
+    // Use /image command. The wait is armed BEFORE the click: `waitForEvent` only
+    // sees events fired after it is called, and the chooser opens inside the menu
+    // item's own click handler.
     await page.keyboard.type('/image');
+    const fileChooser = expectFileChooser(page);
     await chooseSlashMenuItem(page, /Image/i);
 
-    // File chooser should appear
-    const [fileChooser] = await Promise.all([
-      page.waitForEvent('filechooser', { timeout: 5000 }),
-    ]).catch(() => [null]);
+    const testImage = createTestImage();
+    await (await fileChooser).setFiles(testImage);
 
-    if (fileChooser) {
-      const testImage = createTestImage();
-      await fileChooser.setFiles(testImage);
+    // Wait for image to appear
+    const img = page.locator('.tiptap img');
+    await expect(img.first()).toBeVisible({ timeout: 30000 });
 
-      // Wait for image to appear
-      const img = page.locator('.tiptap img');
-      await expect(img.first()).toBeVisible({ timeout: 30000 });
-
-      // Verify image actually loaded (naturalWidth > 0)
-      const loaded = await img.first().evaluate((el: HTMLImageElement) =>
-        el.complete && el.naturalWidth > 0
-      );
-      expect(loaded).toBe(true);
-    }
+    // Verify image actually loaded (naturalWidth > 0)
+    const loaded = await img.first().evaluate((el: HTMLImageElement) =>
+      el.complete && el.naturalWidth > 0
+    );
+    expect(loaded).toBe(true);
   });
 
   test('uploaded image persists after page reload', async ({ page }) => {
@@ -190,28 +186,23 @@ test.describe('TIER 1: Image Upload - REAL TESTS', () => {
 
     // Upload image
     await page.keyboard.type('/image');
+    const fileChooser = expectFileChooser(page);
     await chooseSlashMenuItem(page, /Image/i);
 
-    const [fileChooser] = await Promise.all([
-      page.waitForEvent('filechooser', { timeout: 5000 }),
-    ]).catch(() => [null]);
+    const testImage = createTestImage();
+    await (await fileChooser).setFiles(testImage);
 
-    if (fileChooser) {
-      const testImage = createTestImage();
-      await fileChooser.setFiles(testImage);
+    // Wait for upload
+    await page.waitForSelector('.tiptap img', { timeout: 30000 });
+    await page.waitForTimeout(2000); // Wait for save
 
-      // Wait for upload
-      await page.waitForSelector('.tiptap img', { timeout: 30000 });
-      await page.waitForTimeout(2000); // Wait for save
+    // Reload page
+    await page.reload();
+    await page.waitForSelector('.tiptap', { timeout: 10000 });
 
-      // Reload page
-      await page.reload();
-      await page.waitForSelector('.tiptap', { timeout: 10000 });
-
-      // Image should still be there
-      const img = page.locator('.tiptap img');
-      await expect(img.first()).toBeVisible({ timeout: 10000 });
-    }
+    // Image should still be there
+    const img = page.locator('.tiptap img');
+    await expect(img.first()).toBeVisible({ timeout: 10000 });
   });
 
   test('image is not blocked by CORS (no console errors)', async ({ page }) => {
@@ -232,20 +223,22 @@ test.describe('TIER 1: Image Upload - REAL TESTS', () => {
 
     await loginAndCreateDoc(page);
     await page.keyboard.type('/image');
-    await page.keyboard.press('Enter');
 
-    const [fileChooser] = await Promise.all([
-      page.waitForEvent('filechooser', { timeout: 5000 }),
-    ]).catch(() => [null]);
+    // `chooseSlashMenuItem` rather than a bare `Enter`, matching its two siblings
+    // above. Enter takes whatever is highlighted at that instant, so when the menu
+    // container has rendered but its filtered items have not, it selects nothing and
+    // no chooser ever opens — the mechanism documented in test-helpers.ts. That was
+    // survivable while the assertions sat behind an `if (fileChooser)`; now that they
+    // always run, it would read as a failure of CORS rather than of menu timing.
+    const fileChooser = expectFileChooser(page);
+    await chooseSlashMenuItem(page, /Image/i);
 
-    if (fileChooser) {
-      const testImage = createTestImage();
-      await fileChooser.setFiles(testImage);
-      await page.waitForTimeout(5000);
+    const testImage = createTestImage();
+    await (await fileChooser).setFiles(testImage);
+    await page.waitForTimeout(5000);
 
-      expect(consoleErrors).toHaveLength(0);
-      expect(failedRequests).toHaveLength(0);
-    }
+    expect(consoleErrors).toHaveLength(0);
+    expect(failedRequests).toHaveLength(0);
   });
 });
 
@@ -258,31 +251,26 @@ test.describe('TIER 2: File Attachments - REAL TESTS', () => {
     await loginAndCreateDoc(page);
 
     await page.keyboard.type('/file');
+    const fileChooser = expectFileChooser(page);
     await chooseSlashMenuItem(page, /File|Attach/i);
 
-    const [fileChooser] = await Promise.all([
-      page.waitForEvent('filechooser', { timeout: 5000 }),
-    ]).catch(() => [null]);
-
-    if (fileChooser) {
-      // Create fixtures directory and test file
-      const fixturesDir = path.join(__dirname, 'fixtures');
-      if (!fs.existsSync(fixturesDir)) {
-        fs.mkdirSync(fixturesDir, { recursive: true });
-      }
-      const testFilePath = path.join(fixturesDir, 'test.pdf');
-      if (!fs.existsSync(testFilePath)) {
-        fs.writeFileSync(testFilePath, '%PDF-1.4 test file');
-      }
-
-      await fileChooser.setFiles(testFilePath);
-      await page.waitForTimeout(3000);
-
-      // Should show file attachment node
-      const attachment = page.locator('[data-type="fileAttachment"], .file-attachment');
-      const count = await attachment.count();
-      expect(count).toBeGreaterThan(0);
+    // Create fixtures directory and test file
+    const fixturesDir = path.join(__dirname, 'fixtures');
+    if (!fs.existsSync(fixturesDir)) {
+      fs.mkdirSync(fixturesDir, { recursive: true });
     }
+    const testFilePath = path.join(fixturesDir, 'test.pdf');
+    if (!fs.existsSync(testFilePath)) {
+      fs.writeFileSync(testFilePath, '%PDF-1.4 test file');
+    }
+
+    await (await fileChooser).setFiles(testFilePath);
+    await page.waitForTimeout(3000);
+
+    // Should show file attachment node
+    const attachment = page.locator('[data-type="fileAttachment"], .file-attachment');
+    const count = await attachment.count();
+    expect(count).toBeGreaterThan(0);
   });
 });
 
