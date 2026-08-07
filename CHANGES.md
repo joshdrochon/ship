@@ -3118,3 +3118,69 @@ Four independent reverts. `getAbortSignal` → `abortSignal` in `Editor.tsx` and
 `SlashCommands.tsx`; the `sprint_window` CTE in `sprintMissRisk.ts` plus the fixture;
 `escalate.ts` and its wiring in `graph/index.ts`; the row-5 seed 9 → 3. Nothing shares
 state with anything else. Only the first touches the running application.
+
+---
+
+# The same misconception, one layer up
+
+The `sprintMissRisk` fix broke `e2e/fleetgraph-agent.spec.ts:198` — *surfaces an event
+introduced into Ship inside the 5-minute latency window*, which is one of the two E2E
+tests p.4 requires by name.
+
+```
+Error: exactly one detector should fire: sprint_miss_risk on the week that ends today
+Expected: 1   Received: 0
+```
+
+`seedFleetGraphScenario` wrote `end_date: today` into the week's properties — the exact
+field the detector stopped reading. So the E2E fixture was a **second copy of the same
+misconception** the unit fixture had, one layer up, and fixing the detector exposed it
+rather than causing it. Two fixtures independently agreed on a field Ship never writes.
+
+The fixture now expresses "ends today" the way Ship would, by placing the workspace epoch
+so week 99 computes to today:
+
+```
+end = sprint_start_date + (sprint_number - 1) * 7 + 6
+```
+
+and writes no dates at all. Moving the workspace epoch is safe here and would not be in a
+shared fixture: the E2E database resets per spec FILE, and `seedFleetGraphScenario` has
+exactly one caller.
+
+```
+before   Expected: 1  Received: 0
+after    1 passed (24.2s) — event -> surfaced in 1061ms, SLA 300000ms
+```
+
+## What the AbortSignal fix actually did
+
+First GitLab run carrying it, same job, same runner:
+
+```
+             failed   flaky   passed   wall clock
+before          27       2      848      79.7 min
+after            2       1      874      28.8 min
+```
+
+Both remaining failures are accounted for: this fixture, now fixed, and
+`data-integrity.spec.ts:382` (mentions after reload), which was already flaky at
+`0a21232` — two commits before `MentionList` was touched — and passes 2/2 locally.
+
+That is the confirmation the earlier entry said was still owed. The cause was the
+application, not the runner, and 25 of the 27 failures were one React render/commit
+ordering bug.
+
+## How to run it
+
+```bash
+pnpm exec playwright test e2e/fleetgraph-agent.spec.ts e2e/fleetgraph-chat.spec.ts \
+  --reporter=line --workers=1
+```
+
+## How to roll it back
+
+Restore `start_date`/`end_date` in `seedFleetGraphScenario`'s properties and drop the
+`UPDATE workspaces SET sprint_start_date` above it. That only makes sense alongside
+reverting the detector — the two have to agree on where the window comes from, and that
+they did not is the whole story.
