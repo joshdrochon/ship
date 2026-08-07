@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { chooseSlashMenuItem } from './fixtures/test-helpers'
+import { chooseSlashMenuItem, expectFileChooser } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -401,7 +401,7 @@ test.describe('Performance - Many Images', () => {
       //
       // chooseSlashMenuItem clicks the button it waited for. Same fix now applied
       // in data-integrity.spec.ts and images.spec.ts.
-      const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 45000 })
+      const fileChooserPromise = expectFileChooser(page)
       await chooseSlashMenuItem(page, /Image/i)
 
       const fileChooser = await fileChooserPromise
@@ -467,7 +467,7 @@ test.describe('Performance - Many Images', () => {
       // right, it was never flaky, and it sat four hundred lines from the loop
       // that pressed Enter and was. Two implementations of the same step is how
       // the working one stayed a local discovery.
-      const fileChooserPromise = page.waitForEvent('filechooser', { timeout: 45000 })
+      const fileChooserPromise = expectFileChooser(page)
       await chooseSlashMenuItem(page, /Image/i)
 
       const fileChooser = await fileChooserPromise

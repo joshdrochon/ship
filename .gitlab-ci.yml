@@ -174,38 +174,61 @@ test:
 # breaker from there on purpose, so the agent reuses api/src/services/circuitBreaker.ts
 # instead of growing a second one (engineering requirement 4).
 #
-# ── Why this is allow_failure HERE and blocking on GitHub ──────────────────────────
-# Same split as `e2e`, for the same measured reason. 11 of the 19 agent spec files start
-# a `postgres:16` container, which needs a Docker daemon reachable from the job. That
-# means docker-in-docker, and this project's runner sets `privileged = false` — the
-# finding that already forced `e2e` onto a plain `postgres` service here.
+# ── This was allow_failure, and is not any more ────────────────────────────────────
+# The reason it was: 11 of the 19 agent spec files start a `postgres:16` container via
+# testcontainers, which needs a Docker daemon reachable from the job. The note here
+# used to say that meant docker-in-docker, and that dind was unavailable because this
+# runner sets `privileged = false`.
 #
-# The daemon cannot be swapped for a service container the way e2e's was, because the
-# agent suite creates a database per FILE at runtime rather than reading one URL, and
-# rewriting 11 spec files to accept an injected pool would change what they test.
+# The conclusion was right and the reason was wrong, which is why it went unfixed. A
+# daemon does not require privileged mode — it requires a socket, and this runner has
+# mounted one the whole time:
 #
-# So the job runs, reports, and publishes its junit — and does not gate a merge on
-# whether this particular runner grants privileged mode. GitHub's `agent-test` job is
-# the blocking gate, on a runner that has a daemon. If dind does turn out to work here
-# (the `docker-image` job below uses it), flip allow_failure to false — nothing else
-# needs to change.
+#   [runners.docker]
+#   volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
+#
+# What actually failed was the dind SERVICE, which never attached to the job's network
+# (see the block on the job below). Removing it and talking to the mounted daemon
+# directly took the suite from 10 of 20 spec files dying in `beforeAll` to:
+#
+#   Test Files  20 passed (20)
+#        Tests  174 passed (174)
+#   assert-tests-ran: 174 tests executed (>= 162); command exit 0
+#
+# So this now gates a merge on both platforms, which is what the requirement asks for.
+# The old note ended "if dind does turn out to work here, flip allow_failure to false".
+# It was not dind, but the flip is the same.
 agent-test:
   stage: verify
   needs: ['build']
-  services:
-    - name: docker:27-dind
-      alias: docker
+  # ── Docker-outside-of-Docker, not dind ────────────────────────────────────────────
+  # This job used to run a `docker:27-dind` service. On this project's runner that
+  # never worked, and the job log said so twice on every run:
+  #
+  #   WARNING: Skipping alias "docker" for service "docker:27-dind": alias is
+  #            already in use by another service
+  #   WARNING: Possibly zombie container ...-docker-0-wait-for-service is
+  #            disconnected from network bridge
+  #
+  # The dind service never attached to the job's network, so `tcp://docker:2375`
+  # resolved to nothing, every testcontainer died in `beforeAll` at
+  # `container.getConnectionUri()`, and 10 of 20 spec files failed at setup while 93
+  # tests still passed — a shape that reads like a flaky suite and is not one.
+  #
+  # dind was never needed. The runner already mounts the host daemon:
+  #
+  #   [runners.docker]
+  #   volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/cache"]
+  #
+  # so the job can talk to the Mac's Docker directly. Containers it starts are
+  # siblings rather than children, which is why the host override changes: they
+  # publish on the Docker host, reachable from here as `host.docker.internal`.
   variables:
-    DOCKER_HOST: 'tcp://docker:2375'
-    DOCKER_TLS_CERTDIR: ''
-    # testcontainers publishes container ports on the DAEMON's host, which under dind is
-    # the `docker` service and not this job. Without the override it hands back
-    # `localhost:<port>`, which from here reaches nothing, and every suite times out in
-    # `beforeAll` with an error that reads like a slow image pull.
-    TESTCONTAINERS_HOST_OVERRIDE: 'docker'
-    # Ryuk is testcontainers' reaper sidecar. It needs to bind back to the client, which
-    # is the one thing that does not work across the dind boundary. The job is
-    # ephemeral, so the containers die with it.
+    TESTCONTAINERS_HOST_OVERRIDE: 'host.docker.internal'
+    # Ryuk is testcontainers' reaper sidecar and it binds back to the client. Under
+    # DooD that means binding back into this job's container, which the sibling has
+    # no route to. The job is ephemeral and the runner reaps its own containers, so
+    # the reaper has nothing to do here either way.
     TESTCONTAINERS_RYUK_DISABLED: 'true'
   script:
     # The expected minimum is the whole suite. A vitest path typo or a crashed worker
@@ -221,7 +244,7 @@ agent-test:
     reports:
       junit:
         - agent/junit.xml
-  allow_failure: true
+  allow_failure: false
 
 coverage:
   stage: verify
@@ -274,10 +297,28 @@ e2e:
   services:
     - name: postgres:16
       alias: postgres
-  # 150m, not the default. Measured on this project's runner: 266 of 874 tests in
-  # 30 minutes at 2 workers, with zero failures -- so roughly 100 minutes for a clean
-  # run. The suite is correct here; it was simply not being allowed to finish, and a
-  # job killed at the timeout reports as a failure indistinguishable from a real one.
+  # 150m, not the default. A job killed at the timeout reports as a failure
+  # indistinguishable from a real one, so the headroom is deliberate.
+  #
+  # This once said "roughly 100 minutes for a clean run", extrapolated from 266 tests in
+  # 30 minutes. The extrapolation was sound and the conclusion drawn from it was not:
+  # it treated the whole suite as uniformly slow here. Three measured runs came in at
+  # 78.9, 81.7 and 79.7 minutes, and attributing every progress line in job 61094 to its
+  # spec file shows where that went:
+  #
+  #   file-attachments.spec.ts      39.7 min   39 attempts   61.2 s each
+  #   images / performance /
+  #   data-integrity / race-cond.   13.4 min
+  #   the other 69 spec files      ~24   min  ~820 tests     ~1.8 s each
+  #
+  # 61.2 s is the 60 s test timeout in playwright.config.ts. The upload tests were not
+  # running slowly, they were waiting for a `filechooser` event that never arrives on
+  # this runner, three times over with CI retries. The other 820 tests run at ~1.8 s
+  # each, which is FASTER per test than GitHub's runner manages -- this is a 10-core
+  # arm64 laptop with no emulation, not a slow machine.
+  #
+  # `expectFileChooser` in e2e/fixtures/test-helpers.ts bounds that wait at 10 s. The
+  # tests still fail; they stop costing 50 extra seconds each to do it.
   timeout: 150m
   variables:
     E2E_DATABASE_URL: 'postgresql://ship:ship_test_password@postgres:5432/postgres'
@@ -322,22 +363,42 @@ e2e:
   # Non-blocking HERE, and blocking on GitHub. The job still runs, still reports, and its
   # artifacts are still published — it just does not gate a merge on this runner.
   #
-  # Why: 27 of the 30 tests that fail here are file or image uploads whose file chooser
-  # never opens, and the same suite passes on GitHub with 0 failures. Measurement ruled out
-  # parallelism (4, 2 and 1 worker are identical), memory (1 worker leaves headroom), the
-  # job timeout (raised to 150m; a clean run takes 1.4h) and the browser build
-  # (Chromium 143.0.7499.4, byte-identical on both platforms).
+  # Why: 27 tests fail here that pass on GitHub. This comment has been wrong twice about
+  # them and both corrections are worth keeping, because each wrong version pointed the
+  # next investigation at the wrong layer.
   #
-  # This runner is a container in a 7.8 GB Docker VM on a laptop, roughly five times slower
-  # per test. The cause of the upload failures is NOT identified. A user-activation theory
-  # (the File command awaits a dynamic import before `input.click()`) was checked and does
-  # not hold: the Image command clicks synchronously and its tests fail too, and the chunk
-  # is served from localhost in milliseconds here. Nothing measured implicates the deployed
-  # application. Recorded in SUBMISSION.md.
+  # Wrong #1 -- "roughly five times slower per test". Compared worker-for-worker against
+  # GitHub on the same commit, this runner is FASTER on every spec file measured. It is a
+  # 10-core arm64 laptop running arm64 images natively; `uname -m` is arm64, Docker
+  # reports aarch64, node:22-bookworm reports arm64, so there is no emulation either.
   #
-  # The framing: E2E blocks merges where it can be trusted to mean something, and reports
-  # without blocking where the runner cannot support it. Deleting the job would have hidden
-  # the result; leaving it blocking would have gated merges on a laptop's speed.
+  # Wrong #2 -- "27 tests whose file chooser never opens". It is 13, all of them in
+  # file-attachments.spec.ts, all driven by the `/file` command. Counted directly: the
+  # string `waiting for event "filechooser"` appears 39 times in job 61094 = 13 x 3
+  # attempts. The other 14 DO get a chooser and fail afterwards, when the file never
+  # reaches the editor. Two failure modes, merged into one number, so every theory had to
+  # explain a symptom half of them did not have.
+  #
+  # The cause is in the APPLICATION, not in this file. `Editor.tsx` captured
+  # `imageUploadAbortRef.current.signal` inside a useMemo; the collaboration effect swaps
+  # that controller in its cleanup. React runs useMemo in the render phase and the
+  # previous cleanup in the commit phase -- render first -- so the memo always held the
+  # controller about to be aborted, and its deps do not change when the ref is swapped.
+  # `/file` checks `signal?.aborted` BEFORE creating the input (no chooser at all);
+  # `/image` clicks first and checks inside `reader.onload` (chooser opens, file dropped).
+  # That asymmetry is exactly the observed split. Fixed by reading the signal at command
+  # time -- see `getAbortSignal` in web/src/components/editor/SlashCommands.tsx.
+  #
+  # Ruled out by measurement, so nobody re-runs them: parallelism (4, 2 and 1 worker are
+  # identical), memory (1 worker leaves headroom), job timeout (raised to 150m), browser
+  # build (Chromium 143.0.7499.4, byte-identical on both platforms), and /dev/shm -- the
+  # runner does give the job Docker's default 64 M, but a standalone probe in the same
+  # image fired `filechooser` for sync clicks, post-`await import()` clicks and post-task
+  # clicks. The user-activation theory is dead with it.
+  #
+  # STILL allow_failure: true, deliberately. The fix above is believed to be the cause but
+  # has not yet been observed green on this runner, and flipping the gate on a belief is
+  # how the two wrong claims above survived so long. Flip it after one clean run here.
   allow_failure: true
 
 # ---------------------------------------------------------------------------

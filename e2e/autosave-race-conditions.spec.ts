@@ -391,20 +391,36 @@ test.describe('Auto-Save Race Conditions - Error Recovery', () => {
 
     // Type title
     await titleInput.fill('Retryable Title');
-    await page.waitForTimeout(2000); // Wait for retry
 
-    // Remove route interception
+    // Remove route interception so the retry can succeed.
     await context.unrouteAll();
 
-    // Wait a bit more and reload
-    await page.waitForTimeout(1000);
+    // This used to be `waitForTimeout(2000)` + `waitForTimeout(1000)` + reload, then
+    // read the input, and it produced `Received string: ""` in every CI run.
+    //
+    // Two reasons, and the second is the interesting one:
+    //
+    //  1. Both sleeps were bets against `PERSIST_DEBOUNCE_MS = 2000` measured from
+    //     the wrong clock — the same mistake fixed across data-integrity.spec.ts.
+    //
+    //  2. The title is not saved by the request this test aborts. W6-9 moved it into
+    //     the Yjs CRDT, so it persists over the collaboration socket; the
+    //     `PATCH /api/documents/:id` only fires as a FALLBACK when that socket has
+    //     not synced within 1.5 s (web/src/hooks/useCollaborativeTitle.ts). Aborting
+    //     the first PATCH therefore does not reliably fail the save at all, and when
+    //     it does, what recovers is the socket rather than a REST retry.
+    //
+    // The behaviour under test is still exactly right — a save was disrupted and the
+    // title must survive anyway. Asserting on the server's copy proves that under
+    // either transport. `expectDocumentTitleSaved` polls until the API serves it back.
+    await expectDocumentTitleSaved(page, 'Retryable Title');
 
-    // Verify it was eventually saved (via retry)
+    // And it must survive a reload, which is what a user would actually check.
     await page.reload();
     await expect(page.locator('.ProseMirror')).toBeVisible({ timeout: 5000 });
-    // Should have the title (either from retry or subsequent save)
-    const finalTitle = await page.locator('textarea[placeholder="Untitled"]').inputValue();
-    expect(finalTitle).toContain('Retryable');
+    await expect(page.locator('textarea[placeholder="Untitled"]')).toHaveValue(
+      'Retryable Title',
+    );
   });
 });
 

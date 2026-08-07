@@ -1,5 +1,5 @@
 import { test, expect, Page } from './fixtures/isolated-env'
-import { waitForSlashMenu, chooseSlashMenuItem } from './fixtures/test-helpers';
+import { waitForSlashMenu, chooseSlashMenuItem, expectFileChooser } from './fixtures/test-helpers';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -76,7 +76,7 @@ async function insertImageViaSlashCommand(page: Page): Promise<void> {
   // Was a blind Enter after `waitForSlashMenu`. The menu container renders before
   // its items do, so Enter selected nothing, the chooser never opened, and the test
   // hung until the 60 s timeout. Pick the item by name instead.
-  const fileChooserPromise = page.waitForEvent('filechooser');
+  const fileChooserPromise = expectFileChooser(page);
   await chooseSlashMenuItem(page, /Image/i);
 
   // Handle file chooser
@@ -228,7 +228,7 @@ test.describe('Images', () => {
     const tmpPath = createTestImageFile();
 
     // Same blind-Enter race as above.
-    const fileChooserPromise = page.waitForEvent('filechooser');
+    const fileChooserPromise = expectFileChooser(page);
     await chooseSlashMenuItem(page, /Image/i);
 
     // Handle file chooser

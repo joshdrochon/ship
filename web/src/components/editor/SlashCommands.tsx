@@ -151,8 +151,22 @@ interface CreateSlashCommandsOptions {
   onNavigateToDocument?: (id: string) => void;
   /** Document type for filtering document-specific commands */
   documentType?: string;
-  /** AbortSignal for cancelling async operations on navigation/cleanup */
-  abortSignal?: AbortSignal;
+  /**
+   * Returns the CURRENT AbortSignal for cancelling async uploads on navigation.
+   *
+   * A getter, not a value, and the distinction is the whole bug. `Editor.tsx` swaps
+   * `imageUploadAbortRef.current` for a fresh controller inside the collaboration
+   * effect's cleanup — but React runs `useMemo` in the render phase and the previous
+   * effect's cleanup in the commit phase, render first. So a captured `.signal` is
+   * always the controller the cleanup is about to abort, and the memo's deps do not
+   * change when the ref is swapped, so it is held for the life of the document.
+   *
+   * Symptom: `/file` returns silently at its `signal.aborted` guard and no file
+   * chooser ever opens; `/image` clicks unconditionally, so the chooser opens and the
+   * image is then dropped inside `reader.onload`. Reading the signal at command time
+   * always sees the live controller.
+   */
+  getAbortSignal?: () => AbortSignal | undefined;
 }
 
 // Icons for slash commands
@@ -263,7 +277,7 @@ const icons = {
   ),
 };
 
-export function createSlashCommands({ onCreateSubDocument, onNavigateToDocument, documentType, abortSignal }: CreateSlashCommandsOptions) {
+export function createSlashCommands({ onCreateSubDocument, onNavigateToDocument, documentType, getAbortSignal }: CreateSlashCommandsOptions) {
   const slashCommands: SlashCommandItem[] = [
     // Sub-document (requires async callback)
     {
@@ -387,6 +401,9 @@ export function createSlashCommands({ onCreateSubDocument, onNavigateToDocument,
           // Create data URL for immediate preview
           const reader = new FileReader();
           reader.onload = async () => {
+            // Resolved here, at command time, not when the extension was built.
+            const abortSignal = getAbortSignal?.();
+
             // Check if aborted before processing
             if (abortSignal?.aborted) return;
 
@@ -451,7 +468,11 @@ export function createSlashCommands({ onCreateSubDocument, onNavigateToDocument,
         editor.chain().focus().deleteRange(range).run();
         // Import and trigger file upload
         const { triggerFileUpload } = await import('./FileAttachment');
-        triggerFileUpload(editor, abortSignal);
+        // Resolved here, not at extension-build time. `triggerFileUpload` checks
+        // `signal?.aborted` before it creates the input, so a stale signal means no
+        // input, no click, and no `filechooser` event at all — the failure looks like
+        // the browser refusing a chooser rather than the app declining to ask for one.
+        triggerFileUpload(editor, getAbortSignal?.());
       },
     },
     // Toggle/Details

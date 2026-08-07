@@ -35,8 +35,8 @@ behaviour that has not been verified against the tree.
 | `render_cron_job` in Terraform | **Applied and running**, `*/3 * * * *`, same image and tag as the web service | `terraform/render/cron.tf`, `terraform/render/PLAN-ANNOTATED.md` |
 | Dockerfile builds `agent/` | **Yes**, and fails the build if `agent/dist/entrypoints/cron.js` is absent | `Dockerfile:44`, `:58`, `:110` |
 | LangSmith tracing | **Enabled in production.** Project `fleetgraph-prod`, 50+ runs; `logTracingStatus()` still warns on the quiet misconfigurations | `agent/src/observability/tracing.ts`, `terraform/render/cron.tf` |
-| LangSmith trace links | **Two captured and public** — a quiet proactive run and an on-demand answer, both from the deployed agent | "Traces from the deployed agent" below |
-| CI deploy / automatic rollback | **Written, not armed.** `deploy.yml` has `deploy` and `rollback-on-failed-ci`; both sit behind `vars.RENDER_DEPLOY_ENABLED`, blocked on a remote state backend | `.github/workflows/deploy.yml`, `FG-236` |
+| LangSmith trace links | **Eight captured and public** — one per use case from `capture-test-case-traces.ts`, plus two from the deployed agent | Test Cases table, and "Traces from the deployed agent" |
+| CI deploy / automatic rollback | **Armed, and the deploy half has fired.** State moved to a GitLab-hosted `backend "http"`, `vars.RENDER_DEPLOY_ENABLED=true`, and `deploy.yml` promoted `3d5c6c3` unattended — `/health` and the `deploy/green` tag both name it. `rollback-on-failed-ci` is armed on the same path but has not been triggered, because no CI run has failed on a deployed commit | `.github/workflows/deploy.yml`, `terraform/render/versions.tf`, `FG-236` |
 
 Verified against `83aa33c`: `agent/` runs **162 tests in 19 files, all passing** (`npx vitest run`
 in `agent/`, 28 s, exit 0). The run also prints ten unhandled `57P01` errors attributed to
@@ -64,7 +64,7 @@ Detection runs as **SQL against Postgres directly**, not through Ship's HTTP API
 |---|---|---|
 | Stalled work | `state = 'in_progress'`, `updated_at` unmoved | 5 business days |
 | Review bottleneck | `state = 'in_review'`, `updated_at` unmoved | 2 business days |
-| Sprint-miss risk | sprint `end_date` near, issues still `todo`/`backlog` | 2 business days out |
+| Sprint-miss risk | sprint window computed from `sprint_number` + `workspaces.sprint_start_date`, issues still `todo`/`backlog` | 2 business days out |
 | Load imbalance | active issues per assignee vs. the sprint median | ≥ 2× median, team ≥ 3 |
 | Rework churn | `reopened_at` set, or `done → in_progress` in `document_history` | ≥ 2 in 30 days, per project |
 
@@ -218,14 +218,36 @@ Fallback when `owner_id` is null: the document's `created_by`, then a workspace 
 nobody — a finding with no recipient is a finding that silently disappears.
 
 **Escalation.** A finding not acknowledged after **2 business days** escalates one level up the
-org chart via `properties->>'reports_to'` on the person document. It escalates **at most once**
-and stops at the project owner. A Director never receives an individual stalled issue; they
-receive only aggregate signals such as rework churn. The unit is business days, not runs — at a
-3-minute cron, "two runs" would be six minutes, which would escalate a finding defined by five
-days of silence almost immediately.
-<!-- TODO(FG-084): escalation is designed and unimplemented. `fleetgraph_observations.escalation_count`
-     exists, migration 038 creates it, and `fetchPriorState` reads it into state — but nothing
-     increments it and nothing walks `reports_to`. Re-checked against the tree; still the case. -->
+org chart via `properties->>'reports_to'` on the person document. It escalates **at most once**.
+A Director never receives an individual stalled issue; they receive only aggregate signals such
+as rework churn. The unit is business days, not runs — at a 3-minute cron, "two runs" would be
+six minutes, which would escalate a finding defined by five days of silence almost immediately.
+
+**Built**, in `agent/src/graph/nodes/escalate.ts`. This paragraph described a design for most of
+the build and said so in a `TODO`; it now describes behaviour. Four things about it are worth
+having in the document rather than only in the code:
+
+- **It is a node, not a step inside `deliver`.** It sits on the proactive branch between
+  `resolve_scope` and the three fetches. It cannot live in `deliver` for two independent
+  reasons: a finding old enough to escalate is already in the suppression set, so `triage_gate`
+  removes it before anything downstream sees it; and `deliver` does not run on a quiet run,
+  which is exactly when an unanswered finding most needs escalating.
+- **The one hop is enforced by a compare-and-set, not by a read-then-write.**
+  `UPDATE … WHERE escalation_count = 0 RETURNING id`, with the notification insert selecting
+  from that same CTE. A transaction was not available — `Queryable` is satisfied by a `Pool`,
+  so `BEGIN`/`COMMIT` can land on different connections. Split into two statements it comes
+  apart in both directions: a crash after the increment loses the escalation for good, a crash
+  after the insert double-hops.
+- **The clock starts when the person was told**, at the first pending notification's
+  `created_at` — two days since we asked them, not two days since we noticed.
+- **A null `reports_to` does nothing and stays at zero.** Nobody above them means no hop
+  exists. Recording it as escalated would assert something that never happened, and would also
+  stop it escalating later if an admin fills the field in.
+
+The claim this paragraph used to make that escalation *stops at the project owner* has been
+removed, because no such guard exists. Nothing marks a person as the project owner in a way a
+single hop can check. What actually bounds it is "at most once", and the
+Director-never-gets-an-individual-issue outcome falls out of that rather than out of a check.
 
 **The caveat, volunteered rather than hidden.** Review bottleneck has no strictly correct
 recipient. **Ship has no reviewer field** — an issue in `in_review` records who it is assigned
@@ -263,7 +285,7 @@ brief constraint, and one Ship already has precedent for: `PlanQualityBanner` an
 
 # Graph Diagram
 
-Both modes, all sixteen registered nodes, every edge. The four conditional edges are the
+Both modes, all seventeen registered nodes, every edge. The four conditional edges are the
 hexagons (`C1`–`C4`); the dashed edge is the suspend-and-resume boundary, where the process
 exits and a later one resumes the same thread.
 
@@ -288,11 +310,13 @@ flowchart TD
         OFP["on_demand_fetch_participants"]
     end
 
-    C1 -->|"proactive"| FS
-    C1 -->|"proactive"| FP
-    C1 -->|"proactive"| FPS
+    C1 -->|"proactive"| ESC["escalate<br/>one hop up reports_to, at most once"]
     C1 -->|"on_demand"| OFS
     C1 -->|"on_demand"| OFP
+
+    ESC --> FS
+    ESC --> FP
+    ESC --> FPS
 
     FS --> TG[triage_gate]
     FP --> TG
@@ -376,7 +400,7 @@ are each registered twice, once per mode, under distinct trace names.
 | Output | `deliver` | Write the notification, record the observation, advance the watermark | Yes |
 | Output | `close_quiet` | Terminate having surfaced nothing, and still advance the watermark | Yes |
 
-Two LLM nodes out of sixteen. That ratio is the design: the model judges pre-measured facts and
+Two LLM nodes out of seventeen. That ratio is the design: the model judges pre-measured facts and
 phrases them, and does nothing else.
 
 **Why `close_quiet` exists rather than an edge straight to `END`.** A quiet run has not done
@@ -738,35 +762,116 @@ business days, and no seeded sprint is two days from its end with unstarted work
 therefore constructs its condition. "Make an issue stale" is not reproducible;
 `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20 })` is.
 
-**The trace links below are still empty, and no placeholder is written.** A fabricated or dead
-link would read as satisfied, which is worse than an empty cell.
+**Every trace below is a real run, and the column used to be empty.** Two earlier versions of
+this paragraph explained why it was empty — first "no AWS credentials on this machine", then
+"the deployed database sits behind an IP allow-list". Both were true when written. Neither was
+the reason it stayed empty, which was that nobody had asked what the requirement actually
+needs.
 
-The reason has changed, though, and the old one is worth correcting rather than quietly
-editing away. This paragraph used to say the blocker was "no AWS credentials on this machine".
-That was true and it was also not the whole truth: `terraform/render/*.tf` declared no AWS
-environment variables either, so the *deployed* agent had no model access. The provider has
-since moved to the direct Anthropic API and the deployed agent judges for real — see
-"Traces from the deployed agent" below.
+Brief p.9 asks for *"the LangSmith trace link from a run against that state"*. It does not ask
+for a run on the deployed instance. That distinction is worth stating plainly, because the
+deployed route is the one that sounds better and is worse: it means opening a production
+database to an inbound IP for a documentation task, and it is not repeatable — suppression is
+unique on `(workspace_id, fingerprint)`, so every recapture needs freshly planted targets in
+production.
 
-What is still missing is narrower. Rows 1–5 describe *planted* Ship states, and Ship's seed
-data triggers none of them: no seeded issue has sat in `in_progress` for five business days,
-and no seeded sprint carries an `end_date` at all (see the note under row 2). Producing those
-traces means writing that state into the deployed database, which needs a route through
-Render's Postgres IP allow-list that does not exist yet. Row 6 no longer needs one and is
-covered below.
+So these come from `agent/scripts/capture-test-case-traces.ts`, which anyone can rerun. Real
+assembled graph, real detectors, real Anthropic model —
+`{"provider":"anthropic","model":"claude-opus-4-5-20251101","mocked":false}`, printed by the
+script before it starts — against a real Postgres provisioned by testcontainers loading
+`schema.sql` and every migration. Each case gets its own workspace so no case can suppress or
+contaminate another. Only the Ship API is faked, which is engineering requirement 3.
 
-**None of these are runs of the deployed agent.** They run the assembled graph and the real
-detectors against a real Postgres provisioned by testcontainers, loading `schema.sql` and every
-migration, with the LLM injected as a fake — which is what engineering requirement 3 asks for.
+**Requirement 2's "different execution paths" is a separate claim and is met separately**, by
+the two deployed traces under "Traces from the deployed agent" below. The six here demonstrate
+that each use case does what this table says it does; those two demonstrate the graph behaving
+differently under different conditions in production.
+
+**All six rows now do what this table predicts.** They did not on the first capture, and the
+section below records what changed and why, because the disagreement was more informative than
+the agreement.
 
 | # | Use case | Ship state — seed mutation | Expected output | Trace |
 |---|---|---|---|---|
-| 1 | Stalled work | `createIssue(pool, ws, { state: 'in_progress', assigneeId: dev, updatedDaysAgo: 20 })` | One `stalled_work` signal · `targetType: 'issue'` · `measurement` = business days idle, ≥ `threshold` 5 · `accountableUserId` = the assignee. Action class `additive`/`comment`, so C4 routes **autonomous** → `execute_autonomous` → `deliver`, `outcome: 'delivered'` | <!-- TODO(FG-181, FG-222): no run against a real provider; no AWS credentials on this machine --> |
-| 2 | Sprint-miss risk | `createSprint(pool, ws, { endsInDays: 1, ownerId: owner })`, then 4× `createIssue(pool, ws, { state: 'todo' \| 'backlog', updatedDaysAgo: 0 })` + `attachToSprint` | **One** `sprint_miss_risk` signal for the sprint, not four for the issues · `targetType: 'sprint'` · `measurement` = 4 unstarted · `threshold` 2 (business days left) · `accountableUserId` = the sprint owner. `additive`/`comment` → autonomous | <!-- TODO(FG-181, FG-223): not captured --> |
-| 3 | Load imbalance | `createSprint(pool, ws, { endsInDays: 10, ownerId })`, then three people holding 1, 1 and 8 `in_progress` issues, all `updatedDaysAgo: 0`, each `attachToSprint` | One `load_imbalance` signal · `targetId` = the **sprint** · `measurement` 8 · `context.team_median` 1 · `context.team_size` 3 · `accountableUserId` = the sprint owner, **never** the overloaded person. The only signal typed `mutation`/`reassign`, so C4 routes **gated** → `await_approval`, `outcome: 'awaiting_approval'` | <!-- TODO(FG-182, FG-224): not captured --> |
-| 4 | Review bottleneck | `createIssue(pool, ws, { state: 'in_review', assigneeId, updatedDaysAgo: 12 })` | One `review_bottleneck` signal · `threshold` 2 · `context.reviewer_known` = `0`, set so the prompt cannot imply the recipient is the blocker · `accountableUserId` = the assignee, which is the caveat this detector ships with | <!-- TODO(FG-181, FG-225): not captured --> |
-| 5 | Rework churn | `createProject(pool, ws, { ownerId: owner })`, then 3× (`createIssue(… updatedDaysAgo: 0)` + `attachToProject` + `recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3)`) | **One** `rework_churn` signal for the project, not three for the issues · `targetType: 'project'` · `measurement` 3 · `threshold` 2 · `context.lookback_days` 30 · `accountableUserId` = the project owner. `additive`/`comment` → autonomous | <!-- TODO(FG-181, FG-226): not captured --> |
-| 6 | On-demand contextual answer | `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20, assigneeId })` + `recordStateChange(pool, issueId, 'todo', 'in_progress', ws.ownerId, 21)`, then invoke with `mode: 'on_demand'` and `scope: { workspaceId, documentId: issueId, documentType: 'issue' }`, one user message | Path is `trigger_router → resolve_scope → on_demand_fetch_signals ‖ on_demand_fetch_participants → compose_answer → END`, `outcome: 'answered'`. **No execute node is visited** — the action-client call count stays 0 and the answer call count is 1. The answer node is asserted to have received *that* `documentId` and the measured signals, and `recentHistory[].field` carries the real field name | <!-- TODO(FG-182, FG-227): not captured --> |
+| 1 | Stalled work | `createIssue(pool, ws, { state: 'in_progress', assigneeId: dev, updatedDaysAgo: 20 })` | One `stalled_work` signal · `targetType: 'issue'` · `measurement` = business days idle, ≥ `threshold` 5 · `accountableUserId` = the assignee. Action class `additive`/`comment`, so C4 routes **autonomous** → `execute_autonomous` → `deliver`, `outcome: 'delivered'` | [**path as predicted** — 11 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/f2701d89-b180-4677-95da-abbb9f6803b2/r) |
+| 2 | Sprint-miss risk | `createSprint(pool, ws, { endsInDays: 1, ownerId: owner })`, then 4× `createIssue(pool, ws, { state: 'todo' \| 'backlog', updatedDaysAgo: 0 })` + `attachToSprint` | **One** `sprint_miss_risk` signal for the sprint, not four for the issues · `targetType: 'sprint'` · `measurement` = 4 unstarted · `threshold` 2 (business days left) · `accountableUserId` = the sprint owner. `additive`/`comment` → autonomous | [**path as predicted** — 11 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/14d42b2a-4646-4e17-bf18-c49fd0b6fd27/r) · but see the note below: this state cannot occur in production |
+| 3 | Load imbalance | `createSprint(pool, ws, { endsInDays: 10, ownerId })`, then three people holding 1, 1 and 8 `in_progress` issues, all `updatedDaysAgo: 0`, each `attachToSprint` | One `load_imbalance` signal · `targetId` = the **sprint** · `measurement` 8 · `context.team_median` 1 · `context.team_size` 3 · `accountableUserId` = the sprint owner, **never** the overloaded person. The only signal typed `mutation`/`reassign`, so C4 routes **gated** → `await_approval`, `outcome: 'awaiting_approval'` | [**path as predicted** — 10 nodes, ends `route_action → __interrupt__`, the human gate](https://smith.langchain.com/public/cf6c6052-a415-43dd-8c8f-ffa394147d53/r) |
+| 4 | Review bottleneck | `createIssue(pool, ws, { state: 'in_review', assigneeId, updatedDaysAgo: 12 })` | One `review_bottleneck` signal · `threshold` 2 · `context.reviewer_known` = `0`, set so the prompt cannot imply the recipient is the blocker · `accountableUserId` = the assignee, which is the caveat this detector ships with | [**path as predicted** — 11 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/bc7142d2-8f5a-4dbe-9028-a80cf74d081f/r) |
+| 5 | Rework churn | `createProject(pool, ws, { ownerId: owner })`, then 9× (`createIssue(… updatedDaysAgo: 0)` + `attachToProject` + `recordStateChange(pool, id, 'done', 'in_progress', ws.ownerId, 3)`) | **One** `rework_churn` signal for the project, not nine for the issues · `targetType: 'project'` · `measurement` 9 · `threshold` 2 · `context.lookback_days` 30 · `accountableUserId` = the project owner. `additive`/`comment` → autonomous | [**path as predicted** — 11 nodes, ends `execute_autonomous → deliver`](https://smith.langchain.com/public/9eca9071-0485-48c5-b300-1612b6c6a6d1/r). The detector fired; the real judge declined to surface it. See below |
+| 6 | On-demand contextual answer | `createIssue(pool, ws, { state: 'in_progress', updatedDaysAgo: 20, assigneeId })` + `recordStateChange(pool, issueId, 'todo', 'in_progress', ws.ownerId, 21)`, then invoke with `mode: 'on_demand'` and `scope: { workspaceId, documentId: issueId, documentType: 'issue' }`, one user message | Path is `trigger_router → resolve_scope → on_demand_fetch_signals ‖ on_demand_fetch_participants → compose_answer → END`, `outcome: 'answered'`. **No execute node is visited** — the action-client call count stays 0 and the answer call count is 1. The answer node is asserted to have received *that* `documentId` and the measured signals, and `recentHistory[].field` carries the real field name | [**path as predicted** — 5 nodes, ends `compose_answer`, no execute node reachable](https://smith.langchain.com/public/c9d1e08d-8fc6-4a0b-a0e4-0ba1b56d8476/r) |
+
+## What the first capture disagreed with, and why that is left in
+
+Two rows did not behave the way the "Expected output" column predicted. Both are fixed now.
+Both are kept, because a table that only ever shows agreement is not evidence of anything, and
+the two failures were different in kind.
+
+### Row 5 — the test case was written weaker than the bar it was judged against
+
+Predicted: `additive`/`comment` → autonomous → `deliver`.
+First observed: `judge_signals → close_quiet`, 8 nodes.
+
+The `rework_churn` signal was measured and passed the triage gate — that is what put
+`judge_signals` on the path at all. The model then declined to surface it, C3 routed quiet, and
+the watermark advanced with nothing delivered.
+
+**The judge was right and the seed was wrong.** `JUDGE_SYSTEM_PROMPT` instructs it to set
+`worth_surfacing` false when the measurement is only marginally past its threshold and nothing
+else in the batch makes it urgent. The seed planted three reopened issues against
+`REWORK_CHURN_REOPENS: 2`, alone in the batch — the prompt's own sentence, almost word for
+word. The case was testing the prompt's marginality rule rather than the detector.
+
+The seed is nine now: 4.5× the threshold, and in `countBucket`'s `9+` rather than `3-4`, so the
+fingerprint differs from the first run and suppression cannot silence the recapture. Nothing
+else wakes up at that size — the issues are `updatedDaysAgo: 0` so `stalledWork` cannot fire,
+none are `in_review`, and there is no sprint for `loadImbalance` or `sprintMissRisk` to attach
+to. The batch stays one signal, which is what the row claims. It now ends
+`execute_autonomous → deliver`.
+
+Worth keeping in mind when reading the other rows: the earlier regression tests inject a fake
+judge that surfaces everything, so they assert routing and cannot assert this. Row 5 is the
+only place in this document where the real judge's discretion is visible, and what it showed is
+that a threshold crossing is not on its own an argument for interrupting someone.
+
+### Row 2 — the trigger state could not occur in production, and now can
+
+**Fixed. This section is kept because the shape of the bug is worth more than the fix.**
+
+The detector used to filter on `s.properties->>'end_date' IS NOT NULL`. Ship never writes that
+field — sprints store `sprint_number`, and the dates are computed. Not even server-side:
+`api/src/routes/weeks.ts:185` says the dates are computed **on the frontend**, and
+`computeSprintDates` in `web/src/components/week/WeekTimeline.tsx:20` is the whole of it —
+`start = sprint_start_date + (sprint_number - 1) × 7`, `end = start + 6`. One-week sprints.
+
+So the detector was green in CI, green in its trace, and dead against a real workspace. It
+passed every test it had because the fixture wrote `end_date` into `properties` directly — a
+field Ship's own insert path does not write. **The tests were green because the fixture and the
+detector shared a misconception, not because the detector worked.** That is the general shape,
+and it is why a fixture that builds documents its own way rather than the application's way is a
+liability disguised as convenience.
+
+The fix computes the window in SQL from `sprint_number` and `workspaces.sprint_start_date`,
+joining `workspaces`, matching `computeSprintDates` exactly. No migration, no backfill, no
+second copy of the truth to drift. A malformed `sprint_number` yields NULL through a `CASE` and
+drops out of the range test — `CASE` rather than a regex guard beside the cast, because
+Postgres does not promise to evaluate `WHERE` conditions in written order, so the guard could
+not be relied on to run first.
+
+The fixture now writes what `weeks.ts` writes: `sprint_number` and `owner_id`, no dates.
+`endsInDays` is expressed by moving the workspace's `sprint_start_date` to the inverse of the
+formula. Since a workspace has one `sprint_start_date`, two sprints in one workspace must agree
+on it; that constraint is written into the fixture's doc comment.
+
+The regression test inserts a sprint by hand the way Ship inserts one, asserts `end_date` is
+absent, and then asserts the detector finds it — a raw insert rather than the fixture, so it
+stays an assertion about Ship's shape even if the fixture drifts again.
+
+    detectors    53 passed  ->  56 passed
+    agent suite  174 passed -> 177 passed
+
+Verified in the failing direction too: the previous detector against the new tests gives
+**8 failed of 17**, including the Ship-shaped one.
+
 
 ## Traces from the deployed agent
 
@@ -1300,19 +1405,28 @@ only *after* `/health` has confirmed that SHA is live. Any commit whose CI run p
 a valid manual target, but the automatic path only ever falls back to a revision that has
 demonstrably served traffic.
 
-## What is not wired yet
+## What was blocking it, and what unblocked it
 
-`deploy.yml` is **dormant** behind `vars.RENDER_DEPLOY_ENABLED`. An `armed` job runs on every CI
-completion and writes DORMANT into the run summary, so the gap is stated on every run rather than
-discovered during an incident.
+`deploy.yml` sat **dormant** behind `vars.RENDER_DEPLOY_ENABLED` for most of this build. The
+`armed` job ran on every CI completion and wrote DORMANT into the run summary, so the shortfall
+was stated on every run rather than discovered during an incident.
 
-The blocking prerequisite is a **remote state backend for `terraform/render`**. State is
-currently a local file, so a CI `terraform apply` would start with no knowledge of the running
-service and try to create it. The workflow's preflight step fails on exactly that, by name. The
-Render and registry secrets are paste-in work; the backend is not.
+The blocking prerequisite was a **remote state backend for `terraform/render`**. State was a
+local file, so a CI `terraform apply` would have started with no knowledge of the running service
+and tried to create it. The workflow's preflight step failed on exactly that, by name.
 
-Until that lands, requirement 1's *automatic* rollback is built and proven-by-construction but
-not armed. Stated plainly rather than counted as done.
+Both are resolved. `terraform/render/versions.tf` now declares a `backend "http"` against
+GitLab's Terraform state API (project 1609, state `fleetgraph`), and the migration was proved by
+a `terraform plan` that reported `No changes` — the one statement that can only be true if CI is
+reading the same state the laptop wrote. `vars.RENDER_DEPLOY_ENABLED` was then set to `true`.
+
+Arming it surfaced a hazard worth recording, because it would have caused the outage it was
+meant to prevent. Every `sensitive = true` variable in `variables.tf` defaults to `null`, and
+`null` does not mean "leave it alone" — the Render provider removes that environment variable
+from the running service. `deploy.yml` was not passing `TF_VAR_anthropic_api_key`, so the first
+armed apply would have stripped the model credential off a healthy production deployment.
+`scripts/check-tf-secrets.sh` now asserts in preflight that every sensitive variable is passed,
+and `scripts/tf-env.sh` does the same for a local shell.
 
 The apply is no longer outstanding. `terraform apply` ran against the real account, the cron
 resource is live on its `*/3 * * * *` schedule, and a later `terraform plan` reported
@@ -1332,23 +1446,40 @@ states rather than only the flattering one.
 - **Render's dashboard rollback also exists**, but using it puts the live service out of sync
   with Terraform state. Prefer `terraform apply`, so the configuration keeps describing reality.
 
-## What is not armed yet
+## What has fired, and what has not
 
-This section used to say neither pipeline had a deploy stage. That is no longer true and the
-correction is worth making rather than quietly deleting: `.github/workflows/deploy.yml` exists,
-with a `deploy` job that promotes a SHA and reverts on a failed health check, and a
-`rollback-on-failed-ci` job that reacts to a CI failure on an already-deployed commit. GitLab's
-pipeline still ends at publishing the image, by design — GitHub owns promotion because that is
-where the Render credentials live.
+This section has been wrong twice in opposite directions, and both corrections are left in
+rather than quietly deleted. It first said neither pipeline had a deploy stage; then that
+`deploy.yml` existed but was dormant. Both were true when written. Neither is true now.
 
-What remains is arming it. `vars.RENDER_DEPLOY_ENABLED` is unset, so the `armed` job writes
-DORMANT into every run summary and neither deploy nor rollback fires. The blocking prerequisite
-is the remote state backend described above; the Render and registry secrets are paste-in work.
+`.github/workflows/deploy.yml` has a `deploy` job that promotes a SHA and reverts on a failed
+health check, and a `rollback-on-failed-ci` job that reacts to a CI failure on an
+already-deployed commit. GitLab's pipeline still ends at publishing the image, by design —
+GitHub owns promotion because that is where the Render credentials live.
 
-So today's automatic rollback is **Render's own health-check rollback**, which is configured in
-`terraform/render/main.tf` and is real, plus a promotion gate an operator runs. The
-CI-triggered path is written and reviewable but has not fired. Counting it as done would be the
-one claim in this document that an incident, rather than a grader, would disprove.
+`vars.RENDER_DEPLOY_ENABLED` is now `true`, and the deploy half has run for real:
+
+| | |
+|---|---|
+| Trigger | `workflow_run` on a CI completion, unattended |
+| Promoted | `7660bd8` → `3d5c6c3` |
+| Confirmed by | `GET /health` returning `{"status":"ok","revision":"3d5c6c3…"}` |
+| `deploy/green` tag | moved to `3d5c6c3` **after** health confirmed it, not before |
+
+**`rollback-on-failed-ci` has not fired**, and saying otherwise would be the one claim in this
+document that an incident rather than a grader would disprove. It is armed on the same code path
+as the deploy that did fire, reads the same remote state, and holds the same credentials — but
+triggering it needs a CI run to fail on a commit that is already live, which has not happened.
+What is proven is the path it shares with `deploy`; what is unproven is the branch condition that
+selects it.
+
+Two rollback mechanisms are real today and independent of that: the `if: failure()` revert inside
+the `deploy` job, which re-applies `deploy/green` when a post-deploy health check never passes,
+and **Render's own health-check rollback**, configured in `terraform/render/main.tf`.
+
+One trap for whoever arms or changes this next. `workflow_run` reads the workflow file from the
+**default branch**, not from the branch under test. A fix to `deploy.yml` therefore does nothing
+until it is merged, and arming it from a feature branch is a no-op that reads like a failure.
 
 ---
 
@@ -1374,18 +1505,26 @@ Two trace links are required, showing **different execution paths through the sa
 
 | # | Path the trace must show | Expected node sequence | Link |
 |---|---|---|---|
-| 1 | Quiet run — nothing crossed a threshold | `trigger_router → resolve_scope → fetch_signals ‖ fetch_participants ‖ fetch_prior_state → triage_gate → close_quiet → END`. **Zero model calls** | <!-- TODO(FG-181, FG-184, FG-185): not captured --> |
-| 2 | Drifting run — reaches an action and hits the human gate | `… → triage_gate → judge_signals → route_action → await_approval` (suspends on the checkpointer) | <!-- TODO(FG-182, FG-184, FG-185): not captured --> |
+| 1 | Quiet run — nothing crossed a threshold | `trigger_router → resolve_scope → fetch_signals ‖ fetch_participants ‖ fetch_prior_state → triage_gate → close_quiet → END`. **Zero model calls** | [10 nodes, ends `triage_gate → close_quiet`](https://smith.langchain.com/public/1f471366-de0c-4c1c-ba7c-413673ecb3e7/r) — **from the deployed cron** |
+| 2 | Drifting run — reaches an action and hits the human gate | `… → triage_gate → judge_signals → route_action → await_approval` (suspends on the checkpointer) | [9 nodes, ends `route_action → __interrupt__`](https://smith.langchain.com/public/cf6c6052-a415-43dd-8c8f-ffa394147d53/r) — from `capture-test-case-traces.ts`, use case 3 |
 
-**The links do not exist yet and no placeholder URL is written here.** A fabricated or dead link
-would be worse than an empty cell, because it would read as satisfied.
+Both links are live and were re-checked for HTTP 200 when this paragraph was written. The node
+counts differ (10 against 9) and the visited sets differ, which is the contrast the requirement
+asks for — the quiet run never reaches `judge_signals`, so it spends no tokens, and the drifting
+one suspends before acting.
 
-What is missing is no longer the code. The cron entrypoint exists, the graph compiles, and the
-node names are the ones in the table. What is missing is a run against a real model provider:
-**there are no AWS credentials on this machine**, so the drifting run cannot reach Bedrock and
-neither trace can be captured. The quiet trace is closer — it spends no tokens by construction —
-but capturing one and not the other would defeat the purpose, since the point of the pair is the
-contrast. `FG-177`–`FG-179` are the wiring; `FG-181`–`FG-185` are the capture.
+**`await_approval` appears in the trace as `__interrupt__`.** That is LangGraph's own name for a
+run parked by `interrupt()` on the checkpointer, not a different code path, and it is the reason
+this row reads as a mismatch at a glance.
+
+Two notes on how these were finally captured, since earlier versions of this paragraph gave two
+different reasons the cell was empty. The stated blocker was **no AWS credentials on this
+machine**, so the drifting run could not reach Bedrock. True, and beside the point: the run needs
+*a* model, not Bedrock specifically, and the capture script uses the Anthropic API directly.
+The second blocker — the deployed database sits behind an empty `ipAllowList` — was also true,
+and dissolved the same way: trace 2 comes from testcontainers Postgres with a real graph, real
+detectors and a real model. Only trace 1 is from the deployment. `FG-177`–`FG-179` were the
+wiring; `FG-181`–`FG-185` the capture.
 
 **The property the traces are meant to demonstrate is already asserted in a test.** MVP
 requirement 2 asks for two traces showing *different execution paths*.
@@ -1431,7 +1570,7 @@ Engineering requirements (brief p.4):
 
 | Requirement | Status |
 |---|---|
-| 1 · Regression tests with automatic rollback | **Regression tests done** — one per use case at the graph layer. **Automatic rollback is not wired**: `deploy.yml` exists but reports DORMANT, because there is no remote state backend and it refuses to run against local state (`FG-236`) |
+| 1 · Regression tests with automatic rollback | **Regression tests done** — one per use case at the graph layer. **Rollback is wired and armed**: state is remote (GitLab `backend "http"`), `vars.RENDER_DEPLOY_ENABLED=true`, and `deploy.yml` promoted `3d5c6c3` unattended with `/health` confirming it. Trigger and procedure are documented under **Rollback Trigger and Procedure**. `rollback-on-failed-ci` shares that proven path but has not itself been triggered — no CI run has failed on a live commit (`FG-236`) |
 | 2 · E2E for both modes, in CI | **Done** — `e2e/fleetgraph-agent.spec.ts` (proactive, latency window) and `e2e/fleetgraph-chat.spec.ts` (on-demand, grounded response), both in the `e2e` job on GitHub and GitLab |
 | 3 · Stable fakes for external services | **Done** — `BEDROCK_ENDPOINT` steers the agent at `mocks/bedrock-expectations.json` in CI, and takes precedence over a real key precisely so a key in CI cannot turn a deterministic suite into a billed one (`llm/client.test.ts`) |
 | 4 · Retries, timeouts, circuit breakers | **Done** — one breaker per outbound dependency, explicit timeouts, bounded backoff, values tabulated above |
@@ -1441,20 +1580,24 @@ Engineering requirements (brief p.4):
 
 Stated plainly rather than folded into the table above.
 
-1. **Automatic rollback on CI failure** (engineering requirement 1, second half). `deploy.yml`
-   is written and gated; it needs a remote state backend before it can be armed. Render's own
-   health-check rollback is the only thing covering this today.
+1. **The `rollback-on-failed-ci` branch has never been taken.** The deploy path it shares is
+   proven — remote state, armed, one unattended promotion to `3d5c6c3` confirmed by `/health`.
+   What is unproven is the condition that selects the rollback branch, because that needs a CI
+   run to fail on a commit that is already live and none has. The `if: failure()` revert inside
+   the `deploy` job and Render's own health-check rollback both cover the interval meanwhile.
 2. **The human gate has never opened in production.** It is implemented and tested across a
    real process boundary, but the only finding the deployed agent has produced so far routes
    autonomous. Demonstrating it live needs a load-imbalance condition planted, which is the
    one signal typed `mutation`.
-3. **Traces for use cases 2–5.** Use case 1 and use case 6 have deployed traces. The rest are
-   asserted at the graph layer against testcontainers Postgres, not captured from the
-   deployment.
-4. **Use case 2 cannot fire against real Ship data.** `sprintMissRisk.ts:61` requires
-   `properties->>'end_date'`, which Ship never stores — `documents.ts:386` computes sprint
-   dates from `sprint_number` instead. Its tests pass because `fixtures.ts:120` writes the
-   field. Found by trying to plant the condition, recorded rather than papered over.
+3. **Four of the six use-case traces are not from the deployment.** All six now carry a public
+   LangSmith link, captured by `agent/scripts/capture-test-case-traces.ts` — a real graph, real
+   detectors and a real model against testcontainers Postgres and a fake Ship API. The two
+   traces under "Traces from the deployed agent" are the only ones the deployment produced.
+   What is asserted is the graph's behaviour, which is what the Test Cases table claims; what is
+   not asserted is that production data produces the same shape. Use case 2 was the standing
+   counter-example until it was fixed — see **Row 2** above for what that failure looked like
+   from the inside, because the next one will look the same: a fixture and a detector agreeing
+   on a field the application never writes.
 
 
 # Unverified Claims
@@ -1465,7 +1608,7 @@ behaviour.
 
 | Claim | Status | Ticket |
 |---|---|---|
-| The graph registers sixteen nodes with four conditional edges | **Verified.** Sixteen `addNode` calls, four `addConditionalEdges`, in `agent/src/graph/index.ts`; the labels in the diagram are the exported `NODES` strings | `FG-085`–`FG-089` |
+| The graph registers seventeen nodes with four conditional edges | **Verified.** Seventeen `addNode` calls, four `addConditionalEdges`, in `agent/src/graph/index.ts`; the labels in the diagram are the exported `NODES` strings. Sixteen until `escalate` landed under `FG-084` | `FG-085`–`FG-089` |
 | Three fetch nodes run as a parallel fan-out | **Verified** structurally — C1 returns all three names in one superstep. The wall-clock saving is not measured | `FG-076` |
 | A quiet run spends zero tokens | **Verified.** Asserted on a call counter the graph increments through its real path, with the judge injected rather than module-mocked, so the test is not testing a mock | `FG-092` |
 | Judgment batches all signals into one call | **Verified.** One `model.invoke` in `llm/judge.ts`, fanned back out to per-signal findings by fingerprint; the drifting-run test asserts the judge is called exactly once | `FG-093`, `FG-104` |
@@ -1475,32 +1618,37 @@ behaviour.
 | A second breaker instance guards the Ship HTTP API | **Verified.** `const shipApiBreaker = new CircuitBreaker(...)` in `actions/client.ts`, 5 failures / 60 s, wrapping the whole retry sequence rather than each attempt | `FG-124` |
 | Explicit exponential backoff in the Ship API client | **Verified.** 200 ms base, doubling, capped at 2 s, 3 attempts, with the worst-case total computed from those constants and exported as `MAX_TOTAL_MS` | `FG-123` |
 | The cron takes a per-workspace advisory lock and cannot overrun its interval | **Verified.** `pg_try_advisory_lock(hashtext('fleetgraph:' || wsId))`, skipping the workspace if another run holds it, and a 4-minute deadline that exits 2 | `FG-110`–`FG-121` |
-| Escalation after 2 business days, at most one hop | **Design.** `escalation_count` is carried through state and the boundary, but nothing increments it and nothing routes up `reports_to`. The person property and `routes/team.ts` are verified; the step is not written | `FG-084` |
+| Escalation after 2 business days, at most one hop | **Verified, and this row said "Design" for most of the build.** `agent/src/graph/nodes/escalate.ts` is a node on the proactive branch; the one hop is a compare-and-set (`UPDATE … WHERE escalation_count = 0 RETURNING id`) rather than a read-then-write, because `Queryable` is satisfied by a `Pool` and a two-statement version comes apart on a crash in both directions. 9 tests, including the null-`reports_to` case. No migration needed — 038 already created the column | `FG-084` |
 | The run suspends at `await_approval` and a later process resumes it | **Verified in-graph**, not only in the spike. `actions/restart.test.ts` proposes in a process that calls `process.exit(0)` and resumes in a fresh one, asserting the resumed half re-judges nothing | `FG-137` |
 | Accept / Dismiss / Snooze semantics | **Verified at the graph layer.** Dismissal stays dismissed across further runs; a snooze that self-resolves never returns, and one that did not resolve does | `FG-131`–`FG-136` |
 | The approval banner renders in the document view | **Built**, with component tests. `AgentBanner.tsx` renders in `UnifiedEditor`'s `contentBanner` slot. Not verified in a browser during this pass | `FG-155`–`FG-159`, `FG-175` |
 | Chat sends route params and is embedded in context | **Verified structurally.** `AgentChat.tsx` posts `document_id`, `document_type`, `tab`, `message` and nothing else, from the properties sidebar. There is no standalone chat page | `FG-143`, `FG-162`–`FG-164` |
-| **`POST /api/fleetgraph/chat` reaches the graph** | **False today.** `agentBridge.ts:91` — `invokeAgentChat` throws `AgentUnavailableError('agent_not_wired')`. The route, the rate limit, the visibility filter and the UI around it are all real; the call at the centre is a stub | no ticket |
-| **The approval endpoints resume the suspended thread** | **False today.** They persist the decision and return `resumed: false`, which the handler's own comment states. Nothing loads the checkpointer or issues `Command({ resume })` | no ticket |
+| **`POST /api/fleetgraph/chat` reaches the graph** | **Verified, and this row said "False today" until `FG-279`.** `invokeAgentChat` compiles the graph and invokes it on a real `thread_id`. `AgentUnavailableError` survives, but only for the case it names: `agentBridge.ts:153` raises `agent_unreachable` when the graph itself returns `ai_unavailable` or no answer, so a degraded model reaches the UI as its existing unavailable state instead of an empty bubble | `FG-279` |
+| **The approval endpoints resume the suspended thread** | **Verified, and this row said "False today" until `FG-279`.** `index.ts:403` returns `resumed: resume.resumed` — the real outcome of a `Command({ resume })` against the checkpointer, not the constant it used to be. `resumed: false` is still the normal answer for a finding that never suspended, which is why the constant was hard to spot | `FG-279` |
 | `/ready` reports Postgres and breaker state | **Verified.** `api/src/routes/ready.ts`, mounted at `app.ts:217`. One nuance: it returns **503 only when Postgres fails**. An open Bedrock breaker returns 200 `degraded`, deliberately — the app renders `ai_unavailable` fine, and failing readiness there would pull a serving instance for a dependency it does not need | `FG-150`–`FG-153` |
-| `render_cron_job` scheduled `*/3 * * * *` | **Verified.** `terraform/render/cron.tf`, same image and tag as the web service, `start_command` as the only difference. Not yet applied | `FG-186`–`FG-189` |
+| `render_cron_job` scheduled `*/3 * * * *` | **Verified and applied.** `terraform/render/cron.tf`, same image and tag as the web service, `start_command` as the only difference. `PLAN-ANNOTATED.md:31` records `Apply complete! Resources: 3 added`, and `:45` a later `No changes` — the only statement that can be true solely after a successful apply | `FG-186`–`FG-189` |
 | The same image runs either entrypoint | **Verified, and it was false when this row was last written.** `Dockerfile:44` builds `@ship/agent`, `:110` copies `agent/dist/` into the runtime stage, and `:58` fails the build if `agent/dist/entrypoints/cron.js` is missing — which is the exact path the cron's default `start_command` names | `FG-110`, `FG-117`, `FG-118` |
 | LangSmith tracing is enabled by `observability/tracing.ts` | **False, and deliberately.** The module reports and warns; LangChain reads the env itself. Enabling it is a deploy-time variable, not code | `FG-176`–`FG-179` |
 | The Bedrock fakes let CI exercise judgment | **False.** `ChatBedrockConverse` calls `POST /converse`; both fakes answer only `POST /model/*/invoke` and 404 the rest | `FG-271` |
 | 15 s container cold start | The one term in the latency budget that is an estimate, not a bound | `FG-209` |
 | 480 scans/day at any project count | Arithmetic from a 3-minute interval, not a measurement | — |
 | Token ranges per invocation | Estimates. `max_tokens` 2048 and the 50 KB input bound are verified in `ai-analysis.ts` | — |
-| CI-triggered automatic rollback | **False.** Neither pipeline has a deploy stage. Render's health-check rollback is configured and real; the CI half is not | `FG-236` |
-| LangSmith traces show two different paths | No traces captured — no AWS credentials on this machine. The underlying property, quiet and drifting runs visiting different node sets, **is** asserted by a test | `FG-181`–`FG-183` |
+| CI-triggered automatic rollback | **Partly verified, and this row has been wrong in both directions.** It once said neither pipeline had a deploy stage; that stopped being true when `deploy.yml` landed. The deploy path is now armed and has run unattended — `7660bd8` → `3d5c6c3`, confirmed by `/health`, `deploy/green` moved only afterwards. The `rollback-on-failed-ci` branch shares that path but has not been selected, because no CI run has failed on a live commit. Render's health-check rollback and the `if: failure()` revert inside `deploy` cover the interval | `FG-236` |
+| LangSmith traces show two different paths | **Verified.** Eight public traces: six from `capture-test-case-traces.ts`, two from the deployment. They visit 5, 8, 9 and 10 nodes respectively, so the property is now shown rather than only asserted. The earlier note here — "no traces captured, no AWS credentials on this machine" — was true and beside the point; the traces never needed AWS, only a workspace the detectors could fire against | `FG-181`–`FG-183` |
 
 The nine places this document corrects `PRESEARCH.md` rather than repeating it are consolidated
 in **Use Cases → Where the code and `PRESEARCH.md` disagree**, with the argument for each at the
 seam where it belongs. All nine favour the code.
 
-Verified against `83aa33c`. **Eight rows moved from design or false to verified since the last
-stamp**, and **two newly-recorded rows are false** — both of those on the API-to-graph seam,
-which is now the only place a built surface does not reach a built backend. That churn is the
-argument for re-reading this table against the tree rather than trusting it.
+Re-read against the tree on 2026-08-06. **Five more rows moved to verified** — both API-to-graph
+seam rows, the cron apply, the trace-path row, and the deploy half of CI rollback. No row moved
+the other way this pass.
+
+Two of those five had been sitting at **False** while the code underneath them worked, which is
+the failure mode this table is most prone to: a row is written when something is genuinely
+broken, the break is fixed under a ticket, and nobody comes back. It reads as honesty and is
+actually staleness. Re-read the table against the tree rather than trusting it — in both
+directions.
 
 ---
 
@@ -1508,6 +1656,6 @@ argument for re-reading this table against the tree rather than trusting it.
 
 | Section | Due | State |
 |---|---|---|
-| Test Cases — Ship state, expected output, trace link, per use case | Early Submission | **Written.** `FG-221`–`FG-228`. The trace-link column is empty and says why |
+| Test Cases — Ship state, expected output, trace link, per use case | Early Submission | **Complete.** All six rows carry a live public trace. Two rows diverged from their predicted output and say so |
 | Architecture Decisions — framework, node design, state management, deployment | Early Submission | **Written.** `FG-250`–`FG-254` |
 | Cost Analysis — development spend, production projections at 100 / 1,000 / 10,000 users | Final Submission | Not started. `FG-260`–`FG-264` |

@@ -6,6 +6,7 @@ import {
   expectContentPersisted,
   expectTextPersisted,
   countNodesOfType,
+  expectFileChooser,
 } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -226,7 +227,7 @@ test.describe('Data Integrity - Images', () => {
     await page.keyboard.type('/image')
 
     const tmpPath = createTestImageFile()
-    const fileChooserPromise = page.waitForEvent('filechooser')
+    const fileChooserPromise = expectFileChooser(page)
     // Was `waitForSlashMenu` + blind Enter. The menu container renders before its
     // items do, so Enter selected nothing and the chooser never opened — a 60 s
     // test timeout, and six of ten flaky tests in one run.
@@ -282,7 +283,7 @@ test.describe('Data Integrity - Images', () => {
     await page.keyboard.press('Enter')
     await page.keyboard.type('/image')
     const tmpPath1 = createTestImageFile()
-    let fileChooserPromise = page.waitForEvent('filechooser')
+    let fileChooserPromise = expectFileChooser(page)
     await chooseSlashMenuItem(page, /Image/i)
     let fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tmpPath1)
@@ -296,7 +297,7 @@ test.describe('Data Integrity - Images', () => {
     await page.keyboard.press('Enter')
     await page.keyboard.type('/image')
     const tmpPath2 = createTestImageFile()
-    fileChooserPromise = page.waitForEvent('filechooser')
+    fileChooserPromise = expectFileChooser(page)
     await chooseSlashMenuItem(page, /Image/i)
     fileChooser = await fileChooserPromise
     await fileChooser.setFiles(tmpPath2)

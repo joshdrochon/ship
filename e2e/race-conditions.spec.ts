@@ -1,5 +1,5 @@
 import { test, expect, Page, Browser } from './fixtures/isolated-env'
-import { expectDocumentTitleSaved, waitForSlashMenu } from './fixtures/test-helpers'
+import { expectDocumentTitleSaved, waitForSlashMenu, expectFileChooser } from './fixtures/test-helpers'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
@@ -203,7 +203,7 @@ test.describe('Race Conditions - Image Upload', () => {
     await expect(imageOption).toBeVisible({ timeout: 3000 })
 
     const tmpPath = createTestImageFile()
-    const fileChooserPromise = page.waitForEvent('filechooser')
+    const fileChooserPromise = expectFileChooser(page)
     await imageOption.click()
 
     const fileChooser = await fileChooserPromise
@@ -246,7 +246,7 @@ test.describe('Race Conditions - Image Upload', () => {
       const tmpPath = createTestImageFile()
       tmpPaths.push(tmpPath)
 
-      const fileChooserPromise = page.waitForEvent('filechooser')
+      const fileChooserPromise = expectFileChooser(page)
       await imageOption.click()
 
       const fileChooser = await fileChooserPromise

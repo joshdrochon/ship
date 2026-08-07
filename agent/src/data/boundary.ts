@@ -187,6 +187,167 @@ export async function recordObservation(
   return { id: rows[0].id, isNew: rows[0].is_new };
 }
 
+/**
+ * A finding whose notification is still sitting unanswered, with the one hop up
+ * `reports_to` already resolved.
+ *
+ * CROSS-BOUNDARY: joins fleetgraph_observations and fleetgraph_notifications to
+ * `documents` (the recipient's person document, for `reports_to`) and to
+ * `users` (for the name the escalation body has to say out loud). Resolving the
+ * hop here rather than in the node keeps the whole org-chart walk in the one
+ * file that is allowed to know both schemas.
+ *
+ * Three predicates, and each is load-bearing:
+ *
+ *   o.resolution IS NULL   the human has not accepted, dismissed, or snoozed it
+ *   n.state = 'pending'    they were told and have not acknowledged
+ *   o.escalation_count = 0 it has not already made its one hop (Q6)
+ *
+ * The last one is what makes "at most once" a property of the query rather than
+ * of a caller remembering to check.
+ *
+ * `DISTINCT ON (o.id) ... ORDER BY n.created_at ASC` picks the FIRST pending
+ * notification for a finding. That is the clock the 2-business-day rule runs
+ * against — when the accountable person was told, not when the observation was
+ * first recorded, which can be earlier if the notification write failed on a
+ * previous run.
+ *
+ * `reports_to` comes back as text, not `::uuid`. It is a free-form JSONB
+ * property that only an admin can set (`routes/documents.ts`), and casting it
+ * in the query would let one malformed row take down the escalation scan for
+ * the whole workspace. Cast at the point of use, where the blast radius is one
+ * finding.
+ */
+export interface EscalationCandidate {
+  observationId: string;
+  fingerprint: string;
+  signalType: string;
+  targetId: string;
+  notificationId: string;
+  title: string;
+  body: string | null;
+  recipientUserId: string;
+  recipientName: string | null;
+  /** When the accountable person was told. The escalation clock starts here. */
+  notifiedAt: Date;
+  /** One hop up. Null when nobody is above them — the top of the chain. */
+  escalateToUserId: string | null;
+}
+
+export async function loadEscalationCandidates(
+  workspaceId: string,
+  db: Db = getPool()
+): Promise<EscalationCandidate[]> {
+  const { rows } = await db.query(
+    `SELECT DISTINCT ON (o.id)
+            o.id            AS observation_id,
+            o.fingerprint,
+            o.signal_type,
+            o.target_id,
+            n.id            AS notification_id,
+            n.title,
+            n.body,
+            n.recipient_user_id,
+            n.created_at    AS notified_at,
+            u.name          AS recipient_name,
+            person.properties->>'reports_to' AS escalate_to_user_id
+       FROM fleetgraph_observations o
+       JOIN fleetgraph_notifications n
+         ON n.observation_id = o.id
+        AND n.state = 'pending'
+       LEFT JOIN users u ON u.id = n.recipient_user_id
+       LEFT JOIN documents person
+         ON person.workspace_id = o.workspace_id
+        AND person.document_type = 'person'
+        AND person.deleted_at IS NULL
+        AND person.properties->>'user_id' = n.recipient_user_id::text
+      WHERE o.workspace_id = $1
+        AND o.resolution IS NULL
+        AND o.escalation_count = 0
+      ORDER BY o.id, n.created_at ASC`,
+    [workspaceId]
+  );
+
+  return rows.map((r) => ({
+    observationId: r.observation_id,
+    fingerprint: r.fingerprint,
+    signalType: r.signal_type,
+    targetId: r.target_id,
+    notificationId: r.notification_id,
+    title: r.title,
+    body: r.body,
+    recipientUserId: r.recipient_user_id,
+    recipientName: r.recipient_name,
+    notifiedAt: r.notified_at,
+    escalateToUserId: r.escalate_to_user_id,
+  }));
+}
+
+/**
+ * Make the one hop: claim the escalation and notify the person above, in a
+ * single statement.
+ *
+ * ── Why one statement rather than two calls ────────────────────────────────
+ * The two halves must not come apart. Increment first and crash, and the
+ * finding is marked escalated with nobody told — permanently, because
+ * `escalation_count = 0` will never match again. Notify first and crash, and
+ * the next run escalates the same finding a second time, which is the one thing
+ * "at most once" forbids.
+ *
+ * A transaction is not available here: `Queryable` is satisfied by a `Pool`,
+ * where consecutive queries may land on different connections, so `BEGIN` and
+ * `COMMIT` would not necessarily bracket the same session. A single statement
+ * with the INSERT fed from the UPDATE's `RETURNING` is atomic by construction
+ * and needs no connection pinning.
+ *
+ * ── Why it is idempotent under the watermark model ─────────────────────────
+ * `WHERE escalation_count = 0` is a compare-and-set. A rerun of the same window
+ * — which is exactly what `deliver` guarantees will happen after a crash, since
+ * the watermark only advances on completion (Q24) — matches zero rows, inserts
+ * nothing, and returns null. Same reasoning as the observation upsert: the
+ * re-run is duplicate work, never a duplicate notification.
+ *
+ * @returns the new notification's id, or null if it had already escalated.
+ */
+export async function escalateObservation(
+  params: {
+    workspaceId: string;
+    observationId: string;
+    escalateToUserId: string;
+    title: string;
+    body?: string | null;
+    targetId?: string | null;
+  },
+  db: Db = getPool()
+): Promise<string | null> {
+  const { rows } = await db.query(
+    `WITH claimed AS (
+       UPDATE fleetgraph_observations
+          SET escalation_count = escalation_count + 1,
+              updated_at = NOW()
+        WHERE id = $2
+          AND workspace_id = $1
+          AND resolution IS NULL
+          AND escalation_count = 0
+       RETURNING id
+     )
+     INSERT INTO fleetgraph_notifications
+       (workspace_id, observation_id, recipient_user_id, title, body, target_id)
+     SELECT $1, claimed.id, $3::uuid, $4, $5, $6
+       FROM claimed
+     RETURNING id`,
+    [
+      params.workspaceId,
+      params.observationId,
+      params.escalateToUserId,
+      params.title,
+      params.body ?? null,
+      params.targetId ?? null,
+    ]
+  );
+  return rows[0]?.id ?? null;
+}
+
 /** Close a finding. `dismissed` is permanent for this fingerprint. */
 export async function resolveObservation(
   id: string,
