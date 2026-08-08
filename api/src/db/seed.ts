@@ -5,6 +5,7 @@ import { readFileSync } from 'fs';
 import pg from 'pg';
 import bcrypt from 'bcryptjs';
 import { loadProductionSecrets } from '../config/ssm.js';
+import { seedAgentApiToken } from './seedAgentToken.js';
 import { WELCOME_DOCUMENT_TITLE, WELCOME_DOCUMENT_CONTENT } from './welcomeDocument.js';
 
 const { Pool } = pg;
@@ -1239,6 +1240,16 @@ async function seed() {
     }
     if (weeklyRetrosCreated > 0) {
       console.log(`✅ Created ${weeklyRetrosCreated} weekly retros`);
+    }
+
+    // The agent's Ship API token. See seedAgentToken.ts for why this exists and
+    // what the destroy-and-redeploy cycle had to destroy before anyone noticed
+    // it was missing.
+    const tokenResult = await seedAgentApiToken(pool, workspaceId, process.env.SHIP_API_TOKEN);
+    if (tokenResult.seeded) {
+      console.log('✅ FleetGraph agent API token seeded');
+    } else if (tokenResult.reason === 'no_user') {
+      console.log('⚠️  SHIP_API_TOKEN set but dev@ship.local does not exist — token not seeded');
     }
 
     console.log('');
