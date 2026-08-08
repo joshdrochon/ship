@@ -357,8 +357,8 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [ ] **FG-205** Verify the rebuilt environment is functional: health, ready, cron, seed, UI
 - [x] **FG-206** Record the new service URL everywhere it is referenced
 - [x] **FG-207** Retire the old API-created Render service and database
-- [ ] **FG-208** Update `CREDENTIALS.md` with the new service id and URL
-- [ ] **FG-209** Timed latency test: introduce an event, assert the agent surfaces it inside 5 minutes (MVP requirement 6 + performance goal)
+- [x] **FG-208** Update `CREDENTIALS.md` with the new service id and URL
+- [x] **FG-209** Timed latency test: introduce an event, assert the agent surfaces it inside 5 minutes (MVP requirement 6 + performance goal)
 
 ## M11 · FLEETGRAPH.md
 
@@ -439,14 +439,14 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 # §F · Final Submission — due Sunday noon
 
-- [ ] **FG-260** Cost Analysis — actual dev spend, input/output token breakdown
-- [ ] **FG-261** Cost Analysis — total invocations during development
-- [ ] **FG-262** Production projections at 100 / 1,000 / 10,000 users
-- [ ] **FG-263** State the assumptions: proactive runs per project per day, on-demand per user per day, average tokens per invocation
-- [ ] **FG-264** Cost per run, estimated runs per day
+- [x] **FG-260** Cost Analysis — actual dev spend, input/output token breakdown
+- [x] **FG-261** Cost Analysis — total invocations during development
+- [x] **FG-262** Production projections at 100 / 1,000 / 10,000 users
+- [x] **FG-263** State the assumptions: proactive runs per project per day, on-demand per user per day, average tokens per invocation
+- [x] **FG-264** Cost per run, estimated runs per day
 - [ ] **FG-265** Demo video, 3–5 minutes
 - [ ] **FG-266** Demo shows both modes and a human gate
-- [ ] **FG-267** Final pass: every brief requirement checked against the artifact
+- [x] **FG-267** Final pass: every brief requirement checked against the artifact
 - [ ] **FG-268** Merge to `main` via MR — no direct pushes
 
 ---
