@@ -1781,13 +1781,25 @@ Stated plainly rather than folded into the table above.
    counter-example until it was fixed — see **Row 2** above for what that failure looked like
    from the inside, because the next one will look the same: a fixture and a detector agreeing
    on a field the application never writes.
-4. **The deployed cron is failing its write-back, and the fix is committed but not yet
-   deployed.** The rebuild left the agent without the `api_tokens` row that authorises it against
-   Ship's own API, so every run currently detects and judges correctly and then 401s at delivery.
-   `seedAgentToken.ts` creates that row on boot and has six regression tests, but the deployment
-   is still running the image built before it. Until a build carrying it is promoted, the
-   production agent surfaces nothing — which is why the row for use case 1 above cites the run
-   from *before* this cycle rather than a current one.
+4. **The write-back is fixed and verified, but delivery has not been observed since.** The
+   rebuild left the agent without the `api_tokens` row that authorises it against Ship's own API,
+   so every run detected and judged correctly and then 401'd at delivery. Two changes were needed,
+   and only the first was obvious: `seedAgentToken.ts` creates the row on boot, and `main.tf` had
+   to give the **web service** `SHIP_API_TOKEN` — the seed runs there (`Dockerfile:137`), not in
+   the cron, so without the second change the seed read an unset variable and silently no-opped.
+
+   Verified against the deployment by the failure's own signature rather than by inference:
+
+   ```
+   GET /api/documents   Authorization: Bearer $SHIP_API_TOKEN
+   before  401  {"code":"UNAUTHORIZED","message":"Invalid or expired API token"}
+   after   200
+   ```
+
+   What has *not* happened since is a delivery, because every finding the workspace can currently
+   produce is fingerprint-suppressed — the cron reports `quiet_all_suppressed`, signals 0. That is
+   suppression working, and it is also why a green cron is not evidence here: it is idle, not
+   exercised. The row for use case 1 above therefore still cites the run from before this cycle.
 
 
 # Unverified Claims
