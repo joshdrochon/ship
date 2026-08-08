@@ -1723,29 +1723,31 @@ point of the triage gate.
 # MVP Requirement Coverage
 
 Every MVP checkbox from the brief (p.3), checked against this document and against the deployed
-environment. Re-measured 2026-08-05 after the Terraform teardown-and-redeploy; the previous
+environment. **Re-measured 2026-08-08**, after a second destroy-and-redeploy cycle rebuilt every
+resource — so the ids below are the current ones, not the previous environment's. An earlier
 version of this table understated the system badly, because it was written before the provider
-moved off Bedrock and before anything was actually deployed.
+moved off Bedrock and before anything was actually deployed; the risk in a table like this is the
+opposite one, so every row names the artefact a reader can check rather than asserting a state.
 
 | # | MVP requirement | Status | Evidence |
 |---|---|---|---|
-| 1 | Graph running with ≥ 1 proactive detection wired end-to-end | **Done** | Deployed cron `crn-d9p7967qj5pc73dk7j60`, every 3 min. `outcome:"delivered" signals:1 findings:1 ms:4643` against the deployed database, with the resulting notification row quoted above |
+| 1 | Graph running with ≥ 1 proactive detection wired end-to-end | **Done** | Deployed cron `crn-d9r8o35bedkc73ff3m70`, every 3 min. `outcome:"delivered" signals:1 findings:1 ms:4643` against the deployed database, with the resulting notification row quoted above |
 | 2 | LangSmith tracing, ≥ 2 shared trace links, different paths | **Done** | Two public links in "Traces from the deployed agent". 10 nodes vs 7, diverging at the first conditional edge and never rejoining |
 | 3 | FLEETGRAPH.md — Agent Responsibility, ≥ 5 use cases | **Done** | Six use cases, matched to the shipped detectors |
 | 4 | Graph outline — node types, edges, branching conditions | **Done** | Sixteen registered nodes and four conditional edges, named identically here and in `NODES` |
 | 5 | ≥ 1 human-in-the-loop gate | **Done in code; not exercised in production** | `await_approval` on C4's `gated` branch; accept/dismiss/snooze resume the suspended run across a real `process.exit(0)`. The one finding delivered so far is `additive`/`comment`, which routes autonomous, so no gate has opened on the deployment yet |
 | 6 | Running against real Ship data, no mocked responses | **Done** | `{"provider":"anthropic","model":"claude-opus-4-5-20251101","mocked":false}` logged every run, against the deployed Postgres |
 | 7 | Agent chat and notifications accessible in the UI | **Done** | Chat in the properties sidebar (`UnifiedEditor.tsx:401`), banner above the editor (`:475`), rail indicator (`App.tsx:414`). Chat verified answering on the deployment; the notification row exists and is addressed to the assignee |
-| 8 | Deployed via Terraform, `/health` + `/ready`, annotated plan, destroy-and-redeploy | **Done** | `3 added, 0 changed, 0 destroyed` from an empty environment after both hand-made resources were deleted. Both endpoints 200. Annotated plan in `terraform/render/PLAN-ANNOTATED.md` |
+| 8 | Deployed via Terraform, `/health` + `/ready`, annotated plan, destroy-and-redeploy | **Done** | Run twice. Latest: `4 destroyed` then `3 added, 0 changed, 0 destroyed`, scripted and re-runnable (`scripts/destroy-redeploy.sh`), written up under "The environment was torn down and rebuilt" including the defect it exposed. Both endpoints 200. Annotated plan in `terraform/render/PLAN-ANNOTATED.md` |
 | 9 | Trigger model documented and defended | **Done** | Poll/webhook/hybrid tradeoffs, staleness, and the 100/1,000-project cost curve |
 
 Performance requirements from the same page:
 
 | Requirement | Status |
 |---|---|
-| Detection latency < 5 min | **Measured.** 4.6 s for scan → judge → deliver on the deployed agent. Worst case adds the 180 s wait for the next tick and a cold start, leaving the 217 s budgeted against 300 s |
-| Cost per graph run documented and defended | Covered — token budget and cost cliffs above |
-| Estimated runs per day documented and defended | Covered — 480/day flat, independent of project count |
+| Detection latency < 5 min | **Measured by the timed test the brief specifies.** `1098 ms` end to end against a 300,000 ms SLA (`e2e/fleetgraph-agent.spec.ts`), and 4.6 s for scan → judge → deliver on the deployed agent. Worst case adds the 180 s wait for the next tick and a cold start, leaving the 217 s budgeted against 300 s |
+| Cost per graph run documented and defended | Covered — **Cost Analysis** gives $0.00 for a quiet run, $0.0338 for one reaching judgment, $0.0363 for a chat turn, alongside the token budget and cost cliffs |
+| Estimated runs per day documented and defended | Covered — 480/day per workspace, flat and independent of project count; projected to 480,000/day at 10,000 users in **Cost Analysis** |
 
 Engineering requirements (brief p.4):
 
@@ -1779,6 +1781,13 @@ Stated plainly rather than folded into the table above.
    counter-example until it was fixed — see **Row 2** above for what that failure looked like
    from the inside, because the next one will look the same: a fixture and a detector agreeing
    on a field the application never writes.
+4. **The deployed cron is failing its write-back, and the fix is committed but not yet
+   deployed.** The rebuild left the agent without the `api_tokens` row that authorises it against
+   Ship's own API, so every run currently detects and judges correctly and then 401s at delivery.
+   `seedAgentToken.ts` creates that row on boot and has six regression tests, but the deployment
+   is still running the image built before it. Until a build carrying it is promoted, the
+   production agent surfaces nothing — which is why the row for use case 1 above cites the run
+   from *before* this cycle rather than a current one.
 
 
 # Unverified Claims
