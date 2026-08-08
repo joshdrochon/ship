@@ -354,7 +354,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-202** Verify seed data populated automatically on boot (`Dockerfile:111`)
 - [x] **FG-203** **Script the destroy-and-redeploy cycle** so it is re-runnable, not hand-performed
 - [x] **FG-204** **Run destroy-and-redeploy — early, not at the deadline.** Capture full output
-- [ ] **FG-205** Verify the rebuilt environment is functional: health, ready, cron, seed, UI
+- [x] **FG-205** Verify the rebuilt environment is functional: health, ready, cron, seed, UI
 - [x] **FG-206** Record the new service URL everywhere it is referenced
 - [x] **FG-207** Retire the old API-created Render service and database
 - [x] **FG-208** Update `CREDENTIALS.md` with the new service id and URL
