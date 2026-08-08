@@ -199,6 +199,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-082** `agent/src/graph/nodes/awaitApproval.ts` — `interrupt()`
 - [x] **FG-083** `agent/src/graph/nodes/executeApproved.ts`
 - [x] **FG-084** `agent/src/graph/nodes/deliver.ts` — notify, record observation, advance watermark
+- [x] **FG-285** `agent/src/graph/nodes/escalate.ts` — one hop up `reports_to` after 2 business days unanswered (`PRESEARCH.md` Q6). **Retroactive.** The 17th node shipped in `64e3166` with no ticket: escalation was designed in Q6 but never entered this block, which stops at `deliver`. `FLEETGRAPH.md` then covered the omission by attributing the node to `FG-084`, which is `deliver`
 - [x] **FG-085** `agent/src/graph/index.ts` — assemble nodes and edges
 - [x] **FG-086** Wire conditional edge 1: trigger mode
 - [x] **FG-087** Wire conditional edge 2: `signals.length === 0` → terminate quiet

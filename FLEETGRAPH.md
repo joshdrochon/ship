@@ -1810,7 +1810,7 @@ behaviour.
 
 | Claim | Status | Ticket |
 |---|---|---|
-| The graph registers seventeen nodes with four conditional edges | **Verified.** Seventeen `addNode` calls, four `addConditionalEdges`, in `agent/src/graph/index.ts`; the labels in the diagram are the exported `NODES` strings. Sixteen until `escalate` landed under `FG-084` | `FG-085`–`FG-089` |
+| The graph registers seventeen nodes with four conditional edges | **Verified.** Seventeen `addNode` calls, four `addConditionalEdges`, in `agent/src/graph/index.ts`; the labels in the diagram are the exported `NODES` strings. Sixteen until `escalate` landed in `64e3166` | `FG-085`–`FG-089`, `FG-285` |
 | Three fetch nodes run as a parallel fan-out | **Verified** structurally — C1 returns all three names in one superstep. The wall-clock saving is not measured | `FG-076` |
 | A quiet run spends zero tokens | **Verified.** Asserted on a call counter the graph increments through its real path, with the judge injected rather than module-mocked, so the test is not testing a mock | `FG-092` |
 | Judgment batches all signals into one call | **Verified.** One `model.invoke` in `llm/judge.ts`, fanned back out to per-signal findings by fingerprint; the drifting-run test asserts the judge is called exactly once | `FG-093`, `FG-104` |
