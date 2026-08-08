@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { Pool } from 'pg';
+import { createTestPool } from '../testing/pool.js';
 
 import { detectSprintMissRisk } from './sprintMissRisk.js';
 import { detectReviewBottleneck } from './reviewBottleneck.js';
@@ -35,7 +35,7 @@ let dev: string;
 
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:16').start();
-  pool = new Pool({ connectionString: container.getConnectionUri() });
+  pool = createTestPool(container.getConnectionUri());
   await pool.query(readFileSync(join(API_DB, 'schema.sql'), 'utf8'));
   await pool.query(
     `CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`
