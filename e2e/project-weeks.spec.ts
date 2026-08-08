@@ -193,8 +193,34 @@ test.describe('Project Weeks Tab', () => {
       'Navigation Test Project'
     );
 
-    // Create allocation
-    await createAllocation(page, apiServer.url, csrfToken, projectId, personId, 10);
+    // Week 12, not 10, and the number is load-bearing.
+    //
+    // A weekly plan document is unique by PERSON + WEEK — `weekly-plans.ts:219`,
+    // where `project_id` is explicitly "a legacy field, not used for uniqueness".
+    // Three tests in this file allocated Dev User to week 10 (lines 117, 147 and
+    // this one), so whichever of them clicked a cell first created the one
+    // week-10 document and the others silently reused it, carrying the FIRST
+    // test's project association.
+    //
+    // That is what broke this test in CI. It asserts a Properties-sidebar link
+    // to its own project; it was handed the document created under "Click Test
+    // Project" and the link pointed there instead. The failure artifact shows it
+    // exactly: zero occurrences of "Navigation Test Project", five of "Click
+    // Test Project", including the sidebar link.
+    //
+    // Week 12 is unused by every other test here (10, 11, 15, 20, 21, 22 are
+    // taken), so this test gets its own document and its own project.
+    //
+    // Deliberately NOT fixed by changing the uniqueness rule. Person+week is
+    // Ship's accountability model — `docs/week-documentation-philosophy.md:76`,
+    // "a person can only own one week per week window (across all programs)" —
+    // and this is a FleetGraph change, not a Ship product decision. The tests
+    // were never meant to share a document; they collided by accident.
+    //
+    // Honest limit: this removes the collision, which is confirmed. It does not
+    // explain why the old version was INTERMITTENT rather than always failing —
+    // the sharing is deterministic and the retry passed. That is still unknown.
+    await createAllocation(page, apiServer.url, csrfToken, projectId, personId, 12);
 
     // Navigate to project's Weeks tab and click to open weekly plan
     await page.goto(`/documents/${projectId}/weeks`);
