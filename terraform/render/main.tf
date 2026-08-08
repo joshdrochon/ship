@@ -57,8 +57,24 @@ locals {
   # cron.tf. The API is a long-lived process, so the background upload queue does
   # drain; forcing synchronous callbacks would put trace uploads on the request
   # path and charge every chat response for them.
+  # SHIP_API_TOKEN is here for a different reason than the rest, and it is the
+  # third instance of the omission the comment above describes.
+  #
+  # The web service does not call Ship's API — the cron does. What the web
+  # service does is run `migrate; seed; serve` on every boot (Dockerfile:137),
+  # and seed is now what creates the `api_tokens` row the cron authenticates
+  # with (`api/src/db/seedAgentToken.ts`). That row used to be made by hand, and
+  # the destroy-and-redeploy cycle destroyed the database holding it: the rebuilt
+  # environment came up with /health and /ready green while every cron run
+  # detected, judged, and then 401'd at delivery.
+  #
+  # So the token has to reach the service that SEEDS it, not only the service
+  # that USES it. Without this line the seed reads an unset variable, skips
+  # silently by design, and the cron keeps failing — with nothing in either
+  # service's logs saying why, because neither is doing anything wrong.
   agent_env_values = {
     ANTHROPIC_API_KEY    = var.anthropic_api_key
+    SHIP_API_TOKEN       = var.ship_api_token
     LANGCHAIN_API_KEY    = var.langchain_api_key
     LANGCHAIN_TRACING_V2 = var.langchain_api_key == null ? null : "true"
     LANGCHAIN_PROJECT    = var.langchain_api_key == null ? null : var.langchain_project

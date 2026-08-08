@@ -210,13 +210,13 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-093** Unit test: run with signals reaches `judgeSignals`
 - [x] **FG-094** Unit test: state object is fully populated at `deliver`
 - [x] **FG-272** **Bug.** `resolveScope` mapped `field: r.field_name` after the SELECT was corrected to `field`, so every on-demand history entry reached the answer prompt as `undefined`. The query stopped throwing, so the test stayed green. The regression test asserts the value, not the absence of an exception.
-- [ ] **FG-273** **Bug, two of them.** (a) `closeQuiet` advanced the watermark on an `ai_unavailable` run, closing a window whose signals were never judged — contradicting `judgeSignals`' own header. (b) `awaitApproval` stored a computed `pending_thread_id` unrelated to the checkpointer's real thread, so the approval endpoint would have resumed an id that does not exist. Invisible to the graph tests, which compile without a checkpointer.
+- [x] **FG-273** **Bug, two of them.** (a) `closeQuiet` advanced the watermark on an `ai_unavailable` run, closing a window whose signals were never judged — contradicting `judgeSignals`' own header. (b) `awaitApproval` stored a computed `pending_thread_id` unrelated to the checkpointer's real thread, so the approval endpoint would have resumed an id that does not exist. Invisible to the graph tests, which compile without a checkpointer.
 
 ## M4 · Judgment
 
 - [x] **FG-095** `agent/src/llm/client.ts` — `ChatBedrockConverse` via `@langchain/aws`
 - [x] **FG-096** Reuse `BEDROCK_ENDPOINT` env override so CI hits the existing mock (stable fakes requirement) — override is wired; **blocked on FG-271**, the mock does not answer the endpoint the client calls
-- [ ] **FG-271** Add a `/converse` expectation to both Bedrock fakes. `ChatBedrockConverse` calls `POST /converse`; `mocks/bedrock-expectations.json` and `e2e/fixtures/mock-bedrock.ts` only answer `POST /model/*/invoke` and 404 everything else, so CI cannot exercise judgement at all. The response must be Converse-shaped and carry a `toolUse` block, because `withStructuredOutput` binds the schema as a tool. Engineering requirement 3.
+- [x] **FG-271** Add a `/converse` expectation to both Bedrock fakes. `ChatBedrockConverse` calls `POST /converse`; `mocks/bedrock-expectations.json` and `e2e/fixtures/mock-bedrock.ts` only answer `POST /model/*/invoke` and 404 everything else, so CI cannot exercise judgement at all. The response must be Converse-shaped and carry a `toolUse` block, because `withStructuredOutput` binds the schema as a tool. Engineering requirement 3.
 - [x] **FG-097** Wrap the LLM call in the existing `CircuitBreaker` from `api/src/services/circuitBreaker.ts`
 - [x] **FG-098** Promote `circuitBreaker.ts` to `shared/` or import cross-package — do not duplicate it
 - [x] **FG-099** Explicit timeouts matching the existing values: 3s connect, 20s request, 3 attempts
@@ -245,17 +245,17 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-119** End-to-end local run: seed → mutate an issue → cron detects it
 - [x] **FG-120** Verify a second immediate run detects **nothing** (suppression works)
 - [x] **FG-121** Verify a crashed run does not advance the watermark
-- [ ] **FG-274** Wire the real Ship action client into the cron, replacing the FG-122 placeholder. Resolved per run so a missing `SHIP_API_TOKEN` degrades commenting rather than killing the process before detection happens.
-- [ ] **FG-277** **Bug.** The deployed cron would have traced nothing. LangChain uploads traces on a background queue that dies when a cron container exits, so the run succeeds and LangSmith stays empty. Fixed in code and in `terraform/render/cron.tf`. Measured: same run, 0 sessions without the flag, trace with it.
-- [ ] **FG-278** **Bug.** `resetCheckpointer()` dropped the cached `PostgresSaver` without closing its pool, so `cron.test.ts` stopped its container on live connections. 162 assertions passed, 8 unhandled `57P01` fired after the summary, exit 1 — CI would have read red on a fully green run.
-- [ ] **FG-279** **The API-to-graph seam does not exist.** `agentBridge.ts:91` throws `agent_not_wired`; the three approval routes persist a decision and hardcode `resumed: false`; nothing loads the checkpointer or issues `Command({ resume })`. Chat UI, route, Zod schema, rate limit and visibility filter are all real — the call at the centre is a stub. **Blocked on FG-280.**
-- [ ] **FG-280** **Decision + move: break the api↔agent build cycle.** `agent/` imports `CircuitBreaker` from `api/dist` by relative path, so `api/` importing `agent/dist` would make neither buildable. Fix is to promote `circuitBreaker.ts` into `shared/` (the option FG-098 named first), leaving a re-export in `api/` for back-compat. Additive and reversible. Needs a human call — it changes package structure.
-- [ ] **FG-281** **Bug.** `makeJudge` flattened `ai_unavailable` to `[]`, so the graph read an unreachable model as "nothing worth surfacing", routed to `close_quiet`, and advanced the watermark — closing a scan window whose signals were never judged. `closeQuiet`'s own guard never saw the outcome because the status died a layer below. FG-121 passed throughout: its fake judge threw, the real one did not.
-- [ ] **FG-282** **Bug.** `makeAnswer` flattened `ai_unavailable` to its notice text, so the graph set `outcome: 'answered'` with a non-empty answer and the chat endpoint replied 200 — the UI rendered a service notice as a normal assistant message instead of using its `ai_unavailable` state. Second instance of the FG-281 seam bug. There were no `makeAnswer` tests at all.
-- [ ] **FG-283** **Bug.** The FG-280 breaker move missed `agent/src/actions/client.ts`, which still imported from `api/dist` — so the build cycle was never actually broken. Type-checks and 774 unit tests all passed on stale incremental artifacts; only a clean `pnpm build:api` (via E2E global-setup) revealed it, along with TS5055 and TS2742.
-- [ ] **FG-275** Fix the `Closes:` trailer block. A blank line before `Co-Authored-By` splits it, git parses only the last paragraph, and fourteen commits' worth of closures were inert. `--verify` caught it.
-- [ ] **FG-276** `scripts/check-api-coverage.sh` scanned `api/src/routes/*.ts` only, so directory route modules (`routes/fleetgraph/index.ts`) read as missing endpoints. Fixed to scan `*/index.ts` and take the mount name from the directory.
-- [ ] **FG-284** **Bug.** `MentionList.onKeyDown` returned `true` for Enter and both arrows even with zero matches, so TipTap treated the key as consumed and ProseMirror never saw it — `selectItem` already ignored the empty list, making the swallow silent. With `allowSpaces: true` one `@` mid-line kills Enter for the rest of the block. Found by `e2e/drag-handle.spec.ts`, whose fixture text ends in `@#$%`; its guard could not see the merge because it asserted on the editor's whole text rather than the paragraph count.
+- [x] **FG-274** Wire the real Ship action client into the cron, replacing the FG-122 placeholder. Resolved per run so a missing `SHIP_API_TOKEN` degrades commenting rather than killing the process before detection happens.
+- [x] **FG-277** **Bug.** The deployed cron would have traced nothing. LangChain uploads traces on a background queue that dies when a cron container exits, so the run succeeds and LangSmith stays empty. Fixed in code and in `terraform/render/cron.tf`. Measured: same run, 0 sessions without the flag, trace with it.
+- [x] **FG-278** **Bug.** `resetCheckpointer()` dropped the cached `PostgresSaver` without closing its pool, so `cron.test.ts` stopped its container on live connections. 162 assertions passed, 8 unhandled `57P01` fired after the summary, exit 1 — CI would have read red on a fully green run.
+- [x] **FG-279** **The API-to-graph seam does not exist.** `agentBridge.ts:91` throws `agent_not_wired`; the three approval routes persist a decision and hardcode `resumed: false`; nothing loads the checkpointer or issues `Command({ resume })`. Chat UI, route, Zod schema, rate limit and visibility filter are all real — the call at the centre is a stub. **Blocked on FG-280.**
+- [x] **FG-280** **Decision + move: break the api↔agent build cycle.** `agent/` imports `CircuitBreaker` from `api/dist` by relative path, so `api/` importing `agent/dist` would make neither buildable. Fix is to promote `circuitBreaker.ts` into `shared/` (the option FG-098 named first), leaving a re-export in `api/` for back-compat. Additive and reversible. Needs a human call — it changes package structure.
+- [x] **FG-281** **Bug.** `makeJudge` flattened `ai_unavailable` to `[]`, so the graph read an unreachable model as "nothing worth surfacing", routed to `close_quiet`, and advanced the watermark — closing a scan window whose signals were never judged. `closeQuiet`'s own guard never saw the outcome because the status died a layer below. FG-121 passed throughout: its fake judge threw, the real one did not.
+- [x] **FG-282** **Bug.** `makeAnswer` flattened `ai_unavailable` to its notice text, so the graph set `outcome: 'answered'` with a non-empty answer and the chat endpoint replied 200 — the UI rendered a service notice as a normal assistant message instead of using its `ai_unavailable` state. Second instance of the FG-281 seam bug. There were no `makeAnswer` tests at all.
+- [x] **FG-283** **Bug.** The FG-280 breaker move missed `agent/src/actions/client.ts`, which still imported from `api/dist` — so the build cycle was never actually broken. Type-checks and 774 unit tests all passed on stale incremental artifacts; only a clean `pnpm build:api` (via E2E global-setup) revealed it, along with TS5055 and TS2742.
+- [x] **FG-275** Fix the `Closes:` trailer block. A blank line before `Co-Authored-By` splits it, git parses only the last paragraph, and fourteen commits' worth of closures were inert. `--verify` caught it.
+- [x] **FG-276** `scripts/check-api-coverage.sh` scanned `api/src/routes/*.ts` only, so directory route modules (`routes/fleetgraph/index.ts`) read as missing endpoints. Fixed to scan `*/index.ts` and take the mount name from the directory.
+- [x] **FG-284** **Bug.** `MentionList.onKeyDown` returned `true` for Enter and both arrows even with zero matches, so TipTap treated the key as consumed and ProseMirror never saw it — `selectItem` already ignored the empty list, making the swallow silent. With `allowSpaces: true` one `@` mid-line kills Enter for the rest of the block. Found by `e2e/drag-handle.spec.ts`, whose fixture text ends in `@#$%`; its guard could not see the merge because it asserted on the editor's whole text rather than the paragraph count.
 
 ## M6 · Actions and human-in-the-loop
 
@@ -347,18 +347,18 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-195** `terraform fmt` clean
 - [x] **FG-196** **`terraform plan` from empty state — save the raw output**
 - [x] **FG-197** Annotate the plan output, resource by resource (MVP requirement 8)
-- [ ] **FG-198** `terraform apply` — first real deployment
-- [ ] **FG-199** Verify `/health` returns the expected revision SHA
-- [ ] **FG-200** Verify `/ready` returns 200 with dependencies up
-- [ ] **FG-201** Verify the cron job appears in Render and fires on schedule
-- [ ] **FG-202** Verify seed data populated automatically on boot (`Dockerfile:111`)
-- [ ] **FG-203** **Script the destroy-and-redeploy cycle** so it is re-runnable, not hand-performed
-- [ ] **FG-204** **Run destroy-and-redeploy — early, not at the deadline.** Capture full output
+- [x] **FG-198** `terraform apply` — first real deployment
+- [x] **FG-199** Verify `/health` returns the expected revision SHA
+- [x] **FG-200** Verify `/ready` returns 200 with dependencies up
+- [x] **FG-201** Verify the cron job appears in Render and fires on schedule
+- [x] **FG-202** Verify seed data populated automatically on boot (`Dockerfile:111`)
+- [x] **FG-203** **Script the destroy-and-redeploy cycle** so it is re-runnable, not hand-performed
+- [x] **FG-204** **Run destroy-and-redeploy — early, not at the deadline.** Capture full output
 - [ ] **FG-205** Verify the rebuilt environment is functional: health, ready, cron, seed, UI
-- [ ] **FG-206** Record the new service URL everywhere it is referenced
-- [ ] **FG-207** Retire the old API-created Render service and database
-- [ ] **FG-208** Update `CREDENTIALS.md` with the new service id and URL
-- [ ] **FG-209** Timed latency test: introduce an event, assert the agent surfaces it inside 5 minutes (MVP requirement 6 + performance goal)
+- [x] **FG-206** Record the new service URL everywhere it is referenced
+- [x] **FG-207** Retire the old API-created Render service and database
+- [x] **FG-208** Update `CREDENTIALS.md` with the new service id and URL
+- [x] **FG-209** Timed latency test: introduce an event, assert the agent surfaces it inside 5 minutes (MVP requirement 6 + performance goal)
 
 ## M11 · FLEETGRAPH.md
 
@@ -398,7 +398,7 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-233** Regression: bulk endpoint is never called
 - [x] **FG-234** Regression: agent never mutates state without approval
 - [x] **FG-235** All regression tests run in CI
-- [ ] **FG-236** CI failure triggers automatic rollback — do not allow a failing build to remain deployed
+- [x] **FG-236** CI failure triggers automatic rollback — do not allow a failing build to remain deployed
 - [x] **FG-237** Document the rollback trigger and procedure in `FLEETGRAPH.md`
 
 ## E3 · E2E tests
@@ -439,14 +439,14 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 
 # §F · Final Submission — due Sunday noon
 
-- [ ] **FG-260** Cost Analysis — actual dev spend, input/output token breakdown
-- [ ] **FG-261** Cost Analysis — total invocations during development
-- [ ] **FG-262** Production projections at 100 / 1,000 / 10,000 users
-- [ ] **FG-263** State the assumptions: proactive runs per project per day, on-demand per user per day, average tokens per invocation
-- [ ] **FG-264** Cost per run, estimated runs per day
+- [x] **FG-260** Cost Analysis — actual dev spend, input/output token breakdown
+- [x] **FG-261** Cost Analysis — total invocations during development
+- [x] **FG-262** Production projections at 100 / 1,000 / 10,000 users
+- [x] **FG-263** State the assumptions: proactive runs per project per day, on-demand per user per day, average tokens per invocation
+- [x] **FG-264** Cost per run, estimated runs per day
 - [ ] **FG-265** Demo video, 3–5 minutes
 - [ ] **FG-266** Demo shows both modes and a human gate
-- [ ] **FG-267** Final pass: every brief requirement checked against the artifact
+- [x] **FG-267** Final pass: every brief requirement checked against the artifact
 - [ ] **FG-268** Merge to `main` via MR — no direct pushes
 
 ---

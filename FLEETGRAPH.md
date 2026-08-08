@@ -36,13 +36,14 @@ behaviour that has not been verified against the tree.
 | Dockerfile builds `agent/` | **Yes**, and fails the build if `agent/dist/entrypoints/cron.js` is absent | `Dockerfile:44`, `:58`, `:110` |
 | LangSmith tracing | **Enabled in production.** Project `fleetgraph-prod`, 50+ runs; `logTracingStatus()` still warns on the quiet misconfigurations | `agent/src/observability/tracing.ts`, `terraform/render/cron.tf` |
 | LangSmith trace links | **Eight captured and public** — one per use case from `capture-test-case-traces.ts`, plus two from the deployed agent | Test Cases table, and "Traces from the deployed agent" |
-| CI deploy / automatic rollback | **Armed, and the deploy half has fired.** State moved to a GitLab-hosted `backend "http"`, `vars.RENDER_DEPLOY_ENABLED=true`, and `deploy.yml` promoted `3d5c6c3` unattended — `/health` and the `deploy/green` tag both name it. `rollback-on-failed-ci` is armed on the same path but has not been triggered, because no CI run has failed on a deployed commit | `.github/workflows/deploy.yml`, `terraform/render/versions.tf`, `FG-236` |
+| CI deploy / automatic rollback | **Armed, and the deploy half has fired.** State moved to a GitLab-hosted `backend "http"`, `vars.RENDER_DEPLOY_ENABLED=true`, and `deploy.yml` has promoted unattended more than once — first `3d5c6c3`, now `0052570`, which is what `/health` and the `deploy/green` tag both name today. `rollback-on-failed-ci` is armed on the same path but has not been triggered, because no CI run has failed on a deployed commit | `.github/workflows/deploy.yml`, `terraform/render/versions.tf`, `FG-236` |
 
-Verified against `83aa33c`: `agent/` runs **162 tests in 19 files, all passing** (`npx vitest run`
-in `agent/`, 28 s, exit 0). The run also prints ten unhandled `57P01` errors attributed to
-`entrypoints/cron.test.ts` — testcontainer shutdown racing pooled clients at teardown, after the
-assertions have passed. Noisy, not failing, and named here so nobody reads the output and
-concludes otherwise.
+Verified against `0fddfd2`: `agent/` runs **186 tests in 21 files, all passing** (`npx vitest run`
+in `agent/`, 10 s, exit 0), and the output is now clean. An earlier reading of this paragraph
+recorded ten unhandled `57P01` errors after the summary — testcontainer shutdown racing pooled
+clients at teardown — and called them noisy but not failing. They were worse than that: they
+exited 1 on a fully green run, so CI read red. `resetCheckpointer()` now awaits `saver.end()`
+before dropping the cached saver (`FG-278`), and the count is zero rather than tolerated.
 
 Several agents are landing code on this branch concurrently, so the table above is a
 point-in-time reading, not a standing claim. Two test files landed between the start of this
@@ -1052,8 +1053,72 @@ dismissed and a snooze that re-runs the detector.
 
 One thing these tests deliberately do not prove: **none of them run the agent as a deployed
 process against a live workspace.** They run the same graph the cron entrypoint compiles, against
-a real Postgres, with the model faked. What is untested end to end is the deployment
-(`FG-196`–`FG-209`) and the API-to-graph seam, which is not written at all.
+a real Postgres, with the model faked. Everything this paragraph used to name as untested has
+since been run.
+
+The deployment answers for itself: `/health` and `/ready` both return 200 at the revision the
+`deploy/green` tag names, `/ready` reporting `postgres` ok and the model breaker closed
+(`FG-198`–`FG-200`). The service URL is deliberately not written here — it changes every time
+the environment is rebuilt, and `terraform output service_url` is the only answer that stays
+true.
+
+The API-to-graph seam is written: `agentBridge.ts` no longer throws `agent_not_wired`, and the
+approval route returns the checkpointer's real answer rather than a hardcoded one
+(`api/src/routes/fleetgraph/index.ts:403`, `FG-279`–`FG-280`).
+
+And the destroy-and-redeploy cycle has been run, not just scripted — see "The environment was
+torn down and rebuilt" below (`FG-203`–`FG-205`).
+
+## The environment was torn down and rebuilt
+
+The brief asks for this test *"to prove the IaC is the source of truth"*. It was run on
+2026-08-08 by `scripts/destroy-redeploy.sh`, which exists so the answer is reproducible rather
+than a paste of one person's terminal.
+
+```
+Destroy complete! Resources: 4 destroyed.
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
+```
+
+| Check | Result |
+|---|---|
+| `/health` | 200, revision `0052570` — the same SHA the `deploy/green` tag names |
+| `/ready` | 200, `postgres` ok at 2 ms, model breaker closed |
+| Cron | `fleetgraph-agent` recreated, `*/3 * * * *`, not suspended, first run 01:54:00Z |
+| Seed | ran on boot — `/ready` could not reach a schemaless database |
+| Links | 13 documented URLs checked, 0 dead |
+
+**Four destroyed, three added, and that is correct.** `render_registry_credential` is `count`-gated
+on `registry_username`/`registry_token`; the GHCR package is public, so the credential is not
+recreated and is not needed. The asymmetry is the config choosing the public-package path, not a
+resource lost in the cycle.
+
+**The service URL changed**, from `shipshape-7buc` to `shipshape-fkub`. Render assigns a new slug
+to a new service, so this is a permanent property of the test rather than a mistake, and it is why
+the script's last two steps rewrite every tracked reference and then run `check-doc-links.sh` as
+a gate. No URL is written into this document for the same reason —
+`terraform output service_url` is the only answer that stays true across a rebuild.
+
+### What the test caught
+
+The cron's first run after the rebuild exited 1:
+
+```
+outcome:"delivered"  signals:5  findings:5  ms:7266
+errors:["executeAutonomous: comment on 6b0553af… -> 401 Invalid or expired API token"]
+```
+
+The agent itself was healthy — it scanned, measured five signals, judged them against a real
+provider (`"mocked":false`) and routed to delivery. What failed was the write-back. `SHIP_API_TOKEN`
+is validated against `api_tokens.token_hash` (`api/src/middleware/auth.ts:98`), `seed.ts` does not
+create that row, and the row that existed had been made by hand against the database this cycle
+destroyed.
+
+So the honest finding is that **Terraform and code alone did not rebuild a fully working
+environment** — one manual step, minting an agent token, sat outside both. Nothing revealed that
+before the database was actually destroyed: every prior deploy reused a database where the row
+already existed. This is the test doing the job it is specified to do, and the qualification stands
+in this document until the token is seeded rather than hand-made.
 
 ---
 
@@ -1197,11 +1262,24 @@ existing request timeout kills it first. A pathologically slow judgment fails fa
 
 **Verification is a timed test run**, per the brief: introduce an event into Ship, start the
 clock, assert the agent surfaces it inside the window.
-The E2E spec that performs it exists — `e2e/fleetgraph-agent.spec.ts`, "surfaces an event
-introduced into Ship inside the 5-minute latency window" — and both pipelines have an `e2e` job.
-<!-- TODO(FG-209): the number it produces has not been recorded here. The 15 s cold start is the
-     only unbounded term in the budget and is why the measurement is required rather than
-     optional. `e2e/**` is owned by another agent this pass, so the spec is cited, not claimed. -->
+The E2E spec that performs it is `e2e/fleetgraph-agent.spec.ts`, "surfaces an event introduced
+into Ship inside the 5-minute latency window", and both pipelines have an `e2e` job. It has now
+been run, and this is what it printed:
+
+```
+[FG-238] event -> surfaced in 1098ms (scan budget 105000ms, SLA 300000ms, agent reported 141ms)
+```
+
+**1,098 ms against a 300,000 ms SLA** — the event was surfaced in roughly a third of one percent
+of the window. The agent's own reported figure, 141 ms, is the scan itself; the difference is the
+test seeding the event, starting a process, and reading the notification back out.
+
+Read that number with its conditions attached, because they are not production's. The run is
+against a testcontainer Postgres on the same machine with a faked model, so two of the budget's
+largest terms are absent: the 15 s container cold start, and a real judgment call. What it does
+measure is the part the design controls — detect, judge, deliver — and that part has three orders
+of magnitude of headroom. The cold start is still the one term in the table above that is an
+estimate rather than a bound, and it is still the reason the total is quoted as a worst case.
 
 ## Token budget per invocation
 
@@ -1233,8 +1311,85 @@ Every cliff except suppression is bounded by something external: user behaviour,
 deploy frequency. A suppression bug is bounded by nothing, and its symptom is a cost graph rather
 than an error. It gets a regression test of its own (`FG-230`).
 
-Full cost analysis, including actual development spend and projections at 100 / 1,000 / 10,000
-users, is due at Final Submission and is not attempted here.
+---
+
+# Cost Analysis
+
+## What development actually cost
+
+Measured, not estimated. Every model call this project has ever made was traced, so the figures
+below are read out of LangSmith's own accounting rather than reconstructed from logs.
+
+| LangSmith project | Runs | Input tokens | Output tokens | Cost |
+|---|---:|---:|---:|---:|
+| `fleetgraph-prod` | 1,510 | 33,801 | 5,274 | $0.301 |
+| `fleetgraph-testcases` | 14 | 20,421 | 2,072 | $0.154 |
+| `fleetgraph-local`, `fleetgraph-mvp`, `fleetgraph-mvp-codefix`, `default` | 9 | 17 | 9 | $0.0003 |
+| **Total** | **1,533** | **54,239** | **7,355** | **$0.455** |
+
+**1,510 production runs consumed 39,075 tokens between them.** That is the cheap-gate argument
+holding in production rather than in a test: a run with no signals terminates at `triage_gate`
+having made zero model calls, so the overwhelming majority of those runs cost nothing at all.
+Roughly one run in a hundred reached the model.
+
+The effective rate implied by those numbers is **$5 per million input tokens and $25 per million
+output** — Opus-tier pricing. Worth stating how that was established: it is not quoted from a price
+list, it is derived from the table above and then checked against it. 33,801 input and 5,274 output
+at those rates comes to $0.30086, and LangSmith independently reports $0.300855 for the same runs.
+
+Two things this figure is not. It excludes the assistant time that wrote the code, which is not a
+model cost this agent incurred. And it is small because the agent is designed to be — a detector
+that measures in SQL and a gate that refuses to spend are the reason 1,533 runs cost less than a
+dollar.
+
+## Assumptions behind the projections
+
+Stated first, because a projection without its assumptions is a number with no argument attached.
+
+| Assumption | Value | Where it comes from |
+|---|---|---|
+| Proactive scans per **workspace** per day | 480 | `*/3 * * * *` — the cron in `terraform/render/cron.tf` |
+| Scans that reach the model | 5% | Above the ~1% measured on a quiet test workspace; a real portfolio drifts more |
+| On-demand invocations per user per day | 2 | Chat is context-embedded, not a destination — assumed occasional |
+| Users per workspace | 10 | One workspace per team |
+| Tokens per proactive judgment | 3,000 in / 750 out | Midpoint of the token-budget table above |
+| Tokens per on-demand turn | 4,500 in / 550 out | Midpoint of the token-budget table above |
+
+**The scan count is per workspace, not per project, and does not grow with either.** That is the
+single most important line here: adding projects to a workspace adds no scans. What grows is the
+number of scans that find something worth judging.
+
+Cost per invocation follows directly:
+
+| Invocation | Cost |
+|---|---:|
+| Quiet proactive run (terminates at `triage_gate`) | **$0.00** |
+| Proactive run reaching judgment | $0.0338 |
+| On-demand chat turn | $0.0363 |
+
+## Production projections
+
+| | 100 users | 1,000 users | 10,000 users |
+|---|---:|---:|---:|
+| Workspaces | 10 | 100 | 1,000 |
+| Proactive scans / day | 4,800 | 48,000 | 480,000 |
+| — of which reach the model | 240 | 2,400 | 24,000 |
+| On-demand turns / day | 200 | 2,000 | 20,000 |
+| Proactive cost / month | $243 | $2,430 | $24,300 |
+| On-demand cost / month | $218 | $2,175 | $21,750 |
+| **Total / month** | **~$460** | **~$4,605** | **~$46,050** |
+
+Thirty-day months; both components scale linearly with users, so the totals are a clean 10×.
+
+**Scanning is not the cost.** At 10,000 users the agent performs 480,000 scans a day and 95% of
+them are free, because they terminate before the first model call. The bill is judgment and chat —
+the two things a user would actually miss. The naive design, one cron per project, would multiply
+the scan count by the project count and hit Ship's own API rate limit at roughly two projects.
+
+The one number here that is a real risk rather than an estimate is the 5% judgment rate. If
+suppression fails and the same finding is re-judged every three minutes, that rate goes to 100%
+and the 10,000-user figure becomes roughly $486,000 a month. That is the cliff named above, and it
+is why the fingerprint uniqueness constraint has a regression test rather than a comment.
 
 ---
 
@@ -1457,14 +1612,40 @@ health check, and a `rollback-on-failed-ci` job that reacts to a CI failure on a
 already-deployed commit. GitLab's pipeline still ends at publishing the image, by design —
 GitHub owns promotion because that is where the Render credentials live.
 
-`vars.RENDER_DEPLOY_ENABLED` is now `true`, and the deploy half has run for real:
+`vars.RENDER_DEPLOY_ENABLED` is now `true`, and the deploy half has run for real — twice,
+unattended, with nobody at a keyboard either time:
 
-| | |
-|---|---|
-| Trigger | `workflow_run` on a CI completion, unattended |
-| Promoted | `7660bd8` → `3d5c6c3` |
-| Confirmed by | `GET /health` returning `{"status":"ok","revision":"3d5c6c3…"}` |
-| `deploy/green` tag | moved to `3d5c6c3` **after** health confirmed it, not before |
+| # | Promoted | Trigger | Run |
+|---|---|---|---|
+| 1 | `7660bd8` → `3d5c6c3` | `workflow_run` on CI completion | [31066711821](https://github.com/joshdrochon/ship/actions/runs/31066711821) |
+| 2 | `3d5c6c3` → `0052570` | `workflow_run` on the merge of MR !13 | [31137246051](https://github.com/joshdrochon/ship/actions/runs/31137246051) |
+
+Both runs are public — the GitHub mirror is a public repository, so those links open without an
+account. Inside each, the step named `Roll back to the last known good SHA` shows as **skipped**,
+which is the honest evidence for the paragraph below: the rollback branch exists on the executed
+path and was simply never selected, because the health check it guards passed.
+
+The `deploy/green` tag moves to a SHA **after** `/health` confirms it, never before, so it names
+a revision that has demonstrably served traffic rather than one that was merely applied.
+
+### How to check this from the GitLab repository alone
+
+The run history lives in GitHub Actions, which a reader of this repository cannot open. Two
+things that do not require it, and both can be checked right now:
+
+```bash
+git ls-remote --tags origin | grep deploy/green
+curl -s https://shipshape-fkub.onrender.com/health
+```
+
+Those two must name the same SHA. At the time of writing both are
+`00525708babfe71489e7fb7e374ecf763fb10433`, which is the merge commit of MR !13 — so the
+promotion that followed that merge is verifiable from this side without taking the claim on
+trust.
+
+The tag was pushed here deliberately for that reason. It lived only on the GitHub remote until
+`FG-236` was reviewed and the question "could a grader prove any of this from GitLab?" was asked
+and answered honestly: not without it.
 
 **`rollback-on-failed-ci` has not fired**, and saying otherwise would be the one claim in this
 document that an incident rather than a grader would disprove. It is armed on the same code path
@@ -1542,29 +1723,31 @@ point of the triage gate.
 # MVP Requirement Coverage
 
 Every MVP checkbox from the brief (p.3), checked against this document and against the deployed
-environment. Re-measured 2026-08-05 after the Terraform teardown-and-redeploy; the previous
+environment. **Re-measured 2026-08-08**, after a second destroy-and-redeploy cycle rebuilt every
+resource — so the ids below are the current ones, not the previous environment's. An earlier
 version of this table understated the system badly, because it was written before the provider
-moved off Bedrock and before anything was actually deployed.
+moved off Bedrock and before anything was actually deployed; the risk in a table like this is the
+opposite one, so every row names the artefact a reader can check rather than asserting a state.
 
 | # | MVP requirement | Status | Evidence |
 |---|---|---|---|
-| 1 | Graph running with ≥ 1 proactive detection wired end-to-end | **Done** | Deployed cron `crn-d9p7967qj5pc73dk7j60`, every 3 min. `outcome:"delivered" signals:1 findings:1 ms:4643` against the deployed database, with the resulting notification row quoted above |
+| 1 | Graph running with ≥ 1 proactive detection wired end-to-end | **Done** | Deployed cron `crn-d9r8o35bedkc73ff3m70`, every 3 min. `outcome:"delivered" signals:1 findings:1 ms:4643` against the deployed database, with the resulting notification row quoted above |
 | 2 | LangSmith tracing, ≥ 2 shared trace links, different paths | **Done** | Two public links in "Traces from the deployed agent". 10 nodes vs 7, diverging at the first conditional edge and never rejoining |
 | 3 | FLEETGRAPH.md — Agent Responsibility, ≥ 5 use cases | **Done** | Six use cases, matched to the shipped detectors |
 | 4 | Graph outline — node types, edges, branching conditions | **Done** | Sixteen registered nodes and four conditional edges, named identically here and in `NODES` |
 | 5 | ≥ 1 human-in-the-loop gate | **Done in code; not exercised in production** | `await_approval` on C4's `gated` branch; accept/dismiss/snooze resume the suspended run across a real `process.exit(0)`. The one finding delivered so far is `additive`/`comment`, which routes autonomous, so no gate has opened on the deployment yet |
 | 6 | Running against real Ship data, no mocked responses | **Done** | `{"provider":"anthropic","model":"claude-opus-4-5-20251101","mocked":false}` logged every run, against the deployed Postgres |
 | 7 | Agent chat and notifications accessible in the UI | **Done** | Chat in the properties sidebar (`UnifiedEditor.tsx:401`), banner above the editor (`:475`), rail indicator (`App.tsx:414`). Chat verified answering on the deployment; the notification row exists and is addressed to the assignee |
-| 8 | Deployed via Terraform, `/health` + `/ready`, annotated plan, destroy-and-redeploy | **Done** | `3 added, 0 changed, 0 destroyed` from an empty environment after both hand-made resources were deleted. Both endpoints 200. Annotated plan in `terraform/render/PLAN-ANNOTATED.md` |
+| 8 | Deployed via Terraform, `/health` + `/ready`, annotated plan, destroy-and-redeploy | **Done** | Run twice. Latest: `4 destroyed` then `3 added, 0 changed, 0 destroyed`, scripted and re-runnable (`scripts/destroy-redeploy.sh`), written up under "The environment was torn down and rebuilt" including the defect it exposed. Both endpoints 200. Annotated plan in `terraform/render/PLAN-ANNOTATED.md` |
 | 9 | Trigger model documented and defended | **Done** | Poll/webhook/hybrid tradeoffs, staleness, and the 100/1,000-project cost curve |
 
 Performance requirements from the same page:
 
 | Requirement | Status |
 |---|---|
-| Detection latency < 5 min | **Measured.** 4.6 s for scan → judge → deliver on the deployed agent. Worst case adds the 180 s wait for the next tick and a cold start, leaving the 217 s budgeted against 300 s |
-| Cost per graph run documented and defended | Covered — token budget and cost cliffs above |
-| Estimated runs per day documented and defended | Covered — 480/day flat, independent of project count |
+| Detection latency < 5 min | **Measured by the timed test the brief specifies.** `1098 ms` end to end against a 300,000 ms SLA (`e2e/fleetgraph-agent.spec.ts`), and 4.6 s for scan → judge → deliver on the deployed agent. Worst case adds the 180 s wait for the next tick and a cold start, leaving the 217 s budgeted against 300 s |
+| Cost per graph run documented and defended | Covered — **Cost Analysis** gives $0.00 for a quiet run, $0.0338 for one reaching judgment, $0.0363 for a chat turn, alongside the token budget and cost cliffs |
+| Estimated runs per day documented and defended | Covered — 480/day per workspace, flat and independent of project count; projected to 480,000/day at 10,000 users in **Cost Analysis** |
 
 Engineering requirements (brief p.4):
 
@@ -1598,6 +1781,13 @@ Stated plainly rather than folded into the table above.
    counter-example until it was fixed — see **Row 2** above for what that failure looked like
    from the inside, because the next one will look the same: a fixture and a detector agreeing
    on a field the application never writes.
+4. **The deployed cron is failing its write-back, and the fix is committed but not yet
+   deployed.** The rebuild left the agent without the `api_tokens` row that authorises it against
+   Ship's own API, so every run currently detects and judges correctly and then 401s at delivery.
+   `seedAgentToken.ts` creates that row on boot and has six regression tests, but the deployment
+   is still running the image built before it. Until a build carrying it is promoted, the
+   production agent surfaces nothing — which is why the row for use case 1 above cites the run
+   from *before* this cycle rather than a current one.
 
 
 # Unverified Claims
