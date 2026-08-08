@@ -141,6 +141,21 @@ type-violations:
     - scripts/check-type-violations.sh
   allow_failure: false
 
+# The only job here that leaves the runner. Every other one can be wrong about the
+# outside world and still pass: `SUBMISSION.md` named a Render service deleted during
+# the lane-8 teardown, and build, types, tests and the Terraform checks stayed green
+# for the whole window in which the first link in the submission returned 404.
+#
+# `allow_failure: false` despite the network dependency, because the script already
+# draws the distinction that matters: a 404 is the server saying the thing is gone and
+# fails; an unreachable host warns and is counted. Flaky wifi cannot turn this red.
+doc-links:
+  stage: verify
+  needs: []
+  script:
+    - scripts/check-doc-links.sh
+  allow_failure: false
+
 test:
   stage: verify
   needs: ['build']

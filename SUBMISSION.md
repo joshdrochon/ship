@@ -5,7 +5,7 @@ Map of every deliverable to the file that contains it. Start here.
 This is a fork of `US-Department-of-the-Treasury/ship` audited and improved against eight
 measurement categories. **`README.md` describes the product; this file describes the work.**
 
-**Live application:** https://shipshape-70uo.onrender.com
+**Live application:** https://shipshape-7buc.onrender.com
 **Merged to `main` via merge request, gated on a green pipeline.**
 
 ---
@@ -50,7 +50,7 @@ untouched control endpoint had drifted +23% in the same direction.
 | **Discovery Write-up** — 3 things learned, with file/line references | [`docs/discoveries.md`](docs/discoveries.md) |
 | **AI Cost Analysis** — dev spend + reflection on AI for codebase comprehension | [`docs/ai-cost-analysis.md`](docs/ai-cost-analysis.md) |
 | **Terraform Plan Review** — annotated plan, blast radius, drift demo | [`docs/audit/lane-8-annotated-plan.md`](docs/audit/lane-8-annotated-plan.md) · [`docs/audit/lane-8-drift-detection.md`](docs/audit/lane-8-drift-detection.md) |
-| **Deployed Application** | https://shipshape-70uo.onrender.com |
+| **Deployed Application** | https://shipshape-7buc.onrender.com |
 | **Developer documentation** (Rule 8) | [`CHANGES.md`](CHANGES.md) + [`CHANGES/`](CHANGES/) — one file per category |
 | Implementation Rules, verbatim from p.8–9 | [`docs/audit/implementation-rules.md`](docs/audit/implementation-rules.md) |
 

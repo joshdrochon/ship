@@ -36,13 +36,14 @@ behaviour that has not been verified against the tree.
 | Dockerfile builds `agent/` | **Yes**, and fails the build if `agent/dist/entrypoints/cron.js` is absent | `Dockerfile:44`, `:58`, `:110` |
 | LangSmith tracing | **Enabled in production.** Project `fleetgraph-prod`, 50+ runs; `logTracingStatus()` still warns on the quiet misconfigurations | `agent/src/observability/tracing.ts`, `terraform/render/cron.tf` |
 | LangSmith trace links | **Eight captured and public** — one per use case from `capture-test-case-traces.ts`, plus two from the deployed agent | Test Cases table, and "Traces from the deployed agent" |
-| CI deploy / automatic rollback | **Armed, and the deploy half has fired.** State moved to a GitLab-hosted `backend "http"`, `vars.RENDER_DEPLOY_ENABLED=true`, and `deploy.yml` promoted `3d5c6c3` unattended — `/health` and the `deploy/green` tag both name it. `rollback-on-failed-ci` is armed on the same path but has not been triggered, because no CI run has failed on a deployed commit | `.github/workflows/deploy.yml`, `terraform/render/versions.tf`, `FG-236` |
+| CI deploy / automatic rollback | **Armed, and the deploy half has fired.** State moved to a GitLab-hosted `backend "http"`, `vars.RENDER_DEPLOY_ENABLED=true`, and `deploy.yml` has promoted unattended more than once — first `3d5c6c3`, now `0052570`, which is what `/health` and the `deploy/green` tag both name today. `rollback-on-failed-ci` is armed on the same path but has not been triggered, because no CI run has failed on a deployed commit | `.github/workflows/deploy.yml`, `terraform/render/versions.tf`, `FG-236` |
 
-Verified against `83aa33c`: `agent/` runs **162 tests in 19 files, all passing** (`npx vitest run`
-in `agent/`, 28 s, exit 0). The run also prints ten unhandled `57P01` errors attributed to
-`entrypoints/cron.test.ts` — testcontainer shutdown racing pooled clients at teardown, after the
-assertions have passed. Noisy, not failing, and named here so nobody reads the output and
-concludes otherwise.
+Verified against `0fddfd2`: `agent/` runs **186 tests in 21 files, all passing** (`npx vitest run`
+in `agent/`, 10 s, exit 0), and the output is now clean. An earlier reading of this paragraph
+recorded ten unhandled `57P01` errors after the summary — testcontainer shutdown racing pooled
+clients at teardown — and called them noisy but not failing. They were worse than that: they
+exited 1 on a fully green run, so CI read red. `resetCheckpointer()` now awaits `saver.end()`
+before dropping the cached saver (`FG-278`), and the count is zero rather than tolerated.
 
 Several agents are landing code on this branch concurrently, so the table above is a
 point-in-time reading, not a standing claim. Two test files landed between the start of this
@@ -1052,8 +1053,15 @@ dismissed and a snooze that re-runs the detector.
 
 One thing these tests deliberately do not prove: **none of them run the agent as a deployed
 process against a live workspace.** They run the same graph the cron entrypoint compiles, against
-a real Postgres, with the model faked. What is untested end to end is the deployment
-(`FG-196`–`FG-209`) and the API-to-graph seam, which is not written at all.
+a real Postgres, with the model faked. What is untested end to end is the destroy-and-redeploy
+cycle (`FG-203`–`FG-205`).
+
+The two things this paragraph used to name as untested no longer are. The deployment is live and
+answers for itself — `/health` and `/ready` on `shipshape-7buc` both return 200, `/ready` reporting
+`postgres` ok and the model breaker closed, at the same revision the `deploy/green` tag names
+(`FG-198`–`FG-200`). The API-to-graph seam is written: `agentBridge.ts` no longer throws
+`agent_not_wired`, and the approval route returns the checkpointer's real answer rather than a
+hardcoded one (`api/src/routes/fleetgraph/index.ts:403`, `FG-279`–`FG-280`).
 
 ---
 
