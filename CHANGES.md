@@ -1608,7 +1608,7 @@ from config with no state to lean on:
 ```
 Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
 
-service_url  https://shipshape-7buc.onrender.com
+service_url  https://shipshape-fkub.onrender.com
 agent_cron   crn-d9p7967qj5pc73dk7j60  (fleetgraph-agent)
 postgres     dpg-d9p789cs728c7393svq0-a
 ```
@@ -1917,7 +1917,7 @@ exit=1
 . scripts/tf-env.sh                 # reads .env, exports TF_HTTP_* and TF_VAR_*, prints no values
 cd terraform/render
 terraform init                      # now talks to GitLab
-terraform plan -var image_tag=$(curl -s https://shipshape-7buc.onrender.com/health | jq -r .revision)
+terraform plan -var image_tag=$(curl -s https://shipshape-fkub.onrender.com/health | jq -r .revision)
 ```
 
 `scripts/tf-env.sh` is sourced, not executed. It reports which values are present and
@@ -2575,7 +2575,7 @@ itself fail silently on a different shell.
 ```bash
 . scripts/tf-env.sh
 cd terraform/render && terraform plan -var image_tag=$(
-  curl -s https://shipshape-7buc.onrender.com/health | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).revision')
+  curl -s https://shipshape-fkub.onrender.com/health | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).revision')
 ```
 
 Expect `No changes.` Anything else means local and deployed have diverged.

@@ -350,12 +350,12 @@ The nine MVP requirements from the brief (p.3), and the tickets that satisfy eac
 - [x] **FG-198** `terraform apply` — first real deployment
 - [x] **FG-199** Verify `/health` returns the expected revision SHA
 - [x] **FG-200** Verify `/ready` returns 200 with dependencies up
-- [ ] **FG-201** Verify the cron job appears in Render and fires on schedule
-- [ ] **FG-202** Verify seed data populated automatically on boot (`Dockerfile:111`)
-- [ ] **FG-203** **Script the destroy-and-redeploy cycle** so it is re-runnable, not hand-performed
-- [ ] **FG-204** **Run destroy-and-redeploy — early, not at the deadline.** Capture full output
+- [x] **FG-201** Verify the cron job appears in Render and fires on schedule
+- [x] **FG-202** Verify seed data populated automatically on boot (`Dockerfile:111`)
+- [x] **FG-203** **Script the destroy-and-redeploy cycle** so it is re-runnable, not hand-performed
+- [x] **FG-204** **Run destroy-and-redeploy — early, not at the deadline.** Capture full output
 - [ ] **FG-205** Verify the rebuilt environment is functional: health, ready, cron, seed, UI
-- [ ] **FG-206** Record the new service URL everywhere it is referenced
+- [x] **FG-206** Record the new service URL everywhere it is referenced
 - [x] **FG-207** Retire the old API-created Render service and database
 - [ ] **FG-208** Update `CREDENTIALS.md` with the new service id and URL
 - [ ] **FG-209** Timed latency test: introduce an event, assert the agent surfaces it inside 5 minutes (MVP requirement 6 + performance goal)

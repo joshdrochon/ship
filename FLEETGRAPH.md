@@ -1053,15 +1053,72 @@ dismissed and a snooze that re-runs the detector.
 
 One thing these tests deliberately do not prove: **none of them run the agent as a deployed
 process against a live workspace.** They run the same graph the cron entrypoint compiles, against
-a real Postgres, with the model faked. What is untested end to end is the destroy-and-redeploy
-cycle (`FG-203`–`FG-205`).
+a real Postgres, with the model faked. Everything this paragraph used to name as untested has
+since been run.
 
-The two things this paragraph used to name as untested no longer are. The deployment is live and
-answers for itself — `/health` and `/ready` on `shipshape-7buc` both return 200, `/ready` reporting
-`postgres` ok and the model breaker closed, at the same revision the `deploy/green` tag names
-(`FG-198`–`FG-200`). The API-to-graph seam is written: `agentBridge.ts` no longer throws
-`agent_not_wired`, and the approval route returns the checkpointer's real answer rather than a
-hardcoded one (`api/src/routes/fleetgraph/index.ts:403`, `FG-279`–`FG-280`).
+The deployment answers for itself: `/health` and `/ready` both return 200 at the revision the
+`deploy/green` tag names, `/ready` reporting `postgres` ok and the model breaker closed
+(`FG-198`–`FG-200`). The service URL is deliberately not written here — it changes every time
+the environment is rebuilt, and `terraform output service_url` is the only answer that stays
+true.
+
+The API-to-graph seam is written: `agentBridge.ts` no longer throws `agent_not_wired`, and the
+approval route returns the checkpointer's real answer rather than a hardcoded one
+(`api/src/routes/fleetgraph/index.ts:403`, `FG-279`–`FG-280`).
+
+And the destroy-and-redeploy cycle has been run, not just scripted — see "The environment was
+torn down and rebuilt" below (`FG-203`–`FG-205`).
+
+## The environment was torn down and rebuilt
+
+The brief asks for this test *"to prove the IaC is the source of truth"*. It was run on
+2026-08-08 by `scripts/destroy-redeploy.sh`, which exists so the answer is reproducible rather
+than a paste of one person's terminal.
+
+```
+Destroy complete! Resources: 4 destroyed.
+Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
+```
+
+| Check | Result |
+|---|---|
+| `/health` | 200, revision `0052570` — the same SHA the `deploy/green` tag names |
+| `/ready` | 200, `postgres` ok at 2 ms, model breaker closed |
+| Cron | `fleetgraph-agent` recreated, `*/3 * * * *`, not suspended, first run 01:54:00Z |
+| Seed | ran on boot — `/ready` could not reach a schemaless database |
+| Links | 13 documented URLs checked, 0 dead |
+
+**Four destroyed, three added, and that is correct.** `render_registry_credential` is `count`-gated
+on `registry_username`/`registry_token`; the GHCR package is public, so the credential is not
+recreated and is not needed. The asymmetry is the config choosing the public-package path, not a
+resource lost in the cycle.
+
+**The service URL changed**, from `shipshape-7buc` to `shipshape-fkub`. Render assigns a new slug
+to a new service, so this is a permanent property of the test rather than a mistake, and it is why
+the script's last two steps rewrite every tracked reference and then run `check-doc-links.sh` as
+a gate. No URL is written into this document for the same reason —
+`terraform output service_url` is the only answer that stays true across a rebuild.
+
+### What the test caught
+
+The cron's first run after the rebuild exited 1:
+
+```
+outcome:"delivered"  signals:5  findings:5  ms:7266
+errors:["executeAutonomous: comment on 6b0553af… -> 401 Invalid or expired API token"]
+```
+
+The agent itself was healthy — it scanned, measured five signals, judged them against a real
+provider (`"mocked":false`) and routed to delivery. What failed was the write-back. `SHIP_API_TOKEN`
+is validated against `api_tokens.token_hash` (`api/src/middleware/auth.ts:98`), `seed.ts` does not
+create that row, and the row that existed had been made by hand against the database this cycle
+destroyed.
+
+So the honest finding is that **Terraform and code alone did not rebuild a fully working
+environment** — one manual step, minting an agent token, sat outside both. Nothing revealed that
+before the database was actually destroyed: every prior deploy reused a database where the row
+already existed. This is the test doing the job it is specified to do, and the qualification stands
+in this document until the token is seeded rather than hand-made.
 
 ---
 
@@ -1241,8 +1298,85 @@ Every cliff except suppression is bounded by something external: user behaviour,
 deploy frequency. A suppression bug is bounded by nothing, and its symptom is a cost graph rather
 than an error. It gets a regression test of its own (`FG-230`).
 
-Full cost analysis, including actual development spend and projections at 100 / 1,000 / 10,000
-users, is due at Final Submission and is not attempted here.
+---
+
+# Cost Analysis
+
+## What development actually cost
+
+Measured, not estimated. Every model call this project has ever made was traced, so the figures
+below are read out of LangSmith's own accounting rather than reconstructed from logs.
+
+| LangSmith project | Runs | Input tokens | Output tokens | Cost |
+|---|---:|---:|---:|---:|
+| `fleetgraph-prod` | 1,510 | 33,801 | 5,274 | $0.301 |
+| `fleetgraph-testcases` | 14 | 20,421 | 2,072 | $0.154 |
+| `fleetgraph-local`, `fleetgraph-mvp`, `fleetgraph-mvp-codefix`, `default` | 9 | 17 | 9 | $0.0003 |
+| **Total** | **1,533** | **54,239** | **7,355** | **$0.455** |
+
+**1,510 production runs consumed 39,075 tokens between them.** That is the cheap-gate argument
+holding in production rather than in a test: a run with no signals terminates at `triage_gate`
+having made zero model calls, so the overwhelming majority of those runs cost nothing at all.
+Roughly one run in a hundred reached the model.
+
+The effective rate implied by those numbers is **$5 per million input tokens and $25 per million
+output** — Opus-tier pricing. Worth stating how that was established: it is not quoted from a price
+list, it is derived from the table above and then checked against it. 33,801 input and 5,274 output
+at those rates comes to $0.30086, and LangSmith independently reports $0.300855 for the same runs.
+
+Two things this figure is not. It excludes the assistant time that wrote the code, which is not a
+model cost this agent incurred. And it is small because the agent is designed to be — a detector
+that measures in SQL and a gate that refuses to spend are the reason 1,533 runs cost less than a
+dollar.
+
+## Assumptions behind the projections
+
+Stated first, because a projection without its assumptions is a number with no argument attached.
+
+| Assumption | Value | Where it comes from |
+|---|---|---|
+| Proactive scans per **workspace** per day | 480 | `*/3 * * * *` — the cron in `terraform/render/cron.tf` |
+| Scans that reach the model | 5% | Above the ~1% measured on a quiet test workspace; a real portfolio drifts more |
+| On-demand invocations per user per day | 2 | Chat is context-embedded, not a destination — assumed occasional |
+| Users per workspace | 10 | One workspace per team |
+| Tokens per proactive judgment | 3,000 in / 750 out | Midpoint of the token-budget table above |
+| Tokens per on-demand turn | 4,500 in / 550 out | Midpoint of the token-budget table above |
+
+**The scan count is per workspace, not per project, and does not grow with either.** That is the
+single most important line here: adding projects to a workspace adds no scans. What grows is the
+number of scans that find something worth judging.
+
+Cost per invocation follows directly:
+
+| Invocation | Cost |
+|---|---:|
+| Quiet proactive run (terminates at `triage_gate`) | **$0.00** |
+| Proactive run reaching judgment | $0.0338 |
+| On-demand chat turn | $0.0363 |
+
+## Production projections
+
+| | 100 users | 1,000 users | 10,000 users |
+|---|---:|---:|---:|
+| Workspaces | 10 | 100 | 1,000 |
+| Proactive scans / day | 4,800 | 48,000 | 480,000 |
+| — of which reach the model | 240 | 2,400 | 24,000 |
+| On-demand turns / day | 200 | 2,000 | 20,000 |
+| Proactive cost / month | $243 | $2,430 | $24,300 |
+| On-demand cost / month | $218 | $2,175 | $21,750 |
+| **Total / month** | **~$460** | **~$4,605** | **~$46,050** |
+
+Thirty-day months; both components scale linearly with users, so the totals are a clean 10×.
+
+**Scanning is not the cost.** At 10,000 users the agent performs 480,000 scans a day and 95% of
+them are free, because they terminate before the first model call. The bill is judgment and chat —
+the two things a user would actually miss. The naive design, one cron per project, would multiply
+the scan count by the project count and hit Ship's own API rate limit at roughly two projects.
+
+The one number here that is a real risk rather than an estimate is the 5% judgment rate. If
+suppression fails and the same finding is re-judged every three minutes, that rate goes to 100%
+and the 10,000-user figure becomes roughly $486,000 a month. That is the cliff named above, and it
+is why the fingerprint uniqueness constraint has a regression test rather than a comment.
 
 ---
 
@@ -1488,7 +1622,7 @@ things that do not require it, and both can be checked right now:
 
 ```bash
 git ls-remote --tags origin | grep deploy/green
-curl -s https://shipshape-7buc.onrender.com/health
+curl -s https://shipshape-fkub.onrender.com/health
 ```
 
 Those two must name the same SHA. At the time of writing both are

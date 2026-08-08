@@ -213,7 +213,14 @@ else
   # purpose: they are the record of what this cycle replaced.
   # `while read`, not `mapfile` — macOS ships bash 3.2 and mapfile is a 4.x
   # builtin, so the array form fails on the machine most likely to run this.
-  HITS=$(git -C "$ROOT" ls-files '*.md' | xargs grep -l "$OLD_URL" 2>/dev/null || true)
+  # Match the bare host, not the full URL. The first run of this rewrote every
+  # `https://shipshape-7buc.onrender.com` and left a prose `shipshape-7buc`
+  # standing in FLEETGRAPH.md — invisible to check-doc-links.sh too, since that
+  # only extracts complete URLs. Slugs get mentioned in sentences, not just in
+  # links.
+  OLD_HOST=${OLD_URL#https://}
+  OLD_SLUG=${OLD_HOST%%.*}
+  HITS=$(git -C "$ROOT" ls-files '*.md' | xargs grep -l "$OLD_SLUG" 2>/dev/null || true)
   if [ -z "$HITS" ]; then
     warn "no tracked Markdown referenced $OLD_URL"
   else
@@ -224,7 +231,9 @@ else
       case "$f" in
         docs/audit/*|CHANGES/*) warn "left historical: $f" ; continue ;;
       esac
-      sed -i.bak "s|$OLD_URL|$NEW_URL|g" "$ROOT/$f" && rm -f "$ROOT/$f.bak"
+      NEW_SLUG=${NEW_URL#https://}; NEW_SLUG=${NEW_SLUG%%.*}
+      sed -i.bak -e "s|$OLD_URL|$NEW_URL|g" -e "s|$OLD_SLUG|$NEW_SLUG|g" "$ROOT/$f" \
+        && rm -f "$ROOT/$f.bak"
       ok "rewrote $f"
     done <<< "$HITS"
   fi
