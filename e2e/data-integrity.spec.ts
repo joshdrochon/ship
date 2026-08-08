@@ -427,9 +427,23 @@ test.describe('Data Integrity - Mentions', () => {
     await page.reload()
     await expect(page.locator('.ProseMirror')).toBeVisible({ timeout: 5000 })
 
-    // Same number of mentions should exist
-    const reloadedMentionCount = await page.locator('.ProseMirror .mention').count()
-    expect(reloadedMentionCount).toBe(mentionCount)
+    // Same number of mentions should exist.
+    //
+    // `.count()` is a snapshot and does not retry — the same shape as the `.all()`
+    // bug fixed in this file at dfe457c, which this line was missed by. After a
+    // reload `.ProseMirror` becomes visible when the editor element mounts, but
+    // TipTap hydrates the document content in a later frame, so a count taken at
+    // that instant legitimately reads 0 or 1 and the assertion fails against a
+    // page that was about to be correct. CI caught exactly that: the failure
+    // artifact for this test shows BOTH mentions present — `@Bob Martinez` and
+    // `@Casey Bench` — because by the time the snapshot was written the editor
+    // had finished hydrating.
+    //
+    // `toHaveCount` polls, so it waits for hydration instead of racing it, and
+    // still fails loudly if a mention genuinely did not survive the round trip.
+    await expect(page.locator('.ProseMirror .mention')).toHaveCount(mentionCount, {
+      timeout: 10000,
+    })
   })
 })
 
