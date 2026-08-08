@@ -161,3 +161,7 @@ docs/audit/raw/e2e-*.log
 # this one evidence directory is tracked despite the rules above.
 !docs/audit/evidence/
 !docs/audit/evidence/**
+
+# Run artifacts from scripts/destroy-redeploy.sh — state snapshots and logs.
+# Local evidence of a cycle, not source. The write-up quotes them; git does not carry them.
+.destroy-redeploy/

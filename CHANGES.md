@@ -14,6 +14,80 @@ file is only about what changed and how to undo it.
 
 # Week 5 — FleetGraph
 
+## E2E flake — root cause analysis for 3 of the 5 flaky tests
+
+### What was built
+
+Nothing new ships here. Two spec files stop racing the application.
+
+| Test | Cause | Fix |
+|---|---|---|
+| `session-timeout.spec.ts:205` logs user out when countdown reaches zero | The 14-minute `setTimeout` is registered by a React **passive effect**. The `<h1>` these tests waited on enters the DOM one commit earlier, so `page.clock.fastForward()` could run first. The timer then registers at fake T+14min and needs another 14 minutes that never arrive. | `gotoWithTimersArmed()` — an init script wraps `setTimeout` and sets a per-document flag when the 840000 ms timer appears. The test waits on the timer itself, not a proxy for it. |
+| `session-timeout.spec.ts:941` handles computer sleep/wake gracefully | Same race. | Same helper. Applied to all 50 call sites in the file, plus the two `reload()` sites via `waitForTimersArmed()`. |
+| `data-integrity.spec.ts:382` multiple mentions persist correctly | `.count()` is a snapshot and does not retry, read immediately after `reload()`. `.ProseMirror` is visible when the editor element mounts; TipTap hydrates content later. Same shape as the `.all()` bug fixed at `dfe457c` — this line was missed. | `toHaveCount()`, which polls. |
+
+### Why the obvious fix was rejected
+
+Awaiting `/api/auth/session` — a request the same hook issues *before* it schedules —
+looks airtight and is not. Measured at **1 failure in 9**: the response being awaited
+was the post-login page's, not the navigation's, so the wait returned before the target
+page had mounted. It moved the race instead of removing it. The rejected variant and its
+numbers are recorded in the helper's header so nobody re-derives it.
+
+Also rejected: exposing readiness from `useSessionTimeout` itself. Deterministic and
+easier to read, but it puts a test affordance in shipped code to fix a defect that lives
+entirely in the test's assumptions.
+
+### Before / after
+
+Instrumented probe wrapping `setTimeout`, `waitUntil: 'commit'` to widen the window
+deterministically. `modal` is whether the warning appeared at all:
+
+```
+no wait at all                 timer armed before jump: 0     modal:  0 / 19
+wait for /api/auth/session     timer armed before jump: 1     modal: 19 / 22
+observe the timer directly     timer armed before jump: 1     modal: 11 / 11
+```
+
+Full specs, `--repeat-each=3 --workers=2 --retries=0` so a retry cannot mask anything:
+
+```
+207 passed (3.5m)   0 failed   0 flaky
+```
+
+Note the honest limit: these tests already pass locally most of the time — the race is
+load-sensitive, which is why it showed up on a 2-worker CI runner and not on a laptop. A
+local "before" run is therefore not a meaningful control. The probe rows above are the
+control, because they make the race deterministic instead of waiting for it.
+
+### How to run it locally
+
+```bash
+pnpm exec playwright test e2e/session-timeout.spec.ts e2e/data-integrity.spec.ts \
+  --repeat-each=3 --workers=2 --retries=0
+```
+
+`--retries=0` is the point. With retries on, a flaky test reports green.
+
+### How to roll it back
+
+`git revert` the commit. Both files return to waiting on the `<h1>` and to `.count()`.
+Nothing else depends on the helpers; they are local to `session-timeout.spec.ts`.
+
+### Still open
+
+`project-weeks.spec.ts:134` and `:184` are **not** fixed. `api/src/routes/weekly-plans.ts:143,219`
+makes a weekly plan unique by *person + week*, with `project_id` explicitly "a legacy field,
+not used for uniqueness" — so the test that creates "Navigation Test Project" opens the
+document the previous test created under "Click Test Project". The CI artifact confirms it:
+zero occurrences of its own project name, and the Properties sidebar link points at the other
+project.
+
+That mechanism would make the test fail on *every* run, and it passes on retry. The
+intermittency is unexplained, so this is recorded as an open lead rather than a diagnosis.
+Resolving it likely needs a product decision — whether weekly plans should be project-scoped —
+not a test edit.
+
 ## FleetGraph — the agent
 
 This is the operational entry for the agent itself: what exists, how to get it running on
@@ -27,7 +101,7 @@ where it is — is `PRESEARCH.md` and `FLEETGRAPH.md`. Read those for "why"; rea
 | Piece | Where | What it is |
 |---|---|---|
 | Five detectors | `agent/src/detectors/` | `stalled_work`, `sprint_miss_risk`, `review_bottleneck`, `load_imbalance`, `rework_churn`. Plain SQL against Ship's tables, no model involved. Thresholds are in `detectors/types.ts`. |
-| A 16-node LangGraph | `agent/src/graph/` | Nodes named in `NODES` in `graph/index.ts`. **Four conditional edges** — invocation mode, zero signals, nothing survived judgement, blast radius. Edge 2 is the one that makes a three-minute schedule affordable: a quiet run ends there having spent no tokens. |
+| A 17-node LangGraph | `agent/src/graph/` | Nodes named in `NODES` in `graph/index.ts`. **Four conditional edges** — invocation mode, zero signals, nothing survived judgement, blast radius. Edge 2 is the one that makes a three-minute schedule affordable: a quiet run ends there having spent no tokens. |
 | A Postgres checkpointer | `agent/src/graph/checkpointer.ts` | `PostgresSaver`, so a run suspended at a human approval survives the cron container exiting. Its four tables (`checkpoints`, `checkpoint_blobs`, `checkpoint_writes`, `checkpoint_migrations`) are created by the library's own `setup()`, **not** by a file in `api/src/db/migrations/` — do not go looking for them there. |
 | Batched LLM judgement | `agent/src/llm/judge.ts` | One model call for the whole batch of signals, behind the **existing** `api/src/services/circuitBreaker.ts`. Cached on a SHA-256 of the prompt bytes, not on a TTL. Every failure path returns `ai_unavailable` rather than throwing. |
 | A Ship action client | `agent/src/actions/client.ts` | Two verbs, additive only. Requests are a closed discriminated union, so a bulk update is a type error rather than a code-review finding. |
@@ -1608,7 +1682,7 @@ from config with no state to lean on:
 ```
 Apply complete! Resources: 3 added, 0 changed, 0 destroyed.
 
-service_url  https://shipshape-7buc.onrender.com
+service_url  https://shipshape-fkub.onrender.com
 agent_cron   crn-d9p7967qj5pc73dk7j60  (fleetgraph-agent)
 postgres     dpg-d9p789cs728c7393svq0-a
 ```
@@ -1917,7 +1991,7 @@ exit=1
 . scripts/tf-env.sh                 # reads .env, exports TF_HTTP_* and TF_VAR_*, prints no values
 cd terraform/render
 terraform init                      # now talks to GitLab
-terraform plan -var image_tag=$(curl -s https://shipshape-7buc.onrender.com/health | jq -r .revision)
+terraform plan -var image_tag=$(curl -s https://shipshape-fkub.onrender.com/health | jq -r .revision)
 ```
 
 `scripts/tf-env.sh` is sourced, not executed. It reports which values are present and
@@ -2575,7 +2649,7 @@ itself fail silently on a different shell.
 ```bash
 . scripts/tf-env.sh
 cd terraform/render && terraform plan -var image_tag=$(
-  curl -s https://shipshape-7buc.onrender.com/health | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).revision')
+  curl -s https://shipshape-fkub.onrender.com/health | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).revision')
 ```
 
 Expect `No changes.` Anything else means local and deployed have diverged.

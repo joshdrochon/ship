@@ -1,0 +1,16 @@
+# Links that are allowed to be dead, scoped to the one file that may cite them.
+#
+# Format: path::url — exact match, one per line. Scoping is the point. The same
+# URL in a file not listed here still fails, which is what stops a retired host
+# from creeping back into a document that presents it as live.
+#
+# Adding a line here is a claim that the reference is historical record. If the
+# resource merely moved, fix the references instead.
+
+# shipshape-70uo was the hand-made Render service, deleted during the lane-8
+# teardown ("Both hand-made resources deleted (HTTP 204 each)") and replaced by
+# the Terraform-created shipshape-7buc. These three lines are the record of that
+# teardown and of the plan that preceded it — the URL is quoted as the thing
+# that used to be there. Rewriting them would falsify the audit trail.
+CHANGES/lane-8.md::https://shipshape-70uo.onrender.com
+docs/audit/lane-8-annotated-plan.md::https://shipshape-70uo.onrender.com

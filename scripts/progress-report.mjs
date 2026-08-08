@@ -95,6 +95,21 @@ function parseTickets() {
  * how the count actually moved between runs. The first run has no history and
  * says so rather than guessing. `--active-hours N` supplies a known figure when
  * you have one.
+ *
+ * ── The second way this went wrong ───────────────────────────────────────────
+ * Observed deltas have their own failure, and it landed: a reconciliation pass
+ * closed 18 tickets in six minutes without building anything. Thirteen had been
+ * finished for days and were only unchecked because `Closes:` trailers were
+ * inert (FG-275) and Linear had hit its free-tier issue cap; four more were
+ * deployment checks closed on a live `curl`. The rate went to 155.8
+ * tickets/claude-hour and the Final deadline turned green — nine tickets
+ * including a demo video, reported as seven minutes of work.
+ *
+ * Same lie as the commit-timestamp version, from the opposite direction: that
+ * one measured almost none of the work, this one measured work that had already
+ * happened. So a run that is correcting the books rather than moving them marks
+ * itself with `--reconciliation`, and any interval touching a marked entry is
+ * excluded from the rate. Bookkeeping is not throughput.
  */
 const LOG = join(REPO, '.claude', 'progress-log.jsonl');
 
@@ -125,23 +140,38 @@ function appendLog(entry) {
  * Only intervals where the count actually moved are counted, and only those
  * shorter than MAX_INTERVAL_H — a delta measured across an overnight gap says
  * nothing about throughput.
+ *
+ * An interval is also dropped when the LATER endpoint is marked
+ * `reconciliation` — that is the delta carrying the bookkeeping jump.
+ *
+ * Only the later one. The first draft of this dropped intervals touching a
+ * marked entry at either end, which is over-correction: once the books are
+ * straight, the corrected count is an accurate baseline, and real work measured
+ * forward from it is real throughput. Discarding that would throw away the
+ * first honest measurement after every reconciliation, which is the one most
+ * worth having.
  */
 const MAX_INTERVAL_H = 4;
 
-function observedRate(log, doneNow) {
-  const points = [...log, { at: new Date(), done: doneNow }];
+function observedRate(log, doneNow, nowIsReconciliation = false) {
+  const points = [...log, { at: new Date(), done: doneNow, kind: nowIsReconciliation ? 'reconciliation' : undefined }];
   let tickets = 0;
   let hours = 0;
+  let excluded = 0;
 
   for (let i = 1; i < points.length; i++) {
     const dt = (points[i].at - points[i - 1].at) / 3_600_000;
     const dn = points[i].done - points[i - 1].done;
     if (dn <= 0 || dt <= 0 || dt > MAX_INTERVAL_H) continue;
+    if (points[i].kind === 'reconciliation') {
+      excluded += dn;
+      continue;
+    }
     tickets += dn;
     hours += dt;
   }
 
-  return hours > 0 ? { rate: tickets / hours, tickets, hours } : null;
+  return hours > 0 ? { rate: tickets / hours, tickets, hours, excluded } : { rate: null, excluded };
 }
 
 // ---------------------------------------------------------------- report
@@ -153,8 +183,14 @@ const left = tickets.filter((t) => !t.done);
 const overrideIdx = process.argv.indexOf('--active-hours');
 const override = overrideIdx > -1 ? Number(process.argv[overrideIdx + 1]) : null;
 
+// Marks this run as correcting the books rather than moving them, so its delta
+// never becomes a throughput claim. Set it when a batch of tickets closes for
+// bookkeeping reasons — a Linear sync, a trailer repair, deployment checks
+// closed on evidence that already existed.
+const RECONCILIATION = process.argv.includes('--reconciliation');
+
 const log = readLog();
-const observed = observedRate(log, done.length);
+const observed = observedRate(log, done.length, RECONCILIATION);
 
 // An explicit figure beats an inferred one; an inferred one beats a guess; and
 // no number at all beats a wrong number.
@@ -191,7 +227,8 @@ if (JSON_OUT) {
         done: done.length,
         remaining: left.length,
         percent: pct(done.length, tickets.length),
-        measuredActiveHours: observed ? Number(observed.hours.toFixed(2)) : null,
+        measuredActiveHours: observed.rate ? Number(observed.hours.toFixed(2)) : null,
+        reconciliationTicketsExcluded: observed.excluded || 0,
         ticketsPerClaudeHour: rate ? Number(rate.toFixed(1)) : null,
         claudeHoursRemaining: rate ? Number(claudeHours(left.length).toFixed(1)) : null,
         byBucket,
@@ -248,14 +285,25 @@ if (override && override > 0) {
   console.log(`  ${done.length} tickets in ${override} supplied active hours`);
   console.log(`  \x1b[1m${rate.toFixed(1)}\x1b[0m tickets / claude-hour`);
   console.log(`  \x1b[1m${fmtH(claudeHours(left.length))}\x1b[0m of claude-time remaining`);
-} else if (observed) {
+} else if (observed.rate) {
   console.log(`  ${observed.tickets} tickets across ${observed.hours.toFixed(1)} observed hours, from ${log.length} prior report(s)`);
   console.log(`  \x1b[1m${rate.toFixed(1)}\x1b[0m tickets / claude-hour`);
   console.log(`  \x1b[1m${fmtH(claudeHours(left.length))}\x1b[0m of claude-time remaining`);
+  if (observed.excluded) {
+    console.log(`  \x1b[2m${observed.excluded} ticket(s) excluded as reconciliation — closed by bookkeeping, not built.\x1b[0m`);
+  }
 } else {
-  console.log('  \x1b[33mNo rate yet.\x1b[0m This is the first report, so there is no observed');
-  console.log('  progress to measure against. Run it again later and the delta becomes');
-  console.log('  the measurement. Or pass a figure you already know:');
+  if (observed.excluded) {
+    console.log(`  \x1b[33mNo rate yet.\x1b[0m ${observed.excluded} ticket(s) closed since the last reading, all of`);
+    console.log('  them marked reconciliation — records catching up with work that was');
+    console.log('  already finished. That is not throughput, so it buys no rate. The next');
+    console.log('  unmarked run that moves the count is the first real measurement.');
+  } else {
+    console.log('  \x1b[33mNo rate yet.\x1b[0m This is the first report, so there is no observed');
+    console.log('  progress to measure against. Run it again later and the delta becomes');
+    console.log('  the measurement.');
+  }
+  console.log('  Or pass a figure you already know:');
   console.log('    \x1b[2mnode scripts/progress-report.mjs --active-hours 6\x1b[0m');
   console.log('');
   console.log('  \x1b[2mDeliberately not derived from commit timestamps. That was tried and');
@@ -268,4 +316,11 @@ console.log('\n\x1b[2mCaveat: tickets are not equal. "Commit this file" and "bui
 console.log('with tests" both count as one. Treat the section table as more honest than');
 console.log('any single total, and every projection as a floor rather than a forecast.\x1b[0m\n');
 
-appendLog({ at: new Date().toISOString(), done: done.length, total: tickets.length });
+appendLog({
+  at: new Date().toISOString(),
+  done: done.length,
+  total: tickets.length,
+  // Absent rather than false on ordinary runs — every line already written
+  // predates the flag, and an undefined `kind` is exactly what they mean.
+  ...(RECONCILIATION ? { kind: 'reconciliation' } : {}),
+});

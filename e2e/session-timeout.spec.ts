@@ -10,6 +10,87 @@ async function login(page: Page) {
 }
 
 /**
+ * Navigate, then wait until `useSessionTimeout` has actually armed its timers.
+ *
+ * ── The race this closes ────────────────────────────────────────────────────
+ * Every test in this file installs a fake clock and then jumps it forward. That
+ * only works if the app's 14-minute `setTimeout` is already registered when the
+ * jump happens. It is registered by a React *passive effect*, and the `<h1>`
+ * these tests waited on lands in the DOM one commit EARLIER — so waiting for
+ * the heading usually closes the window, and under load sometimes does not.
+ *
+ * When `fastForward` wins that race the timer registers at fake T+14min and
+ * would need another 14 minutes that never arrive. No warning modal, no
+ * countdown, no logout — the run simply sits on /docs until the assertion times
+ * out. That is exactly the artifact CI produced for
+ * `logs user out when countdown reaches zero` and `handles computer sleep/wake
+ * gracefully`: still authenticated, still on /docs, no alertdialog anywhere in
+ * the page snapshot.
+ *
+ * Measured with an instrumented probe that wrapped `setTimeout` to record when
+ * the 840000 ms timer was registered, under `waitUntil: 'commit'` to widen the
+ * window deterministically:
+ *
+ *   wait for the h1 only          schedules_before_fastForward=1   modal shown
+ *   no wait at all                schedules_before_fastForward=0   modal ABSENT
+ *   wait for /api/auth/session    schedules_before_fastForward=1   modal shown
+ *
+ * ── Why this observes the timer instead of a proxy for it ───────────────────
+ * The obvious cheaper fix is to await a request the same hook makes on mount —
+ * `/api/auth/session`, declared at useSessionTimeout.ts:52, before the
+ * scheduling effect at line 266. That was tried and MEASURED, and it is not
+ * reliable: it failed 1 run in 9 with `schedules_before_fastForward=1,
+ * total_schedules=2`. The response being awaited was the post-login page's, not
+ * this navigation's, so the wait returned before /docs had mounted at all. The
+ * proxy moved the race rather than removing it.
+ *
+ * Wrapping `setTimeout` observes the actual precondition — the 840000 ms timer
+ * existing — with nothing in between to get wrong. `addInitScript` re-runs on
+ * every navigation, so the flag is reset by the navigation itself and can only
+ * be set by THIS document's own registration, which is precisely what the
+ * request-based version could not distinguish.
+ *
+ * Rejected: `waitForTimeout` before the jump. Same bet against a clock this
+ * repository has already removed twice (see `expectContentPersisted`), and it
+ * degrades under exactly the load that makes the race fire.
+ *
+ * Rejected: exposing readiness from `useSessionTimeout` itself (a dataset flag).
+ * Deterministic and simpler to read, but it puts a test affordance in shipped
+ * code to fix a defect that lives entirely in the test's assumptions.
+ */
+async function gotoWithTimersArmed(page: Page, url = '/docs') {
+  await page.addInitScript((warnDelay: number) => {
+    const native = window.setTimeout;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).__sessionTimerArmed = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (window as any).setTimeout = function (fn: never, d: number, ...rest: never[]) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (d === warnDelay) (window as any).__sessionTimerArmed = true;
+      return native(fn, d, ...rest);
+    };
+  }, WARN_DELAY_MS);
+
+  await page.goto(url);
+  await waitForTimersArmed(page);
+}
+
+/**
+ * Block until the current document has registered the inactivity timer.
+ *
+ * Separate from `gotoWithTimersArmed` because a `page.reload()` re-runs the
+ * init script — resetting the flag — and re-mounts the hook, so a reload is
+ * exposed to exactly the same race as a fresh navigation.
+ */
+async function waitForTimersArmed(page: Page) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await page.waitForFunction(() => (window as any).__sessionTimerArmed === true, undefined, {
+    timeout: 15000,
+  });
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+}
+
+/**
  * Session Timeout UX Tests
  *
  * Government requirement: 15-minute inactivity timeout with user-friendly warnings.
@@ -24,6 +105,12 @@ const WARNING_THRESHOLD_MS = 60 * 1000;
 const ABSOLUTE_SESSION_TIMEOUT_MS = 12 * 60 * 60 * 1000;
 // Absolute warning appears 5 minutes before timeout
 const ABSOLUTE_WARNING_THRESHOLD_MS = 5 * 60 * 1000;
+// The exact delay useSessionTimeout passes to setTimeout, which is what
+// gotoWithTimersArmed watches for. Declared here, below its inputs, because a
+// `const` initialised above them is a temporal-dead-zone ReferenceError at
+// module load — the helper above is a hoisted function declaration and reads
+// this only when called, so the ordering is safe in that direction only.
+const WARN_DELAY_MS = SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS;
 
 test.describe('Session Timeout Warning', () => {
   test('shows warning modal when 60 seconds remain before timeout', async ({ page }) => {
@@ -31,8 +118,7 @@ test.describe('Session Timeout Warning', () => {
     await page.clock.install();
 
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance time to 14 minutes (60 seconds before timeout)
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
@@ -45,8 +131,7 @@ test.describe('Session Timeout Warning', () => {
   test('warning modal displays correct title text', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -58,8 +143,7 @@ test.describe('Session Timeout Warning', () => {
   test('warning modal displays explanatory message about inactivity', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -71,8 +155,7 @@ test.describe('Session Timeout Warning', () => {
   test('displays countdown timer in warning modal', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -86,8 +169,7 @@ test.describe('Session Timeout Warning', () => {
   test('countdown timer format is MM:SS or M:SS', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -101,8 +183,7 @@ test.describe('Session Timeout Warning', () => {
   test('countdown timer updates every second', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -122,8 +203,7 @@ test.describe('Session Timeout Warning', () => {
   test('modal has "Stay Logged In" button', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -136,8 +216,7 @@ test.describe('Session Timeout Warning', () => {
   test('clicking "Stay Logged In" dismisses modal and resets timer', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -155,8 +234,7 @@ test.describe('Session Timeout Warning', () => {
   test('any user activity (mouse move) dismisses modal and resets timer', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -171,8 +249,7 @@ test.describe('Session Timeout Warning', () => {
   test('any user activity (keypress) dismisses modal and resets timer', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -187,8 +264,7 @@ test.describe('Session Timeout Warning', () => {
   test('any user activity (scroll) dismisses modal and resets timer', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -205,8 +281,7 @@ test.describe('Session Timeout Warning', () => {
   test('logs user out when countdown reaches zero', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance to warning
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
@@ -225,8 +300,7 @@ test.describe('Session Timeout Warning', () => {
   test('shows session expired message after forced logout', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -253,8 +327,7 @@ test.describe('Timer Reset Behavior', () => {
   test('rapid clicks on Stay Logged In do not cause duplicate API calls', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Track API calls - set up before advancing time
     const extendCalls: string[] = [];
@@ -297,8 +370,7 @@ test.describe('Timer Reset Behavior', () => {
   test('timer survives page navigation within app', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance 10 minutes
     await page.clock.fastForward(10 * 60 * 1000);
@@ -317,15 +389,14 @@ test.describe('Timer Reset Behavior', () => {
   test('timer resets on page refresh', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance 10 minutes toward timeout
     await page.clock.fastForward(10 * 60 * 1000);
 
     // Refresh the page
     await page.reload();
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await waitForTimersArmed(page);
 
     // Advance another 10 minutes - warning should NOT appear because timer reset
     await page.clock.fastForward(10 * 60 * 1000);
@@ -343,8 +414,7 @@ test.describe('12-Hour Absolute Timeout', () => {
   test('shows 5-minute warning before absolute session timeout', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance to 11 hours 55 minutes (5 minutes before absolute timeout)
     // Using runFor to ensure setTimeout callbacks fire properly
@@ -357,8 +427,7 @@ test.describe('12-Hour Absolute Timeout', () => {
   test('absolute timeout warning has different message than inactivity warning', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance to absolute warning time
     await page.clock.runFor(ABSOLUTE_SESSION_TIMEOUT_MS - ABSOLUTE_WARNING_THRESHOLD_MS);
@@ -375,8 +444,7 @@ test.describe('12-Hour Absolute Timeout', () => {
   test('absolute timeout warning says session WILL end, not can be extended', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance to absolute warning time
     await page.clock.runFor(ABSOLUTE_SESSION_TIMEOUT_MS - ABSOLUTE_WARNING_THRESHOLD_MS);
@@ -393,8 +461,7 @@ test.describe('12-Hour Absolute Timeout', () => {
   test('clicking I Understand on absolute warning does NOT extend session', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance to absolute warning time
     await page.clock.runFor(ABSOLUTE_SESSION_TIMEOUT_MS - ABSOLUTE_WARNING_THRESHOLD_MS);
@@ -417,8 +484,7 @@ test.describe('12-Hour Absolute Timeout', () => {
   test('logs user out at 12-hour mark regardless of activity', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance time in chunks, simulating activity to prevent inactivity timeout
     // We need to keep active every 14 minutes (before the 15-minute inactivity warning)
@@ -446,8 +512,7 @@ test.describe('12-Hour Absolute Timeout', () => {
   test('absolute timeout takes precedence if it occurs before inactivity timeout', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance to absolute warning time (11:55)
     await page.clock.runFor(ABSOLUTE_SESSION_TIMEOUT_MS - ABSOLUTE_WARNING_THRESHOLD_MS);
@@ -515,8 +580,7 @@ test.describe('Activity Tracking', () => {
   test('mouse activity resets inactivity timer', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance time to just before warning threshold (13 minutes)
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS - 30000);
@@ -535,8 +599,7 @@ test.describe('Activity Tracking', () => {
   test('keyboard activity resets inactivity timer', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance time to just before warning threshold
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS - 30000);
@@ -557,8 +620,7 @@ test.describe('Activity Tracking', () => {
     await login(page);
 
     // Navigate to a document
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
     const docLink = page.getByRole('link', { name: 'Welcome to Ship' }).first();
     await docLink.click();
     await expect(page.locator('[data-testid="tiptap-editor"]')).toBeVisible();
@@ -582,8 +644,7 @@ test.describe('Activity Tracking', () => {
   test('scroll activity resets inactivity timer', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance time to just before warning threshold
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS - 30000);
@@ -604,8 +665,7 @@ test.describe('Activity Tracking', () => {
   test('throttled activity still resets timer (activity within throttle window is ignored but initial activity counts)', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance time to just before warning threshold (13.5 minutes into 15 min session)
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS - 30000);
@@ -629,8 +689,7 @@ test.describe('Extend Session API', () => {
   test('Stay Logged In calls extend session endpoint', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Track API calls
     const extendCalls: string[] = [];
@@ -673,8 +732,7 @@ test.describe('Accessibility', () => {
   test('warning modal has role="alertdialog"', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance to warning
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
@@ -687,8 +745,7 @@ test.describe('Accessibility', () => {
   test('warning modal has aria-modal="true"', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -700,8 +757,7 @@ test.describe('Accessibility', () => {
   test('warning modal has descriptive aria-labelledby', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -718,8 +774,7 @@ test.describe('Accessibility', () => {
   test('warning modal has aria-describedby for description', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -736,8 +791,7 @@ test.describe('Accessibility', () => {
   test('focus moves to modal when it appears', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -759,8 +813,7 @@ test.describe('Accessibility', () => {
   test('focus moves to Stay Logged In button specifically', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -781,8 +834,7 @@ test.describe('Accessibility', () => {
     // - Absolute modal doesn't dismiss on keyboard activity, so we can test focus trap
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance to absolute warning time (11hr 55min)
     await page.clock.runFor(ABSOLUTE_SESSION_TIMEOUT_MS - ABSOLUTE_WARNING_THRESHOLD_MS);
@@ -810,8 +862,7 @@ test.describe('Accessibility', () => {
   test('focus returns to previous element after modal closes', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Focus on a specific element before warning appears
     const docsButton = page.getByRole('button', { name: 'Docs' });
@@ -843,8 +894,7 @@ test.describe('Accessibility', () => {
   test('countdown is announced to screen readers at key intervals', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -865,8 +915,7 @@ test.describe('Accessibility', () => {
   test('modal backdrop blocks interaction with page behind', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -882,8 +931,7 @@ test.describe('Accessibility', () => {
   test('Escape key triggers Stay Logged In behavior', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -909,8 +957,7 @@ test.describe('Accessibility', () => {
   test('Enter key on Stay Logged In button works', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -942,8 +989,7 @@ test.describe('Edge Cases', () => {
     // Advance clock past timeout (simulating sleep), verify immediate logout on wake
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Simulate computer waking up after a long sleep (past session timeout)
     // Jump forward past the entire session timeout
@@ -989,8 +1035,7 @@ test.describe('Edge Cases', () => {
     // Click button at exact moment countdown hits 0, verify no error/crash
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Mock API for extend-session BEFORE modal appears
     await page.route('**/api/auth/extend-session', async (route) => {
@@ -1029,8 +1074,7 @@ test.describe('Edge Cases', () => {
     // Verify modal is visible and not hidden behind other elements
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Advance to warning
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
@@ -1055,8 +1099,7 @@ test.describe('Edge Cases', () => {
     // Open command palette, then verify session timeout modal can appear on top of it
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // First, advance time to trigger the warning modal
     await page.clock.runFor(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
@@ -1078,8 +1121,7 @@ test.describe('Session Info API', () => {
   test('GET /api/auth/session returns session metadata', async ({ page }) => {
     // Login to establish a session
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Call the session info endpoint using page.evaluate (shares session cookie)
     const response = await page.evaluate(async () => {
@@ -1107,8 +1149,7 @@ test.describe('Session Info API', () => {
   test('session info expiresAt is accurate', async ({ page }) => {
     // Login to establish a session
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     // Get session info
     const response = await page.evaluate(async () => {
@@ -1133,8 +1174,7 @@ test.describe('Visual Verification', () => {
   test('warning modal is visually centered on screen', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -1157,8 +1197,7 @@ test.describe('Visual Verification', () => {
   test('warning modal has visible backdrop', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -1174,8 +1213,7 @@ test.describe('Visual Verification', () => {
   test('countdown timer is prominently displayed', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
@@ -1196,8 +1234,7 @@ test.describe('Visual Verification', () => {
   test('Stay Logged In button has clear visual affordance', async ({ page }) => {
     await page.clock.install();
     await login(page);
-    await page.goto('/docs');
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await gotoWithTimersArmed(page);
 
     await page.clock.fastForward(SESSION_TIMEOUT_MS - WARNING_THRESHOLD_MS);
 
