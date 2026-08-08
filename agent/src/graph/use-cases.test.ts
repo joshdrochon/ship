@@ -47,7 +47,7 @@ import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import { MemorySaver } from '@langchain/langgraph';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { Pool } from 'pg';
+import { createTestPool } from '../testing/pool.js';
 
 import { compileGraph, NODES } from './index.js';
 import type { GraphDeps, GraphStateType, JudgeFn, AnswerFn } from './index.js';
@@ -85,7 +85,7 @@ const wire: Array<{ method: string; url: string }> = [];
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:16').start();
   connectionString = container.getConnectionUri();
-  pool = new Pool({ connectionString });
+  pool = createTestPool(connectionString);
   await pool.query(readFileSync(join(API_DB, 'schema.sql'), 'utf8'));
   await pool.query(
     `CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`

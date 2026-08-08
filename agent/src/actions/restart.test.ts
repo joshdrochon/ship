@@ -38,7 +38,7 @@ import { execFile } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { Pool } from 'pg';
+import { createTestPool } from '../testing/pool.js';
 
 import { compileGraph } from '../graph/index.js';
 import type { GraphDeps, JudgeFn, AnswerFn, ActFn } from '../graph/deps.js';
@@ -64,7 +64,7 @@ let ws: Workspace;
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:16').start();
   connectionString = container.getConnectionUri();
-  pool = new Pool({ connectionString });
+  pool = createTestPool(connectionString);
   await pool.query(readFileSync(join(API_DB, 'schema.sql'), 'utf8'));
   await pool.query(
     `CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`
@@ -209,6 +209,11 @@ const CHILD_SOURCE = `
   const { compileGraph } = await import('./src/graph/index.js');
 
   const url = process.env.FG_DB_URL;
+  // Raw \`new Pool\` on purpose: this source string runs in a separate process
+  // via \`tsx --eval\`, which has no access to this file's imports. The child
+  // exits at the end of the test, so it never outlives its container the way
+  // the parent's pool can — the race createTestPool guards against cannot
+  // reach here.
   const pool = new Pool({ connectionString: url });
   const saver = PostgresSaver.fromConnString(url);
   await saver.setup();

@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { Pool } from 'pg';
+import { createTestPool } from '../testing/pool.js';
 
 import { scanWorkspace, listWorkspaces } from './cron.js';
 import { closePool } from '../data/pool.js';
@@ -41,7 +41,7 @@ beforeAll(async () => {
   // means the entrypoint's own wiring is under test, not bypassed.
   process.env.DATABASE_URL = uri;
 
-  pool = new Pool({ connectionString: uri });
+  pool = createTestPool(uri);
   await pool.query(readFileSync(join(API_DB, 'schema.sql'), 'utf8'));
   await pool.query(
     `CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now())`

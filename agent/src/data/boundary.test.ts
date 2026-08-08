@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { Pool } from 'pg';
+import { createTestPool } from '../testing/pool.js';
 
 import {
   getWatermark,
@@ -38,7 +38,7 @@ let documentId: string;
 
 beforeAll(async () => {
   container = await new PostgreSqlContainer('postgres:16').start();
-  pool = new Pool({ connectionString: container.getConnectionUri() });
+  pool = createTestPool(container.getConnectionUri());
 
   // Exactly migrate.ts's order: schema.sql, then the tracking table, then every
   // migration in sorted order. The tracking table is not incidental — 024
