@@ -1262,11 +1262,24 @@ existing request timeout kills it first. A pathologically slow judgment fails fa
 
 **Verification is a timed test run**, per the brief: introduce an event into Ship, start the
 clock, assert the agent surfaces it inside the window.
-The E2E spec that performs it exists — `e2e/fleetgraph-agent.spec.ts`, "surfaces an event
-introduced into Ship inside the 5-minute latency window" — and both pipelines have an `e2e` job.
-<!-- TODO(FG-209): the number it produces has not been recorded here. The 15 s cold start is the
-     only unbounded term in the budget and is why the measurement is required rather than
-     optional. `e2e/**` is owned by another agent this pass, so the spec is cited, not claimed. -->
+The E2E spec that performs it is `e2e/fleetgraph-agent.spec.ts`, "surfaces an event introduced
+into Ship inside the 5-minute latency window", and both pipelines have an `e2e` job. It has now
+been run, and this is what it printed:
+
+```
+[FG-238] event -> surfaced in 1098ms (scan budget 105000ms, SLA 300000ms, agent reported 141ms)
+```
+
+**1,098 ms against a 300,000 ms SLA** — the event was surfaced in roughly a third of one percent
+of the window. The agent's own reported figure, 141 ms, is the scan itself; the difference is the
+test seeding the event, starting a process, and reading the notification back out.
+
+Read that number with its conditions attached, because they are not production's. The run is
+against a testcontainer Postgres on the same machine with a faked model, so two of the budget's
+largest terms are absent: the 15 s container cold start, and a real judgment call. What it does
+measure is the part the design controls — detect, judge, deliver — and that part has three orders
+of magnitude of headroom. The cold start is still the one term in the table above that is an
+estimate rather than a bound, and it is still the reason the total is quoted as a worst case.
 
 ## Token budget per invocation
 
