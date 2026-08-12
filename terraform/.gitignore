@@ -11,12 +11,27 @@
 tfplan
 *.tfplan
 
-# Lock files are ignored for the legacy AWS roots (pre-existing rule; the seven
-# tracked ones predate it). New configs commit theirs — a committed lock file is
-# what makes `terraform apply` reproducible on a clean machine.
-.terraform.lock.hcl
-!local-config/.terraform.lock.hcl
-!render/.terraform.lock.hcl
+# Lock files are TRACKED, everywhere. (PF-622, PRD p.5 "no unpinned versions
+# permitted".)
+#
+# This rule used to be the inverse -- a blanket `.terraform.lock.hcl` ignore with
+# two negations for local-config and render -- and its own comment already
+# argued against itself: "New configs commit theirs, a committed lock file is
+# what makes `terraform apply` reproducible on a clean machine." That is true of
+# the graded root too, and the graded root was on the ignored side of the line.
+#
+# Why it matters more than it looks. An exact pin in `required_providers` fixes
+# the version; the lock file fixes the *checksums*. Without it a CI runner can
+# resolve 5.100.0 from a mirror serving a different artifact and nothing in the
+# configuration notices. It is also what makes `terraform init -lockfile=readonly`
+# meaningful: with no committed lock file there is nothing to hold readonly and
+# the flag silently succeeds against whatever was just downloaded.
+#
+# Every root now carries one generated for BOTH darwin_arm64 (the operator
+# workstation) and linux_amd64 (CI). A lock file with only the author's platform
+# hashes fails on the runner with a checksum error that reads like a supply-chain
+# attack and is in fact just a missing platform.
+!.terraform.lock.hcl
 
 # Crash logs
 crash.log
