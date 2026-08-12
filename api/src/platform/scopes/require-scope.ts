@@ -18,7 +18,7 @@
  *   no auth context      401 `unauthorized` — the caller has no token, or the
  *                        token did not resolve. An SDK reacts by refreshing or
  *                        re-authenticating. (PF-071)
- *   token lacks scope    403 `forbidden` with `details.required_scope` — the
+ *   token lacks scope    403 `forbidden` with `details.missing_scope` — the
  *                        caller is who they say they are and still may not do
  *                        this. An SDK reacts by sending the user back through
  *                        consent, which is a different and much more disruptive
@@ -194,7 +194,7 @@ function buildGuard(scope: string, options: RequireScopeOptions<string>): Reques
         'forbidden',
         `Your access token does not carry the "${definition.scope}" scope, which this endpoint requires.`,
         {
-          required_scope: definition.scope,
+          missing_scope: definition.scope,
           granted_scopes: effective,
           scope_description: definition.description,
           // Only when there is something to say. A caller whose token is fine

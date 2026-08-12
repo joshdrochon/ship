@@ -6,6 +6,10 @@
  * `ApiError` envelope. List endpoints paginate with opaque cursors.
  */
 export * from './errors.js';
+export * from './requestId.js';
+export * from './errorMiddleware.js';
+export * from './routeFitness.js';
+export * from './envelopeAssertion.js';
 export * from './pagination.js';
 export * from './resource-map.js';
 export * from './route-audit.js';

@@ -5,6 +5,7 @@
  */
 import type { Request, Response, NextFunction } from 'express';
 import type { PlatformAuthContext } from '../scopes/auth-context.js';
+import { getRequestId } from '../api/v1/requestId.js';
 
 export interface PublicApiCallRecord {
   requestId: string;
@@ -37,7 +38,13 @@ export function publicAuditMiddleware(sink: IAuditSink) {
       const auth = res.locals.platformAuth as PlatformAuthContext | undefined;
       const latencyMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
       sink.record({
-        requestId: (res.locals.requestId as string | undefined) ?? 'unknown',
+        // PF-193 — `requestIdMiddleware` is first in the v1 stack, so this sink
+        // is a CONSUMER of the id and never mints one. The `'unknown'` fallback
+        // is deliberately kept but is unreachable for any /api/v1 request; the
+        // fitness harness asserts no record ever carries it, including on 401s
+        // and 500s. It survives for the case this middleware is mounted outside
+        // the v1 stack, where crashing an audit write would be the worse bug.
+        requestId: getRequestId(res) ?? 'unknown',
         clientId: auth?.clientId ?? null,
         userId: auth?.userId ?? null,
         method: req.method,

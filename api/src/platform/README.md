@@ -27,6 +27,116 @@ primitive (`Clock` / `SystemClock` / `FakeClock`) that the retry scheduler, the 
 bucket and the OAuth expiry checks all read, so it belongs to none of them. It is not a
 module and the layout fitness test does not expect it to be one.
 
+## The public error envelope
+
+Every failure on `/api/v1/*` ships the same four-key body, and nothing else:
+
+```json
+{ "code": "forbidden", "message": "Missing required scope: documents:read",
+  "details": { "missing_scope": "documents:read" },
+  "request_id": "3f2504e0-4f89-41d3-9a0c-0305e82c3301" }
+```
+
+`code` is closed at six values (PRD p.7) and each maps to one status:
+
+| code | status | `details` |
+|---|---|---|
+| `unauthorized` | 401 | *may* carry `reason` (`expired` \| `invalid` \| `missing`) |
+| `forbidden` | 403 | **must carry** `missing_scope`, `granted_scopes`, `scope_description` |
+| `not_found` | 404 | **must omit** |
+| `validation_failed` | 422 | **must carry** `fields[]` (`{field, message}`) |
+| `rate_limited` | 429 | *may* carry `retry_after_seconds` |
+| `server_error` | 500 | **must omit** |
+
+**Why the 401 carries a `reason` (dispute B14).** MVP gate item 3 (p.2) requires an
+expired token to return "401 with a distinct error code". The distinction lives in
+`details.reason`, not in a seventh `ApiErrorCode` — the code union is printed
+verbatim on p.7 with six members and L17's PF-498 asserts key-equality against it,
+so widening it would make the PRD contradict its own printed interface. The enum is
+**closed** (`expired` · `invalid` · `missing`) rather than a free-form string: an
+open `reason` would be a second error taxonomy that nothing documents and nothing
+validates, which is the exact failure the closed `code` union exists to prevent.
+The three values are the three things a caller does differently — refresh,
+re-authenticate, attach a credential. L06 sets it; L17 switches on it.
+
+**Why the 403 carries three fields.** Gate item 6 (p.2) forbids an opaque 403:
+the missing scope must be "named explicitly in the error body". `missing_scope` is
+that name — the brief's own word. `granted_scopes` lets a caller see what it does
+have, and `scope_description` is the registry's own prose, so the sentence a
+developer reads in the error is the sentence the user was shown at consent. All
+three are required; dropping any of them puts the opacity back.
+
+**The `details` policy (answers Pre-Search 2.2, p.16).** The envelope is identical
+across all routes. `details` is the only variable part, and its sub-shape is fixed
+**per code, never per route**. "No `details` ever" was not available — p.3 requires
+a 403 to name the scope it is missing. Per-route detail shapes were available and
+were rejected: a consumer who has to learn a different error body per endpoint has
+a convention, not an envelope.
+
+`apiErrorBodySchema` in `api/v1/errors.ts` is the single definition of all of the
+above — Zod, `.strict()`, discriminated on `code`. The serializer in
+`errorMiddleware.ts` and every fitness test import that one schema; there is no
+second copy of the shape in the repo, and a test asserts it.
+
+**`validation_failed` is 422, not 400.** The body parsed; the semantics failed. The
+only `400` in the PRD is `invalid_grant` on `/oauth/token`, which is RFC 6749's
+format on a non-`/api/v1` route and is not an `ApiError`.
+
+**Codes map 6 → 5 onto the SDK's `kind` union, not 1:1.** `unauthorized` and
+`forbidden` both surface as `kind: 'auth'`. Published as `SDK_KIND_BY_CODE` so the
+SDK imports it rather than restating it.
+
+**`X-Request-Id` is minted server-side on every request, and an inbound one is
+ignored.** The header is on every response, success and failure, and on failures it
+equals the body's `request_id`. A client-supplied value is never echoed: the id is
+the audit trail's join key (p.4), and a caller who picks the key can file two calls
+under one row or fabricate a trail that never happened. The value of an audit trail
+is that the audited party did not write it.
+
+`res.locals.requestId` has exactly one origin — `requestIdMiddleware`, first in the
+v1 stack. The audit sink and the error handler are consumers; neither mints its own.
+
+**Async handlers must be wrapped in `asyncRoute`.** Express is pinned at 4.22.1,
+which does not forward rejected promises: an unwrapped `async` handler that throws
+hangs the request until something times out, and no error middleware ever sees it.
+The wrapper is what keeps the envelope covering the most common failure path.
+
+## The route-fitness harness — read before writing a route test
+
+`api/v1/routeFitness.ts` enumerates every route mounted under `/api/v1` from the
+live app and runs each registered assertion against all of them. Testing Scenario 4
+(PRD p.5) is four checks over every route, owned by four lanes:
+
+| clause | assertion | owner | status |
+|---|---|---|---|
+| (a) | the route has an OpenAPI entry | **L13** | seam ready |
+| (b) | the route declares a scope | **L03** | seam ready |
+| (c) | failures ship the `ApiError` envelope | **L07** | implemented (`envelopeAssertion.ts`) |
+| (d) | list endpoints paginate with an opaque cursor | **L08** | seam ready |
+
+**Do not write a second route walk.** Three enumerators means three different
+definitions of "every route", and the subtly wrong one is the one that passes.
+Register your clause instead:
+
+```ts
+import { registerRouteAssertion } from '../api/v1/routeFitness.js';
+
+registerRouteAssertion('L03 (b): every route declares a scope', ({ route }) => {
+  if (!scopeForRoute(route)) throw new Error(`${route.method} ${route.path} declares no scope`);
+});
+```
+
+then call `runRouteAssertions(app)` from your spec and assert it returns `[]`.
+Assertions may be async, so a clause can issue real requests. `route.handlers`
+exposes the raw handler chain for clauses that need to inspect middleware.
+
+`envelopeAssertion.ts` is L07's clause and is registered through the same public
+seam rather than wired in privately — it is the worked example to copy.
+
+**Always assert the enumeration is non-empty before believing a pass.** A harness
+that enumerates nothing asserts nothing and reports green; that is the one failure
+mode which would make all of this theatre.
+
 ## The boundary contract
 
 Two rules. Both are mechanical — a violation fails `pnpm lint`, it is not caught in
