@@ -30,10 +30,15 @@ import {
   FakeClock,
   PgOAuthAppRepo,
   InMemoryOAuthAppRepo,
+  PgTokenRepo,
+  InMemoryTokenRepo,
+  DEFAULT_TOKEN_TTL,
   type IEventBus,
   type IWebhookDeliverer,
   type IRateLimiter,
   type IOAuthAppRepo,
+  type ITokenRepo,
+  type TokenTtlConfig,
   type Clock,
 } from './platform/index.js';
 
@@ -72,6 +77,30 @@ export interface AppDeps {
    * double without a database at all.
    */
   appsRepo: IOAuthAppRepo;
+  /**
+   * The `oauth_tokens` store (PF-154).
+   *
+   * A repository for the same reason `appsRepo` is one: L04, L05 and L06's own
+   * rotation all read and write tokens, and none of them should be writing SQL
+   * against a table this lane owns. It is the `tokenRepo(db)` argument the
+   * composition-root sketch at `docs/architecture.md:52`/`:59` already passes to
+   * `bearerTokenMiddleware` and `oauthRouter`.
+   */
+  tokenRepo: ITokenRepo;
+  /**
+   * Access and refresh TTLs (PF-157), injected rather than imported (PF-173).
+   *
+   * This is the seam L24's rotation drill consumes: PF-727 requires token expiry
+   * to be produced "by configuring a short TTL at boot, never by waiting",
+   * because PRD p.11 rules out `setTimeout` waits and p.9 sets the drill's flake
+   * budget at zero over twenty runs. A test wiring boots with a 2-second access
+   * TTL; production takes `DEFAULT_TOKEN_TTL`.
+   *
+   * On `AppDeps` rather than a mutable module-level binding on purpose: a test
+   * that reassigns a module export leaks that value into every later test in the
+   * file, and the leak looks like a flake rather than like a bug.
+   */
+  tokenTtl: TokenTtlConfig;
   /** Allowed browser origin for the internal `/api` surface. */
   corsOrigin: string;
 }
@@ -120,6 +149,13 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // in `oauth-app-repo.test.ts` fails on a second one.
     appsRepo: new PgOAuthAppRepo(pool),
 
+    // PF-154: the ONLY construction site for the Postgres token repository.
+    // `tokenRepo.test.ts` fails on a second one, exactly as PF-037's does for
+    // the app repository.
+    tokenRepo: new PgTokenRepo(pool),
+
+    tokenTtl: DEFAULT_TOKEN_TTL,
+
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     ...overrides,
   };
@@ -153,6 +189,17 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // registry with no database. Integration suites that want the real thing
     // pass `{ appsRepo: new PgOAuthAppRepo(db) }` alongside their own `db`.
     appsRepo: new InMemoryOAuthAppRepo(),
+
+    // PF-016/PF-154: the in-memory double, so a unit test can drive token
+    // issuance, resolution and rotation with no database at all. Integration
+    // suites that want the real thing pass `{ tokenRepo: new PgTokenRepo(db) }`
+    // alongside their own `db`.
+    tokenRepo: new InMemoryTokenRepo(),
+
+    // Production TTLs by default. A drill that needs expiry without waiting
+    // overrides this — `testDeps({ tokenTtl: { accessSeconds: 2, refreshSeconds: 5 } })`
+    // — which is the whole point of PF-173.
+    tokenTtl: DEFAULT_TOKEN_TTL,
 
     corsOrigin: 'http://localhost:5173',
     ...overrides,

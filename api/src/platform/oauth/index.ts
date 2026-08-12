@@ -7,3 +7,11 @@
  */
 export { createOAuthRouter } from './router.js';
 export * from './pkce.js';
+
+// Token lifecycle — L06. Generation and hashing, the repository seam, the one
+// issuance site, resolution, the bearer middleware and refresh rotation.
+export * from './tokens.js';
+export * from './tokenRepo.js';
+export { PgTokenRepo } from './pgTokenRepo.js';
+export * from './issue.js';
+export * from './resolve.js';
