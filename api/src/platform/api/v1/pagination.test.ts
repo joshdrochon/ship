@@ -392,24 +392,37 @@ describe('PF-222 — the keyset index contract', () => {
     expect(keysetIndexDdl('issues')).toContain('(created_at DESC, id DESC)');
   });
 
-  it('F3 — reports documents.created_at as nullable, and names the OWNING lane', async () => {
-    // Deliberately asserted as a KNOWN, NAMED defect rather than as a passing
-    // check. The NOT NULL constraint is allocated to L03/L09's migration block
-    // 060-062 (RESERVATIONS.md, F15), not to L08 — PF-222 ships the index only.
+  it('F15 — the keyset columns are NOT NULL, so no row can be invisible', async () => {
+    // FLIPPED BY L09, exactly as the previous version of this test instructed.
     //
-    // When L03/L09 lands it this assertion flips: `problems` becomes empty and
-    // this test FAILS, which is the signal to delete the expectation and replace
-    // it with `expect(problems).toEqual([])`. A test that silently keeps passing
-    // either way would let the constraint be dropped without anyone noticing.
+    // It used to assert `['documents.created_at']` — the defect as a known,
+    // named, owned condition — with a message saying that when L03/L09 shipped
+    // the constraint this would start failing and the expectation should be
+    // replaced. Migration 060 shipped it, so this is that replacement.
+    //
+    // Kept rather than deleted, and pointed at the whole `KEYSET_INDEXED_TABLES`
+    // list: this is now the check that stops the constraint being dropped, and
+    // the check L10's tables inherit for free as they are added to that list.
     const problems = await assertKeysetColumnsNotNull(pool, 'documents');
-    const columns = problems.map((p) => p.detail.split(' ')[0]);
 
     expect(
-      columns,
-      'documents.created_at is no longer nullable — L03/L09 shipped the F15 constraint. ' +
-        'Replace this expectation with `expect(problems).toEqual([])` and delete this message.',
-    ).toEqual(['documents.created_at']);
-    expect(problems[0]?.fix).toContain('060-062');
-    expect(problems[0]?.fix).toContain('NOT to L08');
+      problems.map((p) => p.detail),
+      'A keyset column on `documents` is nullable again. A row comparison ' +
+        '`(created_at, id) < ($1,$2)` evaluates to NULL for such a row, so it is absent ' +
+        'from every page rather than misordered — silent data loss through the public ' +
+        'list. See migration 060.',
+    ).toEqual([]);
+  });
+
+  it('a NULL created_at can no longer be inserted at all', async () => {
+    // The constraint asserted from the write side, which is the half a metadata
+    // query cannot see. `information_schema` can be right while a trigger or a
+    // partition inherits the old definition.
+    await expect(
+      pool.query(
+        `INSERT INTO documents (workspace_id, document_type, title, created_at)
+         VALUES ((SELECT id FROM workspaces LIMIT 1), 'wiki', 'null timestamp', NULL)`,
+      ),
+    ).rejects.toThrow(/null value in column "created_at"|violates not-null constraint/i);
   });
 });

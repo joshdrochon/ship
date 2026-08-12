@@ -227,11 +227,14 @@ export function mountDocuments(router: Router, deps: DocumentsRouteDeps): void {
           : null,
       });
 
-      // Cursor minted from the DOMAIN row, before projection: the projection
-      // stringifies timestamps and a cursor built from a re-parsed string can
-      // lose sub-millisecond precision, which silently skips or repeats a row.
+      // The cursor is minted from `created_at_cursor` — the timestamp rendered by
+      // POSTGRES at microsecond precision — and never from the `Date` that
+      // node-postgres parsed. A JS `Date` holds milliseconds, so
+      // `created_at.toISOString()` truncates `…00.123456Z` to `…00.123Z`, and the
+      // resulting bound silently SKIPS every row between those two instants on
+      // every page boundary. See CURSOR_TIMESTAMP_EXPR in the service.
       const sliced = sliceToPage(
-        rows.map((row) => ({ ...row, created_at: row.created_at })),
+        rows.map((row) => ({ ...row, created_at: row.created_at_cursor as string })),
         page.limit,
         DOCUMENTS_RESOURCE,
       );

@@ -110,6 +110,32 @@ const DOCUMENTS_LIST_SELECT = `
 
 const DOCUMENTS_LIST_ORDER = ` ORDER BY position ASC, created_at DESC`;
 
+/**
+ * The timestamp a CURSOR is minted from — rendered by Postgres, at microsecond
+ * precision, and never by JavaScript.
+ *
+ * This is not a stylistic preference; it is a row-loss bug found by the tie test
+ * in `documents.pagination.test.ts`. `timestamptz` stores MICROseconds.
+ * node-postgres parses it into a JS `Date`, which holds MILLIseconds, so
+ * `row.created_at.toISOString()` silently truncates `…:00.123456Z` to
+ * `…:00.123Z`. Feed that back as the keyset bound and
+ *
+ *     (created_at, id) < ('…:00.123Z', id)
+ *
+ * excludes every row between `.123000` and `.123456` — rows strictly OLDER than
+ * the cursor's own row, which the consumer should have received next. They are
+ * skipped, on every page boundary, with no error. With rows one second apart it
+ * never fires; with rows created in the same millisecond — a bulk import, a
+ * seeded fixture, a busy second — the walk can end after one page.
+ *
+ * Rendering the bound in SQL keeps the full precision end to end: this string
+ * goes into the cursor and comes back as `$n::timestamptz`, which Postgres
+ * parses at the same precision it wrote. `Date.parse` accepts the extra digits
+ * (it truncates for its own purposes), so L08's `bad-timestamp` validation is
+ * satisfied without the value passing through a lossy `Date` on the way.
+ */
+const CURSOR_TIMESTAMP_EXPR = `to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
 export type ParentFilter = 'any' | 'null' | 'value';
 
 // Statement text must be stable for a given name, so it is derived from the
@@ -271,7 +297,8 @@ export function createDocumentService(deps: DocumentServiceDeps = {}) {
     // (`schema.sql:100`), so the array literal has to be cast to it explicitly.
     const params: unknown[] = [ctx.workspaceId, ctx.userId, [...input.documentTypes]];
     let sql = `
-      SELECT ${DOCUMENTS_LIST_COLUMNS}
+      SELECT ${DOCUMENTS_LIST_COLUMNS},
+             ${CURSOR_TIMESTAMP_EXPR} AS created_at_cursor
       FROM documents
       WHERE workspace_id = $1
         AND archived_at IS NULL

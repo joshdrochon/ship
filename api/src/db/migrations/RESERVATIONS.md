@@ -39,7 +39,7 @@ the file yet.
 | 047–050 | **L15** | webhook subscriptions, signing secret at rest, event-type index |
 | 051–056 | **L16** | delivery log (one row per attempt), DLQ, replay bookkeeping |
 | 057–059 | **L12** | public API audit log + the per-day-per-app rollup (D10) |
-| 060–062 | **L03/L09** | scope grant storage, `documents.created_at NOT NULL` (F15) |
+| 060–062 | **L03/L09** | scope grant storage, `documents.created_at NOT NULL` (F15) — **060 taken by L09**, 061–062 free for L03 |
 | 063–064 | **L08** | keyset indexes for public cursor pagination (PF-222) |
 | 065–069 | — | unallocated; ask before taking |
 
@@ -54,6 +54,21 @@ The block order also matters for this pair. L03/L09's 060–062 carries
 Numerically first is correct: constrain the column, then index it. L08's
 `assertKeysetColumnsNotNull` fails the suite until 060–062 lands, so the
 dependency is enforced rather than assumed.
+
+**L09 took 060** (2026-08-12) — `060_documents_keyset_not_null.sql`. It carries
+F15's constraint on `created_at` **and on `updated_at`**, which is a small
+deliberate widening: the public projection serialises both, so a NULL
+`updated_at` is a 500 on a route that would otherwise have worked, and
+constraining one while leaving its neighbour nullable is an odd place to stop.
+It also ships `idx_documents_workspace_keyset (workspace_id, created_at DESC,
+id DESC)`, because the live route's predicate filters by workspace and L08's
+bare `(created_at, id)` index makes the planner walk rows newest-first across
+ALL tenants. Both indexes are kept — L08's is the generic contract
+`assertKeysetIndexed` checks, L09's is what the live query rides.
+
+Verified before applying: `SELECT count(*) FROM documents WHERE created_at IS
+NULL OR updated_at IS NULL` returned **0**, so the backfill was a no-op in
+practice, as predicted. 061–062 remain free for L03's scope-grant storage.
 
 L15's `PF-421` declares a foreign key to `oauth_apps`, which L02 creates at 039. The
 block order above is also the apply order, so the FK's target exists by the time
