@@ -48,6 +48,22 @@ const AUTH_PATH = join(HERE, '..', 'middleware', 'auth.ts');
 const ROOT_MOUNT = '/^\\/?(?=\\/|$)/i';
 /** Distinctive fragment of the SPA fallback route's regexp. */
 const SPA_FALLBACK = '(?!api';
+/**
+ * The `/api/v1` mount, excluded from the internal snapshot for the same reason
+ * the SPA fallback is: it is not part of the internal `/api` surface.
+ *
+ * This is NOT the rail being loosened. The public router is one opaque layer
+ * whose insides are asserted by `platform/api/v1/router.test.ts` against
+ * `V1_MIDDLEWARE_ORDER`, and its POSITION relative to the internal middleware —
+ * the thing that actually matters, and the thing findings F1 and F2 were about —
+ * is asserted below by `describe('PF-214/PF-215 …')`, which is a stronger check
+ * than a layer count. Leaving it in the snapshot would instead mean regenerating
+ * the snapshot every time a public lane mounts anything, which is exactly how a
+ * safety rail becomes a rubber stamp.
+ */
+const V1_MOUNT = 'api\\/v1';
+/** How Express compiles `app.use('/api/', …)`. Identifies the internal limiter. */
+const API_PREFIX_MOUNT = '/^\\/api\\/?(?=\\/|$)/i';
 
 interface Layer {
   name: string;
@@ -82,7 +98,15 @@ function captureStack(): Layer[] {
   return stack
     .map((l) => ({ name: l.name, path: l.route?.path ?? null, mount: String(l.regexp) }))
     .filter((l) => !l.mount.includes(SPA_FALLBACK))
+    .filter((l) => !l.mount.includes(V1_MOUNT))
     .filter((l) => !(l.name === 'serveStatic' && l.mount === ROOT_MOUNT));
+}
+
+/** The full stack, v1 mount included — for the position assertions below. */
+function captureStackWithV1(): Layer[] {
+  const app = createApp();
+  const stack = (app as unknown as { _router: { stack: RawLayer[] } })._router.stack;
+  return stack.map((l) => ({ name: l.name, path: l.route?.path ?? null, mount: String(l.regexp) }));
 }
 
 interface RawLayer {
@@ -153,5 +177,75 @@ describe('PF-018 · internal /api middleware stack is unchanged', () => {
         `an invalid bearer (lane-99 F26). If the change is intended, say so in the PR body and ` +
         `regenerate with \`vitest run internal-middleware-stack -u\`.`,
     ).toBe(expected.authMiddlewareSha256);
+  });
+});
+
+describe('PF-214 / PF-215 — where the public router sits, structurally', () => {
+  // The layer-count snapshot above cannot express this, and it is the assertion
+  // that actually encodes findings F1 and F2. A future refactor that moves the
+  // `/api/v1` mount one line down reintroduces BOTH defects at once and would
+  // otherwise sail through a regenerated snapshot.
+  const indexOf = (layers: Layer[], predicate: (l: Layer) => boolean, what: string): number => {
+    const i = layers.findIndex(predicate);
+    expect(i, `${what} is not in the app stack at all`).toBeGreaterThanOrEqual(0);
+    return i;
+  };
+
+  it('the /api/v1 mount is ABOVE the internal rate limiter (F1)', () => {
+    const layers = captureStackWithV1();
+    const v1 = indexOf(layers, (l) => l.mount.includes(V1_MOUNT), 'the /api/v1 mount');
+    // `express-rate-limit@8` returns an anonymous function, so the layer reports
+    // `<anonymous>`; the `/api` prefix mount is what identifies it. That the name
+    // is useless is itself why `namedLayer` exists on the public side.
+    const limiter = indexOf(
+      layers,
+      (l) => l.mount === API_PREFIX_MOUNT && l.name === '<anonymous>',
+      'the internal apiLimiter',
+    );
+    expect(
+      v1,
+      'The public router must be mounted ABOVE `app.use("/api/", apiLimiter)`. Below it, the ' +
+        "internal limiter prefix-matches /api/v1/* and answers with the internal body " +
+        '`{ error: "Too many requests. Please slow down." }`, above the public router — so no ' +
+        'request_id, no envelope, no audit row. That is finding F1 (PF-214).',
+    ).toBeLessThan(limiter);
+  });
+
+  it('the /api/v1 mount is ABOVE the app-wide 10 MB body parser (F2)', () => {
+    const layers = captureStackWithV1();
+    const v1 = indexOf(layers, (l) => l.mount.includes(V1_MOUNT), 'the /api/v1 mount');
+    const parser = indexOf(layers, (l) => l.name === 'jsonParser', 'the app-wide jsonParser');
+    expect(
+      v1,
+      'The public router must be mounted ABOVE `app.use(express.json({limit:"10mb"}))`. Below ' +
+        "it, the body is already parsed by the time the public router's own 1 MB parser runs, " +
+        'so the public ceiling is dead code. That is finding F2 (PF-215).',
+    ).toBeLessThan(parser);
+  });
+
+  it('the /api/v1 mount is BELOW helmet — public responses still get security headers', () => {
+    const layers = captureStackWithV1();
+    const v1 = indexOf(layers, (l) => l.mount.includes(V1_MOUNT), 'the /api/v1 mount');
+    const helmet = indexOf(layers, (l) => l.name === 'helmetMiddleware', 'helmet');
+    expect(v1).toBeGreaterThan(helmet);
+  });
+
+  it('the /api/v1 mount is ABOVE session, cookieParser and every CSRF-wrapped router', () => {
+    // PRD p.11: the public router shares NO middleware with the internal API.
+    // Mount position is the runtime half of that promise; the ESLint fence is the
+    // import half. Neither alone is sufficient.
+    const layers = captureStackWithV1();
+    const v1 = indexOf(layers, (l) => l.mount.includes(V1_MOUNT), 'the /api/v1 mount');
+    for (const name of ['session', 'cookieParser']) {
+      const i = layers.findIndex((l) => l.name === name);
+      if (i >= 0) {
+        expect(v1, `${name} must not be able to run before the public router`).toBeLessThan(i);
+      }
+    }
+  });
+
+  it('exactly ONE /api/v1 mount exists (PF-234)', () => {
+    const layers = captureStackWithV1();
+    expect(layers.filter((l) => l.mount.includes(V1_MOUNT))).toHaveLength(1);
   });
 });

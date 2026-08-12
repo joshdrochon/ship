@@ -13,6 +13,7 @@ import request from 'supertest';
 import { apiErrorBodySchema } from './errors.js';
 import { registerRouteAssertion, type RouteAssertionContext } from './routeFitness.js';
 import { isBareAsyncHandler } from './errorMiddleware.js';
+import { isUnauthenticatedV1Path } from './router.js';
 
 /** Stand-in for a `:param` segment. Auth fails long before it is ever read. */
 const PARAM_PLACEHOLDER = '00000000-0000-4000-8000-000000000000';
@@ -48,6 +49,16 @@ export function concretePath(path: string): string {
  *      PF-203's per-code table is the pattern to copy.
  */
 export async function assertEnvelopeOnFailure({ route, app }: RouteAssertionContext): Promise<void> {
+  // PF-216 (L08) — the declared unauthenticated paths are the one documented
+  // exception, and they are read from `V1_UNAUTHENTICATED_PATHS` rather than
+  // matched on a path substring here. That matters: the exception list is data
+  // one lane owns, so a second route cannot become anonymously reachable by
+  // being written to look like the first. A route that is NOT on the list still
+  // has to 401, and a route on the list that 401s anyway would be a wiring bug
+  // this clause deliberately does not mask — see the 200 assertion in
+  // `router.test.ts`, which is where the positive half lives.
+  if (isUnauthenticatedV1Path(route.path)) return;
+
   const method = route.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete';
   const res = await request(app)[method](concretePath(route.path));
 
