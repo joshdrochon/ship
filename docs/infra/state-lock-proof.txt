@@ -1,0 +1,47 @@
+PF-621 — Terraform state locking proof
+Run date : 2026-08-12T23:36:19Z
+Root     : terraform/ (the graded root, PF-616)
+Backend  : s3, use_lockfile = true (S3 conditional-write locking)
+Terraform: Terraform v1.15.8
+
+Method: two concurrent operations against one state. Process A takes the
+lock; process B is started while A still holds it, with -lock-timeout=0
+so it fails immediately instead of retrying.
+
+==================== process A (holds the lock) ====================
+exit code: 0
+--- tail ---
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.
+
+==================== process B (concurrent, -lock-timeout=0) ====================
+exit code: 1
+--- verbatim output ---
+
+Error: Error acquiring the state lock
+
+Error message: operation error S3: PutObject, https response error
+StatusCode: 412, RequestID: CJ547S3CJD1CMA7T, HostID:
+896WtSNMyAbMv2mBe/TwxXc780B25O9VAL7/zRS24BQ5ByoomeZUxuHapyCGZvOUvaCeSi/UCuA=,
+api error PreconditionFailed: At least one of the pre-conditions you
+specified did not hold
+Lock Info:
+  ID:        65939aec-c9e5-94e3-f706-5b1fc2adc457
+  Path:      ship-terraform-state-379484935796/ship/terraform.tfstate
+  Operation: OperationTypePlan
+  Who:       joanmiguel@Joans-MBP
+  Version:   1.15.8
+  Created:   2026-08-12 23:36:20.823164 +0000 UTC
+  Info:      
+
+
+Terraform acquires a state lock to protect the state from being written
+by multiple users at the same time. Please resolve the issue above and try
+again. For most commands, you can disable locking with the "-lock=false"
+flag, but this is not recommended.
+
+==================== verdict ====================
+PASS — A completed, B was refused the state lock. Locking is in effect.

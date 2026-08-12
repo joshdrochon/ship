@@ -28,10 +28,14 @@ terraform {
 
   # Backend bucket name from SSM (compliance requirement)
   # Initialize with: terraform init -backend-config="bucket=$(aws ssm get-parameter --name /ship/terraform-state-bucket --query Parameter.Value --output text)"
+  # PF-621 / F32 -- see the rationale in terraform/versions.tf. This root is NOT
+  # the graded root and is not applied (PF-616), but a lock-less backend left in
+  # place is a trap for whoever applies it next, so it is fixed here too.
   backend "s3" {
-    key     = "ship/shadow/terraform.tfstate"
-    region  = "us-east-1"
-    encrypt = true
+    key          = "ship/shadow/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
   }
 }
 
