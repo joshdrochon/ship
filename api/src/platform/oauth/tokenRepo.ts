@@ -118,6 +118,20 @@ export interface ITokenRepo {
   /** PF-168 — revokes EVERY token in the family, of either type, spent or not. */
   revokeFamily(familyId: string, reason: RevocationReason, at: Date): Promise<number>;
 
+  /**
+   * Revokes ONE token by id.
+   *
+   * A ninth method, and the justification is PF-166's: a successful rotation
+   * must kill the OLD ACCESS token, not just spend the old refresh token —
+   * leaving it live for the remainder of its hour is the difference between
+   * rotation and mere re-issuance. Neither `revokeFamily` (too broad; it would
+   * kill the pair just issued) nor `revokeByApp` (far too broad) can express
+   * "this one token", so the capability has to exist somewhere. Putting it on
+   * the repository keeps rotation policy in `rotation.ts` with one
+   * implementation for both backends.
+   */
+  revokeToken(tokenId: string, reason: RevocationReason, at: Date): Promise<boolean>;
+
   /** PF-165 — every unexpired, unrevoked token belonging to one app. */
   revokeByApp(appId: string, reason: RevocationReason, at: Date): Promise<number>;
 
@@ -242,6 +256,14 @@ export class InMemoryTokenRepo implements ITokenRepo {
       }
     }
     return count;
+  }
+
+  async revokeToken(tokenId: string, reason: RevocationReason, at: Date): Promise<boolean> {
+    const row = this.rows.get(tokenId);
+    if (!row || row.revokedAt !== null) return false;
+    row.revokedAt = at;
+    row.revocationReason = reason;
+    return true;
   }
 
   async revokeByApp(appId: string, reason: RevocationReason, at: Date): Promise<number> {

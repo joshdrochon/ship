@@ -5,7 +5,8 @@
  * revocation on reuse. `/oauth/*` is mounted by the composition root, never by
  * another platform module.
  */
-export { createOAuthRouter } from './router.js';
+export { createOAuthRouter, grantHandlers } from './router.js';
+export type { OAuthRouterDeps, GrantHandler, GrantOutcome } from './router.js';
 export * from './pkce.js';
 
 // Token lifecycle — L06. Generation and hashing, the repository seam, the one
@@ -16,3 +17,4 @@ export { PgTokenRepo } from './pgTokenRepo.js';
 export * from './issue.js';
 export * from './resolve.js';
 export * from './bearer.js';
+export * from './rotation.js';

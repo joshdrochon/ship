@@ -187,6 +187,21 @@ abstract class TokenStatements implements ITokenRepo {
   }
 
   /**
+   * One token, by id. PF-166's "the old access token is revoked too" — see the
+   * justification on the interface.
+   */
+  async revokeToken(tokenId: string, reason: RevocationReason, at: Date): Promise<boolean> {
+    const result = await this.q.query<{ id: string }>(
+      `UPDATE oauth_tokens
+          SET revoked_at = $2, revocation_reason = $3
+        WHERE id = $1 AND revoked_at IS NULL
+        RETURNING id`,
+      [tokenId, at, reason],
+    );
+    return result.rowCount === 1;
+  }
+
+  /**
    * PF-165 — the revoke half of L02's leaked-secret playbook.
    *
    * UPDATE, never DELETE: the rows stay so the audit trail's history remains
