@@ -44,7 +44,9 @@ import { initializeCAIA } from './services/caia.js';
 import { productionDeps, type AppDeps } from './deps.js';
 import { createPublicRouter } from './platform/api/v1/router.js';
 import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js';
+import { assertEveryRouteDeclaresScope } from './platform/api/v1/declareV1Route.js';
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
+import { documentsResources } from './platform/api/v1/documents/routes.js';
 
 // Validate SESSION_SECRET in production
 if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
@@ -274,7 +276,15 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     auditSink: deps.auditSink,
     // TODO(L13): mountUnauthenticated for GET /api/v1/openapi.json — the route is
     // L13's, the mount seam and V1_UNAUTHENTICATED_PATHS are this lane's.
-    // TODO(L09/L10): mountResources for /documents, /issues, /sprints.
+
+    // L09 — `documents` is the ONLY resource mounted, and that is Build Strategy
+    // §4 (p.11) rather than an unfinished list: *"Get the generator working
+    // end-to-end with one resource (documents) before adding issues, sprints, and
+    // me."* L13 proves out against this resource alone (PF-363), and PF-265
+    // asserts `/issues`, `/sprints` and `/me` are absent. When L10 lands, the diff
+    // touches its own route modules and the generated spec and ZERO lines of
+    // `platform/openapi/` — that pairing is the proof this pattern is generic.
+    mountResources: documentsResources({ db: deps.db, bus: deps.bus }),
   }));
 
   // PF-228 — every mounted public route must carry a metadata record declaring
@@ -287,6 +297,16 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
   // undeclared route is one route the fitness harness reports as green without
   // having checked anything.
   assertEveryRouteDeclaresList(app, (a) => enumerateV1Routes(a));
+
+  // PF-248 — and every mounted public route must declare its SCOPE on that same
+  // record. MVP gate item 4 (p.2) asks for routes that "declare their required
+  // scope via a require(scope) middleware factory"; this is the half that makes
+  // "declare" checkable rather than a description of what the code happens to do.
+  //
+  // A route with `scope: null` passes — that is a claim the author made (L10's
+  // `GET /api/v1/me`), and it is a different thing from never having thought
+  // about scopes. See platform/scopes/route-metadata.ts.
+  assertEveryRouteDeclaresScope(app, (a) => enumerateV1Routes(a));
 
   // Apply rate limiting to all API routes
   //

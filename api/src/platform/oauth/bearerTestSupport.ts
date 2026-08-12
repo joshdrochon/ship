@@ -53,6 +53,20 @@ export interface BearerTestAppOptions {
   scopes?: Scope[];
   perAppLimiter?: IRateLimiter;
   perTokenLimiter?: IRateLimiter;
+  /**
+   * The workspace the app — and therefore every token minted from it — belongs
+   * to (PF-260). Defaults to the opaque `'ws-1'`, which is right for tests that
+   * never touch a database.
+   *
+   * A resource test DOES touch one, and its rows are keyed by a real
+   * `workspaces.id`. Added by L09 rather than worked around with a cast, because
+   * the cast would have been in the one place tenancy is decided: a token whose
+   * workspace does not match the fixture's rows returns an empty list, which
+   * looks exactly like a passing "no cross-tenant leakage" assertion.
+   */
+  workspaceId?: string;
+  /** The consenting user tokens are minted for. Defaults to `'user-1'`. */
+  userId?: string | null;
 }
 
 export async function createBearerTestApp(
@@ -70,8 +84,8 @@ export async function createBearerTestApp(
     clientId: generateClientId(),
     ...secretMaterial(generateClientSecret()),
     name: 'L06 bearer test app',
-    ownerUserId: 'user-1',
-    workspaceId: 'ws-1',
+    ownerUserId: options.userId ?? 'user-1',
+    workspaceId: options.workspaceId ?? 'ws-1',
     redirectUris: ['https://example.test/cb'],
     requestedScopes: ['documents:read', 'documents:write', 'issues:read'],
   });
@@ -103,7 +117,7 @@ export async function createBearerTestApp(
     async mint(scopes: Scope[] = options.scopes ?? ['documents:read']) {
       const { response } = await issueTokenPair(
         { tokenRepo, clock, ttl },
-        { app: oauthApp, userId: 'user-1', scopes },
+        { app: oauthApp, userId: options.userId ?? 'user-1', scopes },
       );
       return response;
     },

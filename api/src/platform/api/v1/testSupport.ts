@@ -56,6 +56,9 @@ export function fakeAuthContext(scopes: Scope[] = []): PlatformAuthContext {
     userId: 'user_test',
     scopes,
     tokenId: 'token_test',
+    // PF-260 — tenancy is a property of the token. A stub context without it
+    // would let a resource test pass while the real tenancy question went unasked.
+    workspaceId: 'ws_test',
   };
 }
 

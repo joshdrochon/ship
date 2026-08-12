@@ -264,6 +264,12 @@ describe('PF-158: a resolved token populates app, user and granted scopes', () =
       userId: 'user-1',
       scopes: ['documents:read', 'issues:read'],
       tokenId: expect.any(String),
+      // PF-260 (L09) — the workspace comes from the app the token was issued to
+      // and is resolved once, here, at authentication. `toEqual` on the whole
+      // object is deliberate: a new field on the context has to be acknowledged
+      // by whoever adds it, because the context is what every resource route
+      // makes its tenancy decision from.
+      workspaceId: harness.oauthApp.workspaceId,
     });
   });
 });

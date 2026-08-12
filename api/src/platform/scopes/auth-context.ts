@@ -32,4 +32,21 @@ export interface PlatformAuthContext {
   scopes: Scope[];
   /** Primary key of the token row, for revocation and per-token rate limiting. */
   tokenId: string;
+  /**
+   * The workspace every query made under this token is scoped to (PF-260).
+   *
+   * Added by L09, because without it the tenancy answer had nowhere to come
+   * from. `documentService` takes a `DomainContext {workspaceId, userId, db}`
+   * and PRD p.18's 3.4 asks how a grader gets a pre-registered app *"without
+   * exposing your tenant's data"* — the answer is that the workspace is a
+   * property of the TOKEN, resolved once at authentication from
+   * `oauth_apps.workspace_id`, and never read from a request body, query
+   * parameter or header. A public handler that could take it from the request
+   * is a cross-tenant read waiting to be discovered.
+   *
+   * On this interface rather than looked up per request in each resource: one
+   * resolution site means one place tenancy can be wrong, and L10's three
+   * resources inherit it rather than each re-deriving it.
+   */
+  workspaceId: string;
 }

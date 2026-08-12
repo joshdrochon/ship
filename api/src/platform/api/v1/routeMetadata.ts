@@ -46,12 +46,31 @@ export interface RouteMetadata {
    * The scope this route requires. L03's field (PF-072), on the same record so
    * there is one metadata object per route and not two.
    *
-   * Optional only because L03's middleware is not on this branch yet. It becomes
-   * required at merge; `auditRouteMetadata` already reports routes missing it.
+   * Three states, and they are three different things (see the B6 discussion in
+   * `platform/scopes/route-metadata.ts`):
+   *
+   *   a scope name   the route requires it.
+   *   `null`         an explicit declaration that it requires none. A claim.
+   *   `undefined`    nobody declared. Caught by `assertEveryRouteDeclaresScope`
+   *                  (PF-248) at wiring time for any MOUNTED route.
+   *
+   * Still optional in the type so L08's own fixture registries — which are never
+   * mounted, and exist to test the pagination clause — do not have to restate a
+   * field they have no opinion about. The enforcement point is the live router,
+   * not this interface.
    */
-  scope?: string;
+  scope?: string | null;
   /** The resource name a cursor is bound to. Required when `list === 'cursor'`. */
   resource?: string;
+  /**
+   * PF-248 / PF-251 — the request and response schemas, on the same record.
+   *
+   * Typed as `unknown` rather than `z.ZodTypeAny` so this module does not take a
+   * Zod dependency for a field it only stores. L13's generator narrows it; the
+   * registry's job is to make sure there is exactly one place to look.
+   */
+  request?: unknown;
+  response?: unknown;
 }
 
 export class RouteMetadataRegistry {
@@ -207,8 +226,11 @@ export function auditRouteMetadata(
     if (metadata.list === 'cursor' && !metadata.resource) {
       problems.push({ route: key, problem: "list:'cursor' without a resource name" });
     }
-    if (!metadata.scope) {
-      // Not fatal on this branch — L03's require-scope is not merged here yet.
+    if (metadata.scope === undefined) {
+      // `=== undefined`, not falsy. `scope: null` is a DECLARATION that the route
+      // needs no particular permission (L10's `GET /api/v1/me`), and reporting it
+      // as a problem is what pushes an author to invent an eighth scope to quiet
+      // the report — which would break PF-062's exactly-seven assertion.
       problems.push({ route: key, problem: 'no scope declared (L03 PF-072)' });
     }
   }

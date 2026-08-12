@@ -26,6 +26,9 @@ import { requestIdMiddleware } from '../platform/api/v1/requestId.js';
 import { apiErrorMiddleware } from '../platform/api/v1/errorMiddleware.js';
 import type { IRateLimiter } from '../platform/ratelimit/limiter.js';
 import type { IAuditSink } from '../platform/audit/audit.js';
+import { mountDocuments } from '../platform/api/v1/documents/routes.js';
+import { createDocumentService } from '../services/documents.js';
+import { pool } from '../db/client.js';
 
 function authContext(scopes: string[]): PlatformAuthContext {
   return {
@@ -34,6 +37,7 @@ function authContext(scopes: string[]): PlatformAuthContext {
     userId: 'user_test',
     scopes: scopes as Scope[],
     tokenId: 'tok_test',
+    workspaceId: 'ws_test',
   };
 }
 
@@ -143,11 +147,26 @@ describe('PF-079 · applied to the real public router', () => {
   } as unknown as IRateLimiter;
   const noopSink: IAuditSink = { record: async () => {} } as unknown as IAuditSink;
 
+  // L09 — the router is now built the way `createApp` builds it: WITH the
+  // resource routes mounted through `mountResources`.
+  //
+  // The previous version of this block called `createPublicRouter` with no
+  // `mountResources` and then asserted `mountedRoutes(router)` was empty, with a
+  // note saying it would start failing the day L09 landed a route. It would not
+  // have. A router built without the hook has no resource routes NO MATTER WHAT
+  // any lane ships, so the tripwire was wired to a router that could never
+  // change — the check was not merely vacuous, it was permanently vacuous, and
+  // the note promising otherwise is the kind of thing that gets believed.
+  //
+  // Fixed rather than deleted, which is the point: the vacuity note is replaced
+  // by an assertion that the routes ARE there, so this file now fails if the
+  // resources stop being mounted as well as if one of them forgets its scope.
   const router = createPublicRouter({
     bearerAuth: (_req, _res, next) => next(),
     perAppLimiter: noopLimiter,
     perTokenLimiter: noopLimiter,
     auditSink: noopSink,
+    mountResources: (r) => mountDocuments(r, { db: pool, service: createDocumentService() }),
   });
 
   it('has no route that fails to declare a scope', () => {
@@ -158,15 +177,32 @@ describe('PF-079 · applied to the real public router', () => {
     ).toEqual([]);
   });
 
-  it('is honest that this is currently vacuous', () => {
-    // Stated as an assertion rather than a comment, so it starts failing the day
-    // L09 or L10 mounts the first resource route — at which point whoever lands
-    // it deletes this test, and the one above stops being a formality. A green
-    // check over zero routes is not evidence of anything.
+  it('is NOT vacuous — the real resource routes are mounted and checked', () => {
+    // The replacement for the old "assert it is empty" tripwire. A green check
+    // over zero routes is not evidence of anything, so the check is that there
+    // are routes.
+    const routes = mountedRoutes(router);
     expect(
-      mountedRoutes(router),
-      'A resource route now exists on /api/v1. Delete this test — the check above is real now.',
-    ).toEqual([]);
+      routes.length,
+      'No resource route is mounted on the public router, so the scope check above ' +
+        'passes without checking anything. Restore the mountResources wiring.',
+    ).toBeGreaterThan(0);
+
+    expect(routes.map((r) => `${r.method.toUpperCase()} ${r.path}`).sort()).toEqual([
+      'GET /documents',
+      'GET /documents/:id',
+      'POST /documents',
+    ]);
+  });
+
+  it('PF-265 — `documents` is the only resource; /issues, /sprints and /me are absent', () => {
+    // Build Strategy §4 (p.11) sequences this deliberately: the generator proves
+    // out on one resource before issues, sprints and me are added. L13's PF-363
+    // asserts the same thing from the generator's side.
+    const paths = mountedRoutes(router).map((r) => r.path);
+    for (const absent of ['/issues', '/sprints', '/me']) {
+      expect(paths.filter((p) => p.startsWith(absent))).toEqual([]);
+    }
   });
 });
 

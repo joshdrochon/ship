@@ -119,6 +119,10 @@ export async function resolveToken(
       // requested_scopes afterwards must not retroactively change it.
       scopes: row.scopes,
       tokenId: row.id,
+      // PF-260 — tenancy resolved ONCE, here, from the app the token belongs to.
+      // Not from a request body, a query parameter or a header; there is no code
+      // path by which a caller can name its own workspace.
+      workspaceId: app.workspaceId,
     },
   };
 }

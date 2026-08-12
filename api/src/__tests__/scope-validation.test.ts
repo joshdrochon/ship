@@ -31,6 +31,7 @@ function authContext(scopes: string[]): PlatformAuthContext {
     userId: 'user_test',
     scopes: scopes as Scope[],
     tokenId: 'tok_test',
+    workspaceId: 'ws_test',
   };
 }
 
