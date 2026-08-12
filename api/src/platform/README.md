@@ -112,7 +112,7 @@ live app and runs each registered assertion against all of them. Testing Scenari
 | (a) | the route has an OpenAPI entry | **L13** | seam ready |
 | (b) | the route declares a scope | **L03** | seam ready |
 | (c) | failures ship the `ApiError` envelope | **L07** | implemented (`envelopeAssertion.ts`) |
-| (d) | list endpoints paginate with an opaque cursor | **L08** | seam ready |
+| (d) | list endpoints paginate with an opaque cursor | **L08** | implemented (`paginationAssertion.ts`) |
 
 **Do not write a second route walk.** Three enumerators means three different
 definitions of "every route", and the subtly wrong one is the one that passes.
