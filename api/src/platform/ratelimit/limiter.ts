@@ -12,8 +12,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ApiError } from '../api/v1/errors.js';
 import type { PlatformAuthContext } from '../scopes/registry.js';
-import type { Clock } from '../webhooks/retry.js';
-import { SystemClock } from '../webhooks/retry.js';
+import type { Clock } from '../clock.js';
+import { SystemClock } from '../clock.js';
 
 export interface RateDecision {
   allowed: boolean;

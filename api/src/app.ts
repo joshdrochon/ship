@@ -40,6 +40,7 @@ import readyRoutes from './routes/ready.js';
 import { documentCommentsRouter, commentsRouter } from './routes/comments.js';
 import { setupSwagger } from './swagger.js';
 import { initializeCAIA } from './services/caia.js';
+import { productionDeps, type AppDeps } from './deps.js';
 
 // Validate SESSION_SECRET in production
 if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
@@ -118,7 +119,59 @@ const apiLimiter = rateLimit({
 });
 
 
-export function createApp(corsOrigin: string = 'http://localhost:5173'): express.Express {
+/**
+ * The composition root. PF-014.
+ *
+ * Signature changed from `createApp(corsOrigin: string)` to `createApp(deps)` so
+ * that this stays the *only* file in the application that chooses a concrete
+ * implementation — the claim `docs/architecture.md` makes and that Dependency
+ * Inversion is worth nothing without. `productionDeps()` and `testDeps()` live
+ * in `api/src/deps.ts`; see that file for what each one picks and why.
+ *
+ * Zero-argument callers are unaffected: the default is `productionDeps()`, which
+ * reads `CORS_ORIGIN` from the environment exactly as the old default parameter
+ * did. Callers that passed a CORS origin positionally now pass
+ * `productionDeps({ corsOrigin })` — same value, one indirection, no overload
+ * that means "sometimes a string".
+ *
+ * ── What this function deliberately does NOT do yet ────────────────────────────
+ * Nothing below consumes `bus`, `deliverer`, `limiter` or `clock`. The public
+ * router, the OAuth router and the webhook pipeline are L02–L16's work, and they
+ * mount here when they exist. The seam is opened first, on purpose: PRD Build
+ * Strategy §2 (p.10) is explicit that the boundary is cheaper to enforce than to
+ * retrofit, and the same is true of the wiring it hangs on.
+ *
+ * ── Internal stack: unchanged, and pinned ─────────────────────────────────────
+ * Every `app.use` below is in the same order it was in Part 1. That is not a
+ * comment, it is asserted: `api/src/__tests__/internal-middleware-stack.test.ts`
+ * compares the assembled 76-layer stack against a snapshot captured before this
+ * refactor and pins `middleware/auth.ts` by content hash (PF-018). If the
+ * internal stack changes, the +10% regression budget (p.2, p.6) is measuring two
+ * different applications and means nothing.
+ *
+ * Two known defects are visible in this function and are deliberately NOT fixed
+ * here, because fixing them changes internal behaviour and this refactor must
+ * not:
+ *
+ *   F1  `app.use('/api/', apiLimiter)` prefix-matches onto `/api/v1/*`, so the
+ *       internal limiter will reach the public API and answer with the internal
+ *       error shape. Owned by L08/L11. Left exactly as it was — it is not made
+ *       worse here, and the fix belongs with the router that has to serve the
+ *       correct `X-RateLimit-*` headers.
+ *   F2  `express.json({ limit: '10mb' })` runs app-wide, above every router, so
+ *       a router-level `json({ limit: '1mb' })` under `/api/v1` is dead code —
+ *       the body is already parsed by the time the public router sees it. The
+ *       public router will have to mount its own parser *before* this one or
+ *       accept the 10 MB ceiling. Owned by L08. Noted here so it is not
+ *       rediscovered as a mystery.
+ */
+export function createApp(deps: AppDeps = productionDeps()): express.Express {
+  // `deps.bus`, `deps.deliverer`, `deps.limiter`, `deps.clock` and `deps.db` are
+  // not destructured yet because nothing below reads them — the routers that do
+  // are L02–L16's. Destructuring them into unused locals now would be five lint
+  // suppressions pretending to be wiring.
+  const { corsOrigin } = deps;
+
   const app = express();
 
   // Trust proxy headers (CloudFront) for secure cookies and correct protocol detection

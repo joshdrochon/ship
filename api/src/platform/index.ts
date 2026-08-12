@@ -20,3 +20,8 @@ export * from './oauth/index.js';
 export * from './apps/index.js';
 export * from './audit/index.js';
 export * from './openapi/index.js';
+
+// Clock is a platform-wide primitive, not a module: the retry scheduler, the
+// token bucket and the OAuth expiry checks all read the same injected clock, and
+// `FakeClock.advance(ms)` is what keeps their tests free of `setTimeout`.
+export * from './clock.js';

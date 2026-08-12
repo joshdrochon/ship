@@ -26,6 +26,7 @@ import request from 'supertest';
 import crypto from 'crypto';
 
 import { createApp } from '../../app.js';
+import { testDeps } from '../../deps.js';
 import { pool } from '../../db/client.js';
 import { snoozeUntilDate } from './index.js';
 import * as agentBridge from './agentBridge.js';
@@ -59,7 +60,7 @@ function firstAgentCall(): AgentChatRequest {
   return call![0];
 }
 
-const app = createApp('http://localhost:5173');
+const app = createApp(testDeps({ corsOrigin: 'http://localhost:5173' }));
 const runId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 interface Auth {

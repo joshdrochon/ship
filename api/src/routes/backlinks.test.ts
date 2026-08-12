@@ -2,10 +2,11 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from 'supertest';
 import crypto from 'crypto';
 import { createApp } from '../app.js';
+import { testDeps } from '../deps.js';
 import { pool } from '../db/client.js';
 
 describe('Backlinks API', () => {
-  const app = createApp('http://localhost:5173');
+  const app = createApp(testDeps({ corsOrigin: 'http://localhost:5173' }));
   // Use unique identifiers to avoid conflicts between concurrent test runs
   const testRunId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const testEmail = `backlinks-${testRunId}@ship.local`;

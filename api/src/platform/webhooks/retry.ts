@@ -6,54 +6,19 @@
  * attempt → DLQ, replayable from the portal with the ORIGINAL Idempotency-Key.
  *
  * The clock is injected so retry tests advance a FakeClock — never setTimeout.
- * Timing-based webhook tests are flaky tests (standing order, Annex 12).
+ * Timing-based webhook tests are flaky tests (standing order, Annex 12). The
+ * Clock itself lives in platform/clock.ts; it is re-exported below.
  */
 
 export const RETRY_SCHEDULE_SECONDS = [1, 4, 16, 60, 300, 1800] as const;
 export const MAX_ATTEMPTS = RETRY_SCHEDULE_SECONDS.length; // then DLQ
 
-export interface Clock {
-  nowMs(): number;
-  /** Schedule a callback; returns a cancel function. */
-  setTimeout(fn: () => void, delayMs: number): () => void;
-}
-
-export class SystemClock implements Clock {
-  nowMs(): number {
-    return Date.now();
-  }
-  setTimeout(fn: () => void, delayMs: number): () => void {
-    const handle = setTimeout(fn, delayMs);
-    return () => clearTimeout(handle);
-  }
-}
-
-/** Deterministic clock for tests: advance() fires due timers synchronously. */
-export class FakeClock implements Clock {
-  private now = 0;
-  private timers: { at: number; fn: () => void; cancelled: boolean }[] = [];
-
-  nowMs(): number {
-    return this.now;
-  }
-
-  setTimeout(fn: () => void, delayMs: number): () => void {
-    const timer = { at: this.now + delayMs, fn, cancelled: false };
-    this.timers.push(timer);
-    return () => {
-      timer.cancelled = true;
-    };
-  }
-
-  advance(ms: number): void {
-    this.now += ms;
-    const due = this.timers
-      .filter((t) => !t.cancelled && t.at <= this.now)
-      .sort((a, b) => a.at - b.at);
-    this.timers = this.timers.filter((t) => !due.includes(t));
-    for (const t of due) t.fn();
-  }
-}
+// Clock moved to platform/clock.ts (PF-017): the token bucket reads it too, and
+// `ratelimit/` importing it from `webhooks/` made the rate limiter depend on the
+// webhook pipeline for nothing. Re-exported here so `retry.ts` stays the place
+// you look when you want the schedule and the clock that drives it.
+export type { Clock } from '../clock.js';
+export { SystemClock, FakeClock } from '../clock.js';
 
 /** Delay before attempt N (1-indexed), with ±10% jitter. Null = dead-letter. */
 export function delayBeforeAttemptMs(attemptNumber: number, jitter: () => number = Math.random): number | null {
