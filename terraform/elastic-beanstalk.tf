@@ -218,10 +218,25 @@ resource "aws_elastic_beanstalk_environment" "api" {
     value     = "1"
   }
 
+  # PF-628. Raised from 600s.
+  #
+  # This platform builds the Dockerfile ON THE INSTANCE from the source bundle,
+  # and this Dockerfile is a two-stage monorepo build: pnpm install for four
+  # workspace packages, then tsc for shared + agent + api, then a Vite build of
+  # the web frontend. On the t3.small this environment runs, that does not fit
+  # in ten minutes, and the failure mode is not a clear error -- the deploy is
+  # torn down mid-build and the environment reports a generic command timeout
+  # while the previous version keeps serving. That reads exactly like "the app
+  # is broken" and sends you looking in the wrong place.
+  #
+  # 30 minutes is chosen against the measured shape of the build rather than as
+  # a round number: it leaves room for a cold Docker layer cache (the expensive
+  # case, and the one that applies to a fresh instance) without letting a
+  # genuinely wedged deploy hold the environment for an hour.
   setting {
     namespace = "aws:elasticbeanstalk:command"
     name      = "Timeout"
-    value     = "600"
+    value     = "1800"
   }
 
   # Environment Variables
@@ -231,10 +246,31 @@ resource "aws_elastic_beanstalk_environment" "api" {
     value     = "production"
   }
 
+  # PF-625/PF-628 — was the hardcoded string "prod", and that was a boot-killer.
+  #
+  # `api/src/config/ssm.ts` builds its parameter path as `/ship/${ENVIRONMENT}`
+  # and every parameter in ssm.tf is named `/${var.project_name}/${var.environment}/*`.
+  # `var.environment` defaults to "dev", so the parameters that exist are
+  # `/ship/dev/*` while the container was being told to look in `/ship/prod/*`.
+  #
+  # Nothing warns about this. The container would have started, called
+  # GetParameter on /ship/prod/DATABASE_URL, and died in `migrate.js` before the
+  # server ever listened -- and because loadProductionSecrets() runs in all three
+  # entrypoints, it dies in the first one. Worse, the instance role's inline
+  # ssm policy is scoped to `parameter/ship/dev/*`, so the real error would have
+  # been AccessDenied rather than ParameterNotFound, sending you to debug IAM for
+  # what is a string mismatch.
+  #
+  # Deriving it from the same variable that names the parameters makes the two
+  # incapable of disagreeing. It is also why this value currently reads "dev"
+  # while the environment is named ship-api-prod -- that mismatch is cosmetic and
+  # documented in docs/infra/topology.md; changing var.environment to "prod"
+  # would rename every SSM parameter and the S3 buckets, which is a replacement,
+  # not a rename.
   setting {
     namespace = "aws:elasticbeanstalk:application:environment"
     name      = "ENVIRONMENT"
-    value     = "prod"
+    value     = var.environment
   }
 
   setting {

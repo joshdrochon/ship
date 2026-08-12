@@ -45,6 +45,7 @@ import { productionDeps, type AppDeps } from './deps.js';
 import { createPublicRouter } from './platform/api/v1/router.js';
 import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js';
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
+import { generatePublicOpenAPIDocument } from './platform/openapi/index.js';
 
 // Validate SESSION_SECRET in production
 if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
@@ -272,8 +273,32 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     perAppLimiter: deps.limiter,
     perTokenLimiter: deps.limiter,
     auditSink: deps.auditSink,
-    // TODO(L13): mountUnauthenticated for GET /api/v1/openapi.json — the route is
-    // L13's, the mount seam and V1_UNAUTHENTICATED_PATHS are this lane's.
+    // PF-629 (L21) — the published OpenAPI spec.
+    //
+    // This mount was a TODO waiting on L13. L21 wired it because MVP gate item
+    // 10 is pass/fail on a *resolvable* public spec URL and L13 is not on this
+    // branch: without this, `GET /api/v1/openapi.json` falls through to the
+    // catch-all and the gate item fails on a 404 that nothing else reports.
+    //
+    // Uses the seam exactly as L08 designed it rather than mounting outside the
+    // v1 router, so the single most-fetched public endpoint still gets a
+    // request_id and an audit row. The path is already in
+    // V1_UNAUTHENTICATED_PATHS, and router.test.ts asserts the mount and the
+    // list agree — so this cannot drift from the fitness harness silently.
+    //
+    // Generated ONCE here, not per request. Two reasons, and the first is the
+    // important one: a generation error becomes a BOOT failure instead of a
+    // 500 on the endpoint graders hit. `registry.ts` states that contract
+    // ("generation failure at boot = process refuses to start — serving traffic
+    // without the contract is the drift we exist to prevent") and nothing was
+    // enforcing it. Second, generation walks every registered Zod schema, which
+    // is real work to repeat on a cacheable, unauthenticated route.
+    mountUnauthenticated: (r) => {
+      const spec = generatePublicOpenAPIDocument();
+      r.get('/openapi.json', (_req, res) => {
+        res.type('application/json').send(JSON.stringify(spec));
+      });
+    },
     // TODO(L09/L10): mountResources for /documents, /issues, /sprints.
   }));
 
