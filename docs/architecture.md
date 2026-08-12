@@ -319,6 +319,40 @@ The agent authenticates as a first-party OAuth app (seeded by `db:migrate`, so i
 
 *Asymmetry with the webhook signing secret, deliberately.* The signing secret is encrypted (AES-256-GCM), not hashed, because the server must **use** it to produce an HMAC; a one-way hash cannot key a MAC. `client_secret` is **presented back to us** and verified by comparison, so a hash is sufficient and strictly safer. The two are different problems that share the word "secret".
 
+## Token Lifecycle & Refresh Rotation
+
+*Answers PRD Pre-Search 1.4 (p.15) and 2.1 (p.16). L06 owns this section; L25 pulls from it rather than restating it, so there is one place for the answer and the code to disagree.*
+
+**How long are access tokens valid?** **One hour.** **What is the rotation policy?** **One-time-use refresh tokens, 30 days, sliding — every exchange issues a fresh pair.** Both are single exported constants in `api/src/platform/oauth/tokens.ts` (`ACCESS_TOKEN_TTL_SECONDS`, `REFRESH_TOKEN_TTL_SECONDS`), and a test asserts each number appears exactly once in the lane so the config and the behaviour cannot drift apart.
+
+*Why one hour.* An opaque access token is checked against the database on **every** `/api/v1` request, so a short TTL costs nothing in verification work — the lookup happens either way. What it buys is a bounded blast radius: a leaked access token is useful for at most an hour. This is the reason the token is opaque rather than a JWT. A JWT would let the resource server skip the lookup, and skipping the lookup is exactly the property we do not want: a self-validating token cannot be revoked before it expires without a revocation list, which is a database lookup wearing a disguise. Opaque + a lookup is the honest version of the same cost, and it is what makes D2's *"a deleted user's access cannot outlive them"* true rather than aspirational.
+
+*Why 30 days, sliding.* It makes `ship login` a once-a-month act rather than a daily one, which is the second line of the TTFE story (p.8). Sliding means an actively used credential never expires and an abandoned one dies in a month.
+
+*Both are overridable at boot* through `AppDeps.tokenTtl`, never through a mutable module binding. That is the seam L24's rotation drill consumes: PF-727 requires expiry to be produced **by configuring a short TTL, never by waiting**, because p.11 rules out `setTimeout` waits and p.9 budgets zero flake over twenty runs. A test boots with a 2-second access TTL and advances an injected `FakeClock`; a grep asserts no `setTimeout` and no `Date.now()` in this lane's non-test source.
+
+**Will you implement stolen-refresh-token detection (reuse invalidates the family)?** **Yes, family-wide, and it takes the live access token with it.** Every token issued by one grant redemption shares a `family_id`; every rotation keeps it and links `replaces_token_id`. The spend is a conditional `UPDATE … WHERE spent_at IS NULL` whose **zero-row result is the reuse signal**, and on that signal every token in the family is revoked regardless of type or spent state. The access-token half is the part that is easy to omit and the only part a client can observe. Proven by replaying a *long-spent* `R1` after three rotations — revocation is keyed on the family, not on "the previous token" — and by the anti-vacuity direction, that a second user's family is untouched.
+
+**Will you support refresh tokens from day one, or add them later? What is the migration cost if you wait?** (Pre-Search 2.1, p.16.) **Day one**, and the question is close to rhetorical here: p.3's Core Technical Requirements table makes one-time-use rotation and family revocation a graded row, p.8's integrations menu makes the rotation drill one of five, and L17/L18/L19 have already built the client side against a refresh token existing.
+
+*The migration cost of waiting, enumerated rather than hand-waved.* Deferring would mean long-lived access tokens with no revocation story short of per-app revocation, every credential in `~/.ship/credentials.json` becoming a month-long bearer secret, and a later retrofit touching **five surfaces**: the token table, both grant redemptions, the bearer middleware, the SDK store shape, and the CLI's refresh path. Versus zero today.
+
+### Refresh rotation under concurrent clients — an open decision (D14)
+
+**Shipped behaviour: strict. Reuse always revokes the family.** The alternative is implemented behind one constant and is one line away; this section is the record of why the choice is live rather than settled.
+
+*The residual, measured rather than asserted.* L17's single-flight promise is keyed on the SDK's **token-store instance**, so it serializes refreshes inside **one process**. L19's CLI persists credentials to a shared `~/.ship/credentials.json`, so two terminals running `ship docs ls` at once are **two processes holding one credential**. Both see an expired access token, both present `R1`, and under strict rotation the second one revokes the user's family and logs them out — plausibly during a demo.
+
+| | Option (a) — **strict**, shipped | Option (b) — **10 s same-generation window** |
+|---|---|---|
+| Behaviour | every reuse revokes the family | re-presenting the *immediately preceding* token within the window returns the **already-issued** pair; anything older still revokes |
+| PRD fit | p.3's *"reuse invalidates the family"*, unqualified | a documented departure from that sentence |
+| Standards | strictest reading of OAuth 2.1 BCP | the BCP's own stated accommodation |
+| Cost | concurrent CLI processes are unsupported; a plausible demo action destroys the session | a process-local replay cache — behind more than one API instance a replay landing elsewhere still revokes, so it **softens** the failure rather than removing it |
+| Graded assertions | unaffected | unaffected — L24's PF-725 replays a long-spent `R1` after three rotations, far outside any window, and still gets family revocation |
+
+*Switching is one line:* `REFRESH_REPLAY_WINDOW_MS` in `api/src/platform/oauth/tokens.ts`, `0` today. Both behaviours are table-tested, so flipping it does not land untested code. **If this flips, the "yes, family-wide" answer above has to gain the qualifier in the same commit** — a Pre-Search answer that says *"reuse invalidates the family"* while the code has a replay window is exactly the drift the consistency check exists to catch.
+
 ## Failure Modes
 
 **`client_secret` rotated — instant invalidation, and a documented departure from Stripe.** (PRD p.17: *"is the old secret immediately invalidated, or does it work alongside the new one for a grace period? What does Stripe do, and why?"*)
@@ -342,6 +376,14 @@ This has its own table rather than a filter over the public audit trail because 
 *Blast radius, which is why the playbook has two steps.* **Rotating the secret does not revoke tokens already issued.** The secret is an issuance credential, not a session; tokens minted before the rotation keep working until they expire. The response to a confirmed leak is therefore **rotate *and* revoke** — rotation closes the door, revocation evicts whoever is already inside.
 
 *Honest limit.* The three conditions are queryable and tested; they are not **paged**. There is no `/metrics` endpoint and no notifier in this build, so p.18's "where does it show up" is answered by "logs and a query". The missing piece is an alerting surface, not a signal.
+
+**Refresh-token family revoked mid-session — what the user actually sees.** (The token-family case is not one of the four scenarios p.12 lists, and the shipped behaviour demands it: nothing else here covers a **server-initiated** logout. The next paragraph covers the client-local case.)
+
+A family is revoked when a spent refresh token is presented again — the theft signal, and the server cannot tell a thief from an honest second process. Revocation is immediate and total: **every device holding a token from that family is logged out at its next request**, not at the end of the current access token's hour, because the sweep revokes the live access token alongside the refresh token. A user with the CLI in one terminal, the SDK in a script, and the portal in a browser loses all three at once if any one of them replays a spent token.
+
+What they see is a plain 401 with `details.reason: 'invalid'` — deliberately **not** `'expired'`, because `'expired'` tells an SDK to refresh, and refreshing is precisely what will not work here. The SDK surfaces `kind: 'auth'` and the CLI prints a re-login prompt. **The recovery is re-authentication, not repair.** There is no unrevoke: the family is dead, a fresh `ship login` starts a new one, and nothing about the old family's state carries over. That is the intended outcome when the alternative is leaving a possibly-stolen credential live.
+
+The honest limit: because reuse and theft are indistinguishable at the server, a client bug that double-spends a refresh token produces a real user-visible logout. That is the cost of the strict reading, and it is the exact tension recorded as D14 above.
 
 **Token store corrupted (SDK side).** `ITokenStore` reads that fail or return garbage are treated as logged-out, never as a retry loop: the next call surfaces `{ kind: 'auth' }` and the helper flows re-authenticate cleanly. Corruption is a client-local event — the server sees at worst a 401'd request, and no partial credential is ever written back.
 
