@@ -179,7 +179,27 @@ flowchart TB
     end
 ```
 
-The agent authenticates as a first-party OAuth app (seeded by migration, so it provably exists in deployed environments), requesting only the scopes its detectors and actions need — least privilege, not `*`. The swap lives behind a feature flag; CI runs the Part 2 regression suite with the flag **on and off**, which is what makes the rewire a refactor rather than a rewrite. ★ **The payoff is the audit trail:** every agent action now lands in the public audit log under the agent app's `client_id` — "the agent went through the front door" is provable with one query, not a claim. One LLM call per agent turn is unchanged; the platform itself does zero AI work.
+The agent authenticates as a first-party OAuth app (seeded by `db:migrate`, so it provably exists in deployed environments — see *First-Party App Seeding* below), requesting only the scopes its detectors and actions need — least privilege, not `*`. The swap lives behind a feature flag; CI runs the Part 2 regression suite with the flag **on and off**, which is what makes the rewire a refactor rather than a rewrite. ★ **The payoff is the audit trail:** every agent action now lands in the public audit log under the agent app's `client_id` — "the agent went through the front door" is provable with one query, not a claim. One LLM call per agent turn is unchanged; the platform itself does zero AI work.
+
+## First-Party App Seeding
+
+**Three apps are seeded by `db:migrate`, on every invocation.** (p.17: *"How is the agent's app seeded — at boot, via a migration, manually in dev? What guarantees it exists in deployed environments?"*)
+
+| App | Scopes | Why it exists |
+|---|---|---|
+| `ship_app_firstparty_fleetgraph_agent` | `documents:read`, `issues:read`, `issues:write`, `sprints:read` | Epic 7 — the agent as a platform citizen, least privilege rather than `*` |
+| `ship_app_grader_readonly` | `documents:read`, `issues:read`, `sprints:read` | MVP gate item 10 (p.2) — a pre-registered **read-only** app for graders |
+| `ship_app_grader_demo` | `documents:read`, `documents:write` | **D12**, open — see below |
+
+*What guarantees it exists.* The seeding runs inside `db:migrate`, which runs on every deploy. It is deliberately **not** a numbered migration: `migrate.ts` skips any migration already recorded in `schema_migrations`, so a numbered file runs exactly once per database — a secret configured after the first deploy would never reach it, and a **rotated** secret would never be written. Migration 041 keeps only the one-time structural rows (the system owner user, the grader workspace); the app upsert is re-applied every run, idempotent via `ON CONFLICT (client_id) DO UPDATE`. This replaces `db:seed`, which does **not** run on deploy the way `db:migrate` does.
+
+*Secrets come from the environment and are never generated.* `AGENT_CLIENT_SECRET`, `GRADER_CLIENT_SECRET`, `DEMO_CLIENT_SECRET`. Absent in dev or test → no row, no failure, local development untouched. Absent in **production** → the deploy fails naming the missing variable, before any statement runs. A generated secret would be strictly worse than none: the row would exist, the health check would go green, and nobody could ever authenticate, because the plaintext was discarded the moment it was hashed. That failure — healthy boot, credential missing, symptom three layers away — is one this repo has already paid for once.
+
+*Grant-agnostic by construction.* No column and no seed field encodes a grant type, because the agent's grant is still undecided. The grant is a property of the token exchange; whichever flow ships reads this same row.
+
+*Tenancy.* The grader and demo apps belong to a dedicated **Grader Sandbox** workspace, so a token issued to either sees that workspace and no other. That is the answer to *"how do graders get an app without exposing your tenant's data"* (p.18).
+
+*⚑ D12 — open, and shipped flagged.* p.6's five-line story is `ship login` → **`ship docs create`** → `ship webhooks tail`; p.12 makes that story the demo video and p.13 makes the terminal screenshot the Social Post. The grader's app is **read-only by requirement**, so a grader following the README cannot run the headline command. The second, write-scoped demo app is the option that keeps all three artifacts reproducible. The two alternatives, recorded rather than dismissed: **(a)** document `ship docs ls` as the grader's smoke test and leave the demo unreproducible — cheapest, but three graded artifacts then show something the reader cannot repeat; **(b)** widen the grader app's scopes — contradicts p.2's "read-only" in the gate checkbox, which is the one place a grader will look. The cost of the chosen option is that the README explains two apps instead of one: a documentation cost, not a security one. **This decision is the user's to close, not the lane's.**
 
 ## Secret Storage — `client_secret` at Rest
 
