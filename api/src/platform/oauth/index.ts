@@ -15,3 +15,4 @@ export * from './tokenRepo.js';
 export { PgTokenRepo } from './pgTokenRepo.js';
 export * from './issue.js';
 export * from './resolve.js';
+export * from './bearer.js';
