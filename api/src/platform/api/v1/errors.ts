@@ -171,23 +171,15 @@ export interface ApiErrorBody {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Middleware — still the L01 sketch. Replaced by PF-190 (`requestId.ts`) and
-// PF-194–197 (`errorMiddleware.ts`) in the next two slices of this lane. Kept
-// here for now only so `router.ts` keeps compiling across the slice boundary;
-// do not build on these two functions.
+// Error middleware — still the L01 sketch. Replaced by PF-194–197
+// (`errorMiddleware.ts`) in the next slice of this lane. Kept here only so
+// `router.ts` compiles across the slice boundary; do not build on it.
+//
+// `requestIdMiddleware` has already moved out, to `requestId.ts` (PF-190).
 // ─────────────────────────────────────────────────────────────────────────────
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
-
-/** Attach a request id early so every response (and audit row) can carry it. */
-export function requestIdMiddleware() {
-  return (_req: Request, res: Response, next: NextFunction): void => {
-    const id = randomUUID();
-    res.locals.requestId = id;
-    res.setHeader('X-Request-Id', id);
-    next();
-  };
-}
+import { getRequestId } from './requestId.js';
 
 /**
  * The ONE error handler for the public surface. Anything thrown by a v1 route —
@@ -195,7 +187,7 @@ export function requestIdMiddleware() {
  */
 export function apiErrorMiddleware() {
   return (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
-    const requestId = (res.locals.requestId as string | undefined) ?? randomUUID();
+    const requestId = getRequestId(res) ?? randomUUID();
     const apiErr =
       err instanceof ApiError ? err : new ApiError('server_error', 'An unexpected error occurred.');
 
