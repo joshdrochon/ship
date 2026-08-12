@@ -77,10 +77,18 @@ export function requireScope(scope: Scope) {
       return;
     }
     if (!auth.scopes.includes(scope)) {
+      // Shape fixed by the `details` policy (L07 PF-198): a `forbidden` envelope
+      // carries exactly `details.missing_scope`. It was `{required_scope,
+      // granted_scopes}` while this file was L01 scaffolding — `apiErrorBodySchema`
+      // is `.strict()`, so the old shape now fails the envelope test.
+      //
+      // `granted_scopes` was dropped rather than renamed: p.3 asks the 403 to name
+      // the scope that was MISSING, and echoing the full grant back is a second,
+      // route-independent fact that belongs in the token introspection response,
+      // not in an error body.
       next(
         new ApiError('forbidden', `Missing required scope: ${scope}`, {
-          required_scope: scope,
-          granted_scopes: auth.scopes,
+          details: { missing_scope: scope },
         }),
       );
       return;

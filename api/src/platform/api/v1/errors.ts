@@ -4,13 +4,35 @@
  * Every failure on /api/v1/* ships this exact shape:
  *   { code, message, details?, request_id }
  *
- * The code set is CLOSED: it maps 1:1 onto the SDK's discriminated error union.
+ * The code set is CLOSED (PRD p.7 prints it verbatim). It does NOT map 1:1 onto
+ * the SDK's `kind` union — the mapping is 6 → 5, because `unauthorized` and
+ * `forbidden` both collapse to `kind: 'auth'` (PF-189, finding F6). The old
+ * comment here claimed 1:1; it was wrong, and `SDK_KIND_BY_CODE` below is now
+ * the published mapping so no consumer has to restate it.
+ *
  * A fitness test enumerates every /api/v1 route and asserts the shape on failure
- * paths, so a new route cannot quietly invent its own error format.
+ * paths (see `routeFitness.ts`), so a new route cannot quietly invent its own
+ * error format.
+ *
+ * Tickets: PF-186 (closed union), PF-187 (class), PF-188 (status map),
+ * PF-189 (SDK kind map).
  */
-import { randomUUID } from 'node:crypto';
-import type { Request, Response, NextFunction } from 'express';
 
+/**
+ * The closed set of public error codes — PRD p.7.
+ *
+ * This array is the ONE definition. `ApiErrorCode` is derived from it, and both
+ * the status map and the SDK-kind map are keyed by it, so a seventh code cannot
+ * be added in one place and forgotten in another: `Record<ApiErrorCode, …>`
+ * makes the omission a `pnpm type-check` failure, and `errors.test.ts` asserts
+ * this array against the union printed in the PRD.
+ *
+ * Deliberately NOT extended for expired tokens. MVP gate item 3 (p.2) asks for
+ * "401 with a distinct error code"; that distinction lives in `details.reason`
+ * on the `unauthorized` envelope (L06 PF-161), not in a seventh member here.
+ * See the dispute recorded as B14 in `tickets/plugforge/lane-99-unassigned.md`
+ * and the `details` policy note below.
+ */
 export const API_ERROR_CODES = [
   'unauthorized',
   'forbidden',
@@ -22,7 +44,22 @@ export const API_ERROR_CODES = [
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number];
 
-const STATUS_BY_CODE: Record<ApiErrorCode, number> = {
+/**
+ * Code → HTTP status. Exhaustive by construction (PF-188).
+ *
+ * `Record<ApiErrorCode, number>` means omitting a code fails type-check rather
+ * than shipping an `undefined` status that Express would turn into a 200.
+ *
+ * PRD-mandated pairs: `unauthorized`→401 (p.2, p.3), `forbidden`→403 (p.3),
+ * `rate_limited`→429 (p.4).
+ *
+ * `validation_failed`→422 is OUR call, not the PRD's — the body parses, the
+ * semantics fail, which is precisely what 422 means. The one `400` in the PRD
+ * (p.2) is `invalid_grant` on `/oauth/token`, which is RFC 6749's error format
+ * on a non-`/api/v1` route and is not an `ApiError` at all. Rationale is
+ * recorded in `docs/architecture.md`.
+ */
+export const STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   unauthorized: 401,
   forbidden: 403,
   not_found: 404,
@@ -31,22 +68,101 @@ const STATUS_BY_CODE: Record<ApiErrorCode, number> = {
   server_error: 500,
 };
 
+/**
+ * The SDK's discriminated-union tag. Restated here as a type only so this module
+ * can publish the mapping without importing from `sdk/` — the boundary contract
+ * (platform/README.md, fence 3) is that `sdk/**` imports nothing from this repo,
+ * and the dependency must not run the other way either. `errors.test.ts` asserts
+ * this list equals the SDK's `ShipErrorKind` union by reading `sdk/src/errors.ts`,
+ * so the two cannot drift silently.
+ */
+export const SDK_KINDS = ['auth', 'rate_limit', 'not_found', 'validation', 'server'] as const;
+
+export type SdkErrorKind = (typeof SDK_KINDS)[number];
+
+/**
+ * ApiErrorCode → SDK `kind`, published as data (PF-189).
+ *
+ * SIX codes onto FIVE kinds. `unauthorized` and `forbidden` both become `auth`,
+ * because an SDK consumer's `catch` branches on "can I fix this by getting a
+ * better token?" and both answers are yes. L17 imports this map; it does not
+ * restate it. Finding F6 was the stale "1:1" claim this replaces.
+ */
+export const SDK_KIND_BY_CODE: Record<ApiErrorCode, SdkErrorKind> = {
+  unauthorized: 'auth',
+  forbidden: 'auth',
+  not_found: 'not_found',
+  validation_failed: 'validation',
+  rate_limited: 'rate_limit',
+  server_error: 'server',
+};
+
+/** Options bag for the third `ApiError` argument (PF-187). */
+export interface ApiErrorOptions {
+  /**
+   * Structured, machine-readable context. The sub-shape is fixed PER CODE, not
+   * per route — see the `details` policy in `platform/README.md` (PF-198) and
+   * `apiErrorBodySchema` (PF-199), which enforces it.
+   */
+  details?: unknown;
+  /**
+   * The underlying failure. Retained for the server log; NEVER serialized —
+   * `Error.cause` set through the constructor options is non-enumerable, so
+   * `JSON.stringify` skips it, and `apiErrorMiddleware` never reads it into the
+   * body.
+   */
+  cause?: unknown;
+}
+
+/**
+ * The error every public handler throws.
+ *
+ * `details` is declared but not emitted as a class field (`declare`), so the key
+ * is genuinely ABSENT when no details were supplied rather than present-and-
+ * undefined. That distinction is load-bearing: `apiErrorBodySchema` is
+ * `.strict()`, and the codes that MUST omit `details` are checked by key
+ * presence, not by value.
+ */
 export class ApiError extends Error {
   readonly code: ApiErrorCode;
-  readonly details: unknown;
 
-  constructor(code: ApiErrorCode, message: string, details?: unknown) {
-    super(message);
+  /** Present only when supplied. See the class note above (PF-187). */
+  declare readonly details?: unknown;
+
+  constructor(code: ApiErrorCode, message: string, options?: ApiErrorOptions) {
+    // Only pass the options object when there is a cause: `new Error(m, {})`
+    // would still define an own `cause` key on some runtimes.
+    super(message, options && 'cause' in options ? { cause: options.cause } : undefined);
     this.name = 'ApiError';
     this.code = code;
-    this.details = details;
+
+    if (options?.details !== undefined) {
+      // Assigning (rather than declaring with an initializer) is what keeps the
+      // key absent in the no-details case.
+      (this as { details?: unknown }).details = options.details;
+    }
+
+    // Node sets this automatically for `Error` subclasses under V8, but only
+    // when Error.captureStackTrace exists. Being explicit keeps the stack from
+    // starting inside this constructor.
+    if (Error.captureStackTrace) Error.captureStackTrace(this, ApiError);
   }
 
+  /** The HTTP status this code maps to. Never `undefined` — see STATUS_BY_CODE. */
   get status(): number {
     return STATUS_BY_CODE[this.code];
   }
+
+  /** The SDK `kind` a client would surface for this error. */
+  get sdkKind(): SdkErrorKind {
+    return SDK_KIND_BY_CODE[this.code];
+  }
 }
 
+/**
+ * The wire shape. `request_id` is always present — it is minted by
+ * `requestIdMiddleware` before anything can fail (PF-190).
+ */
 export interface ApiErrorBody {
   code: ApiErrorCode;
   message: string;
@@ -54,9 +170,18 @@ export interface ApiErrorBody {
   request_id: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Middleware — still the L01 sketch. Replaced by PF-190 (`requestId.ts`) and
+// PF-194–197 (`errorMiddleware.ts`) in the next two slices of this lane. Kept
+// here for now only so `router.ts` keeps compiling across the slice boundary;
+// do not build on these two functions.
+// ─────────────────────────────────────────────────────────────────────────────
+import { randomUUID } from 'node:crypto';
+import type { Request, Response, NextFunction } from 'express';
+
 /** Attach a request id early so every response (and audit row) can carry it. */
 export function requestIdMiddleware() {
-  return (req: Request, res: Response, next: NextFunction): void => {
+  return (_req: Request, res: Response, next: NextFunction): void => {
     const id = randomUUID();
     res.locals.requestId = id;
     res.setHeader('X-Request-Id', id);
@@ -66,20 +191,15 @@ export function requestIdMiddleware() {
 
 /**
  * The ONE error handler for the public surface. Anything thrown by a v1 route —
- * ApiError or not — leaves in the envelope. Unknown errors become server_error
- * without leaking internals.
+ * ApiError or not — leaves in the envelope.
  */
 export function apiErrorMiddleware() {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  return (err: unknown, req: Request, res: Response, _next: NextFunction): void => {
+  return (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
     const requestId = (res.locals.requestId as string | undefined) ?? randomUUID();
     const apiErr =
-      err instanceof ApiError
-        ? err
-        : new ApiError('server_error', 'An unexpected error occurred.');
+      err instanceof ApiError ? err : new ApiError('server_error', 'An unexpected error occurred.');
 
     if (!(err instanceof ApiError)) {
-      // Log the real error server-side; never send it to the caller.
       console.error(`[api/v1] unhandled error (request_id=${requestId}):`, err);
     }
 
