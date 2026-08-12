@@ -141,6 +141,14 @@ sequenceDiagram
 
 Access tokens are opaque high-entropy strings stored hashed (same discipline as the existing `api_tokens` table); the bearer middleware resolves token → app + user + granted scopes on every `/api/v1/*` request.
 
+### Scope upgrades: re-consent with union
+
+A client that holds `documents:read` and now needs `documents:write` restarts `/oauth/authorize`. The user is shown the **union** of what they already granted and what is newly requested, consents once, and a fresh token replaces the old one. There is no partial grant, no mutable grant record, and no state meaning "granted A, pending B". The policy lives in one function — `resolveScopeUpgrade()` in `platform/scopes/validation.ts` — that both the authorization-code and device flows call, rather than being re-derived in each.
+
+The alternative is incremental consent: the new token carries only the increment and the client holds several tokens at once. It is the better product answer, and Google ships it. It is the wrong answer for this build, because it turns a grant from a fact into an accumulator: every code path that reads scopes has to merge across live tokens, and revocation has to reason about which of several tokens carried which grant. Re-consent-with-union keeps a token's scope set immutable for its whole life, which is the property the rest of the scope layer assumes — `reconcileTokenScopes()` can treat a presented token as a complete statement of what its bearer may do, and the audit trail's `scope used` field has one token to point at rather than a set.
+
+The cost is real and it is the user's: they see a consent screen again, listing permissions they already approved. Showing the union rather than the delta is what keeps that screen truthful — the user is consenting to the whole of what the new token will carry, not to an increment whose base they would have to remember. `resolveScopeUpgrade()` returns `requiresConsent: false` when the existing grant already covers the request, so the screen is never shown for a no-op.
+
 ## Webhook Pipeline
 
 ```mermaid

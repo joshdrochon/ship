@@ -14,9 +14,12 @@
  *   auth-context.ts   request state the platform reads (`res.locals.platformAuth`)
  *   require-scope.ts  the middleware factory — no scope names, no scope prose
  *   route-metadata.ts what each route declares, for PF-079 and L13's generator
+ *   validation.ts     pure grant-time functions L04/L05 call — request
+ *                     validation, intersection at issuance, upgrade policy
  */
 export * from './registry.js';
 export * from './scopes.js';
 export * from './auth-context.js';
 export * from './require-scope.js';
 export * from './route-metadata.js';
+export * from './validation.js';

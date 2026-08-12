@@ -44,6 +44,7 @@ import type { ScopeRegistry } from './registry.js';
 import { scopeRegistry, type Scope } from './scopes.js';
 import type { PlatformAuthContext } from './auth-context.js';
 import { type HttpMethod, type RouteScopeTable, routeScopes } from './route-metadata.js';
+import { reconcileTokenScopes } from './validation.js';
 
 /** Where a guard is mounted, used only to make the boot-time error locatable. */
 export interface RouteRef {
@@ -91,8 +92,24 @@ export class UnregisteredScopeError extends Error {
  */
 export const PLATFORM_AUTH_LOCAL = 'platformAuth';
 
+/**
+ * Where PF-075 leaves scopes the presented token carried and the registry no
+ * longer knows, for L12's audit sink to record against `scope used` (p.4).
+ *
+ * On `res.locals` rather than returned, because the guard's return channel is
+ * `next()` and the audit sink runs after the response. Absent when there is
+ * nothing to report — an empty array here and "never checked" would be
+ * indistinguishable.
+ */
+export const UNRECOGNIZED_SCOPES_LOCAL = 'unrecognizedScopes';
+
 export function getPlatformAuth(res: Response): PlatformAuthContext | undefined {
   return res.locals[PLATFORM_AUTH_LOCAL] as PlatformAuthContext | undefined;
+}
+
+/** What the token carried that the registry has forgotten, if anything. */
+export function getUnrecognizedScopes(res: Response): string[] {
+  return (res.locals[UNRECOGNIZED_SCOPES_LOCAL] as string[] | undefined) ?? [];
 }
 
 /**
@@ -155,7 +172,16 @@ function buildGuard(scope: string, options: RequireScopeOptions<string>): Reques
       return;
     }
 
-    if (auth.scopes.includes(definition.scope as Scope)) {
+    // PF-075 — what the token carries is not the same question as what it still
+    // means. A name the registry has forgotten grants nothing, and the fact that
+    // the token carried it is recorded rather than dropped, so the audit trail
+    // (L12) can show an operator that a deregistration broke a live integration.
+    const { effective, unrecognized } = reconcileTokenScopes(auth.scopes, registry);
+    if (unrecognized.length > 0) {
+      res.locals[UNRECOGNIZED_SCOPES_LOCAL] = unrecognized;
+    }
+
+    if (effective.includes(definition.scope as Scope)) {
       next();
       return;
     }
@@ -169,8 +195,11 @@ function buildGuard(scope: string, options: RequireScopeOptions<string>): Reques
         `Your access token does not carry the "${definition.scope}" scope, which this endpoint requires.`,
         {
           required_scope: definition.scope,
-          granted_scopes: [...auth.scopes],
+          granted_scopes: effective,
           scope_description: definition.description,
+          // Only when there is something to say. A caller whose token is fine
+          // should not have to reason about an always-empty field.
+          ...(unrecognized.length > 0 ? { unrecognized_scopes: unrecognized } : {}),
         },
       ),
     );
