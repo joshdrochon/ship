@@ -26,6 +26,16 @@ COPY api/package.json ./api/
 COPY web/package.json ./web/
 COPY shared/package.json ./shared/
 COPY agent/package.json ./agent/
+# `sdk` and `integrations/*` are workspace members in pnpm-workspace.yaml and
+# have importer entries in pnpm-lock.yaml. Their manifests must be present even
+# though nothing in the runtime image uses them, because `--frozen-lockfile`
+# compares the lockfile's importers against the projects the workspace globs
+# actually resolve to. With these two missing, pnpm finds four projects where
+# the lockfile records six and refuses to install at all -- the build dies at the
+# install layer, long before any TypeScript is compiled, with a lockfile error
+# that reads like a dependency problem rather than a missing COPY.
+COPY sdk/package.json ./sdk/
+COPY integrations/cli/package.json ./integrations/cli/
 
 # Full install — devDependencies are needed to compile TypeScript
 RUN pnpm install --frozen-lockfile --ignore-scripts
@@ -102,6 +112,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY api/package.json ./api/
 COPY shared/package.json ./shared/
 COPY agent/package.json ./agent/
+# Same reason as the builder stage: --frozen-lockfile validates the whole
+# workspace, not just the packages this stage happens to need. web/ is absent
+# here on purpose (its build output is copied in, not rebuilt) and that is
+# already tolerated, but sdk and integrations/cli have lockfile importers and
+# their absence is what makes the install refuse.
+COPY sdk/package.json ./sdk/
+COPY integrations/cli/package.json ./integrations/cli/
 
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts && pnpm store prune
 
