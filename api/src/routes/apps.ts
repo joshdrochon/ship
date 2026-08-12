@@ -265,5 +265,107 @@ export function createAppsRouter(repo: IOAuthAppRepo): RouterType {
     res.json({ success: true, data: toPublicApp(app) });
   });
 
+  /**
+   * PF-047 — D3: rotate. New secret shown once; the old one dies immediately.
+   * PF-049 — the same route is the admin force-rotate, on a foreign app.
+   *
+   * Two actors, one code path:
+   *   * the OWNER rotating their own app (the normal case), and
+   *   * a SUPER-ADMIN force-rotating an app they do not own, which is p.17's
+   *     "admin-driven force-rotate" option.
+   *
+   * A non-admin rotating a foreign app gets PF-043's not-found body, so the
+   * route is not an ownership oracle for anyone without the privilege.
+   *
+   * REJECTED AND RECORDED, not silently dropped: **automatic rotation on leak
+   * detection**. PF-050 detects; nothing closes the loop automatically, because
+   * there is no channel in this build to hand a newly rotated secret to its
+   * owner. Rotating a credential nobody asked to rotate converts a *suspected*
+   * leak into a *certain* outage.
+   *
+   * BLAST RADIUS, stated because the playbook depends on it: rotating the
+   * secret does NOT revoke tokens already issued. The secret is an issuance
+   * credential, not a session. The response to a confirmed leak is therefore
+   * rotate AND revoke, and revocation belongs to the token lane.
+   */
+  router.post(
+    '/:id/rotate-secret',
+    authMiddleware,
+    async (req: Request, res: Response): Promise<void> => {
+      const auth = requireAuth(req);
+      const id = String(req.params.id);
+
+      let target = await findOwnedApp(repo, id, auth.userId);
+      let forced = false;
+
+      if (!target && req.isSuperAdmin) {
+        // PF-049 — force-rotate. Only reached when the actor is a super-admin,
+        // so a normal user still cannot distinguish "not yours" from "absent".
+        try {
+          target = await repo.findById(id);
+        } catch {
+          target = null;
+        }
+        forced = target !== null;
+      }
+
+      if (!target) {
+        notFound(res);
+        return;
+      }
+
+      try {
+        const rawSecret = generateClientSecret();
+        const rotated = await repo.rotateSecret(
+          target.id,
+          hashClientSecret(rawSecret),
+          secretPrefix(rawSecret)
+        );
+        if (!rotated) {
+          notFound(res);
+          return;
+        }
+
+        // The ACTING user is recorded, not the owner — that is the whole point
+        // of force-rotate being a distinct, attributable event.
+        await logAuditEvent({
+          workspaceId: auth.workspaceId,
+          actorUserId: auth.userId,
+          action: forced ? 'oauth_app.secret_force_rotated' : 'oauth_app.secret_rotated',
+          resourceType: 'oauth_app',
+          resourceId: rotated.id,
+          details: {
+            client_id: rotated.clientId,
+            secret_version: rotated.secretVersion,
+            // The new prefix, never the secret (PF-035).
+            secret_prefix: rotated.secretPrefix,
+            forced,
+          },
+          req,
+        });
+
+        res.json({
+          success: true,
+          data: {
+            ...toPublicApp(rotated),
+            // The second and last response body in the codebase carrying a raw
+            // secret (PF-038's rule extends to rotation, per p.2: shown once
+            // "on creation and rotation").
+            client_secret: rawSecret,
+            rotation_policy: ROTATION_POLICY,
+            warning:
+              'The previous secret stopped working immediately. Any integration using it will now fail.',
+          },
+        });
+      } catch (error) {
+        console.error('Rotate OAuth app secret error:', error);
+        res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          error: { code: ERROR_CODES.INTERNAL_ERROR, message: 'Failed to rotate secret' },
+        });
+      }
+    }
+  );
+
   return router;
 }

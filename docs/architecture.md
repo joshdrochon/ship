@@ -195,6 +195,28 @@ The agent authenticates as a first-party OAuth app (seeded by migration, so it p
 
 ## Failure Modes
 
+**`client_secret` rotated — instant invalidation, and a documented departure from Stripe.** (PRD p.17: *"is the old secret immediately invalidated, or does it work alongside the new one for a grace period? What does Stripe do, and why?"*)
+
+*What Stripe does, and why.* Stripe lets the developer choose an expiry for the outgoing key — immediately, or after 1 hour, 24 hours, 3 days, or 7 days. That exists because Stripe's customers have live production integrations running on machines they cannot all redeploy at once; a hard cutover would take a merchant's checkout down while a deploy rolled out. The grace period buys a migration window, and the cost is that a leaked key stays valid for the length of that window.
+
+*What we ship, and why it is a departure rather than an oversight.* **Instant.** The old secret stops verifying the moment the new one is issued, and there is nowhere in the schema to put a second live hash — `oauth_apps.client_secret_hash` is overwritten, not appended to, so a grace period is not accidentally representable. The trade Stripe is making does not apply here: a one-week build with no production integrations has no migration window to protect. And instant is the only model where responding to a leak is *finished* at the moment you act — with a grace period, "I rotated the key" and "the leaked key is dead" are different events, and the gap between them is exactly when the thief is still spending.
+
+The shipped behavior and this paragraph are held together by one constant: **`ROTATION_POLICY` in `api/src/routes/apps.ts`**, returned as `rotation_policy` on every create and rotate response. Flipping the model means changing that constant, which means changing this paragraph. The developer portal (L22) renders whichever value the API returns rather than hard-coding the copy, so a future grace period is a data change, not a UI rewrite — and the UI cannot end up lying about the security model.
+
+The same call is made for the webhook signing secret, so the platform has one rotation story rather than two.
+
+**`client_secret` leaked — detection, response, and blast radius.** (p.17: *"automatic rotation, manual rotation by the owner, or admin-driven force-rotate? What's the audit signal you'd alert on?"*)
+
+*Detection.* Every client-secret verification is recorded to `client_secret_auth_log` (migration 040) with the `client_id`, the `secret_prefix`, the outcome, and the source IP — never the secret and never its hash. Three conditions are alertable, each table-tested: **(a)** failed verifications for one `client_id` crossing a threshold inside a window — the shape a rotated-then-retried thief makes; **(b)** *successful* verifications for one `client_id` from more than N distinct source IPs in a window — a shared secret being used from somewhere new; **(c)** **any** verification attempt against an app with `active = false`.
+
+This has its own table rather than a filter over the public audit trail because of a measured fact: the audit middleware sits in the `/api/v1` stack, and `client_secret` is presented at `/oauth/token`, which mounts at `/oauth` — outside `/api/v1`. No `public_api_calls` row can ever record a secret authentication.
+
+*Response.* **Owner-initiated rotation and admin force-rotate ship. Automatic rotation does not.** Automatic rotation is rejected with its reason rather than quietly omitted: rotating a credential nobody asked to rotate invalidates a live integration, and there is no channel in this build to hand the replacement to its owner — so it converts a *suspected* leak into a *certain* outage.
+
+*Blast radius, which is why the playbook has two steps.* **Rotating the secret does not revoke tokens already issued.** The secret is an issuance credential, not a session; tokens minted before the rotation keep working until they expire. The response to a confirmed leak is therefore **rotate *and* revoke** — rotation closes the door, revocation evicts whoever is already inside.
+
+*Honest limit.* The three conditions are queryable and tested; they are not **paged**. There is no `/metrics` endpoint and no notifier in this build, so p.18's "where does it show up" is answered by "logs and a query". The missing piece is an alerting surface, not a signal.
+
 **Token store corrupted (SDK side).** `ITokenStore` reads that fail or return garbage are treated as logged-out, never as a retry loop: the next call surfaces `{ kind: 'auth' }` and the helper flows re-authenticate cleanly. Corruption is a client-local event — the server sees at worst a 401'd request, and no partial credential is ever written back.
 
 **Signing secret rotated mid-flight.** Rotation takes effect at the next delivery attempt: the signer reads the subscription's current secret at send time, so in-flight failures re-sign with the new secret on retry. A subscriber that hasn't updated its env verifies against the old secret, fails, and the retry ladder (30 min tail) covers the update window; the pathological case parks in the DLQ, replayable from the portal with the original Idempotency-Key.

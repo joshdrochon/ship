@@ -21,7 +21,7 @@ beforeAll(async () => {
     workspace_invites, sessions, files, document_links, document_history,
     comments, document_associations, document_snapshots, sprint_iterations,
     issue_iterations, documents, audit_logs, workspace_memberships,
-    oauth_apps, users, workspaces
+    oauth_apps, client_secret_auth_log, users, workspaces
     CASCADE`)
 })
 

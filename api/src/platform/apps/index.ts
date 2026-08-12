@@ -13,3 +13,4 @@ export * from './secrets.js';
 export * from './repo.js';
 export * from './pg-repo.js';
 export * from './schema.js';
+export * from './secret-auth-log.js';

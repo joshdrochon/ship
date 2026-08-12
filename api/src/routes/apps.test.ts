@@ -372,6 +372,112 @@ describe('PF-038 — the raw secret reaches exactly one response and no log line
   });
 });
 
+describe('PF-047 / PF-049 — rotation and force-rotate', () => {
+  async function rotate(id: string, cookie: string) {
+    const { cookies, token } = await csrfFor(cookie);
+    return request(app)
+      .post(`/api/apps/${id}/rotate-secret`)
+      .set('Cookie', cookies)
+      .set('x-csrf-token', token)
+      .send({});
+  }
+
+  it('D3: the old secret fails on the very next call, the new one succeeds', async () => {
+    const { verifyClientSecret } = await import('../platform/apps/index.js');
+    const created = await register();
+    const clientId: string = created.body.data.client_id;
+    const oldSecret: string = created.body.data.client_secret;
+
+    const res = await rotate(created.body.data.id, ownerCookie);
+    expect(res.status).toBe(200);
+    const newSecret: string = res.body.data.client_secret;
+
+    expect(newSecret).toMatch(/^ship_secret_/);
+    expect(newSecret).not.toBe(oldSecret);
+    expect(res.body.data.secret_version).toBe(2);
+    // No grace period. The old secret is dead the moment the new one exists.
+    expect((await verifyClientSecret(repo(), clientId, oldSecret)).ok).toBe(false);
+    expect((await verifyClientSecret(repo(), clientId, newSecret)).ok).toBe(true);
+  });
+
+  it('secret_prefix now names the NEW secret', async () => {
+    const created = await register();
+    const res = await rotate(created.body.data.id, ownerCookie);
+    expect(res.body.data.secret_prefix).not.toBe(created.body.data.secret_prefix);
+    // The prefix is of the random portion, after the tag.
+    expect(res.body.data.client_secret).toContain(res.body.data.secret_prefix);
+  });
+
+  it('carries rotation_policy as DATA, so the portal cannot hard-code the copy', async () => {
+    // L22's PF-670 renders whichever value this returns. If the API stopped
+    // sending it, the UI would have to guess and could lie about the model.
+    const created = await register();
+    const res = await rotate(created.body.data.id, ownerCookie);
+    expect(res.body.data.rotation_policy).toBe('instant');
+    expect(created.body.data.rotation_policy).toBe('instant');
+  });
+
+  it('a non-admin rotating a FOREIGN app gets PF-043\'s not-found body', async () => {
+    const theirs = await register(otherCookie);
+    const res = await rotate(theirs.body.data.id, ownerCookie);
+    expect(res.status).toBe(404);
+
+    const absent = await rotate('00000000-0000-0000-0000-000000000000', ownerCookie);
+    expect(JSON.stringify(res.body)).toBe(JSON.stringify(absent.body));
+  });
+
+  it('PF-049: a super-admin CAN force-rotate an app they do not own', async () => {
+    const theirs = await register(otherCookie);
+    await pool.query('UPDATE users SET is_super_admin = true WHERE id = $1', [ownerId]);
+    try {
+      const res = await rotate(theirs.body.data.id, ownerCookie);
+      expect(res.status).toBe(200);
+      expect(res.body.data.secret_version).toBe(2);
+
+      // The ACTING user is recorded, not the owner — that is what makes a
+      // force-rotate attributable.
+      const audit = await pool.query<{ actor_user_id: string; action: string }>(
+        `SELECT actor_user_id, action FROM audit_logs
+          WHERE action = 'oauth_app.secret_force_rotated' ORDER BY created_at DESC LIMIT 1`
+      );
+      expect(audit.rows[0]!.actor_user_id).toBe(ownerId);
+    } finally {
+      await pool.query('UPDATE users SET is_super_admin = false WHERE id = $1', [ownerId]);
+    }
+  });
+
+  it('the raw secret appears in the rotate body and in no read afterwards', async () => {
+    const created = await register();
+    const res = await rotate(created.body.data.id, ownerCookie);
+    const newSecret: string = res.body.data.client_secret;
+
+    const read = await request(app)
+      .get(`/api/apps/${created.body.data.id}`)
+      .set('Cookie', ownerCookie);
+    expect(JSON.stringify(read.body)).not.toContain(newSecret);
+    expect(read.body.data.client_secret).toBeUndefined();
+  });
+
+  it('rotation does NOT change client_id — the audit trail stays joinable', async () => {
+    const created = await register();
+    const res = await rotate(created.body.data.id, ownerCookie);
+    expect(res.body.data.client_id).toBe(created.body.data.client_id);
+  });
+});
+
+describe('PF-048 — the documented departure is pinned to the shipped constant', () => {
+  it('docs/architecture.md names ROTATION_POLICY, so a flip forces a doc change', async () => {
+    const { readFileSync } = await import('fs');
+    const doc = readFileSync(new URL('../../../docs/architecture.md', import.meta.url), 'utf-8');
+    expect(doc).toContain('ROTATION_POLICY');
+    // The departure has to be argued, not merely asserted.
+    expect(doc).toContain('Stripe');
+    expect(doc).toMatch(/grace period/i);
+    // And the blast-radius sentence PF-049's playbook depends on.
+    expect(doc).toMatch(/does not revoke tokens already issued/i);
+  });
+});
+
 describe('PF-045 — MVP GATE ITEM 1, asserted end to end as ONE test', () => {
   it('admin creates an app → client_id + raw secret once → DB holds only the hash → verify works', async () => {
     // Recorded as a single test on purpose. This is the last unclaimed gate
