@@ -8,12 +8,14 @@
 api/src/platform/            (new) everything public-facing; imports domain services, never route files
   apps/                      oauth_apps registry — create/rotate/list; client_secret hashed (SHA-256, high-entropy), raw shown exactly once
   oauth/                     RFC 6749 Auth Code + 7636 PKCE + 8628 Device Grant; token issuance; one-time-use refresh tokens with family revocation
-  scopes/                    ScopeRegistry — scopes-as-data (documents/issues/sprints × read/write, webhooks:manage) + require(scope) middleware factory
-                             (public `sprints` maps onto Ship's internal `weeks` model at this layer — the contract name, not the table name)
+  scopes/                    ScopeRegistry — scopes-as-data (documents/issues/sprints × read/write, webhooks:manage) + require(scope) middleware factory,
+                             pure grant-time validation (requested-scope check, issuance intersection, upgrade policy) that OAuth calls before issuing
   ratelimit/                 IRateLimiter + in-memory token bucket (per-app and per-token); emits X-RateLimit-* headers, 429 + Retry-After
   webhooks/                  event registry (Zod-typed, 8 types), IEventBus + InProcessEventBus, subscription matcher, HMAC signer,
                              IWebhookDeliverer, retry scheduler, delivery log, DLQ + replay
-  api/v1/                    the ONLY public router — fresh middleware stack, ApiError envelope, opaque cursor pagination ({data, next_cursor})
+  api/v1/                    the ONLY public router — fresh middleware stack, ApiError envelope, opaque cursor pagination ({data, next_cursor});
+                             resource-map.ts is the one place public `sprints` maps onto Ship's internal `weeks` route — the contract name, not the table name
+                             (`document_type` has said `sprint` since Part 1, so the translation is route-path and vocabulary only)
   openapi/                   public OpenAPI 3.1 registry; generated from route metadata, served at /api/v1/openapi.json
   audit/                     public API call log — timestamp, app client_id, user_id, route, scope, status, latency; queryable in the dev portal
   clock.ts                   Clock / SystemClock / FakeClock — a file, not a module; the retry scheduler, the token bucket and OAuth expiry all read it
