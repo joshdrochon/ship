@@ -4,6 +4,7 @@
  * PF-200 (enumerator), PF-201 (envelope on every route), PF-202 (seams for the
  * other three Testing Scenario 4 clauses), PF-203 (one negative case per code).
  */
+import { scopeRegistry } from '../../scopes/scopes.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import express, { Router } from 'express';
@@ -19,7 +20,7 @@ import { createTestPublicApp, fakeAuthContext, V1_PREFIX } from './testSupport.j
 import { asyncRoute } from './errorMiddleware.js';
 import { ApiError, apiErrorBodySchema, API_ERROR_CODES, type ApiErrorCode } from './errors.js';
 import { InMemoryTokenBucket } from '../../ratelimit/limiter.js';
-import { requireScope } from '../../scopes/registry.js';
+import { requireScope } from '../../scopes/require-scope.js';
 
 /** A believable resource surface, standing in for L08–L16's routes. */
 const mountSampleResources = (router: Router): void => {
@@ -334,7 +335,10 @@ describe('PF-203 — one negative case per code, produced by a real request', ()
     expect(res.body.details).toEqual({
       missing_scope: 'documents:read',
       granted_scopes: ['issues:read'],
-      scope_description: 'Read documents',
+      // Sourced from L03's SCOPE_DEFINITIONS, which owns the prose the user
+        // consented to. Hardcoding a paraphrase here would let the registry and
+        // the 403 drift apart silently.
+        scope_description: scopeRegistry.get('documents:read')!.description,
     });
   });
 

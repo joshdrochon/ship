@@ -8,7 +8,7 @@ import { deactivateAppsForDeletedOwner } from './owner-lifecycle.js';
 import { PgOAuthAppRepo } from './pg-repo.js';
 import { secretMaterial, verifyClientSecret } from './repo.js';
 import { generateClientId, generateClientSecret } from './secrets.js';
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 
 let workspaceId: string;
 const repo = () => new PgOAuthAppRepo(pool);

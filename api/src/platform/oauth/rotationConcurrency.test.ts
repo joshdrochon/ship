@@ -20,7 +20,7 @@ import { PgOAuthAppRepo } from '../apps/pg-repo.js';
 import { secretMaterial } from '../apps/repo.js';
 import { generateClientId, generateClientSecret } from '../apps/secrets.js';
 import type { OAuthApp } from '../apps/types.js';
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 import { PgTokenRepo } from './pgTokenRepo.js';
 import { issueTokenPair } from './issue.js';
 import { resolveToken } from './resolve.js';

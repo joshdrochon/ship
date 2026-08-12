@@ -30,7 +30,7 @@
  * and a retry loop around a rotation is a way to accidentally issue two pairs.
  */
 import type { Database, QueryRunner } from '../../db/client.js';
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 import type {
   ITokenRepo,
   InsertPairInput,

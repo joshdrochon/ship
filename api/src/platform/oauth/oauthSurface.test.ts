@@ -13,7 +13,7 @@ import { FakeClock } from '../clock.js';
 import { InMemoryOAuthAppRepo, secretMaterial } from '../apps/repo.js';
 import { generateClientId, generateClientSecret } from '../apps/secrets.js';
 import type { OAuthApp } from '../apps/types.js';
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 import { InMemoryTokenRepo } from './tokenRepo.js';
 import { issueTokenPair } from './issue.js';
 import { createOAuthRouter } from './router.js';

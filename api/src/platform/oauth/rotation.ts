@@ -49,7 +49,7 @@
  */
 import type { Clock } from '../clock.js';
 import type { OAuthApp } from '../apps/types.js';
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 import type { ITokenRepo, TokenRecord } from './tokenRepo.js';
 import { issueTokenPair, type TokenPairResponse } from './issue.js';
 import { hashToken, REFRESH_REPLAY_WINDOW_MS, type TokenTtlConfig } from './tokens.js';

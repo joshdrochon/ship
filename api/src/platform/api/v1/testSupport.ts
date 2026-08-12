@@ -16,7 +16,8 @@ import { createPublicRouter } from './router.js';
 import { InMemoryAuditSink } from '../../audit/audit.js';
 import { InMemoryTokenBucket } from '../../ratelimit/limiter.js';
 import type { IRateLimiter } from '../../ratelimit/limiter.js';
-import type { PlatformAuthContext, Scope } from '../../scopes/registry.js';
+import type { PlatformAuthContext } from '../../scopes/auth-context.js';
+import type { Scope } from '../../scopes/scopes.js';
 
 /** Where the public router is mounted. The prefix the enumerator reports under. */
 export const V1_PREFIX = '/api/v1';

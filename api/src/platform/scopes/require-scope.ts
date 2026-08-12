@@ -194,12 +194,14 @@ function buildGuard(scope: string, options: RequireScopeOptions<string>): Reques
         'forbidden',
         `Your access token does not carry the "${definition.scope}" scope, which this endpoint requires.`,
         {
-          missing_scope: definition.scope,
-          granted_scopes: effective,
-          scope_description: definition.description,
-          // Only when there is something to say. A caller whose token is fine
-          // should not have to reason about an always-empty field.
-          ...(unrecognized.length > 0 ? { unrecognized_scopes: unrecognized } : {}),
+          details: {
+            missing_scope: definition.scope,
+            granted_scopes: effective,
+            scope_description: definition.description,
+            // Only when there is something to say. A caller whose token is fine
+            // should not have to reason about an always-empty field.
+            ...(unrecognized.length > 0 ? { unrecognized_scopes: unrecognized } : {}),
+          },
         },
       ),
     );

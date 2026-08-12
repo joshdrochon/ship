@@ -28,7 +28,7 @@
  * this function's contract is that it faithfully records whatever it was handed.
  */
 import type { Clock } from '../clock.js';
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 import type { OAuthApp } from '../apps/types.js';
 import type { ITokenRepo, TokenRecord } from './tokenRepo.js';
 import {

@@ -21,15 +21,11 @@ import express, { type Express, type RequestHandler } from 'express';
 import request from 'supertest';
 import { ScopeRegistry } from '../platform/scopes/registry.js';
 import { scopeRegistry, SCOPE_DEFINITIONS, type Scope } from '../platform/scopes/scopes.js';
-import {
-  requireScope,
-  declareRoute,
-  UnregisteredScopeError,
-  PLATFORM_AUTH_LOCAL,
-} from '../platform/scopes/require-scope.js';
+import { requireScope, declareRoute, UnregisteredScopeError, PLATFORM_AUTH_LOCAL } from '../platform/scopes/require-scope.js';
 import { RouteScopeTable } from '../platform/scopes/route-metadata.js';
 import type { PlatformAuthContext } from '../platform/scopes/auth-context.js';
-import { requestIdMiddleware, apiErrorMiddleware } from '../platform/api/v1/errors.js';
+import { requestIdMiddleware } from '../platform/api/v1/requestId.js';
+import { apiErrorMiddleware } from '../platform/api/v1/errorMiddleware.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REQUIRE_SCOPE_SRC = join(HERE, '..', 'platform', 'scopes', 'require-scope.ts');
@@ -147,7 +143,7 @@ describe('PF-068 · an unregistered scope fails at wiring time, not at request t
 });
 
 describe('PF-069 · the 403 names the missing scope in a machine-readable field', () => {
-  it('ships {code, message, details:{required_scope, granted_scopes}, request_id}', async () => {
+  it('ships {code, message, details:{missing_scope, granted_scopes}, request_id}', async () => {
     const app = appWith(requireScope('documents:write'), authContext(['documents:read']));
 
     const res = await request(app).get('/thing');
@@ -157,7 +153,7 @@ describe('PF-069 · the 403 names the missing scope in a machine-readable field'
     // The assertion the ticket singles out. An SDK cannot switch on prose, so
     // asserting the message text would not satisfy PF-069 — the machine-readable
     // field is the deliverable.
-    expect(res.body.details.required_scope).toBe('documents:write');
+    expect(res.body.details.missing_scope).toBe('documents:write');
     expect(res.body.details.granted_scopes).toEqual(['documents:read']);
     expect(typeof res.body.request_id).toBe('string');
     expect(res.body.request_id.length).toBeGreaterThan(0);
@@ -178,7 +174,7 @@ describe('PF-069 · the 403 names the missing scope in a machine-readable field'
 
     expect(res.status).toBe(403);
     expect(res.body.details.granted_scopes).toEqual([]);
-    expect(res.body.details.required_scope).toBe('documents:read');
+    expect(res.body.details.missing_scope).toBe('documents:read');
   });
 });
 
@@ -339,7 +335,7 @@ describe('PF-066 · Open/Closed — a new scope reaches 200 and 403 with no midd
     const res = await request(app).get('/thing');
 
     expect(res.status).toBe(403);
-    expect(res.body.details.required_scope).toBe('plugins:read');
+    expect(res.body.details.missing_scope).toBe('plugins:read');
     expect(res.body.details.scope_description).toBe('Read installed plugins');
   });
 

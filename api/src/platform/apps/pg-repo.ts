@@ -13,7 +13,7 @@
  * be published deliberately, and an explicit list is what forces that.
  */
 import type { QueryRunner } from '../../db/client.js';
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 import type { OAuthApp } from './types.js';
 import type {
   CreateOAuthAppInput,

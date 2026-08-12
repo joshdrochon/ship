@@ -15,7 +15,7 @@ import { pool } from '../../db/client.js';
 import { PgOAuthAppRepo } from './pg-repo.js';
 import { InMemoryOAuthAppRepo, secretMaterial, verifyClientSecret } from './repo.js';
 import { generateClientId, generateClientSecret } from './secrets.js';
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 
 const SCOPES_FIXTURE: Scope[] = ['documents:read', 'issues:read'];
 

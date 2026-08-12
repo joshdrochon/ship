@@ -271,6 +271,13 @@ export const apiErrorBodySchema = z.discriminatedUnion('code', [
           missing_scope: z.string().min(1),
           granted_scopes: z.array(z.string()),
           scope_description: z.string().min(1),
+          // Optional, and only present when there is something to say: L03's
+          // requireScope emits it when the token carries scope names that are
+          // no longer in the registry (PF-075). It was missed on first pass
+          // because it is emitted conditionally, so reading the branch for an
+          // unconditional field found nothing. A caller whose token is clean
+          // should not have to reason about an always-empty array.
+          unrecognized_scopes: z.array(z.string()).min(1).optional(),
         })
         .strict(),
     })

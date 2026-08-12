@@ -32,7 +32,7 @@
  * (one implementation, both backends) and keeps the repository about storage.
  * It leaks no `pg` types: the callback receives an `ITokenRepo`.
  */
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 
 /** Why a token was revoked. A machine-readable tag, never prose, never shown to a caller. */
 export type RevocationReason =

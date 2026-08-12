@@ -13,7 +13,7 @@
  * is the bug the composition-root claim in `docs/architecture.md` exists to
  * prevent, and PF-037's fitness test fails on it.
  */
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 import type { OAuthApp } from './types.js';
 import { digestsEqual, hashClientSecret, secretPrefix, ABSENT_APP_DIGEST } from './secrets.js';
 

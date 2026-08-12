@@ -169,7 +169,7 @@ describe('PF-041 — requested_scopes validated against the ScopeRegistry', () =
   });
 
   it('accepts all seven registered scope names', async () => {
-    const { scopeRegistry } = await import('../platform/scopes/registry.js');
+    const { scopeRegistry } = await import('../platform/scopes/scopes.js');
     const all = scopeRegistry.list().map((d) => d.scope);
     expect(all).toHaveLength(7);
 

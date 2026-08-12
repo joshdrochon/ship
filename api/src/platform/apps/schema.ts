@@ -26,7 +26,8 @@
  * exactly one definition.
  */
 import { z } from 'zod';
-import { scopeRegistry, type Scope } from '../scopes/registry.js';
+import { scopeRegistry } from '../scopes/scopes.js';
+import { type Scope } from '../scopes/scopes.js';
 import type { OAuthApp } from './types.js';
 
 /**

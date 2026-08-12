@@ -19,14 +19,10 @@ import {
   reconcileTokenScopes,
   resolveScopeUpgrade,
 } from '../platform/scopes/validation.js';
-import {
-  requireScope,
-  PLATFORM_AUTH_LOCAL,
-  UNRECOGNIZED_SCOPES_LOCAL,
-  getUnrecognizedScopes,
-} from '../platform/scopes/require-scope.js';
+import { requireScope, PLATFORM_AUTH_LOCAL, UNRECOGNIZED_SCOPES_LOCAL, getUnrecognizedScopes } from '../platform/scopes/require-scope.js';
 import type { PlatformAuthContext } from '../platform/scopes/auth-context.js';
-import { requestIdMiddleware, apiErrorMiddleware } from '../platform/api/v1/errors.js';
+import { requestIdMiddleware } from '../platform/api/v1/requestId.js';
+import { apiErrorMiddleware } from '../platform/api/v1/errorMiddleware.js';
 
 function authContext(scopes: string[]): PlatformAuthContext {
   return {
@@ -171,7 +167,7 @@ describe('PF-075 · token scopes are re-validated against the registry at reques
     const res = await request(app).get('/thing');
 
     expect(res.status).toBe(403);
-    expect(res.body.details.required_scope).toBe('documents:write');
+    expect(res.body.details.missing_scope).toBe('documents:write');
     // `plugins:read` is not in the production registry, so it is not reported as
     // something the caller has.
     expect(res.body.details.granted_scopes).toEqual(['documents:read']);

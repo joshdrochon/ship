@@ -252,7 +252,7 @@ describe('PF-039 — app CRUD stays off the public contract', () => {
     // Inventing `apps:manage` to move app CRUD onto /api/v1 is the failure this
     // test exists to catch. p.3 fixes the registry at seven and L03's PF-068
     // makes an unregistered scope a wiring-time throw.
-    const { scopeRegistry } = await import('../platform/scopes/registry.js');
+    const { scopeRegistry } = await import('../platform/scopes/scopes.js');
     expect(scopeRegistry.list()).toHaveLength(7);
     expect(scopeRegistry.has('apps:manage')).toBe(false);
   });

@@ -40,7 +40,7 @@
 import type { Clock } from '../clock.js';
 import type { IOAuthAppRepo } from '../apps/repo.js';
 import type { OAuthApp } from '../apps/types.js';
-import type { PlatformAuthContext } from '../scopes/registry.js';
+import type { PlatformAuthContext } from '../scopes/auth-context.js';
 import type { ITokenRepo } from './tokenRepo.js';
 import { hashToken, ACCESS_TOKEN_TAG } from './tokens.js';
 

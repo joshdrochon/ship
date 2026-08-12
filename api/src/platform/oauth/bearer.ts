@@ -53,7 +53,7 @@
  */
 import type { Request, Response, NextFunction } from 'express';
 import { ApiError, type UnauthorizedReason } from '../api/v1/errors.js';
-import type { PlatformAuthContext } from '../scopes/registry.js';
+import type { PlatformAuthContext } from '../scopes/auth-context.js';
 import { resolveToken, type ResolveTokenDeps } from './resolve.js';
 
 export type BearerAuthDeps = ResolveTokenDeps;

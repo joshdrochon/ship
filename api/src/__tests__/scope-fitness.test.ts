@@ -22,7 +22,8 @@ import { scopeRegistry, type Scope } from '../platform/scopes/scopes.js';
 import { declareRoute, requireScope, PLATFORM_AUTH_LOCAL } from '../platform/scopes/require-scope.js';
 import { validateRequestedScopes } from '../platform/scopes/validation.js';
 import type { PlatformAuthContext } from '../platform/scopes/auth-context.js';
-import { requestIdMiddleware, apiErrorMiddleware } from '../platform/api/v1/errors.js';
+import { requestIdMiddleware } from '../platform/api/v1/requestId.js';
+import { apiErrorMiddleware } from '../platform/api/v1/errorMiddleware.js';
 import type { IRateLimiter } from '../platform/ratelimit/limiter.js';
 import type { IAuditSink } from '../platform/audit/audit.js';
 
@@ -177,7 +178,7 @@ describe('PF-080 · the negative matrix', () => {
 
     expect(res.status).toBe(403);
     expect(res.body.code).toBe('forbidden');
-    expect(res.body.details.required_scope).toBe('documents:write');
+    expect(res.body.details.missing_scope).toBe('documents:write');
   });
 
   it('(b) an authorize request for documents:delete comes back as invalid_scope, listing it', () => {
@@ -220,7 +221,7 @@ describe('PF-080 · the negative matrix', () => {
     );
 
     expect(res.status).toBe(403);
-    expect(res.body.details.required_scope).toBe('documents:write');
+    expect(res.body.details.missing_scope).toBe('documents:write');
     expect(res.body.details.granted_scopes).toEqual(['issues:write']);
   });
 

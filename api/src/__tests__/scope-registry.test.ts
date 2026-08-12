@@ -16,12 +16,8 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  ScopeRegistry,
-  DuplicateScopeError,
-  MalformedScopeError,
-  type ScopeDefinition,
-} from '../platform/scopes/registry.js';
+import { ScopeRegistry, DuplicateScopeError, MalformedScopeError } from '../platform/scopes/registry.js';
+import { type ScopeDefinition } from '../platform/scopes/registry.js';
 import { scopeRegistry, SCOPE_DEFINITIONS, type Scope } from '../platform/scopes/scopes.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
