@@ -296,12 +296,15 @@ describe('PF-203 — one negative case per code, produced by a real request', ()
     'not_found',
     'rate_limited',
     'server_error',
+    // L09 — `POST /api/v1/documents` with an invalid body. Was a todo naming
+    // this lane (PF-203); now a live case below.
+    'validation_failed',
   ];
-  const TODO: Partial<Record<ApiErrorCode, string>> = {
-    // L09 owns the first route with a request body to validate. Until one
-    // exists there is no honest end-to-end way to produce this code.
-    validation_failed: 'L09 (resource: documents) — POST with an invalid body',
-  };
+  // L09 landed `POST /api/v1/documents`, so `validation_failed` has a real
+  // producer and moved from TODO into LIVE below. Empty rather than deleted: the
+  // shape is the handoff mechanism, and the "a todo must name a lane" assertion
+  // at the bottom of this block is what keeps it honest for the next code.
+  const TODO: Partial<Record<ApiErrorCode, string>> = {};
 
   it('unauthorized — an anonymous request to a real route', async () => {
     const { app } = createTestPublicApp({ auth: null, mountResources: mountSampleResources });
@@ -382,7 +385,27 @@ describe('PF-203 — one negative case per code, produced by a real request', ()
     expect(res.body.code).toBe('server_error');
   });
 
-  it.todo(`validation_failed — ${TODO.validation_failed}`);
+  it('validation_failed — a real POST body rejected by the real route schema', async () => {
+    // PF-254, converting L07's PF-203 todo in the same PR that gave it a
+    // producer. The route is L09's `POST /api/v1/documents` and the schema is
+    // the one adjacent to it, so this exercises the actual mapping from a
+    // `ZodError` into `details.fields[]` — not a hand-built envelope.
+    const { mountDocuments } = await import('./documents/routes.js');
+    const { createDocumentService } = await import('../../../services/documents.js');
+    const { pool } = await import('../../../db/client.js');
+
+    const { app } = createTestPublicApp({
+      auth: fakeAuthContext(['documents:write']),
+      mountResources: (router) =>
+        mountDocuments(router, { db: pool, service: createDocumentService() }),
+    });
+
+    const res = await request(app).post(`${V1_PREFIX}/documents`).send({ title: '' }).expect(422);
+
+    expect(apiErrorBodySchema.safeParse(res.body).success).toBe(true);
+    expect(res.body.code).toBe('validation_failed');
+    expect(res.body.details.fields[0].field).toBe('title');
+  });
 
   it('every code has either a live case or a named todo', () => {
     const covered = new Set<ApiErrorCode>([...LIVE, ...(Object.keys(TODO) as ApiErrorCode[])]);
@@ -398,10 +421,15 @@ describe('PF-203 — one negative case per code, produced by a real request', ()
     }
   });
 
-  it('the live cases really do cover five distinct codes', async () => {
-    // Guards against a copy-paste that leaves two tests asserting one code.
-    expect(new Set(LIVE).size).toBe(5);
-    expect(LIVE.every((c) => API_ERROR_CODES.includes(c))).toBe(true);
+  it('the live cases cover EVERY code, with no todos left', async () => {
+    // Was "five distinct codes" with `validation_failed` outstanding as a todo
+    // naming L09. L09 landed `POST /api/v1/documents`, so all six of p.7's codes
+    // now have a live producer and the todo list is empty. Asserted against
+    // `API_ERROR_CODES` rather than a literal count, so adding a seventh code
+    // fails here instead of quietly leaving it unexercised.
+    expect(new Set(LIVE).size).toBe(LIVE.length);
+    expect([...LIVE].sort()).toEqual([...API_ERROR_CODES].sort());
+    expect(Object.keys(TODO)).toEqual([]);
   });
 });
 
