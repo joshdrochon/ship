@@ -104,6 +104,45 @@ sequenceDiagram
 
 Contract details asserted by fitness tests over every `/api/v1` route: OpenAPI entry exists, a scope is declared, failures ship the `ApiError` shape (`unauthorized | forbidden | not_found | validation_failed | rate_limited | server_error`), list endpoints paginate with opaque base64 cursors over `{id, timestamp}`.
 
+### Error envelope decisions
+
+The code set above is **closed at six** and is printed verbatim in the PRD (p.7). Three
+things about it are ours to defend rather than the PRD's to dictate:
+
+**`validation_failed` → 422, not 400.** The PRD names statuses only for 401 (p.2, p.3),
+403 (p.3) and 429 (p.4). 422 is the honest code for the case: the request body parsed
+fine, so the syntax was never in question — what failed is the semantics. The single
+`400` in the PRD (p.2) is `invalid_grant` on `/oauth/token`, which is RFC 6749's error
+format on a route that is not under `/api/v1` and is not an `ApiError` at all; the code
+union deliberately has no `invalid_grant` member. Anyone reading a 400 from this API is
+therefore reading an OAuth error, and anyone reading a 422 is reading a validation
+error — the two never blur.
+
+**The envelope is identical everywhere; `details` is the only variable part, and its
+sub-shape is fixed per CODE, not per route.** `validation_failed` carries
+`details.fields[]`; `forbidden` carries `details.{missing_scope, granted_scopes,
+scope_description}` (p.2 requires the 403 to name the missing scope, which is what
+forces `details` to exist at all); `rate_limited` may carry
+`details.retry_after_seconds`; `unauthorized` may carry `details.reason` — a closed
+enum of `expired | invalid | missing` that satisfies MVP gate item 3's "401 with a
+distinct error code" without adding a seventh `ApiErrorCode` to a union the PRD prints
+verbatim on p.7 (dispute B14); `not_found` and `server_error` omit
+`details` entirely. Per-route detail shapes were available and were rejected: a consumer
+that has to learn a different error body per endpoint has no envelope, only a
+convention. `apiErrorBodySchema` (Zod, `.strict()`, discriminated on `code`) is the one
+definition of this, and both the serializer and the fitness harness import it.
+
+**Codes map 6 → 5 onto the SDK's `kind` union, not 1:1.** `unauthorized` and `forbidden`
+both surface as `kind: 'auth'`, because the question an SDK consumer's `catch` block is
+actually asking is "would a better token fix this?" — and for both, it would. The
+mapping is published as data (`SDK_KIND_BY_CODE`) so the SDK imports it rather than
+restating it.
+
+**`request_id` is minted server-side, always, and an inbound `X-Request-Id` is ignored.**
+It is the join key for the audit trail (p.4). A client-supplied key lets a caller collide
+its rows with another app's, or forge a trail that never happened, and the value of an
+audit trail is exactly that the audited party did not write it.
+
 ## OAuth Flows
 
 ```mermaid
