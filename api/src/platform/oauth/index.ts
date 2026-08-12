@@ -9,6 +9,13 @@ export { createOAuthRouter, grantHandlers } from './router.js';
 export type { OAuthRouterDeps, GrantHandler, GrantOutcome } from './router.js';
 export * from './pkce.js';
 
+// Authorization Code + PKCE — L04. The code row and its repository seam, and
+// the authorize decision table. The consent screen and the grant handler are
+// exported from here too once their slices land.
+export * from './authCodes.js';
+export { PgAuthCodeRepo } from './pgAuthCodeRepo.js';
+export * from './authorize.js';
+
 // Token lifecycle — L06. Generation and hashing, the repository seam, the one
 // issuance site, resolution, the bearer middleware and refresh rotation.
 export * from './tokens.js';
