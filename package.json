@@ -24,6 +24,8 @@
     "build:web": "pnpm run build:shared && pnpm --filter @ship/web build",
     "type-check": "pnpm --recursive run type-check",
     "lint": "eslint .",
+    "check:pr-body": "node scripts/check-pr-body.mjs",
+    "check:branch-preservation": "node scripts/check-branch-preservation.mjs",
     "clean": "pnpm --recursive run clean && rm -rf node_modules",
     "test": "pnpm --filter @ship/shared --filter @ship/api --filter @ship/agent test",
     "test:e2e": "playwright test",

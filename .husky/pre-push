@@ -1,0 +1,56 @@
+# PlugForge (Week 6): per-slice branches under pf/** are graded submission
+# evidence and must be PRESERVED until Final Submission (PRD p.12).
+#
+# git feeds pre-push one line per ref on stdin:
+#   <local-ref> <local-sha> <remote-ref> <remote-sha>
+# A deletion arrives with an all-zero local sha.
+#
+# Deliberate override (human, not agent):  ALLOW_GRADED_BRANCH_OPS=1 git push ...
+
+ZERO="0000000000000000000000000000000000000000"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -z "$remote_ref" ] && continue
+
+  case "$remote_ref" in
+    refs/heads/pf/*)
+      if [ "$local_sha" = "$ZERO" ]; then
+        if [ "$ALLOW_GRADED_BRANCH_OPS" = "1" ]; then
+          echo "pre-push: override set — allowing deletion of $remote_ref" >&2
+        else
+          echo "" >&2
+          echo "BLOCKED: refusing to delete $remote_ref" >&2
+          echo "" >&2
+          echo "Per-slice branches under pf/** are graded evidence (PRD p.12," >&2
+          echo "Submission Requirements: 'per-slice branches preserved')." >&2
+          echo "Deleting both the local and remote ref is unrecoverable." >&2
+          echo "" >&2
+          echo "See TICKETS-PLUGFORGE.md -> 'Branching & PR Discipline'." >&2
+          echo "Intentional? Re-run with ALLOW_GRADED_BRANCH_OPS=1" >&2
+          echo "" >&2
+          exit 1
+        fi
+      fi
+
+      # Non-fast-forward push to a preserved branch rewrites cited history.
+      if [ "$local_sha" != "$ZERO" ] && [ "$remote_sha" != "$ZERO" ]; then
+        if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+          if [ "$ALLOW_GRADED_BRANCH_OPS" = "1" ]; then
+            echo "pre-push: override set — allowing non-fast-forward on $remote_ref" >&2
+          else
+            echo "" >&2
+            echo "BLOCKED: non-fast-forward push to $remote_ref" >&2
+            echo "" >&2
+            echo "This rewrites commit history that PR descriptions cite as the" >&2
+            echo "acceptance-criterion trail (PRD p.12)." >&2
+            echo "Intentional? Re-run with ALLOW_GRADED_BRANCH_OPS=1" >&2
+            echo "" >&2
+            exit 1
+          fi
+        fi
+      fi
+      ;;
+  esac
+done
+
+exit 0
