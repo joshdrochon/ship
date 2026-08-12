@@ -6,7 +6,7 @@
  * SHA-256 hashed (high-entropy random values; slow KDFs are for low-entropy
  * passwords) and the raw value is shown exactly once at creation/rotation.
  */
-import type { Scope } from '../scopes/registry.js';
+import type { Scope } from '../scopes/scopes.js';
 
 /**
  * A row of `oauth_apps` (migration 039), in domain terms.

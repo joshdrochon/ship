@@ -11,7 +11,7 @@
  */
 import type { Request, Response, NextFunction } from 'express';
 import { ApiError } from '../api/v1/errors.js';
-import type { PlatformAuthContext } from '../scopes/registry.js';
+import type { PlatformAuthContext } from '../scopes/auth-context.js';
 import type { Clock } from '../clock.js';
 import { SystemClock } from '../clock.js';
 

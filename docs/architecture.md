@@ -8,12 +8,14 @@
 api/src/platform/            (new) everything public-facing; imports domain services, never route files
   apps/                      oauth_apps registry — create/rotate/list; client_secret hashed (SHA-256, unsalted, high-entropy), raw shown exactly once, never recoverable
   oauth/                     RFC 6749 Auth Code + 7636 PKCE + 8628 Device Grant; token issuance; one-time-use refresh tokens with family revocation
-  scopes/                    ScopeRegistry — scopes-as-data (documents/issues/sprints × read/write, webhooks:manage) + require(scope) middleware factory
-                             (public `sprints` maps onto Ship's internal `weeks` model at this layer — the contract name, not the table name)
+  scopes/                    ScopeRegistry — scopes-as-data (documents/issues/sprints × read/write, webhooks:manage) + require(scope) middleware factory,
+                             pure grant-time validation (requested-scope check, issuance intersection, upgrade policy) that OAuth calls before issuing
   ratelimit/                 IRateLimiter + in-memory token bucket (per-app and per-token); emits X-RateLimit-* headers, 429 + Retry-After
   webhooks/                  event registry (Zod-typed, 8 types), IEventBus + InProcessEventBus, subscription matcher, HMAC signer,
                              IWebhookDeliverer, retry scheduler, delivery log, DLQ + replay
-  api/v1/                    the ONLY public router — fresh middleware stack, ApiError envelope, opaque cursor pagination ({data, next_cursor})
+  api/v1/                    the ONLY public router — fresh middleware stack, ApiError envelope, opaque cursor pagination ({data, next_cursor});
+                             resource-map.ts is the one place public `sprints` maps onto Ship's internal `weeks` route — the contract name, not the table name
+                             (`document_type` has said `sprint` since Part 1, so the translation is route-path and vocabulary only)
   openapi/                   public OpenAPI 3.1 registry; generated from route metadata, served at /api/v1/openapi.json
   audit/                     public API call log — timestamp, app client_id, user_id, route, scope, status, latency; queryable in the dev portal
   clock.ts                   Clock / SystemClock / FakeClock — a file, not a module; the retry scheduler, the token bucket and OAuth expiry all read it
@@ -140,6 +142,14 @@ sequenceDiagram
 ```
 
 Access tokens are opaque high-entropy strings stored hashed (same discipline as the existing `api_tokens` table); the bearer middleware resolves token → app + user + granted scopes on every `/api/v1/*` request.
+
+### Scope upgrades: re-consent with union
+
+A client that holds `documents:read` and now needs `documents:write` restarts `/oauth/authorize`. The user is shown the **union** of what they already granted and what is newly requested, consents once, and a fresh token replaces the old one. There is no partial grant, no mutable grant record, and no state meaning "granted A, pending B". The policy lives in one function — `resolveScopeUpgrade()` in `platform/scopes/validation.ts` — that both the authorization-code and device flows call, rather than being re-derived in each.
+
+The alternative is incremental consent: the new token carries only the increment and the client holds several tokens at once. It is the better product answer, and Google ships it. It is the wrong answer for this build, because it turns a grant from a fact into an accumulator: every code path that reads scopes has to merge across live tokens, and revocation has to reason about which of several tokens carried which grant. Re-consent-with-union keeps a token's scope set immutable for its whole life, which is the property the rest of the scope layer assumes — `reconcileTokenScopes()` can treat a presented token as a complete statement of what its bearer may do, and the audit trail's `scope used` field has one token to point at rather than a set.
+
+The cost is real and it is the user's: they see a consent screen again, listing permissions they already approved. Showing the union rather than the delta is what keeps that screen truthful — the user is consenting to the whole of what the new token will carry, not to an increment whose base they would have to remember. `resolveScopeUpgrade()` returns `requiresConsent: false` when the existing grant already covers the request, so the screen is never shown for a no-op.
 
 ## Webhook Pipeline
 
