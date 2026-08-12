@@ -4,7 +4,7 @@
  * Queryable per-app in the developer portal.
  */
 import type { Request, Response, NextFunction } from 'express';
-import type { PlatformAuthContext } from '../scopes/registry.js';
+import type { PlatformAuthContext } from '../scopes/auth-context.js';
 
 export interface PublicApiCallRecord {
   requestId: string;
