@@ -59,7 +59,9 @@ export class ShipClient {
     });
 
     if (!response.ok) {
-      let body: ApiErrorBody | null = null;
+      // No initializer: both branches below assign, and `no-useless-assignment`
+      // is an error-level rule, so the dead `= null` fails `pnpm lint`.
+      let body: ApiErrorBody | null;
       try {
         body = (await response.json()) as ApiErrorBody;
       } catch {

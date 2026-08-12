@@ -95,6 +95,7 @@ build:
       - agent/dist/
       - api/dist/
       - web/dist/
+      - sdk/dist/
       - dist-sha.txt
 
 # ---------------------------------------------------------------------------
@@ -118,6 +119,28 @@ lint:
     expire_in: 1 week
     paths:
       - eslint-report.txt
+  allow_failure: false
+
+# PF-013 — the public/internal boundary, enforced by the pipeline rather than by
+# review. PRD Build Strategy §2 (p.10) asks for the rule "before you have any
+# cross-imports to lint"; this is the job that makes the rule mean something.
+#
+# Blocking (allow_failure: false, the default here, stated anyway because it is the
+# whole point of the ticket) and `needs: []` so it starts immediately and reports in
+# under a minute. A boundary violation is a design error and the cheapest moment to
+# see it is before the 150-minute e2e job has begun.
+#
+# Two commands, two different claims:
+#   pnpm lint            — the tree has no violations today (also run by `lint`)
+#   pnpm lint:boundary   — the rules that would catch one are still wired up
+# The second exists because a mis-globbed `files` entry or a later config object
+# overriding no-restricted-imports leaves the first green. See
+# scripts/check-boundary-lint.mjs.
+boundary-lint:
+  stage: verify
+  needs: []
+  script:
+    - pnpm lint:boundary
   allow_failure: false
 
 type-check:
@@ -168,6 +191,11 @@ test:
     - pnpm --filter @ship/api exec tsx src/db/migrate.ts
     - pnpm --filter @ship/api exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
     - pnpm --filter @ship/web exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
+    # F24 — @ship/sdk had no CI step of any kind, which made it the one package a
+    # stranger installs and the only one nothing verified. --passWithNoTests because
+    # the SDK's own suites arrive with L17/L18; the step exists now so they cannot
+    # land unrun.
+    - pnpm --filter @ship/sdk test
   artifacts:
     when: always
     expire_in: 1 week

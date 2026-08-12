@@ -55,6 +55,7 @@ jobs:
             agent/dist/
             api/dist/
             web/dist/
+            sdk/dist/
             dist-sha.txt
 
   lint:
@@ -79,6 +80,33 @@ jobs:
         with:
           name: eslint-report
           path: eslint-report.txt
+
+  # PF-013 — the public/internal boundary, enforced by the pipeline rather than by
+  # review. Blocking, and deliberately placed with the other text-only checks so it
+  # reports in under a minute: a boundary violation is a design error, and the
+  # cheapest moment to see it is before the 80-minute e2e job has started.
+  #
+  # No `needs: build`. This reads source text through ESLint; it does not want a
+  # compiled tree, and coupling it to the build would delay the fastest signal in
+  # the pipeline behind the slowest job in it.
+  #
+  # `pnpm lint` proves the tree has no violations today. `pnpm lint:boundary`
+  # proves the rules that would catch one are still wired up — see
+  # scripts/check-boundary-lint.mjs for why those are different claims.
+  boundary-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Boundary fences fire on their negative fixtures
+        run: pnpm lint:boundary
 
   type-check:
     runs-on: ubuntu-latest
@@ -182,6 +210,11 @@ jobs:
       # unexecuted, which does not satisfy Rule 2.
       - run: pnpm --filter @ship/api exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
       - run: pnpm --filter @ship/web exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
+      # F24 — @ship/sdk had no CI step of any kind, which made it the one package a
+      # stranger installs and the only one nothing verified. --passWithNoTests because
+      # the SDK's own suites arrive with L17/L18; the step exists now so they cannot
+      # land unrun.
+      - run: pnpm --filter @ship/sdk test
       - uses: actions/upload-artifact@v4
         if: always()
         with:
