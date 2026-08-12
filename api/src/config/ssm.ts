@@ -72,8 +72,53 @@ export async function loadProductionSecrets(): Promise<void> {
   process.env.CDN_DOMAIN = cdnDomain;
   process.env.APP_BASE_URL = appBaseUrl;
 
+  // PF-630 — the first-party OAuth app secrets (L21, for L02's seeder).
+  //
+  // `seedPlatformApps()` runs on every `db:migrate` and reads these three from
+  // the environment; `assertPlatformAppSecrets()` THROWS in production when any
+  // is absent. Without them the deployed database has no grader app, which is
+  // MVP gate item 10 failing silently -- the server still boots, /health still
+  // goes green, and the credential a grader was told to use simply does not
+  // exist.
+  //
+  // Loaded SEPARATELY from the five above, and tolerantly. The five are
+  // required for the process to function at all, so a failure there should be
+  // fatal. These three are required for the *grading story*, and a hard failure
+  // here would take the whole API down over a missing OAuth seed -- trading a
+  // degraded deployment for no deployment. So a miss is logged loudly and left
+  // to `assertPlatformAppSecrets()`, which already has the right words for it,
+  // rather than throwing from inside a config loader.
+  //
+  // Note these are read from the SAME `/ship/${ENVIRONMENT}/` prefix, so the
+  // instance role's existing path-scoped `ssm:GetParameter*` covers them and no
+  // IAM change is needed (PF-625).
+  const appSecretNames = [
+    'AGENT_CLIENT_SECRET',
+    'GRADER_CLIENT_SECRET',
+    'DEMO_CLIENT_SECRET',
+  ] as const;
+
+  const appSecrets = await Promise.allSettled(
+    appSecretNames.map((n) => getSSMSecret(`${basePath}/${n}`))
+  );
+
+  appSecrets.forEach((result, i) => {
+    const name = appSecretNames[i];
+    if (result.status === 'fulfilled') {
+      process.env[name] = result.value;
+    } else {
+      console.error(
+        `WARNING: ${basePath}/${name} could not be read (${String(result.reason)}). ` +
+          `The OAuth app it seeds will not exist in this environment.`
+      );
+    }
+  });
+
   console.log('Secrets loaded from SSM Parameter Store');
   console.log(`CORS_ORIGIN: ${corsOrigin}`);
   console.log(`CDN_DOMAIN: ${cdnDomain}`);
   console.log(`APP_BASE_URL: ${appBaseUrl}`);
+  console.log(
+    `Platform app secrets present: ${appSecretNames.filter((n) => process.env[n]).join(', ') || 'none'}`
+  );
 }
