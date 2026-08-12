@@ -170,37 +170,8 @@ export interface ApiErrorBody {
   request_id: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Error middleware — still the L01 sketch. Replaced by PF-194–197
-// (`errorMiddleware.ts`) in the next slice of this lane. Kept here only so
-// `router.ts` compiles across the slice boundary; do not build on it.
-//
-// `requestIdMiddleware` has already moved out, to `requestId.ts` (PF-190).
-// ─────────────────────────────────────────────────────────────────────────────
-import { randomUUID } from 'node:crypto';
-import type { Request, Response, NextFunction } from 'express';
-import { getRequestId } from './requestId.js';
-
-/**
- * The ONE error handler for the public surface. Anything thrown by a v1 route —
- * ApiError or not — leaves in the envelope.
- */
-export function apiErrorMiddleware() {
-  return (err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
-    const requestId = getRequestId(res) ?? randomUUID();
-    const apiErr =
-      err instanceof ApiError ? err : new ApiError('server_error', 'An unexpected error occurred.');
-
-    if (!(err instanceof ApiError)) {
-      console.error(`[api/v1] unhandled error (request_id=${requestId}):`, err);
-    }
-
-    const body: ApiErrorBody = {
-      code: apiErr.code,
-      message: apiErr.message,
-      ...(apiErr.details !== undefined ? { details: apiErr.details } : {}),
-      request_id: requestId,
-    };
-    res.status(apiErr.status).json(body);
-  };
-}
+// This module is now types and data only. The runtime pieces live beside it:
+//   requestId.ts       — minting and the `X-Request-Id` header (PF-190–193)
+//   errorMiddleware.ts — the terminal handler, `asyncRoute`, the 404 catch-all
+//                        (PF-194–197)
+// Both are re-exported from the `api/v1` barrel, so importers see one surface.

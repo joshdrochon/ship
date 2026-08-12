@@ -11,7 +11,7 @@
  */
 import { Router, json } from 'express';
 import type { Request, Response, NextFunction } from 'express';
-import { apiErrorMiddleware, ApiError } from './errors.js';
+import { apiErrorMiddleware, notFoundHandler } from './errorMiddleware.js';
 import { requestIdMiddleware } from './requestId.js';
 import type { IAuditSink } from '../../audit/audit.js';
 import { publicAuditMiddleware } from '../../audit/audit.js';
@@ -68,11 +68,11 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
   // TODO(josh) E3: GET /openapi.json (mounted in app.ts via serveGeneratedSpec)
   deps.mountResources?.(router);
 
-  // Unknown /api/v1 path → ApiError envelope, not Express's HTML 404.
-  router.use((req: Request, _res: Response, next: NextFunction) => {
-    next(new ApiError('not_found', `No such endpoint: ${req.method} ${req.path}`));
-  });
+  // Unknown /api/v1 path → ApiError envelope, not Express's HTML 404 (PF-197).
+  router.use(notFoundHandler());
 
+  // Terminal handler. Must be last, and must be mounted HERE rather than on the
+  // app: the internal /api surface keeps its own inline error shapes (PF-194).
   router.use(apiErrorMiddleware());
   return router;
 }
