@@ -97,7 +97,13 @@ resource "aws_iam_role_policy_attachment" "eb_service_managed" {
 resource "aws_elastic_beanstalk_environment" "api" {
   name                = "${var.project_name}-api-prod"
   application         = aws_elastic_beanstalk_application.api.name
-  solution_stack_name = "64bit Amazon Linux 2023 v4.9.0 running Docker"
+  # AWS retires EB solution stacks unilaterally. v4.9.0 was pinned from an earlier
+  # week and no longer exists in any account — CreateEnvironment fails with
+  # InvalidParameterValue, not a deprecation warning. Verified 2026-08-12:
+  # `aws elasticbeanstalk list-available-solution-stacks` returns exactly one
+  # Docker stack, the one below. This is the one "pinned version" in the config
+  # whose validity is not ours to control; re-check it before any destroy-redeploy.
+  solution_stack_name = "64bit Amazon Linux 2023 v4.13.6 running Docker"
 
   # VPC Configuration
   setting {

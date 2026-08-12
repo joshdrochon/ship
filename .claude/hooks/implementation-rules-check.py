@@ -27,19 +27,32 @@ SOURCE_SUFFIXES = (
 )
 
 RULES = """\
- 1. Before/after proof, same script, identical conditions
- 2. Tests still pass — `pnpm test` is api-only; web/ has 267 tests, all passing
-    (was 151/13-failing; Week 4 fixed those, and M8 added 26. Re-measure before
-    citing this number again rather than inheriting it.)
- 3. A regression test that would have caught the bug
- 4. CI covers build, lint, type-check, test, coverage, pnpm audit, security scan, licence inventory
- 5. Artifact built once, tagged with the commit SHA, promoted rather than rebuilt
- 6. One command starts app + database from a clean checkout
- 7. Retry / timeout / circuit breaker, with the failure mode named
- 8. CHANGES.md updated: what, how to run, how to test, how to roll back
- 9. Reasoning written: what changed, why the original was worse, tradeoffs
-10. Not cosmetic — it must move a measured number
-11. Separable in git history"""
+Contract integrity
+ 1. Public/internal split is a ONE-WAY DOOR. No /api/v1/ import from api/src/routes/
+    or internal middleware. Lint rule ships before there is anything to lint. (p.11)
+ 2. Generate the OpenAPI spec from Zod adjacent to the handler — never hand-write it. (p.11)
+ 3. Every /api/v1 route: OpenAPI entry + declared scope + ApiError shape on failures
+    + cursor pagination if it is a list endpoint. Fitness-tested. (p.5)
+ 4. integrations/ imports ONLY @ship/sdk, never api/src/. (p.11)
+
+Test discipline
+ 5. No setTimeout waits in webhook/retry tests — deterministic clock injection. (p.11)
+ 6. Negative cases mandatory: wrong code_verifier -> invalid_grant; tampered body
+    fails verify; expired timestamp fails. (p.5)
+ 7. TTFE drill runs in CI from Day 5. Target flake rate over 20 runs: 0%. (p.8, p.11)
+
+Budgets — numbers, not aspirations
+ 8. Regression vs Part 1 baseline <= +10% on P95, bundle size, query counts. (p.2, p.6)
+ 9. SDK < 250 KB min+gzip · webhook delivery P95 < 2s · PKCE round-trip P95 < 3s
+    · TTFE drill < 60s in CI. (p.6, p.8)
+10. The platform does ZERO AI work. One LLM call per agent turn, user-initiated only.
+    Wanting platform-layer AI features is scope creep. (p.11)
+
+Secrets and evidence
+11. Secrets hashed at rest, shown EXACTLY ONCE (client_secret, webhook signing secret).
+    Not recoverable — capture at creation or the flow is dead. (p.2)
+12. Per-slice branches preserved under pf/LNN-<slug>; PR names the acceptance criterion
+    and confirms the fitness test passed. Never prune before Final. (p.12)"""
 
 
 def main() -> int:
@@ -73,7 +86,7 @@ def main() -> int:
 
     context = (
         f'Source file changed: {path}\n\n'
-        'Implementation Rules (brief p.8-9) apply. Do not report this change as done '
+        'Implementation Rules (Week 6 PlugForge PRD) apply. Do not report this change as done '
         'until each of these is satisfied, or explicitly noted as not applicable:\n\n'
         f'{RULES}\n\n'
         'Reminder: `pnpm test` truncates the dev database (api/test/setup.ts:14). '

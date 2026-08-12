@@ -5,6 +5,27 @@
     "settings.local.json — only project-wide guardrails belong here."
   ],
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-graded-branches.py\"",
+            "if": "Bash(git *)",
+            "timeout": 10,
+            "statusMessage": "Checking graded-branch policy"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/guard-graded-branches.py\"",
+            "if": "Bash(terraform *)",
+            "timeout": 10,
+            "statusMessage": "Checking terraform blast radius"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -13,19 +34,6 @@
             "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/verify-prd-citations.py\"",
             "timeout": 20,
             "statusMessage": "Verifying PRD citations"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/fleetgraph-requirements-check.py\"",
-            "timeout": 10,
-            "statusMessage": "Checking FleetGraph requirements"
           }
         ]
       }

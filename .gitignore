@@ -42,6 +42,9 @@ Thumbs.db
 # Claude agents
 .claude/agents/
 
+# Graded PRDs — source PDFs and their text extractions are not ours to redistribute
+.claude/prd/
+
 # Playwright MCP screenshots
 .playwright-mcp/
 
