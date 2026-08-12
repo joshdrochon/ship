@@ -18,3 +18,9 @@ export * from './issue.js';
 export * from './resolve.js';
 export * from './bearer.js';
 export * from './rotation.js';
+export {
+  OAUTH_ERROR_CODES,
+  oauthErrorBodySchema,
+  oauthTokenResponseSchema,
+  type OAuthErrorCode,
+} from './oauthErrors.js';

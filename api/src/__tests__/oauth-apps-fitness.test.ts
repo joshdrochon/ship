@@ -159,11 +159,26 @@ describe('PF-037 — the repository is constructed in the composition root only'
     expect(sites).toEqual(['deps.ts', 'platform/apps/owner-lifecycle.ts']);
   });
 
-  it('InMemoryOAuthAppRepo is instantiated nowhere but deps.ts', () => {
+  it('InMemoryOAuthAppRepo is instantiated in exactly two NAMED places', () => {
+    // `deps.ts` is the composition root (`testDeps()`).
+    //
+    // `platform/oauth/bearerTestSupport.ts` is the documented second site, added
+    // by L06. It is TEST WIRING in `src/` — the same category as `testDeps()`
+    // itself and as L07's `api/v1/testSupport.ts`, and it lives in `src/` rather
+    // than `src/test/` for the reason both of those give: `api/tsconfig.json`
+    // excludes `src/test/**`, so hiding test wiring there lets it drift from the
+    // production wiring without `tsc` noticing. It builds a public router around
+    // the REAL bearer middleware, which needs a real app registry to resolve
+    // tokens against; threading one in from every caller would push the fixture
+    // into a dozen specs instead of one builder.
+    //
+    // Two named sites, not "anywhere" — same discipline as PgOAuthAppRepo above.
+    // A THIRD still fails here, which is the property PF-037 actually wants.
     const sites = allApiSources()
       .filter(({ text }) => /new InMemoryOAuthAppRepo\(/.test(stripComments(text)))
-      .map(({ path }) => path.slice(API_SRC.length + 1));
-    expect(sites).toEqual(['deps.ts']);
+      .map(({ path }) => path.slice(API_SRC.length + 1))
+      .sort();
+    expect(sites).toEqual(['deps.ts', 'platform/oauth/bearerTestSupport.ts']);
   });
 
   it('no Express or pg type appears in the repository interface', () => {
