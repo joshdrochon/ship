@@ -21,6 +21,7 @@
  * directory (which `api/tsconfig.json` excludes) would mean the shape of the
  * production and test wiring could drift without tsc noticing.
  */
+import type { Request, Response, NextFunction } from 'express';
 import { pool, type Database } from './db/client.js';
 import {
   InProcessEventBus,
@@ -36,6 +37,27 @@ import {
   type IOAuthAppRepo,
   type Clock,
 } from './platform/index.js';
+import { InMemoryAuditSink, type IAuditSink } from './platform/audit/audit.js';
+import { ApiError } from './platform/api/v1/errors.js';
+
+/**
+ * PF-211 — the bearer middleware the public router mounts, until L06 ships one.
+ *
+ * It rejects everything, with `details.reason: 'missing'`. That is not a
+ * placeholder that "does nothing": a public router whose auth layer is a no-op
+ * would let every route L09 lands answer anonymously, and the failure would look
+ * like working software. Failing closed means the day L09's first route mounts,
+ * it is unreachable until L06 is wired — which is the correct dependency
+ * direction and is visible immediately.
+ *
+ * L06 replaces this by passing `bearerAuth` into `createApp(deps)`. Nothing else
+ * changes.
+ */
+export function rejectAllBearerAuth(_req: Request, _res: Response, next: NextFunction): void {
+  next(
+    new ApiError('unauthorized', 'Bearer token required.', { details: { reason: 'missing' } }),
+  );
+}
 
 /**
  * Everything `createApp` is allowed to be told about the outside world.
@@ -74,6 +96,16 @@ export interface AppDeps {
   appsRepo: IOAuthAppRepo;
   /** Allowed browser origin for the internal `/api` surface. */
   corsOrigin: string;
+  /**
+   * Where every public API call is recorded (PRD p.4). L12 replaces the in-memory
+   * sink with the Postgres one; the router does not know the difference.
+   */
+  auditSink: IAuditSink;
+  /**
+   * AuthN for `/api/v1`. Defaults to `rejectAllBearerAuth` — fail closed — until
+   * L06 passes the real one. See that function for why the default is not a no-op.
+   */
+  bearerAuth: (req: Request, res: Response, next: NextFunction) => void;
 }
 
 /**
@@ -121,6 +153,14 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     appsRepo: new PgOAuthAppRepo(pool),
 
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+
+    // TODO(L12): the Postgres sink, from migration block 057–059. In-memory here
+    // means audit rows do not survive a restart — acceptable only because no
+    // public route is reachable yet (bearerAuth below rejects everything).
+    auditSink: new InMemoryAuditSink(),
+
+    // TODO(L06): the real bearer middleware. Fails closed until then.
+    bearerAuth: rejectAllBearerAuth,
     ...overrides,
   };
 }
@@ -155,6 +195,8 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     appsRepo: new InMemoryOAuthAppRepo(),
 
     corsOrigin: 'http://localhost:5173',
+    auditSink: new InMemoryAuditSink(),
+    bearerAuth: rejectAllBearerAuth,
     ...overrides,
   };
 }

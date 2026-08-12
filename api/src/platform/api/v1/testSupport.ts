@@ -35,6 +35,16 @@ export interface TestPublicAppOptions {
   /** Override the rate limiters — e.g. a capacity-1 bucket to produce a 429. */
   perAppLimiter?: IRateLimiter;
   perTokenLimiter?: IRateLimiter;
+  /** Routes mounted ABOVE bearer auth (PF-216). Paths must be in V1_UNAUTHENTICATED_PATHS. */
+  mountUnauthenticated?: (router: Router) => void;
+  /**
+   * Body-parser ceiling for the app-wide parser mounted BELOW the v1 router.
+   *
+   * Present so a test can reproduce the production layering — in `createApp` the
+   * public router is above `express.json({limit:'10mb'})`, and PF-215 is only
+   * meaningful against a stack that has both parsers in the real order.
+   */
+  appWideBodyLimit?: string;
 }
 
 /** A believable authenticated caller. */
@@ -82,9 +92,19 @@ export function createTestPublicApp(options: TestPublicAppOptions = {}): TestPub
       perAppLimiter: options.perAppLimiter ?? generousBucket(),
       perTokenLimiter: options.perTokenLimiter ?? generousBucket(),
       auditSink,
+      ...(options.mountUnauthenticated
+        ? { mountUnauthenticated: options.mountUnauthenticated }
+        : {}),
       ...(options.mountResources ? { mountResources: options.mountResources } : {}),
     }),
   );
+
+  // The app-wide parser goes BELOW the v1 router, mirroring `createApp` after
+  // PF-215. Opt-in rather than always-on so the several dozen existing specs
+  // that build a bare v1 app keep exactly the stack they were written against.
+  if (options.appWideBodyLimit) {
+    app.use(express.json({ limit: options.appWideBodyLimit }));
+  }
 
   return { app, auditSink };
 }

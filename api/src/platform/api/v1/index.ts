@@ -13,5 +13,15 @@ export * from './envelopeAssertion.js';
 export * from './pagination.js';
 export * from './resource-map.js';
 export * from './route-audit.js';
-export { createPublicRouter } from './router.js';
+export * from './page.js';
+export * from './routeMetadata.js';
+export * from './keysetIndex.js';
+export * from './middlewareOrder.js';
+export * from './bodyErrors.js';
+export {
+  createPublicRouter,
+  V1_UNAUTHENTICATED_PATHS,
+  isUnauthenticatedV1Path,
+  PUBLIC_BODY_LIMIT,
+} from './router.js';
 export type { PublicRouterDeps } from './router.js';

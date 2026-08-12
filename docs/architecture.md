@@ -145,6 +145,63 @@ It is the join key for the audit trail (p.4). A client-supplied key lets a calle
 its rows with another app's, or forge a trail that never happened, and the value of an
 audit trail is exactly that the audited party did not write it.
 
+**A body-parser failure is a client error, not a server error.** `express.json()`
+rejects an oversized or malformed body by calling `next(err)` with an error that is not
+an `ApiError`, and the terminal handler correctly scrubs anything it does not recognise
+into `server_error`/500. That is the wrong answer here and it costs a consumer real
+time: 500 means "we broke, retry", so an SDK with a retry ladder retries a 2 MB body at
+exponentially increasing intervals until it gives up. `bodyErrors.ts` translates them
+into `validation_failed` with `details.fields[{ field: 'body' }]`. **422 and not 413** —
+HTTP's answer is 413, but the code set is closed at six and the status is derived from
+the code, so a 413 would require a seventh member of a union the PRD prints verbatim.
+That is a real cost of the closed set, and it is recorded here rather than hidden: the
+status is imprecise, the code and message are not.
+
+### Pagination and versioning decisions (L08)
+
+**Where the pagination line falls.** A collection endpoint backed by a database table
+paginates with an opaque cursor; a collection whose cardinality is bounded by CODE
+returns `{ data }` with no `next_cursor`. The test is **bounded-by-code vs.
+bounded-by-data**, not small vs. large — "small" is a judgement about today's contents
+that nothing re-checks, while a list whose length is a compile-time constant cannot grow
+into a pagination bug without someone editing this repository. `/api/v1/scopes` and
+`/api/v1/events` are `as const` arrays and declare `list: 'none'`; the document-backed
+collections declare `'cursor'`. The field is required with no default and `createApp()`
+throws at wiring time on a route that omits it, because "nobody thought about it" and
+"it does not paginate" must not look the same to Testing Scenario 4's clause (d).
+
+**The sort key is `(created_at, id)`, and it is not `position`.** The internal list sorts
+by `ORDER BY position ASC, created_at DESC` over a column drag-reorder rewrites
+(`api/src/routes/documents.ts:120`). Paginating on a mutable column means a user
+reordering a sidebar corrupts a concurrent API walk, which is exactly what "cursors are
+stable across reordering operations" (p.3) forbids. The keyset is a row comparison —
+`(created_at, id) < ($1, $2)` — because the logically equivalent `OR` form plans as a
+bitmap-or or a seq scan rather than an ordered index range scan; migration 063 ships the
+covering index and `assertKeysetIndexed` EXPLAINs the real page query to keep it honest.
+
+**Four things the PRD does not name, and our answers:** the page-size parameter is
+`limit`; the default is 25; the maximum is 100; the order is newest-first. An
+out-of-range `limit` is **rejected, not clamped** — clamping is the more common industry
+choice and it turns the loop a CLI author actually writes,
+`while (data.length === limit)`, into an infinite one. Query parameters are a **strict
+allowlist**: `offset`, `page`, `per_page`, `fields`, `sort` and `order` each return 422
+with a message pointing at what to use instead. That is a strong policy with a real cost
+— a future optional parameter is a breaking change for a caller already sending it — and
+it is the only cheap way to make "sparse fieldsets are out of scope" verifiable rather
+than merely asserted.
+
+**Versioning past `/api/v1/`: additive-only within v1; a breaking change goes to
+`/api/v2/`; no deprecation or sunset headers this week.** Pre-Search 2.2 (p.16) poses the
+question and offers three answers without choosing. Additive-only means a new optional
+response field or a new endpoint may land in v1, while removing a field, renaming one,
+narrowing a type, or tightening validation may not. Deprecation headers were rejected
+because they are a promise about a lifecycle — a sunset date, a migration guide, a
+support window — and by Sunday there are no external consumers to make that promise to.
+Shipping the header without the lifecycle would be a claim the project cannot keep.
+Enforced structurally rather than by convention: a test asserts the public router is
+mounted at exactly one version prefix and that no registered route path contains a
+second version segment.
+
 ## OAuth Flows
 
 ```mermaid

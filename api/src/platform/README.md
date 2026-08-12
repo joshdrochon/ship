@@ -112,7 +112,7 @@ live app and runs each registered assertion against all of them. Testing Scenari
 | (a) | the route has an OpenAPI entry | **L13** | seam ready |
 | (b) | the route declares a scope | **L03** | seam ready |
 | (c) | failures ship the `ApiError` envelope | **L07** | implemented (`envelopeAssertion.ts`) |
-| (d) | list endpoints paginate with an opaque cursor | **L08** | seam ready |
+| (d) | list endpoints paginate with an opaque cursor | **L08** | implemented (`paginationAssertion.ts`) |
 
 **Do not write a second route walk.** Three enumerators means three different
 definitions of "every route", and the subtly wrong one is the one that passes.
@@ -136,6 +136,44 @@ seam rather than wired in privately — it is the worked example to copy.
 **Always assert the enumeration is non-empty before believing a pass.** A harness
 that enumerates nothing asserts nothing and reports green; that is the one failure
 mode which would make all of this theatre.
+
+## Pagination — where the line falls (L08 PF-227)
+
+**A collection endpoint backed by a database table paginates with an opaque
+cursor. A collection whose cardinality is bounded by CODE returns `{ data }` with
+no `next_cursor` key.**
+
+The test is **bounded-by-code vs. bounded-by-data**, deliberately not "small vs.
+large". "Small" is a judgement about today's data that nothing re-checks: a list
+of seven feels small, and if it were seven rows in a table then "small" would be a
+fact about the current contents rather than a property of the endpoint, and the
+day it stopped being true nothing would tell us. A list whose length is a
+compile-time constant cannot grow into a pagination bug, because growing it means
+editing this repository.
+
+| Endpoint | `list` | Why |
+|---|---|---|
+| `/api/v1/documents`, `/issues`, `/sprints` | `'cursor'` | rows in `documents` |
+| `/api/v1/scopes` | `'none'` | `SCOPES` in `scopes/registry.ts`, an `as const` array |
+| `/api/v1/events` | `'none'` | L14's event-type registry, likewise |
+| single-resource GETs, every write | `false` | not a collection |
+
+This is not a convention you remember — it is `routeMetadata.declare()`, the field
+is **required with no default**, and `createApp()` throws at wiring time naming
+`METHOD /path` if a mounted route has no record. A default would make "nobody
+thought about pagination" indistinguishable from "this route does not paginate",
+and clause (d) below is precisely the check that those are different things.
+
+The declaration is one record per route carrying **every** lane's per-route
+metadata — L03's `scope` and L08's `list` on the same object. Two registries would
+be two lists that can disagree about which routes exist, and a route missing from
+one of them is a route its clause silently skips.
+
+**Cursor contract**, for anyone consuming it: opaque base64url over
+`{ id, timestamp, resource }`, keyset over `(created_at, id)` newest-first, page
+size `limit` (default 25, max 100, **rejected not clamped** above the max), and
+`next_cursor` **present and null** on the last page. The parameter name and the
+three numbers are ours — the PRD names none of them.
 
 ## The boundary contract
 

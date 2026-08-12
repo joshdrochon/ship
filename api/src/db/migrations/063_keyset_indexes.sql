@@ -1,0 +1,32 @@
+-- 063 — keyset indexes for public cursor pagination (L08 PF-222)
+--
+-- PRD p.3 requires "opaque base64 cursors over { id, timestamp }" and cursors
+-- "stable across reordering operations". The public list therefore sorts on
+-- (created_at, id) and NOT on documents.position, which drag-reorder rewrites.
+--
+-- That sort key had no covering index. schema.sql:354-371 lists eleven indexes on
+-- documents and none of them covers it, so the keyset predicate
+--
+--   (created_at, id) < ($1, $2) ORDER BY created_at DESC, id DESC
+--
+-- planned a sequential scan plus a sort — strictly worse than the OFFSET
+-- pagination it replaces, and invisible until the table is large.
+--
+-- Direction matters as much as column order. A plain (created_at, id) index can
+-- still serve a DESC scan by reading backwards, but declaring the index in the
+-- same direction as the ORDER BY keeps the plan a straight index scan with no
+-- Sort node under any planner version. `assertKeysetIndexed` EXPLAINs the real
+-- page query and fails on either a Seq Scan or a Sort, which is what stops this
+-- from silently regressing.
+--
+-- NOT in this migration, deliberately: `documents.created_at SET NOT NULL`.
+-- created_at is nullable (schema.sql:153) and a NULL keyset column makes a row
+-- invisible to a keyset walk rather than misordered — finding F3's second half,
+-- found by L09. The constraint and its backfill are allocated to L03/L09's block
+-- 060-062 in RESERVATIONS.md (finding F15). Block order means that runs BEFORE
+-- this file, which is the correct sequence: constrain, then index.
+-- `assertKeysetColumnsNotNull` fails the suite until it lands, so it cannot be
+-- quietly dropped.
+
+CREATE INDEX IF NOT EXISTS idx_documents_keyset
+  ON documents (created_at DESC, id DESC);

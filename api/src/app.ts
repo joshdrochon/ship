@@ -42,6 +42,9 @@ import { documentCommentsRouter, commentsRouter } from './routes/comments.js';
 import { setupSwagger } from './swagger.js';
 import { initializeCAIA } from './services/caia.js';
 import { productionDeps, type AppDeps } from './deps.js';
+import { createPublicRouter } from './platform/api/v1/router.js';
+import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js';
+import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
 
 // Validate SESSION_SECRET in production
 if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
@@ -150,21 +153,21 @@ const apiLimiter = rateLimit({
  * internal stack changes, the +10% regression budget (p.2, p.6) is measuring two
  * different applications and means nothing.
  *
- * Two known defects are visible in this function and are deliberately NOT fixed
- * here, because fixing them changes internal behaviour and this refactor must
- * not:
+ * Two defects were noted here by PF-014 and left for this lane. BOTH ARE NOW
+ * FIXED, by mount position alone — see the public-API block below:
  *
  *   F1  `app.use('/api/', apiLimiter)` prefix-matches onto `/api/v1/*`, so the
- *       internal limiter will reach the public API and answer with the internal
- *       error shape. Owned by L08/L11. Left exactly as it was — it is not made
- *       worse here, and the fix belongs with the router that has to serve the
- *       correct `X-RateLimit-*` headers.
- *   F2  `express.json({ limit: '10mb' })` runs app-wide, above every router, so
- *       a router-level `json({ limit: '1mb' })` under `/api/v1` is dead code —
- *       the body is already parsed by the time the public router sees it. The
- *       public router will have to mount its own parser *before* this one or
- *       accept the 10 MB ceiling. Owned by L08. Noted here so it is not
- *       rediscovered as a mystery.
+ *       internal limiter reached the public API and answered with the internal
+ *       error shape. Fixed by PF-214: the public router is mounted above that
+ *       line, so a v1 request never reaches it. The line itself is untouched and
+ *       internal behaviour is unchanged.
+ *   F2  `express.json({ limit: '10mb' })` ran app-wide, above every router, so a
+ *       router-level `json({ limit: '1mb' })` under `/api/v1` was dead code.
+ *       Fixed by PF-215: same mount position, so the public router's own 1 MB
+ *       parser is the first to see a v1 body. Internal routes still get 10 MB.
+ *
+ * `internal-limiter-scope.test.ts` and `public-body-limit.test.ts` are what stop
+ * either from silently regressing if this function is reordered again.
  */
 export function createApp(deps: AppDeps = productionDeps()): express.Express {
   // `deps.bus`, `deps.deliverer`, `deps.limiter`, `deps.clock` and `deps.db` are
@@ -220,7 +223,77 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     },
   }));
 
+  // ── THE PUBLIC API (PF-211, PF-214, PF-215) ────────────────────────────────
+  //
+  // Mount position is the whole ticket. Both of the defects noted in this
+  // function's docstring — F1 and F2 — are fixed by mounting HERE and nowhere
+  // else, and neither internal middleware below is changed at all.
+  //
+  //   F1 (PF-214). `app.use('/api/', apiLimiter)` is a PATH-PREFIX mount, so it
+  //   matches `/api/v1/...` too. Confirmed by execution: a public route answered
+  //   429 with `{ error: 'Too many requests. Please slow down.' }` — the internal
+  //   body, `ratelimit-*` headers instead of the platform's `X-RateLimit-*`, and
+  //   short-circuited ABOVE the public router, so no request_id, no envelope, no
+  //   audit row. Mounting the public router above that line means a v1 request is
+  //   answered before the internal limiter is ever consulted. The alternative was
+  //   a `skip` predicate on `apiLimiter`; rejected because it changes the internal
+  //   limiter's configuration to fix a public-API problem, and "internal /api is
+  //   byte-for-byte what Part 1 shipped" is the one-way-door promise (p.11).
+  //
+  //   F2 (PF-215). `express.json({ limit: '10mb' })` below runs app-wide, so any
+  //   router-level `json({ limit: '1mb' })` mounted BELOW it is dead code — the
+  //   body is already parsed. Above it, the public router's own 1 MB parser is
+  //   the first to see the body and the ceiling is real. Internal routes still
+  //   get 10 MB, because they still reach the line below.
+  //
+  // What the public router deliberately sits BELOW: helmet, and only helmet —
+  // security headers apply to every surface. What it deliberately sits ABOVE:
+  // the internal limiter, the 10 MB parser, cookieParser, session, and CSRF.
+  // That last group IS the internal security model, and PRD p.11 requires the
+  // public router share none of it.
+  //
+  // It also sits above `cors`, which means /api/v1 serves NO CORS headers. That
+  // is deliberate and it is a decision, not an oversight. The internal cors
+  // config is `origin: <the Ship frontend>, credentials: true` — precisely wrong
+  // for a public API, which has many origins and no cookies. Reusing it would
+  // advertise one arbitrary origin; moving the public router below it would
+  // reorder the INTERNAL stack (cors currently sits below the limiter) and break
+  // the byte-for-byte promise for no benefit. A browser-based public consumer
+  // needs its own CORS policy keyed on the registered app's origins; that is a
+  // real ticket and it belongs with the developer portal, not here.
+  //
+  // Insertion point chosen so the internal stack's ORDER is untouched: every
+  // internal layer keeps its relative position and exactly one layer is added.
+  app.use('/api/v1', createPublicRouter({
+    bearerAuth: deps.bearerAuth,
+    // One bucket instance, two key namespaces (`app:` / `token:`) — the middleware
+    // namespaces its keys, so per-app and per-token limits do not collide. L11
+    // splits these into two configured buckets when it owns the numbers.
+    perAppLimiter: deps.limiter,
+    perTokenLimiter: deps.limiter,
+    auditSink: deps.auditSink,
+    // TODO(L13): mountUnauthenticated for GET /api/v1/openapi.json — the route is
+    // L13's, the mount seam and V1_UNAUTHENTICATED_PATHS are this lane's.
+    // TODO(L09/L10): mountResources for /documents, /issues, /sprints.
+  }));
+
+  // PF-228 — every mounted public route must carry a metadata record declaring
+  // `list`. Enforced HERE, at wiring time, walking the live Express stack rather
+  // than any hand-maintained list.
+  //
+  // The failure mode this prevents is not a crash, it is silence: Testing
+  // Scenario 4 clause (d) asks "does this route paginate, if it is a list
+  // endpoint", and a route with no declaration is a route the clause skips. One
+  // undeclared route is one route the fitness harness reports as green without
+  // having checked anything.
+  assertEveryRouteDeclaresList(app, (a) => enumerateV1Routes(a));
+
   // Apply rate limiting to all API routes
+  //
+  // Still `/api/` and still prefix-matching — but `/api/v1` was fully handled
+  // above, so this now reaches only the internal surface. `internal-limiter-
+  // scope.test.ts` is what keeps that true, in both directions: it asserts a v1
+  // caller never sees this limiter AND that an internal caller still does.
   app.use('/api/', apiLimiter);
   app.use(cors({
     origin: corsOrigin,
