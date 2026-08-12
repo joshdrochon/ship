@@ -41,12 +41,30 @@ Every failure on `/api/v1/*` ships the same four-key body, and nothing else:
 
 | code | status | `details` |
 |---|---|---|
-| `unauthorized` | 401 | **must omit** |
-| `forbidden` | 403 | **must carry** `missing_scope` |
+| `unauthorized` | 401 | *may* carry `reason` (`expired` \| `invalid` \| `missing`) |
+| `forbidden` | 403 | **must carry** `missing_scope`, `granted_scopes`, `scope_description` |
 | `not_found` | 404 | **must omit** |
 | `validation_failed` | 422 | **must carry** `fields[]` (`{field, message}`) |
 | `rate_limited` | 429 | *may* carry `retry_after_seconds` |
 | `server_error` | 500 | **must omit** |
+
+**Why the 401 carries a `reason` (dispute B14).** MVP gate item 3 (p.2) requires an
+expired token to return "401 with a distinct error code". The distinction lives in
+`details.reason`, not in a seventh `ApiErrorCode` — the code union is printed
+verbatim on p.7 with six members and L17's PF-498 asserts key-equality against it,
+so widening it would make the PRD contradict its own printed interface. The enum is
+**closed** (`expired` · `invalid` · `missing`) rather than a free-form string: an
+open `reason` would be a second error taxonomy that nothing documents and nothing
+validates, which is the exact failure the closed `code` union exists to prevent.
+The three values are the three things a caller does differently — refresh,
+re-authenticate, attach a credential. L06 sets it; L17 switches on it.
+
+**Why the 403 carries three fields.** Gate item 6 (p.2) forbids an opaque 403:
+the missing scope must be "named explicitly in the error body". `missing_scope` is
+that name — the brief's own word. `granted_scopes` lets a caller see what it does
+have, and `scope_description` is the registry's own prose, so the sentence a
+developer reads in the error is the sentence the user was shown at consent. All
+three are required; dropping any of them puts the opacity back.
 
 **The `details` policy (answers Pre-Search 2.2, p.16).** The envelope is identical
 across all routes. `details` is the only variable part, and its sub-shape is fixed

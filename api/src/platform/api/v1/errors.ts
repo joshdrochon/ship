@@ -174,9 +174,10 @@ export class ApiError extends Error {
 //   part, and its sub-shape is fixed PER CODE, never per route.
 //
 //   validation_failed  MUST carry details.fields[]
-//   forbidden          MUST carry details.missing_scope   (p.3 — the 403 names it)
+//   forbidden          MUST carry details.{missing_scope, granted_scopes,
+//                      scope_description}            (p.2/p.3 — the 403 names it)
 //   rate_limited       MAY  carry details.retry_after_seconds
-//   unauthorized       MUST omit details
+//   unauthorized       MAY  carry details.reason      (B14 / gate item 3)
 //   not_found          MUST omit details
 //   server_error       MUST omit details
 //
@@ -186,6 +187,23 @@ export class ApiError extends Error {
 // envelope. Prose version in `platform/README.md`.
 // ─────────────────────────────────────────────────────────────────────────────
 import { z } from 'zod';
+
+/**
+ * Why a 401 happened, for MVP gate item 3 (p.2) — "expired tokens return 401
+ * with a distinct error code" (dispute B14, decided in favour of a constrained
+ * `details.reason` over a seventh `ApiErrorCode`).
+ *
+ * Closed, and deliberately short. These are the three states a caller reacts to
+ * differently:
+ *   expired  the credential was valid and is not any more → refresh it
+ *   invalid  malformed, revoked, or not ours → re-authenticate, do not refresh
+ *   missing  no credential presented at all → attach one
+ *
+ * L06 owns setting it. L17's SDK switches on it.
+ */
+export const UNAUTHORIZED_REASONS = ['expired', 'invalid', 'missing'] as const;
+
+export type UnauthorizedReason = (typeof UNAUTHORIZED_REASONS)[number];
 
 /** Fields common to every member of the union. */
 const envelopeBase = {
@@ -210,30 +228,51 @@ export const validationFieldSchema = z
  * a `not_found` carrying `details` fails, and a `forbidden` without it fails too.
  */
 export const apiErrorBodySchema = z.discriminatedUnion('code', [
-  // ⚠ UNRESOLVED CROSS-LANE CONFLICT — L06, read this before wiring PF-161.
+  // B14 — DECIDED: option (a). MVP gate item 3 (p.2) wants an expired token to
+  // return "401 with a distinct error code"; the distinction rides here, in an
+  // optional `details.reason`, and the code union stays closed at six.
   //
-  // Dispute B14 resolves MVP gate item 3 ("expired tokens return 401 with a
-  // distinct error code") by putting the distinction in `details.reason` on the
-  // unauthorized envelope, rather than adding a seventh `ApiErrorCode`. L07's
-  // PF-198 independently says `unauthorized` MUST OMIT `details`. Both are
-  // ticketed; they cannot both hold, and this `.strict()` member is where the
-  // collision actually bites — a 401 carrying `details.reason` fails validation
-  // here today.
+  // Rejected: a seventh `ApiErrorCode` (contradicts the union printed verbatim
+  // on p.7 and asserted key-for-key by L17's PF-498, and would be a three-lane
+  // change), and `WWW-Authenticate` per RFC 6750 (standards-correct, but the
+  // gate says "error code" and a header is not one).
   //
-  // Implemented as PF-198 ticketed it (details omitted) rather than pre-empting
-  // the decision. Resolving it needs one of:
-  //   (a) allow `unauthorized` an optional `details.reason` enum — smallest
-  //       change, keeps the union closed at six, satisfies the gate. Preferred.
-  //   (b) a seventh code — three-lane change, contradicts the union printed on
-  //       PRD p.7 and asserted by L17's PF-498. Rejected upstream.
-  //   (c) carry it in `WWW-Authenticate` per RFC 6750 — standards-correct, but
-  //       a grader reading the gate will look in the body.
-  z.object({ code: z.literal('unauthorized'), ...envelopeBase }).strict(),
+  // The enum is CLOSED rather than a free-form string on purpose: an open
+  // `reason` becomes a second error taxonomy that nothing documents and nothing
+  // validates, which is the thing the closed `code` union exists to prevent.
+  // Three reasons because three are what the gate needs told apart —
+  // `expired` (refresh it), `invalid` (the token is wrong or revoked; re-auth),
+  // `missing` (no credential was presented at all).
+  //
+  // Optional, not required: most 401s carry no reason, and forcing one would
+  // make every caller invent a value. L06's PF-161 sets it on the expiry path.
+  z
+    .object({
+      code: z.literal('unauthorized'),
+      ...envelopeBase,
+      details: z.object({ reason: z.enum(UNAUTHORIZED_REASONS) }).strict().optional(),
+    })
+    .strict(),
+  // The 403 body. `missing_scope` is the field name — PRD p.2 asks for "the
+  // missing scope named explicitly in the error body", so the brief's own word
+  // wins over `required_scope`.
+  //
+  // `granted_scopes` and `scope_description` come from L03, and they are what
+  // make the 403 non-opaque, which is the actual gate-item-6 requirement: a
+  // caller sees what it was missing, what it does have, and the same sentence
+  // the user was shown at consent. Required rather than optional — an
+  // implementation that drops them is back to an opaque 403.
   z
     .object({
       code: z.literal('forbidden'),
       ...envelopeBase,
-      details: z.object({ missing_scope: z.string().min(1) }).strict(),
+      details: z
+        .object({
+          missing_scope: z.string().min(1),
+          granted_scopes: z.array(z.string()),
+          scope_description: z.string().min(1),
+        })
+        .strict(),
     })
     .strict(),
   z.object({ code: z.literal('not_found'), ...envelopeBase }).strict(),
@@ -261,10 +300,12 @@ export const apiErrorBodySchema = z.discriminatedUnion('code', [
 export type ApiErrorBody = z.infer<typeof apiErrorBodySchema>;
 
 /** Codes whose envelope must NOT carry a `details` key. */
-export const CODES_WITHOUT_DETAILS: readonly ApiErrorCode[] = [
-  'unauthorized',
-  'not_found',
-  'server_error',
+export const CODES_WITHOUT_DETAILS: readonly ApiErrorCode[] = ['not_found', 'server_error'];
+
+/** Codes whose `details` is optional: valid with it, valid without it. */
+export const CODES_WITH_OPTIONAL_DETAILS: readonly ApiErrorCode[] = [
+  'unauthorized', // details.reason — B14 / MVP gate item 3
+  'rate_limited', // details.retry_after_seconds — L11
 ];
 
 /** Codes whose envelope MUST carry a `details` key. */

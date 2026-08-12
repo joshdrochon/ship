@@ -36,6 +36,10 @@ class ScopeRegistry {
     return this.defs.has(scope as Scope);
   }
 
+  get(scope: Scope): ScopeDefinition | undefined {
+    return this.defs.get(scope);
+  }
+
   list(): ScopeDefinition[] {
     return [...this.defs.values()];
   }
@@ -77,18 +81,24 @@ export function requireScope(scope: Scope) {
       return;
     }
     if (!auth.scopes.includes(scope)) {
-      // Shape fixed by the `details` policy (L07 PF-198): a `forbidden` envelope
-      // carries exactly `details.missing_scope`. It was `{required_scope,
-      // granted_scopes}` while this file was L01 scaffolding — `apiErrorBodySchema`
-      // is `.strict()`, so the old shape now fails the envelope test.
+      // Shape fixed by the `details` policy (L07 PF-198): `missing_scope` is the
+      // field name, because PRD p.2 asks for "the missing scope named explicitly
+      // in the error body" and that is the brief's own word. `granted_scopes` and
+      // `scope_description` come from L03 and are what make the 403 non-opaque,
+      // which is what gate item 6 actually asks for — a caller sees what it was
+      // missing, what it does have, and the same sentence the user consented to.
       //
-      // `granted_scopes` was dropped rather than renamed: p.3 asks the 403 to name
-      // the scope that was MISSING, and echoing the full grant back is a second,
-      // route-independent fact that belongs in the token introspection response,
-      // not in an error body.
+      // NOTE FOR THE MERGE: L03's `require-scope.ts` supersedes this middleware
+      // and emits the identical body under the name `required_scope`. That one
+      // word is the only difference; the coordinator carries the rename.
+      const definition = scopeRegistry.get(scope);
       next(
         new ApiError('forbidden', `Missing required scope: ${scope}`, {
-          details: { missing_scope: scope },
+          details: {
+            missing_scope: scope,
+            granted_scopes: [...auth.scopes],
+            scope_description: definition?.description ?? scope,
+          },
         }),
       );
       return;

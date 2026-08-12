@@ -185,7 +185,11 @@ describe('PF-196 — an unhandled exception leaks nothing', () => {
           asyncRoute(async () => {
             await Promise.resolve();
             throw new ApiError('forbidden', 'Missing required scope: documents:read', {
-              details: { missing_scope: 'documents:read' },
+              details: {
+                missing_scope: 'documents:read',
+                granted_scopes: ['issues:read'],
+                scope_description: 'Read documents',
+              },
             });
           }),
         );
@@ -194,7 +198,11 @@ describe('PF-196 — an unhandled exception leaks nothing', () => {
 
     const res = await request(app).get(`${V1_PREFIX}/forbidden`).expect(403);
     expect(res.body.code).toBe('forbidden');
-    expect(res.body.details).toEqual({ missing_scope: 'documents:read' });
+    expect(res.body.details).toEqual({
+      missing_scope: 'documents:read',
+      granted_scopes: ['issues:read'],
+      scope_description: 'Read documents',
+    });
   });
 
   it('never serializes an ApiError cause', async () => {

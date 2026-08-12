@@ -329,7 +329,13 @@ describe('PF-203 — one negative case per code, produced by a real request', ()
     const res = await request(app).get(`${V1_PREFIX}/documents`).expect(403);
     expect(apiErrorBodySchema.safeParse(res.body).success).toBe(true);
     expect(res.body.code).toBe('forbidden');
-    expect(res.body.details).toEqual({ missing_scope: 'documents:read' });
+    // The full non-opaque 403 (gate item 6): what was missing, what the caller
+    // has, and the registry's own prose for the scope.
+    expect(res.body.details).toEqual({
+      missing_scope: 'documents:read',
+      granted_scopes: ['issues:read'],
+      scope_description: 'Read documents',
+    });
   });
 
   it('not_found — an unrouted path under /api/v1', async () => {

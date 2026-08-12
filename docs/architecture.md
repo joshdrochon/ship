@@ -120,9 +120,13 @@ error — the two never blur.
 
 **The envelope is identical everywhere; `details` is the only variable part, and its
 sub-shape is fixed per CODE, not per route.** `validation_failed` carries
-`details.fields[]`; `forbidden` carries `details.missing_scope` (p.3 requires the 403 to
-name it, which is what forces `details` to exist at all); `rate_limited` may carry
-`details.retry_after_seconds`; `unauthorized`, `not_found` and `server_error` omit
+`details.fields[]`; `forbidden` carries `details.{missing_scope, granted_scopes,
+scope_description}` (p.2 requires the 403 to name the missing scope, which is what
+forces `details` to exist at all); `rate_limited` may carry
+`details.retry_after_seconds`; `unauthorized` may carry `details.reason` — a closed
+enum of `expired | invalid | missing` that satisfies MVP gate item 3's "401 with a
+distinct error code" without adding a seventh `ApiErrorCode` to a union the PRD prints
+verbatim on p.7 (dispute B14); `not_found` and `server_error` omit
 `details` entirely. Per-route detail shapes were available and were rejected: a consumer
 that has to learn a different error body per endpoint has no envelope, only a
 convention. `apiErrorBodySchema` (Zod, `.strict()`, discriminated on `code`) is the one
