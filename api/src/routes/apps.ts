@@ -48,6 +48,7 @@ import { authMiddleware, requireAuth } from '../middleware/auth.js';
 import { logAuditEvent } from '../services/audit.js';
 import {
   createAppRequestSchema,
+  reactivateRequestSchema,
   generateClientId,
   generateClientSecret,
   hashClientSecret,
@@ -362,6 +363,87 @@ export function createAppsRouter(repo: IOAuthAppRepo): RouterType {
         res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
           success: false,
           error: { code: ERROR_CODES.INTERNAL_ERROR, message: 'Failed to rotate secret' },
+        });
+      }
+    }
+  );
+
+  /**
+   * PF-053 — D2's recovery story: an admin reactivates and reassigns.
+   *
+   * p.17 says of the owner-deleted options that "Each is a different recovery
+   * story", so ours has to exist rather than be implied. Super-admin only,
+   * because the previous owner is gone and there is nobody else with standing.
+   *
+   * REJECTS reactivation without a live owner. An active app whose owner does
+   * not exist is precisely the orphan state D2 was chosen to avoid — it would
+   * be a credential nobody can rotate and nobody is accountable for. The
+   * `owner_user_id` foreign key is what enforces it, so the check cannot be
+   * skipped by a future caller that forgets to validate.
+   *
+   * `client_id` and `client_secret_hash` are left untouched, so the audit
+   * history stays continuous and the owner's stored credential still works.
+   */
+  router.post(
+    '/:id/reactivate',
+    authMiddleware,
+    async (req: Request, res: Response): Promise<void> => {
+      const auth = requireAuth(req);
+      if (!req.isSuperAdmin) {
+        // Not 403: a non-admin must not learn that the app exists.
+        notFound(res);
+        return;
+      }
+
+      const parsed = reactivateRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        validationFailed(res, parsed.error.flatten());
+        return;
+      }
+
+      const id = String(req.params.id);
+      try {
+        const before = await repo.findById(id);
+        if (!before) {
+          notFound(res);
+          return;
+        }
+
+        const app = await repo.reactivate(id, parsed.data.owner_user_id);
+        if (!app) {
+          notFound(res);
+          return;
+        }
+
+        await logAuditEvent({
+          workspaceId: auth.workspaceId,
+          actorUserId: auth.userId,
+          action: 'oauth_app.reactivated',
+          resourceType: 'oauth_app',
+          resourceId: app.id,
+          details: { client_id: app.clientId, new_owner_user_id: app.ownerUserId },
+          req,
+        });
+
+        res.json({ success: true, data: toPublicApp(app) });
+      } catch (error) {
+        // The FK rejecting a deleted owner lands here. It is a client error,
+        // not a server one: the caller named a user that does not exist.
+        const message = error instanceof Error ? error.message : '';
+        if (/owner_user_id/.test(message) || /foreign key/i.test(message)) {
+          validationFailed(res, {
+            fieldErrors: {
+              owner_user_id: [
+                'must name a live user; an app cannot be reactivated without an owner',
+              ],
+            },
+          });
+          return;
+        }
+        console.error('Reactivate OAuth app error:', error);
+        res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          error: { code: ERROR_CODES.INTERNAL_ERROR, message: 'Failed to reactivate app' },
         });
       }
     }

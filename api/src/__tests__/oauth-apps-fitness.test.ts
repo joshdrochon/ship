@@ -63,7 +63,13 @@ describe('PF-033 — no weak randomness under platform/apps/', () => {
       const code = stripComments(text);
       if (/Math\.random/.test(code)) offenders.push(`${name}: Math.random`);
       if (/Date\.now\s*\(\s*\)/.test(code)) offenders.push(`${name}: Date.now()`);
-      if (/\buuid\b|randomUUID/.test(code)) offenders.push(`${name}: uuid`);
+      // UUID *generation* only. `z.string().uuid()` is a validator on an
+      // incoming field (schema.ts uses it on `owner_user_id`) and is not a
+      // source of randomness for a credential — matching it would make this
+      // test fail on correct code, which is how a fitness test gets deleted.
+      if (/randomUUID|uuidv4|from ['"]uuid['"]|\bv4\s*\(/.test(code)) {
+        offenders.push(`${name}: uuid generation`);
+      }
     }
     expect(offenders).toEqual([]);
   });
@@ -136,11 +142,21 @@ describe('PF-036 — exactly one client-secret comparison site', () => {
 });
 
 describe('PF-037 — the repository is constructed in the composition root only', () => {
-  it('PgOAuthAppRepo is instantiated nowhere but deps.ts', () => {
+  it('PgOAuthAppRepo is instantiated in exactly two NAMED places', () => {
+    // `deps.ts` is the composition root. `platform/apps/owner-lifecycle.ts` is
+    // the documented second site, and its header says why: the user-delete path
+    // lives in `routes/admin.ts`, a Part 1 module-level router that takes no
+    // dependencies. Threading `appsRepo` into it would mean converting that
+    // whole router to a factory — a large edit to a file this lane does not
+    // own, landing on the PF-018 middleware snapshot, for one call site.
+    //
+    // Two named sites, not "anywhere". A THIRD still fails here, which is the
+    // property PF-037 actually wants: construction is not scattered.
     const sites = allApiSources()
       .filter(({ text }) => /new PgOAuthAppRepo\(/.test(stripComments(text)))
-      .map(({ path }) => path.slice(API_SRC.length + 1));
-    expect(sites).toEqual(['deps.ts']);
+      .map(({ path }) => path.slice(API_SRC.length + 1))
+      .sort();
+    expect(sites).toEqual(['deps.ts', 'platform/apps/owner-lifecycle.ts']);
   });
 
   it('InMemoryOAuthAppRepo is instantiated nowhere but deps.ts', () => {

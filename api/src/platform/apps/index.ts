@@ -14,3 +14,4 @@ export * from './repo.js';
 export * from './pg-repo.js';
 export * from './schema.js';
 export * from './secret-auth-log.js';
+export * from './owner-lifecycle.js';

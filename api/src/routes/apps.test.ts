@@ -478,6 +478,83 @@ describe('PF-048 — the documented departure is pinned to the shipped constant'
   });
 });
 
+describe('PF-053 — D2\'s recovery story: reactivate and reassign', () => {
+  async function reactivate(id: string, cookie: string, body: object) {
+    const { cookies, token } = await csrfFor(cookie);
+    return request(app)
+      .post(`/api/apps/${id}/reactivate`)
+      .set('Cookie', cookies)
+      .set('x-csrf-token', token)
+      .send(body);
+  }
+
+  const asSuperAdmin = async <T>(fn: () => Promise<T>): Promise<T> => {
+    await pool.query('UPDATE users SET is_super_admin = true WHERE id = $1', [ownerId]);
+    try {
+      return await fn();
+    } finally {
+      await pool.query('UPDATE users SET is_super_admin = false WHERE id = $1', [ownerId]);
+    }
+  };
+
+  it('a NON-admin gets the not-found body, not a 403', async () => {
+    // A 403 would confirm the app exists to someone with no standing.
+    const created = await register();
+    await repo().deactivate(created.body.data.id, 'admin_action', new Date());
+    const res = await reactivate(created.body.data.id, ownerCookie, {
+      owner_user_id: otherOwnerId,
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('a super-admin reassigns to a live user and the app comes back', async () => {
+    const created = await register();
+    const id: string = created.body.data.id;
+    const clientId: string = created.body.data.client_id;
+    const rawSecret: string = created.body.data.client_secret;
+    await repo().deactivate(id, 'owner_deleted', new Date());
+
+    const res = await asSuperAdmin(() =>
+      reactivate(id, ownerCookie, { owner_user_id: otherOwnerId })
+    );
+    expect(res.status).toBe(200);
+    expect(res.body.data.active).toBe(true);
+
+    const { verifyClientSecret } = await import('../platform/apps/index.js');
+    const back = await repo().findById(id);
+    expect(back!.ownerUserId).toBe(otherOwnerId);
+    expect(back!.deactivatedAt).toBeNull();
+    expect(back!.deactivationReason).toBeNull();
+    // client_id and the stored credential are untouched, so the audit history
+    // stays continuous and the owner's secret still works.
+    expect(back!.clientId).toBe(clientId);
+    expect((await verifyClientSecret(repo(), clientId, rawSecret)).ok).toBe(true);
+  });
+
+  it('rejects reactivation naming a user that does not exist, NAMING the field', async () => {
+    // An active app with a deleted owner is the orphan state D2 was chosen to
+    // avoid: a credential nobody can rotate and nobody is accountable for.
+    const created = await register();
+    const id: string = created.body.data.id;
+    await repo().deactivate(id, 'owner_deleted', new Date());
+
+    const res = await asSuperAdmin(() =>
+      reactivate(id, ownerCookie, { owner_user_id: '00000000-0000-0000-0000-000000000000' })
+    );
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toContain('owner_user_id');
+    // And the app stayed deactivated.
+    expect((await repo().findById(id))!.active).toBe(false);
+  });
+
+  it('requires owner_user_id rather than silently assigning the acting admin', async () => {
+    const created = await register();
+    await repo().deactivate(created.body.data.id, 'owner_deleted', new Date());
+    const res = await asSuperAdmin(() => reactivate(created.body.data.id, ownerCookie, {}));
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('PF-045 — MVP GATE ITEM 1, asserted end to end as ONE test', () => {
   it('admin creates an app → client_id + raw secret once → DB holds only the hash → verify works', async () => {
     // Recorded as a single test on purpose. This is the last unclaimed gate

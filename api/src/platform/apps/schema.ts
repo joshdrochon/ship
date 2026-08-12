@@ -211,3 +211,17 @@ export const createAppRequestSchema = z
   .strict();
 
 export type CreateAppRequest = z.infer<typeof createAppRequestSchema>;
+
+/**
+ * PF-053 — the reactivate request.
+ *
+ * `owner_user_id` is required rather than optional-defaulting-to-the-admin:
+ * reactivating an app silently onto the acting admin would make the admin the
+ * owner of a credential they did not ask for, and p.17's recovery story is
+ * "reactivates AND reassigns" — two deliberate acts, not one implied one.
+ */
+export const reactivateRequestSchema = z
+  .object({
+    owner_user_id: z.string().uuid(),
+  })
+  .strict();
