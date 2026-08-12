@@ -16,6 +16,14 @@ import {
 } from './errorMiddleware.js';
 import { createTestPublicApp, V1_PREFIX } from './testSupport.js';
 
+/**
+ * A fixed id so the log line and the response body can be asserted to carry the
+ * same one. It has to be a real UUID: `apiErrorBodySchema` requires it, and the
+ * middleware's PF-199 self-check logs a second time when the envelope is
+ * invalid — which would make the "logged exactly once" assertion below lie.
+ */
+const FIXED_REQUEST_ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+
 describe('PF-195 — asyncRoute, because Express 4.22.1 drops async rejections (F4)', () => {
   it('the pin that makes this necessary is still 4.22.1', async () => {
     // Re-verified rather than trusted: if the pin moves to Express 5 this
@@ -134,7 +142,7 @@ describe('PF-196 — an unhandled exception leaks nothing', () => {
     // the scrubbing, and a fixed request id makes the log/body join assertable.
     const app = express();
     app.use((_req, res, next) => {
-      res.locals.requestId = 'fixed-id-for-assertion';
+      res.locals.requestId = FIXED_REQUEST_ID;
       next();
     });
     app.get(
@@ -151,7 +159,7 @@ describe('PF-196 — an unhandled exception leaks nothing', () => {
 
     expect(res.body.code).toBe('server_error');
     expect(res.body.message).toBe(GENERIC_SERVER_ERROR_MESSAGE);
-    expect(res.body.request_id).toBe('fixed-id-for-assertion');
+    expect(res.body.request_id).toBe(FIXED_REQUEST_ID);
 
     // Nothing about the internals reaches the caller.
     expect(raw).not.toContain('ECONNREFUSED');
@@ -165,7 +173,7 @@ describe('PF-196 — an unhandled exception leaks nothing', () => {
     // ...but the server log has the real error AND the id the caller was given.
     expect(logger.error).toHaveBeenCalledTimes(1);
     const [logMessage, loggedError] = logger.error.mock.calls[0]!;
-    expect(logMessage).toContain('fixed-id-for-assertion');
+    expect(logMessage).toContain(FIXED_REQUEST_ID);
     expect((loggedError as Error).message).toBe(SECRET_MESSAGE);
   });
 

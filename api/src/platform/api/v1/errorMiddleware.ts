@@ -17,7 +17,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
-import { ApiError, type ApiErrorBody } from './errors.js';
+import { ApiError, apiErrorBodySchema, type ApiErrorBody } from './errors.js';
 import { getRequestId } from './requestId.js';
 
 /**
@@ -142,14 +142,31 @@ export function apiErrorMiddleware(logger: ErrorLogger = defaultLogger) {
       return;
     }
 
-    const body: ApiErrorBody = {
+    const body = {
       code: apiErr.code,
       message: apiErr.message,
       // Spread-or-nothing rather than `details: x ?? undefined`: the key must be
       // ABSENT, not present-and-undefined, for the strict envelope schema.
       ...(Object.hasOwn(apiErr, 'details') ? { details: apiErr.details } : {}),
       request_id: requestId,
-    };
+    } as ApiErrorBody;
+
+    // PF-199 — the serializer checks itself against the SAME schema the fitness
+    // harness asserts with. This is a self-check, not a transformer: the body is
+    // sent either way.
+    //
+    // Degrading a policy violation into a 500 would turn a detail-shape bug into
+    // an outage, and silently stripping `details` would hide it. Logging keeps
+    // the caller's response honest to what the code actually did, while making
+    // the violation impossible to miss — the fitness test (PF-201) turns the same
+    // check into a build failure, which is where it should be caught.
+    const parsed = apiErrorBodySchema.safeParse(body);
+    if (!parsed.success) {
+      logger.error(
+        `[api/v1] envelope violates the details policy (code=${apiErr.code}, request_id=${requestId})`,
+        parsed.error.issues,
+      );
+    }
 
     res.status(apiErr.status).json(body);
   };

@@ -159,16 +159,98 @@ export class ApiError extends Error {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PF-198 / PF-199 — the `details` policy, as a schema rather than as prose.
+//
+// THE ONE DEFINITION OF THE WIRE SHAPE. The serializer in `errorMiddleware.ts`
+// and the route-fitness harness both import this; `ApiErrorBody` is inferred
+// from it rather than declared alongside it, so there is no second copy of the
+// shape to drift. `grep -rn "apiErrorBodySchema"` is the proof.
+//
+// Policy (answers Pre-Search 2.2, p.16 — which asks the question and does not
+// answer it):
+//
+//   The envelope is IDENTICAL across all routes. `details` is the only variable
+//   part, and its sub-shape is fixed PER CODE, never per route.
+//
+//   validation_failed  MUST carry details.fields[]
+//   forbidden          MUST carry details.missing_scope   (p.3 — the 403 names it)
+//   rate_limited       MAY  carry details.retry_after_seconds
+//   unauthorized       MUST omit details
+//   not_found          MUST omit details
+//   server_error       MUST omit details
+//
+// "No details ever" was never available: p.3 requires a 403 to name the missing
+// scope. Per-route detail shapes were available and were rejected — a consumer
+// that must learn a different error body per endpoint has a convention, not an
+// envelope. Prose version in `platform/README.md`.
+// ─────────────────────────────────────────────────────────────────────────────
+import { z } from 'zod';
+
+/** Fields common to every member of the union. */
+const envelopeBase = {
+  message: z.string().min(1),
+  request_id: z.string().uuid(),
+};
+
+/** One entry per invalid field. L09 produces these. */
+export const validationFieldSchema = z
+  .object({
+    field: z.string().min(1),
+    message: z.string().min(1),
+  })
+  .strict();
+
 /**
- * The wire shape. `request_id` is always present — it is minted by
- * `requestIdMiddleware` before anything can fail (PF-190).
+ * The public error envelope.
+ *
+ * `.strict()` on every member rejects an unknown TOP-LEVEL key — that is what
+ * stops a route quietly bolting `error: '…'` or `stack` onto the envelope. The
+ * discriminated union on `code` is what enforces the per-code `details` rules:
+ * a `not_found` carrying `details` fails, and a `forbidden` without it fails too.
  */
-export interface ApiErrorBody {
-  code: ApiErrorCode;
-  message: string;
-  details?: unknown;
-  request_id: string;
-}
+export const apiErrorBodySchema = z.discriminatedUnion('code', [
+  z.object({ code: z.literal('unauthorized'), ...envelopeBase }).strict(),
+  z
+    .object({
+      code: z.literal('forbidden'),
+      ...envelopeBase,
+      details: z.object({ missing_scope: z.string().min(1) }).strict(),
+    })
+    .strict(),
+  z.object({ code: z.literal('not_found'), ...envelopeBase }).strict(),
+  z
+    .object({
+      code: z.literal('validation_failed'),
+      ...envelopeBase,
+      details: z.object({ fields: z.array(validationFieldSchema).min(1) }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      code: z.literal('rate_limited'),
+      ...envelopeBase,
+      details: z.object({ retry_after_seconds: z.number().int().positive() }).strict().optional(),
+    })
+    .strict(),
+  z.object({ code: z.literal('server_error'), ...envelopeBase }).strict(),
+]);
+
+/**
+ * The wire shape, INFERRED from the schema above. `request_id` is always present
+ * — it is minted by `requestIdMiddleware` before anything can fail (PF-190).
+ */
+export type ApiErrorBody = z.infer<typeof apiErrorBodySchema>;
+
+/** Codes whose envelope must NOT carry a `details` key. */
+export const CODES_WITHOUT_DETAILS: readonly ApiErrorCode[] = [
+  'unauthorized',
+  'not_found',
+  'server_error',
+];
+
+/** Codes whose envelope MUST carry a `details` key. */
+export const CODES_REQUIRING_DETAILS: readonly ApiErrorCode[] = ['forbidden', 'validation_failed'];
 
 // This module is now types and data only. The runtime pieces live beside it:
 //   requestId.ts       — minting and the `X-Request-Id` header (PF-190–193)
