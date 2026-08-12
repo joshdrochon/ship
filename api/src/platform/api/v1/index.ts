@@ -11,6 +11,7 @@ export * from './errorMiddleware.js';
 export * from './routeFitness.js';
 export * from './envelopeAssertion.js';
 export * from './pagination.js';
+export * from './page.js';
 export * from './keysetIndex.js';
 export * from './middlewareOrder.js';
 export * from './bodyErrors.js';
