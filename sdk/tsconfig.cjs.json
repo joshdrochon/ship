@@ -1,0 +1,27 @@
+{
+  // Second emit: CommonJS, for consumers who `require('@ship/sdk')`.
+  //
+  // Why two configs rather than a bundler: `tsc` is already the SDK's build, the
+  // source has no runtime dependencies, and a bundler would be a third thing to
+  // pin and audit for a package whose whole selling point is a small install
+  // footprint (< 250 KB min+gzip, PRD p.9).
+  //
+  // The emitted directory gets its own `package.json` with `"type": "commonjs"`
+  // (see the build script) — without it Node reads the SDK's root
+  // `"type": "module"` and refuses to load the .js files it just emitted.
+  //
+  // Types are emitted by the ESM build only; both conditions point at the same
+  // .d.ts, which is correct because the two builds have identical shape.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist/cjs",
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "verbatimModuleSyntax": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "vitest.config.ts"]
+}

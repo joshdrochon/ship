@@ -1,0 +1,28 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "composite": true,
+
+    // Restated here rather than inherited. `@ship/sdk` is the one package a
+    // stranger installs, and its .d.ts files are the contract they compile
+    // against — the strictness of that contract must not be an accident of what
+    // the repo root happens to say this week. PF-006.
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true,
+
+    // PF-008: no skipLibCheck masking. The root config sets it true for the
+    // application packages (which pull in ~40 @types packages); the SDK's
+    // dependency surface is small enough to check honestly, and a .d.ts error
+    // here is an error a consumer would also see.
+    "skipLibCheck": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "vitest.config.ts"]
+}

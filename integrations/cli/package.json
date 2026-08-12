@@ -1,0 +1,25 @@
+{
+  "name": "@ship/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ship \u2014 reference CLI for the Ship platform. Imports ONLY @ship/sdk (the front door, like any external developer).",
+  "type": "module",
+  "bin": {
+    "ship": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "tsc -b --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "type-check": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ship/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}
