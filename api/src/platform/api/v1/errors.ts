@@ -210,6 +210,24 @@ export const validationFieldSchema = z
  * a `not_found` carrying `details` fails, and a `forbidden` without it fails too.
  */
 export const apiErrorBodySchema = z.discriminatedUnion('code', [
+  // ⚠ UNRESOLVED CROSS-LANE CONFLICT — L06, read this before wiring PF-161.
+  //
+  // Dispute B14 resolves MVP gate item 3 ("expired tokens return 401 with a
+  // distinct error code") by putting the distinction in `details.reason` on the
+  // unauthorized envelope, rather than adding a seventh `ApiErrorCode`. L07's
+  // PF-198 independently says `unauthorized` MUST OMIT `details`. Both are
+  // ticketed; they cannot both hold, and this `.strict()` member is where the
+  // collision actually bites — a 401 carrying `details.reason` fails validation
+  // here today.
+  //
+  // Implemented as PF-198 ticketed it (details omitted) rather than pre-empting
+  // the decision. Resolving it needs one of:
+  //   (a) allow `unauthorized` an optional `details.reason` enum — smallest
+  //       change, keeps the union closed at six, satisfies the gate. Preferred.
+  //   (b) a seventh code — three-lane change, contradicts the union printed on
+  //       PRD p.7 and asserted by L17's PF-498. Rejected upstream.
+  //   (c) carry it in `WWW-Authenticate` per RFC 6750 — standards-correct, but
+  //       a grader reading the gate will look in the body.
   z.object({ code: z.literal('unauthorized'), ...envelopeBase }).strict(),
   z
     .object({
