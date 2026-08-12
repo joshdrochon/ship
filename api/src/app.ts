@@ -27,6 +27,7 @@ import { searchRouter } from './routes/search.js';
 import { filesRouter } from './routes/files.js';
 import caiaAuthRoutes from './routes/caia-auth.js';
 import apiTokensRoutes from './routes/api-tokens.js';
+import { createAppsRouter } from './routes/apps.js';
 import adminCredentialsRoutes from './routes/admin-credentials.js';
 import claudeRoutes from './routes/claude.js';
 import activityRoutes from './routes/activity.js';
@@ -170,7 +171,9 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
   // not destructured yet because nothing below reads them — the routers that do
   // are L02–L16's. Destructuring them into unused locals now would be five lint
   // suppressions pretending to be wiring.
-  const { corsOrigin } = deps;
+  //
+  // `appsRepo` IS read: L02's `/api/apps` router takes it (PF-037/PF-039).
+  const { corsOrigin, appsRepo } = deps;
 
   const app = express();
 
@@ -298,6 +301,19 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
   app.use('/api/admin', conditionalCsrf, adminRoutes);
   app.use('/api/invites', conditionalCsrf, invitesRoutes);
   app.use('/api/api-tokens', conditionalCsrf, apiTokensRoutes);
+
+  // L02 PF-039/PF-046 — OAuth app CRUD on the INTERNAL session surface.
+  //
+  // Not `/api/v1`: p.2's actor is an admin with a session, you cannot register
+  // your first app through an API that needs an OAuth token, and p.3's registry
+  // has no scope that could gate this. Mounted inside `conditionalCsrf` like
+  // every other session route; the router additionally refuses bearer auth
+  // outright, so the `conditionalCsrf` bearer skip cannot bypass CSRF here.
+  //
+  // The router is constructed from `deps.appsRepo` rather than importing a
+  // module-level singleton, which is what keeps `createApp(testDeps())` able to
+  // drive it with the in-memory double.
+  app.use('/api/apps', conditionalCsrf, createAppsRouter(appsRepo));
 
   // Claude context routes - read-only GET endpoints for Claude skills
   app.use('/api/claude', claudeRoutes);

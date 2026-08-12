@@ -195,6 +195,46 @@ describe('PF-038 — the public projection is one allowlist', () => {
   });
 });
 
+describe('PF-039 — app CRUD stays off the public contract', () => {
+  it('no route under platform/api/v1/** reads or writes oauth_apps', () => {
+    // The bootstrap paradox is the reason: you cannot register your first
+    // OAuth app through an API that requires an OAuth token. A v1 route
+    // touching this table means someone tried, and would need an eighth scope
+    // to gate it — which is the next assertion.
+    const v1Dir = join(API_SRC, 'platform', 'api', 'v1');
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+          const code = stripComments(readFileSync(full, 'utf-8'));
+          if (/oauth_apps/.test(code)) offenders.push(entry.name);
+        }
+      }
+    };
+    walk(v1Dir);
+    expect(offenders).toEqual([]);
+  });
+
+  it('the scope registry is still exactly seven scopes', async () => {
+    // Inventing `apps:manage` to move app CRUD onto /api/v1 is the failure this
+    // test exists to catch. p.3 fixes the registry at seven and L03's PF-068
+    // makes an unregistered scope a wiring-time throw.
+    const { scopeRegistry } = await import('../platform/scopes/registry.js');
+    expect(scopeRegistry.list()).toHaveLength(7);
+    expect(scopeRegistry.has('apps:manage')).toBe(false);
+  });
+
+  it('the /api/apps router lives in routes/, not under platform/', () => {
+    // It needs session auth and CSRF, both of which live in middleware/ — and
+    // platform/** may not import middleware. Putting it under platform/ would
+    // force either a boundary violation or a duplicate session stack.
+    const appsSources = appsSourceFiles().map((f) => f.name);
+    expect(appsSources).not.toContain('router.ts');
+  });
+});
+
 describe('PF-041 — no scope-name literal under platform/apps/', () => {
   it('derives scope names from the ScopeRegistry rather than restating them', () => {
     // L03's OCP claim is that adding a scope touches only the registration

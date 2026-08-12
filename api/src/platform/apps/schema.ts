@@ -26,7 +26,7 @@
  * exactly one definition.
  */
 import { z } from 'zod';
-import { SCOPES } from '../scopes/registry.js';
+import { scopeRegistry, type Scope } from '../scopes/registry.js';
 import type { OAuthApp } from './types.js';
 
 /**
@@ -178,14 +178,35 @@ export const createAppRequestSchema = z
       }),
 
     requested_scopes: z
-      .array(z.enum(SCOPES))
+      .array(z.string())
       // PF-041 DECISION: an empty requested_scopes is rejected, with the reason
       // in the message. L03's PF-074 intersects app-requested scopes with
       // user-consented ones at issuance, so an app that requested nothing can
       // only ever hold a token that can do nothing. Failing at registration is
       // strictly better than failing at the first API call, where the developer
       // has no signal pointing back at the registration.
-      .min(1, 'at least one scope is required; an app with no scopes can never do anything'),
+      .min(1, 'at least one scope is required; an app with no scopes can never do anything')
+      // PF-041: validated against the ScopeRegistry, at REGISTRATION rather
+      // than at issuance. `scopeRegistry.has()` is the only source — there is
+      // no literal scope name in this file, so adding a scope to the registry
+      // admits it here with no edit. That is L03's OCP claim (PF-066) holding
+      // at the registration boundary.
+      //
+      // The unknown name is echoed in the message because an SDK author
+      // debugging a typo needs to know WHICH scope was rejected; a bare
+      // "invalid scope" sends them to read the list themselves.
+      .superRefine((scopes, ctx) => {
+        scopes.forEach((scope, i) => {
+          if (!scopeRegistry.has(scope)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: [i],
+              message: `unknown scope "${scope}"`,
+            });
+          }
+        });
+      })
+      .transform((scopes) => scopes as Scope[]),
   })
   .strict();
 
