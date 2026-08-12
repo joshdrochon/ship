@@ -140,14 +140,35 @@ function walkLayers(layers: ExpressLayer[], prefix: string, out: EnumeratedRoute
   }
 }
 
-/** Reads the top-level layer stack off an app or a router, across Express versions. */
+/**
+ * Reads the top-level layer stack off an app or a router, across Express versions.
+ *
+ * The `try` is not defensive padding. Express 4 lazily creates `app._router` on
+ * the first `use`/`get`, so on an app with no routes yet it is `undefined` — and
+ * the next candidate, `app.router`, is a **getter Express 4 defines purely to
+ * throw** `'app.router' is deprecated!`. So the plain `??` chain turns "an app
+ * with no routes" into a thrown error rather than an empty list.
+ *
+ * That matters here specifically: the callers most likely to hand this a
+ * route-less app are the ones checking the vacuous case on purpose — PF-232's
+ * anti-vacuity fixture and PF-228's wiring assertion, both of which need "zero
+ * routes" to be a value they can reason about. Express 5 makes `app.router` the
+ * real accessor, which is why the branch stays.
+ */
 function rootStack(target: Express | Router): ExpressLayer[] {
   const candidate = target as unknown as {
     _router?: { stack?: ExpressLayer[] };
     router?: { stack?: ExpressLayer[] };
     stack?: ExpressLayer[];
   };
-  return candidate._router?.stack ?? candidate.router?.stack ?? candidate.stack ?? [];
+  if (candidate._router?.stack) return candidate._router.stack;
+  try {
+    if (candidate.router?.stack) return candidate.router.stack;
+  } catch {
+    // Express 4's deprecation getter. Not an error condition — it means "this is
+    // Express 4 and nothing has been mounted yet".
+  }
+  return candidate.stack ?? [];
 }
 
 /**

@@ -42,6 +42,8 @@ import { setupSwagger } from './swagger.js';
 import { initializeCAIA } from './services/caia.js';
 import { productionDeps, type AppDeps } from './deps.js';
 import { createPublicRouter } from './platform/api/v1/router.js';
+import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js';
+import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
 
 // Validate SESSION_SECRET in production
 if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
@@ -271,6 +273,17 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     // L13's, the mount seam and V1_UNAUTHENTICATED_PATHS are this lane's.
     // TODO(L09/L10): mountResources for /documents, /issues, /sprints.
   }));
+
+  // PF-228 — every mounted public route must carry a metadata record declaring
+  // `list`. Enforced HERE, at wiring time, walking the live Express stack rather
+  // than any hand-maintained list.
+  //
+  // The failure mode this prevents is not a crash, it is silence: Testing
+  // Scenario 4 clause (d) asks "does this route paginate, if it is a list
+  // endpoint", and a route with no declaration is a route the clause skips. One
+  // undeclared route is one route the fitness harness reports as green without
+  // having checked anything.
+  assertEveryRouteDeclaresList(app, (a) => enumerateV1Routes(a));
 
   // Apply rate limiting to all API routes
   //
