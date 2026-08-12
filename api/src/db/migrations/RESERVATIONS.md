@@ -40,7 +40,20 @@ the file yet.
 | 051–056 | **L16** | delivery log (one row per attempt), DLQ, replay bookkeeping |
 | 057–059 | **L12** | public API audit log + the per-day-per-app rollup (D10) |
 | 060–062 | **L03/L09** | scope grant storage, `documents.created_at NOT NULL` (F15) |
-| 063–069 | — | unallocated; ask before taking |
+| 063–064 | **L08** | keyset indexes for public cursor pagination (PF-222) |
+| 065–069 | — | unallocated; ask before taking |
+
+**L08 had no block and took 063–064 under Rule 3** (2026-08-12). The table above
+allocated every lane that writes DDL except this one, and PF-222 ships an index
+migration — so rather than reach into the unallocated range silently, the row is
+recorded here. Two numbers, not four: the lane needs one file today and one spare
+if L10's resources need per-table indexes.
+
+The block order also matters for this pair. L03/L09's 060–062 carries
+`documents.created_at NOT NULL` (F15), and L08's 063 indexes `(created_at, id)`.
+Numerically first is correct: constrain the column, then index it. L08's
+`assertKeysetColumnsNotNull` fails the suite until 060–062 lands, so the
+dependency is enforced rather than assumed.
 
 L15's `PF-421` declares a foreign key to `oauth_apps`, which L02 creates at 039. The
 block order above is also the apply order, so the FK's target exists by the time
