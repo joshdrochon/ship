@@ -45,7 +45,7 @@ import type {
 const COLUMNS = `
   id, code_hash, code_prefix, app_id, user_id, workspace_id, redirect_uri,
   scopes, code_challenge, code_challenge_method, expires_at, consumed_at,
-  created_at
+  issued_family_id, created_at
 `;
 
 interface Row {
@@ -61,6 +61,7 @@ interface Row {
   code_challenge_method: string;
   expires_at: Date;
   consumed_at: Date | null;
+  issued_family_id: string | null;
   created_at: Date;
 }
 
@@ -81,6 +82,7 @@ function toDomain(row: Row): AuthorizationCodeRecord {
     codeChallengeMethod: row.code_challenge_method,
     expiresAt: row.expires_at,
     consumedAt: row.consumed_at,
+    issuedFamilyId: row.issued_family_id,
     createdAt: row.created_at,
   };
 }
@@ -129,13 +131,13 @@ abstract class AuthCodeStatements implements IAuthCodeRepo {
   }
 
   /** See the header. ONE conditional statement; never a read followed by a write. */
-  async consume(id: string, at: Date): Promise<boolean> {
+  async consume(id: string, at: Date, issuedFamilyId: string | null): Promise<boolean> {
     const result = await this.q.query<{ id: string }>(
       `UPDATE oauth_authorization_codes
-          SET consumed_at = $2
+          SET consumed_at = $2, issued_family_id = $3
         WHERE id = $1 AND consumed_at IS NULL
         RETURNING id`,
-      [id, at],
+      [id, at, issuedFamilyId],
     );
     return result.rows.length === 1;
   }

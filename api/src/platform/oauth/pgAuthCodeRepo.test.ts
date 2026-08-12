@@ -190,14 +190,14 @@ describe.each<[string, () => IAuthCodeRepo]>([
 
   it('consume succeeds exactly once — the single-use guarantee', async () => {
     const row = await repo.insert(input());
-    expect(await repo.consume(row.id, new Date())).toBe(true);
-    expect(await repo.consume(row.id, new Date())).toBe(false);
+    expect(await repo.consume(row.id, new Date(), null)).toBe(true);
+    expect(await repo.consume(row.id, new Date(), null)).toBe(false);
   });
 
   it('a consumed row is still findable, so a replay is detectable', async () => {
     const written = input();
     const row = await repo.insert(written);
-    await repo.consume(row.id, new Date());
+    await repo.consume(row.id, new Date(), null);
     const found = await repo.findByHash(written.codeHash);
     expect(found?.consumedAt).not.toBeNull();
   });
@@ -213,8 +213,8 @@ describe.each<[string, () => IAuthCodeRepo]>([
     await repo.insert(live);
     const agedRow = await repo.insert(aged);
     const freshRow = await repo.insert(fresh);
-    await repo.consume(agedRow.id, new Date(now - 7_200_000));
-    await repo.consume(freshRow.id, new Date(now - 1_000));
+    await repo.consume(agedRow.id, new Date(now - 7_200_000), null);
+    await repo.consume(freshRow.id, new Date(now - 1_000), null);
 
     const removed = await repo.deleteSwept(new Date(now), new Date(now - 3_600_000));
     expect(removed).toBe(2);
@@ -228,7 +228,7 @@ describe.each<[string, () => IAuthCodeRepo]>([
     const written = input();
     const id = await repo.transaction(async (tx) => {
       const row = await tx.insert(written);
-      expect(await tx.consume(row.id, new Date())).toBe(true);
+      expect(await tx.consume(row.id, new Date(), null)).toBe(true);
       return row.id;
     });
     const found = await repo.findByHash(written.codeHash);
@@ -247,7 +247,7 @@ describe('PF-104 — concurrent redemption, against the engine whose guarantee i
 
     const results = await Promise.all(
       Array.from({ length: 8 }, () =>
-        repo.transaction((tx) => tx.consume(row.id, new Date())),
+        repo.transaction((tx) => tx.consume(row.id, new Date(), null)),
       ),
     );
 

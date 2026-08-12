@@ -436,13 +436,13 @@ describe('PF-104 / PF-112 — single use and the sweep, at the repository', () =
 
   it('consume succeeds exactly once', async () => {
     const { row } = await seed();
-    expect(await repo.consume(row.id, new Date(1_000))).toBe(true);
-    expect(await repo.consume(row.id, new Date(2_000))).toBe(false);
+    expect(await repo.consume(row.id, new Date(1_000), null)).toBe(true);
+    expect(await repo.consume(row.id, new Date(2_000), null)).toBe(false);
   });
 
   it('a consumed row is still findable — that is what makes a replay detectable', async () => {
     const { code, row } = await seed();
-    await repo.consume(row.id, new Date(1_000));
+    await repo.consume(row.id, new Date(1_000), null);
     const found = await repo.findByHash(hashAuthorizationCode(code));
     expect(found).not.toBeNull();
     expect(found?.consumedAt).not.toBeNull();
@@ -454,8 +454,8 @@ describe('PF-104 / PF-112 — single use and the sweep, at the repository', () =
     const freshlyConsumed = await seed({ expiresAt: new Date(10) });
     const agedConsumed = await seed({ expiresAt: new Date(10) });
 
-    await repo.consume(freshlyConsumed.row.id, new Date(9_000_000));
-    await repo.consume(agedConsumed.row.id, new Date(100));
+    await repo.consume(freshlyConsumed.row.id, new Date(9_000_000), null);
+    await repo.consume(agedConsumed.row.id, new Date(100), null);
 
     const now = new Date(10_000_000);
     const consumedBefore = new Date(now.getTime() - CONSUMED_CODE_RETENTION_SECONDS * 1000);
@@ -471,7 +471,7 @@ describe('PF-104 / PF-112 — single use and the sweep, at the repository', () =
 
   it('a consumed row outlives its own TTL, so replay detection still fires', async () => {
     const { code, row } = await seed({ expiresAt: new Date(60_000) });
-    await repo.consume(row.id, new Date(30_000));
+    await repo.consume(row.id, new Date(30_000), null);
     // Well past expiry, inside the retention window.
     const now = new Date(120_000);
     await repo.deleteSwept(now, new Date(now.getTime() - CONSUMED_CODE_RETENTION_SECONDS * 1000));

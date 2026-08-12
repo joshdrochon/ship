@@ -109,6 +109,15 @@ export interface AuthorizationCodeRecord {
   codeChallengeMethod: string;
   expiresAt: Date;
   consumedAt: Date | null;
+  /**
+   * PF-104 — the `oauth_tokens.family_id` this code produced (migration 066).
+   *
+   * Written by the same statement that consumed the code, so "burned" and
+   * "family recorded" cannot come apart. Null when the code was burned WITHOUT
+   * issuing anything, which is what a failed PKCE verification does (PF-102) —
+   * there is genuinely no family to revoke in that case.
+   */
+  issuedFamilyId: string | null;
   createdAt: Date;
 }
 
@@ -142,8 +151,15 @@ export interface IAuthCodeRepo {
    * read followed by a write: two concurrent exchanges both pass a
    * read-then-write and the single-use property collapses to a race. Identical
    * in shape and in reasoning to `ITokenRepo.markSpent`.
+   *
+   * `issuedFamilyId` is written by the SAME statement (migration 066). The
+   * family id is generated before issuance and handed to `issueTokenPair`, so
+   * there is no window in which a code is burned but the family it produced is
+   * unknown — and that window is exactly a leaked code we could no longer
+   * revoke. Null when the code is being burned without issuing anything, which
+   * is what a failed PKCE verification does (PF-102).
    */
-  consume(id: string, at: Date): Promise<boolean>;
+  consume(id: string, at: Date, issuedFamilyId: string | null): Promise<boolean>;
 
   /**
    * PF-112 — the sweep. Deletes codes past `expires_at` that were never
@@ -193,6 +209,7 @@ export class InMemoryAuthCodeRepo implements IAuthCodeRepo {
       codeChallengeMethod: input.codeChallengeMethod,
       expiresAt: input.expiresAt,
       consumedAt: null,
+      issuedFamilyId: null,
       createdAt: input.createdAt,
     };
     this.rows.set(row.id, row);
@@ -206,13 +223,14 @@ export class InMemoryAuthCodeRepo implements IAuthCodeRepo {
     return null;
   }
 
-  async consume(id: string, at: Date): Promise<boolean> {
+  async consume(id: string, at: Date, issuedFamilyId: string | null): Promise<boolean> {
     const row = this.rows.get(id);
     // The `consumedAt === null` guard is the in-memory equivalent of the SQL
     // `WHERE … AND consumed_at IS NULL`. Checking it HERE rather than in the
     // caller is what keeps the two implementations substitutable.
     if (!row || row.consumedAt !== null) return false;
     row.consumedAt = at;
+    row.issuedFamilyId = issuedFamilyId;
     return true;
   }
 

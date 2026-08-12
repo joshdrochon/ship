@@ -51,6 +51,7 @@ import {
   oauthBrowserSecurityHeaders,
   type OAuthBrowserDeps,
 } from './consent.js';
+import { authorizationCodeGrant } from './authCodeGrant.js';
 
 export interface OAuthRouterDeps {
   appsRepo: IOAuthAppRepo;
@@ -121,6 +122,27 @@ function parseScopeParam(raw: string | undefined): Scope[] | null | undefined {
 export function grantHandlers(deps: OAuthRouterDeps): Record<string, GrantHandler> {
   return {
     /**
+     * ★ PKCE. L04's entry, added as a NEW KEY in this map — the dispatcher
+     * below was not touched, which is the property PF-166/PF-134 exist to
+     * preserve.
+     *
+     * Conditional on `authCodeRepo`, because a server with nowhere to record a
+     * code cannot honour a grant that redeems one. Omitting the key means the
+     * dispatcher answers `unsupported_grant_type`, which is true, rather than
+     * `invalid_grant`, which would send the client hunting for a bad code.
+     */
+    ...(deps.authCodeRepo
+      ? {
+          authorization_code: authorizationCodeGrant({
+            authCodeRepo: deps.authCodeRepo,
+            tokenRepo: deps.tokenRepo,
+            clock: deps.clock,
+            ttl: deps.ttl,
+          }),
+        }
+      : {}),
+
+    /**
      * ★ ROTATION. `docs/architecture.md:118` marks this grant as the site, and
      * `rotation.ts` is where it lands.
      */
@@ -161,8 +183,8 @@ export function grantHandlers(deps: OAuthRouterDeps): Record<string, GrantHandle
       return { ok: true, body: result.response };
     },
 
-    // TODO(L04): authorization_code — verifies PKCE S256, then calls
-    //   issueTokenPair (PF-155). Register it here; do not edit the dispatcher.
+    // (L04's authorization_code is registered at the TOP of this map — the
+    //  instruction here was followed literally: a new entry, no dispatcher edit.)
     // TODO(L05): urn:ietf:params:oauth:grant-type:device_code — same seam.
     // TODO(L05/D5): client_credentials for the seeded first-party agent app.
   };
