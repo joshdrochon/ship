@@ -28,7 +28,7 @@ import {
 } from './routeFitness.js';
 import { registerEnvelopeAssertions } from './envelopeAssertion.js';
 import { RouteMetadataRegistry } from './routeMetadata.js';
-import { createTestPublicApp, V1_PREFIX } from './testSupport.js';
+import { createTestPublicApp } from './testSupport.js';
 import { asyncRoute } from './errorMiddleware.js';
 import { parsePageRequest } from './page.js';
 import { sliceToPage, DEFAULT_PAGE_SIZE } from './pagination.js';
