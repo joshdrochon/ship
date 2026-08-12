@@ -25,6 +25,7 @@
     "type-check": "pnpm --recursive run type-check",
     "lint": "eslint .",
     "lint:boundary": "node scripts/check-boundary-lint.mjs",
+    "baseline:measure": "pnpm --filter @ship/api exec tsx src/scripts/measure-baseline.ts",
     "clean": "pnpm --recursive run clean && rm -rf node_modules",
     "test": "pnpm --filter @ship/shared --filter @ship/api --filter @ship/agent --filter @ship/sdk test",
     "test:e2e": "playwright test",
