@@ -15,6 +15,16 @@ export * from './pkce.js';
 export * from './authCodes.js';
 export { PgAuthCodeRepo } from './pgAuthCodeRepo.js';
 export * from './authorize.js';
+export {
+  mountAuthorizeRoutes,
+  oauthBrowserSecurityHeaders,
+  consentBodyParser,
+  CONSENT_DECISION_PATH,
+  type BrowserUser,
+  type OAuthBrowserDeps,
+  type AuthorizeRoutesDeps,
+} from './consent.js';
+export { renderConsentPage, renderAuthorizeErrorPage, escapeHtml } from './consentPage.js';
 
 // Token lifecycle — L06. Generation and hashing, the repository seam, the one
 // issuance site, resolution, the bearer middleware and refresh rotation.

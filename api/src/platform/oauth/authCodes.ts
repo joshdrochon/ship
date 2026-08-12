@@ -36,9 +36,16 @@
  * pair and the shared contract test in `authCodes.test.ts` is what catches a
  * divergence.
  */
-import crypto from 'node:crypto';
 import type { Scope } from '../scopes/scopes.js';
-import { hashToken } from './tokens.js';
+import { hashToken, generateAuthorizationCode } from './tokens.js';
+
+/**
+ * Re-exported, not redefined. The generator lives in `tokens.ts` because
+ * PF-155's fitness test asserts that file is the only site under
+ * `platform/oauth/` drawing random bytes — see the function's own header for why
+ * that invariant beat locality.
+ */
+export { generateAuthorizationCode };
 
 /**
  * The ONE place the code's lifetime is written down (PF-087).
@@ -68,20 +75,12 @@ export const AUTHORIZATION_CODE_TTL_SECONDS = 60;
  */
 export const CONSUMED_CODE_RETENTION_SECONDS = 60 * 60;
 
-/** Bytes of CSPRNG output behind each code. Matches `tokens.ts`'s budget. */
-const CODE_ENTROPY_BYTES = 32;
-
 /**
  * Prefix length for identification in logs and operator queries. Copies
  * `tokenPrefix`'s 8 characters — 48 bits of a 256-bit value, enough to tell two
  * codes apart and far short of enough to redeem one.
  */
 const CODE_PREFIX_LENGTH = 8;
-
-/** PF-087 — 32 bytes of CSPRNG, base64url. No tag prefix: the code is never stored by a client. */
-export function generateAuthorizationCode(): string {
-  return crypto.randomBytes(CODE_ENTROPY_BYTES).toString('base64url');
-}
 
 /** What the row stores. Never the code itself. */
 export function hashAuthorizationCode(raw: string): string {

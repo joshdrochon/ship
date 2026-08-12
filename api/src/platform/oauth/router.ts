@@ -41,9 +41,16 @@ import { verifyClientSecret } from '../apps/repo.js';
 import type { OAuthApp } from '../apps/types.js';
 import type { Scope } from '../scopes/scopes.js';
 import { scopeRegistry } from '../scopes/scopes.js';
+import type { ScopeRegistry } from '../scopes/registry.js';
 import type { ITokenRepo } from './tokenRepo.js';
 import type { TokenTtlConfig } from './tokens.js';
 import { rotateRefreshToken, type OAuthErrorBody } from './rotation.js';
+import type { IAuthCodeRepo } from './authCodes.js';
+import {
+  mountAuthorizeRoutes,
+  oauthBrowserSecurityHeaders,
+  type OAuthBrowserDeps,
+} from './consent.js';
 
 export interface OAuthRouterDeps {
   appsRepo: IOAuthAppRepo;
@@ -52,6 +59,29 @@ export interface OAuthRouterDeps {
   ttl: TokenTtlConfig;
   /** D14 / PF-171 override. Defaults to the shipped constant (0 — strict). */
   replayWindowMs?: number;
+  /**
+   * L04 PF-086 — the `oauth_authorization_codes` store.
+   *
+   * Optional so that a test exercising only the refresh grant does not have to
+   * construct one. When it is absent the `authorization_code` grant is NOT
+   * registered, which is the honest behaviour: a server with nowhere to record a
+   * code cannot honour a grant that redeems one, and answering
+   * `unsupported_grant_type` is better than answering `invalid_grant` for a
+   * reason the client cannot act on.
+   */
+  authCodeRepo?: IAuthCodeRepo;
+  /**
+   * L04 PF-094 — the browser-facing half: `/oauth/authorize` and the consent
+   * decision.
+   *
+   * Optional for the same reason, and its absence is caught where it matters
+   * rather than by the type system: PF-113 asserts the SHIPPED route table
+   * contains `GET /oauth/authorize`, walking the live Express stack of
+   * `createApp()`. A composition root that forgot to wire this fails there.
+   */
+  browser?: OAuthBrowserDeps;
+  /** Overridable scope registry, for PF-095's mutated-description test. */
+  scopeRegistry?: ScopeRegistry<string>;
 }
 
 /** What a grant handler returns: a token response, or an RFC 6749 error. */
@@ -178,8 +208,30 @@ export function createOAuthRouter(deps: OAuthRouterDeps): Router {
   const router = Router();
   const handlers = grantHandlers(deps);
 
+  // L04 PF-096 — clickjacking and cache headers, set explicitly and router-wide.
+  //
+  // ABOVE the body parser and above every route, so a request that fails to
+  // parse still answers with them. Helmet's app-wide config does NOT set
+  // `frame-ancestors` (measured — see `consent.ts`), so relying on it would be
+  // relying on another lane's configuration that no test pins.
+  router.use(oauthBrowserSecurityHeaders());
+
   // RFC 6749 §4.1.3: the token endpoint takes application/x-www-form-urlencoded.
+  // The consent decision POST is a browser form and is the same content type, so
+  // one parser serves both.
   router.use(urlencoded({ extended: false, limit: '64kb' }));
+
+  // L04 PF-094 — the browser-facing half. Mounted before `/token` so the route
+  // table reads in flow order; Express matches by path so the order is cosmetic.
+  if (deps.browser && deps.authCodeRepo) {
+    mountAuthorizeRoutes(router, {
+      appsRepo: deps.appsRepo,
+      authCodeRepo: deps.authCodeRepo,
+      clock: deps.clock,
+      browser: deps.browser,
+      ...(deps.scopeRegistry ? { registry: deps.scopeRegistry } : {}),
+    });
+  }
 
   router.post('/token', (req, res, next) => {
     void (async () => {
