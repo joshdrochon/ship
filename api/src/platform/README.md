@@ -83,6 +83,42 @@ which does not forward rejected promises: an unwrapped `async` handler that thro
 hangs the request until something times out, and no error middleware ever sees it.
 The wrapper is what keeps the envelope covering the most common failure path.
 
+## The route-fitness harness — read before writing a route test
+
+`api/v1/routeFitness.ts` enumerates every route mounted under `/api/v1` from the
+live app and runs each registered assertion against all of them. Testing Scenario 4
+(PRD p.5) is four checks over every route, owned by four lanes:
+
+| clause | assertion | owner | status |
+|---|---|---|---|
+| (a) | the route has an OpenAPI entry | **L13** | seam ready |
+| (b) | the route declares a scope | **L03** | seam ready |
+| (c) | failures ship the `ApiError` envelope | **L07** | implemented (`envelopeAssertion.ts`) |
+| (d) | list endpoints paginate with an opaque cursor | **L08** | seam ready |
+
+**Do not write a second route walk.** Three enumerators means three different
+definitions of "every route", and the subtly wrong one is the one that passes.
+Register your clause instead:
+
+```ts
+import { registerRouteAssertion } from '../api/v1/routeFitness.js';
+
+registerRouteAssertion('L03 (b): every route declares a scope', ({ route }) => {
+  if (!scopeForRoute(route)) throw new Error(`${route.method} ${route.path} declares no scope`);
+});
+```
+
+then call `runRouteAssertions(app)` from your spec and assert it returns `[]`.
+Assertions may be async, so a clause can issue real requests. `route.handlers`
+exposes the raw handler chain for clauses that need to inspect middleware.
+
+`envelopeAssertion.ts` is L07's clause and is registered through the same public
+seam rather than wired in privately — it is the worked example to copy.
+
+**Always assert the enumeration is non-empty before believing a pass.** A harness
+that enumerates nothing asserts nothing and reports green; that is the one failure
+mode which would make all of this theatre.
+
 ## The boundary contract
 
 Two rules. Both are mechanical — a violation fails `pnpm lint`, it is not caught in
