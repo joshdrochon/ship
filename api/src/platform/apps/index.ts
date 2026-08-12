@@ -9,3 +9,7 @@
  * behind it — see platform/README.md for the boundary contract.
  */
 export * from './types.js';
+export * from './secrets.js';
+export * from './repo.js';
+export * from './pg-repo.js';
+export * from './schema.js';

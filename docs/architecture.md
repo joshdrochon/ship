@@ -6,7 +6,7 @@
 
 ```
 api/src/platform/            (new) everything public-facing; imports domain services, never route files
-  apps/                      oauth_apps registry — create/rotate/list; client_secret hashed (SHA-256, high-entropy), raw shown exactly once
+  apps/                      oauth_apps registry — create/rotate/list; client_secret hashed (SHA-256, unsalted, high-entropy), raw shown exactly once, never recoverable
   oauth/                     RFC 6749 Auth Code + 7636 PKCE + 8628 Device Grant; token issuance; one-time-use refresh tokens with family revocation
   scopes/                    ScopeRegistry — scopes-as-data (documents/issues/sprints × read/write, webhooks:manage) + require(scope) middleware factory
                              (public `sprints` maps onto Ship's internal `weeks` model at this layer — the contract name, not the table name)
@@ -180,6 +180,18 @@ flowchart TB
 ```
 
 The agent authenticates as a first-party OAuth app (seeded by migration, so it provably exists in deployed environments), requesting only the scopes its detectors and actions need — least privilege, not `*`. The swap lives behind a feature flag; CI runs the Part 2 regression suite with the flag **on and off**, which is what makes the rewire a refactor rather than a rewrite. ★ **The payoff is the audit trail:** every agent action now lands in the public audit log under the agent app's `client_id` — "the agent went through the front door" is provable with one query, not a claim. One LLM call per agent turn is unchanged; the platform itself does zero AI work.
+
+## Secret Storage — `client_secret` at Rest
+
+**SHA-256, unsalted, and no recovery process.** (PRD p.15 asks where `client_secret` values live at rest — "hashed with what algorithm, salted how, recoverable via what".)
+
+*Algorithm:* SHA-256, hex, one hashing site — `hashClientSecret()` in `api/src/platform/apps/secrets.ts`. It matches the `api_tokens` precedent (`api/src/middleware/auth.ts:84`) by **convention, not by import**: the boundary lint forbids `platform/**` from importing internal middleware, so the helper is duplicated deliberately and the file header records why. Reading that duplication as an oversight and "fixing" it undoes the fence.
+
+*Salted:* **Not salted, and that is the answer rather than an omission.** A salt defends against precomputation — rainbow tables, cross-account hash reuse — and precomputation is only a threat when the input space is small enough to enumerate. `generateClientSecret()` draws **32 bytes from `crypto.randomBytes`**: 256 bits, uniformly distributed. There is no dictionary to run and no table to precompute, so a per-row salt would add a column and change nothing an attacker can do. The same reasoning rules out a slow KDF (bcrypt, argon2): iteration cost buys time against a feasible search, the search here is not feasible, and the cost would land on `/oauth/token`, which verifies a client secret on every exchange. The 32-byte constant is therefore load-bearing — if it ever shrinks, this argument has to be rewritten, not just the code.
+
+*Recoverable via what:* **nothing, by design.** p.2 requires the raw secret be shown "once on creation and rotation; never recoverable thereafter". No column stores it, no endpoint returns it, and no operational process retrieves it. A lost secret is **rotated, not recovered**. `secret_prefix` — the first 8 characters, stored in clear, mirroring `api_tokens.token_prefix` — exists so an operator can still say *which* secret without holding one.
+
+*Asymmetry with the webhook signing secret, deliberately.* The signing secret is encrypted (AES-256-GCM), not hashed, because the server must **use** it to produce an HMAC; a one-way hash cannot key a MAC. `client_secret` is **presented back to us** and verified by comparison, so a hash is sufficient and strictly safer. The two are different problems that share the word "secret".
 
 ## Failure Modes
 

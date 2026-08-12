@@ -28,9 +28,12 @@ import {
   InMemoryTokenBucket,
   SystemClock,
   FakeClock,
+  PgOAuthAppRepo,
+  InMemoryOAuthAppRepo,
   type IEventBus,
   type IWebhookDeliverer,
   type IRateLimiter,
+  type IOAuthAppRepo,
   type Clock,
 } from './platform/index.js';
 
@@ -59,6 +62,16 @@ export interface AppDeps {
    * raw pool would quietly opt it out of that.
    */
   db: Database;
+  /**
+   * The `oauth_apps` registry (PF-037).
+   *
+   * A repository rather than the raw `db` handle, because L04, L05 and L06 all
+   * resolve apps and none of them should be writing SQL against a table this
+   * lane owns. It is a field on `AppDeps` rather than something `createApp`
+   * constructs from `db` so that `testDeps()` can hand over the in-memory
+   * double without a database at all.
+   */
+  appsRepo: IOAuthAppRepo;
   /** Allowed browser origin for the internal `/api` surface. */
   corsOrigin: string;
 }
@@ -101,6 +114,12 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     }),
     clock: new SystemClock(),
     db: pool,
+
+    // PF-037: the ONLY construction site for the Postgres app repository.
+    // A `new PgOAuthAppRepo(...)` anywhere else is the bug — the fitness test
+    // in `oauth-app-repo.test.ts` fails on a second one.
+    appsRepo: new PgOAuthAppRepo(pool),
+
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     ...overrides,
   };
@@ -129,6 +148,12 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     }),
     clock: new FakeClock(),
     db: pool,
+
+    // PF-016/PF-037: the in-memory double, so a unit test can drive the app
+    // registry with no database. Integration suites that want the real thing
+    // pass `{ appsRepo: new PgOAuthAppRepo(db) }` alongside their own `db`.
+    appsRepo: new InMemoryOAuthAppRepo(),
+
     corsOrigin: 'http://localhost:5173',
     ...overrides,
   };
