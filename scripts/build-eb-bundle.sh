@@ -44,6 +44,48 @@ trap 'rm -rf "$STAGE"' EXIT
 echo "Exporting tracked files at $SHORT ..."
 git archive HEAD | tar -x -C "$STAGE"
 
+# ---------------------------------------------------------------------------
+# The docker-compose files MUST NOT ship in the bundle.
+#
+# This is not tidiness, it is the difference between deploying and not. The
+# Elastic Beanstalk AL2023 Docker platform picks its build mode by looking at
+# what is in the bundle root, and `docker-compose.yml` WINS over `Dockerfile`.
+# Ship one and EB never builds the image at all -- it runs the compose file.
+#
+# Observed, not theorised: version ship-api-aaf6669 deployed in 48 seconds
+# (a full monorepo build cannot), reported "Instance deployment completed
+# successfully", and the eb-engine log showed `postgres-1 | ... database system
+# is ready to accept connections`. EB had started the LOCAL DEVELOPMENT Postgres
+# from docker-compose.yml, with no application container anywhere, and the
+# environment went Degraded on an ELB health check against a port nothing was
+# listening on. Nothing in the event stream says "I ignored your Dockerfile".
+#
+# Removing them from the bundle is correct rather than a workaround: these three
+# files describe a local development stack (a Postgres for `pnpm dev`, a mock
+# server), and none of them has any business running on the deployed instance,
+# which uses Aurora.
+# ---------------------------------------------------------------------------
+COMPOSE_FOUND=$(find "$STAGE" -maxdepth 1 -name 'docker-compose*.yml' -o -maxdepth 1 -name 'docker-compose*.yaml' | sort)
+if [ -n "$COMPOSE_FOUND" ]; then
+  echo "Removing docker-compose files from the bundle (EB would run them instead of the Dockerfile):"
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    echo "  - $(basename "$f")"
+    rm -f "$f"
+  done <<< "$COMPOSE_FOUND"
+fi
+
+# Belt and braces: a Dockerrun.aws.json would also override the Dockerfile.
+if [ -f "$STAGE/Dockerrun.aws.json" ]; then
+  echo "  - Dockerrun.aws.json (also overrides the Dockerfile)"
+  rm -f "$STAGE/Dockerrun.aws.json"
+fi
+
+if [ ! -f "$STAGE/Dockerfile" ]; then
+  echo "ERROR: no Dockerfile in the bundle. EB would have nothing to build."
+  exit 1
+fi
+
 # Bake the SHA into the bundle's Dockerfile so /health can report it.
 if ! grep -q '^ARG GIT_SHA=' "$STAGE/Dockerfile"; then
   echo "ERROR: Dockerfile has no 'ARG GIT_SHA=' line to substitute."
