@@ -24,6 +24,8 @@ import { InMemoryTokenBucket } from '../../ratelimit/limiter.js';
 import { InMemoryAuditSink } from '../../audit/audit.js';
 import { asyncRoute } from './errorMiddleware.js';
 import { enumerateV1Routes } from './routeFitness.js';
+import { mountOpenApiSpec } from '../../openapi/route.js';
+import { generatePublicOpenAPIDocument } from '../../openapi/registry.js';
 
 /** Reads the layer names off a live router, in mount order. */
 function layerNames(router: Router): string[] {
@@ -245,11 +247,18 @@ describe('PF-211 — a FRESH router: zero middleware shared with internal /api',
 });
 
 describe('PF-216 — /api/v1/openapi.json is reachable with NO Authorization header', () => {
-  const mountSpec = (r: Router): void => {
-    r.get('/openapi.json', (_req, res) => {
-      res.json({ openapi: '3.1.0', paths: {} });
-    });
-  };
+  /**
+   * **L13 replaced the stub that used to be here.**
+   *
+   * This block originally mounted a two-line handler returning
+   * `{openapi:'3.1.0', paths:{}}`, which made the allowlist assertion below pass
+   * by construction — it proved the seam worked, not that the endpoint did. The
+   * real handler is `mountOpenApiSpec` over the real generated document, so
+   * "every declared unauthenticated path is actually mounted" now means what it
+   * says. The stub was the last thing standing between finding F11 and a
+   * green test suite.
+   */
+  const mountSpec = mountOpenApiSpec(generatePublicOpenAPIDocument());
 
   it('the spec answers 200 + application/json anonymously', async () => {
     const { app } = createTestPublicApp({ auth: null, mountUnauthenticated: mountSpec });

@@ -28,11 +28,17 @@ const BASELINE = JSON.parse(
 describe('PF-265 · documents is the only resource mounted', () => {
   const app = createApp();
 
-  it('enumerateV1Routes returns exactly the three documents routes', () => {
+  it('enumerateV1Routes returns exactly the three documents routes + the spec', () => {
     // Build Strategy §4 (p.11): "Get the generator working end-to-end with one
     // resource (documents) before adding issues, sprints, and me." L13 proves
     // out against this resource alone (PF-363) and asserts the same thing from
     // the generator's side.
+    //
+    // `/openapi.json` joined this list when L13 landed (PF-365). It is not a
+    // resource — it is the contract describing the three below, mounted through
+    // the `mountUnauthenticated` seam rather than `mountResources`. The
+    // resource-only claim is the assertion below it, which is the one Build
+    // Strategy §4 is actually about.
     const routes = enumerateV1Routes(app)
       .map((r) => `${r.method} ${r.path}`)
       .sort();
@@ -40,6 +46,7 @@ describe('PF-265 · documents is the only resource mounted', () => {
     expect(routes).toEqual([
       'GET /api/v1/documents',
       'GET /api/v1/documents/:id',
+      'GET /api/v1/openapi.json',
       'POST /api/v1/documents',
     ]);
   });
@@ -67,12 +74,13 @@ describe('PF-265 · documents is the only resource mounted', () => {
     }
   });
 
-  it('the OpenAPI spec route is not mounted yet, and that is L13’s', () => {
-    // Stated so the absence is a recorded fact rather than something a reader
-    // has to infer from the list above. `V1_UNAUTHENTICATED_PATHS` already names
-    // the path; the route itself is PF-358–363.
+  it('the OpenAPI spec route IS mounted now — L13 landed it (PF-365)', () => {
+    // This assertion used to read `.not.toContain`, recording the absence as a
+    // fact while L13 was unwritten. Flipped rather than deleted: the path was
+    // already named in `V1_UNAUTHENTICATED_PATHS` before anything served it, and
+    // the interesting property is that the list and the router now agree.
     const paths = enumerateV1Routes(app).map((r) => r.path);
-    expect(paths).not.toContain('/api/v1/openapi.json');
+    expect(paths).toContain('/api/v1/openapi.json');
   });
 });
 

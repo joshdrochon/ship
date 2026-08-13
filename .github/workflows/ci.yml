@@ -140,6 +140,44 @@ jobs:
           name: ship-dist-${{ github.sha }}
       - run: pnpm type-check
 
+  # L13 PF-369 / PF-377 — the committed public spec cannot go stale, and drift FAILS.
+  #
+  # Mirrors the `openapi-freshness` job in .gitlab-ci.yml, which is authoritative.
+  # `docs/openapi.json` is a Submission Requirement (p.13) and is generated, so it can
+  # silently fall behind: add an endpoint, forget to regenerate, and the artifact ships
+  # describing an API that no longer exists.
+  #
+  # Decision (PF-377): fail, not warn, and no additive carve-out. "It's only additive"
+  # is how every drift starts. The spec↔route parity half runs inside the `test` job
+  # as platform/openapi/specParity.test.ts, so it gates the same required check as
+  # everything else.
+  openapi-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm openapi:public
+      - name: docs/openapi.json is up to date
+        run: |
+          git diff --exit-code docs/openapi.json || {
+            echo ''
+            echo 'docs/openapi.json is STALE — the committed public spec does not match'
+            echo 'the routes on this branch. Fix it with:'
+            echo ''
+            echo '    pnpm openapi:public && git add docs/openapi.json'
+            echo ''
+            echo 'Do not hand-edit the file: it is generated from the declareV1Route()'
+            echo 'calls beside the handlers (PRD p.11).'
+            exit 1
+          }
+
   # `pnpm type-check` proves the code compiles. It does not observe how much of that
   # compilation was bought with `any`, `as` and `!` — which is what Category 1 is measured
   # on, and which has already regressed here unnoticed while every other check was green.

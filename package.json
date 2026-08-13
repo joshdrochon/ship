@@ -33,6 +33,7 @@
     "worktree:init": "./scripts/worktree-init.sh",
     "db:seed": "pnpm --filter @ship/api db:seed",
     "db:migrate": "pnpm --filter @ship/api db:migrate",
+    "openapi:public": "pnpm --filter @ship/api openapi:public",
     "db:orphan-check": "pnpm --filter @ship/api db:orphan-check",
     "prepare": "husky",
     "postinstall": "git config merge.ours.driver true && (command -v comply >/dev/null 2>&1 || echo '\\n\u26a0\ufe0f  comply CLI not installed - pre-commit hooks require it\\n   Install with: pip install comply-cli\\n')",

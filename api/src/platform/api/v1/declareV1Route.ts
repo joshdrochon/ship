@@ -33,11 +33,15 @@
  */
 import type { RequestHandler } from 'express';
 import type { z } from 'zod';
+import type { OpenAPIRegistry } from '@asteasolutions/zod-to-openapi';
 import { routeMetadata, type ListMode, type RouteMetadataRegistry } from './routeMetadata.js';
 import { declareRoute } from '../../scopes/require-scope.js';
 import type { HttpMethod } from '../../scopes/route-metadata.js';
 import type { Scope } from '../../scopes/scopes.js';
 import { V1_PREFIX } from './testSupport.js';
+import { registerV1Operation } from '../../openapi/operations.js';
+import { paginationQuerySchema } from './page.js';
+import { responseContract } from './responseContract.js';
 
 export interface V1RouteDeclaration {
   method: HttpMethod;
@@ -58,9 +62,38 @@ export interface V1RouteDeclaration {
   resource?: string;
   /** The request body schema, for L13's generator. Absent on routes with no body. */
   request?: z.ZodTypeAny;
+  /**
+   * The path-parameter schema (PF-358). Present when the path has a `:param`.
+   *
+   * Carried on the declaration rather than derived from the path string so the
+   * spec documents the parameter the handler actually validates — `:id` is a
+   * UUID on `/documents/:id` and the generator has no way to know that from the
+   * path alone.
+   */
+  params?: z.ZodTypeAny;
+  /**
+   * Extra query parameters beyond the pagination pair. A `list: 'cursor'` route
+   * gets `limit` and `cursor` automatically, from L08's schema (PF-362).
+   */
+  query?: z.ZodTypeAny;
   /** The response body schema. Required — every public route returns something. */
   response: z.ZodTypeAny;
+  /** Success status. Defaults to 201 for POST, 200 otherwise. */
+  status?: number;
+  /** One line, shown as the operation summary in the generated spec. */
+  summary?: string;
+  description?: string;
+  /**
+   * PF-366 — this route is mounted ABOVE bearer auth and answers anonymously.
+   *
+   * Its path MUST also be in `V1_UNAUTHENTICATED_PATHS`; `router.test.ts`
+   * asserts the two agree. The generator gives such an operation `security: []`
+   * and no `401` response, because it cannot produce one.
+   */
+  unauthenticated?: boolean;
   registry?: RouteMetadataRegistry;
+  /** The OpenAPI registry to register into. Defaults to `publicRegistry`. */
+  openapiRegistry?: OpenAPIRegistry;
 }
 
 /**
@@ -104,10 +137,63 @@ export function declareV1Route(declaration: V1RouteDeclaration): RequestHandler 
     response: declaration.response,
   });
 
+  // ── L13's half (PF-358) ────────────────────────────────────────────────────
+  //
+  // The SAME call that records the metadata and builds the guard also registers
+  // the spec operation. Two separate registration calls is the drift this whole
+  // lane exists to prevent: with two, "does every route have a spec entry?" is a
+  // question about how careful the author was, and the parity test measures
+  // discipline rather than a property of the code.
+  //
+  // PF-362 — a `list: 'cursor'` route gets `limit` and `cursor` from L08's
+  // `paginationQuerySchema`, which is defined beside the cursor codec in
+  // `page.ts` rather than restated here. `cursor` is typed `string` because the
+  // cursors are opaque base64url, not offsets; a spec that types it `integer`
+  // tells every SDK generator to build an offset pager.
+  const query =
+    declaration.list === 'cursor'
+      ? declaration.query
+        ? (paginationQuerySchema.merge(declaration.query as never) as z.ZodTypeAny)
+        : (paginationQuerySchema as z.ZodTypeAny)
+      : declaration.query;
+
+  registerV1Operation({
+    method: declaration.method.toLowerCase() as V1OperationMethod,
+    path: fullPath,
+    scope: declaration.scope,
+    list: declaration.list,
+    ...(declaration.request ? { request: declaration.request } : {}),
+    ...(declaration.params ? { params: declaration.params } : {}),
+    ...(query ? { query } : {}),
+    response: declaration.response,
+    ...(declaration.status !== undefined ? { status: declaration.status } : {}),
+    ...(declaration.summary ? { summary: declaration.summary } : {}),
+    ...(declaration.description ? { description: declaration.description } : {}),
+    ...(declaration.unauthenticated ? { unauthenticated: true } : {}),
+    ...(declaration.openapiRegistry ? { registry: declaration.openapiRegistry } : {}),
+  });
+
   // L03's half: records into `routeScopes` AND builds the guard, in one call, so
   // the metadata and the enforcement cannot drift apart.
-  return declareRoute(declaration.scope, { method: declaration.method, path: declaration.path });
+  const guard = declareRoute(declaration.scope, {
+    method: declaration.method,
+    path: declaration.path,
+  });
+
+  // PF-360 — the declared response schema is applied to what the handler actually
+  // returns. Without this a spec entry can exist and still lie, and PF-373's
+  // parity test would stay green while the body drifted for good.
+  const contract = responseContract(declaration.response, key);
+
+  return function declaredV1Route(req, res, next): void {
+    contract(req, res, (err?: unknown) => {
+      if (err) return next(err);
+      guard(req, res, next);
+    });
+  };
 }
+
+type V1OperationMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 
 /**
  * PF-248's wiring-time assertion — every MOUNTED route carries a scope

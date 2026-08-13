@@ -137,6 +137,43 @@ seam rather than wired in privately — it is the worked example to copy.
 that enumerates nothing asserts nothing and reports green; that is the one failure
 mode which would make all of this theatre.
 
+## The public OpenAPI spec (L13)
+
+**`GET /api/v1/openapi.json` is generated at boot and served without credentials.**
+It is not hand-written and there is no file to edit: every operation is produced by
+the same `declareV1Route()` call that mounts its Express handler, so a route cannot
+exist without appearing in the spec and cannot appear in the spec without existing.
+`platform/openapi/specParity.ts` asserts both directions over the live router.
+
+| Fact | Where |
+|---|---|
+| Registry (public, 3.1) | `platform/openapi/registry.ts` — **never** `api/src/openapi/`, which is internal, 3.0, and holds ~130 detached `registerPath()` calls (F12) |
+| One-call registration | `platform/api/v1/declareV1Route.ts` → `platform/openapi/operations.ts` |
+| Served at | `platform/openapi/route.ts`, mounted through `createPublicRouter`'s `mountUnauthenticated` hook |
+| Committed copy | `docs/openapi.json`, written by `pnpm openapi:public`. **Not** `pnpm openapi:generate`, which writes the internal 3.0 spec to `api/openapi.json` |
+| Schema validation | `platform/openapi/schemaValidation.ts`, `@hyperjump/json-schema` against `oas/3.1/schema-base` |
+
+**Generation failure at boot refuses the boot.** `createApp()` throws and the process
+exits non-zero rather than serving `/api/v1` without its contract. *This is our
+decision, not the PRD's* — p.12 only requires the architecture document to answer the
+question, and `docs/architecture.md` answers "the process refuses to start". The
+defensible alternative is boot-and-serve-503 on the spec route alone, so an unrelated
+schema bug cannot take the whole API down mid-demo.
+
+**What the spec route bypasses, and what it does not — read this before filing a bug
+against L11 or L12.** It is mounted above `bearerAuth`, which also puts it above the
+rate limiter but **below** the audit layer, because F7 moved audit above bearer auth
+so that 401s and 429s are audited.
+
+| Layer | Spec route | Why |
+|---|---|---|
+| `requestIdMiddleware` | applies | it is inside the v1 stack, not mounted on the app |
+| `publicAuditMiddleware` | **applies** | a spec fetch writes an audit row with a null `clientId`/`userId` — there is no token to attribute it to |
+| `bearerAuth` | bypassed | MVP item 10: a grader cannot resolve a spec that 401s |
+| `rateLimitMiddleware` | **bypassed, deliberately** | the buckets are keyed `app:` and `token:`; an anonymous request has neither key, so there is nothing to bucket against. A per-IP bucket is a different limiter with different semantics that no lane owns and the PRD never asks for. The endpoint serves one cached object with no database access |
+
+`route.test.ts` asserts each row of that table, so the exemption cannot quietly widen.
+
 ## Pagination — where the line falls (L08 PF-227)
 
 **A collection endpoint backed by a database table paginates with an opaque
