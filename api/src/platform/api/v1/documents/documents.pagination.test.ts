@@ -320,6 +320,18 @@ describe('/api/v1/documents — cursor pagination', () => {
         await client.query('BEGIN');
         await client.query('SET LOCAL enable_seqscan = off');
         await client.query('SET LOCAL enable_bitmapscan = off');
+        // Without this the planner estimates `rows=1` against 50 freshly
+        // inserted rows — `setup.ts` TRUNCATEs between files and nothing has
+        // ANALYZEd since, so pg_statistic still describes an empty table. At
+        // one estimated row every plan is a rounding error and a Sort wins, so
+        // the assertion below was reporting an index defect that the plan could
+        // not have revealed either way. It read as a small-table artifact twice
+        // (F44) and was filed as pre-existing flake; the flake was real and it
+        // was masking a genuine one underneath — 063's index led with
+        // `created_at`, not `workspace_id`, so it could not serve the tenant
+        // equality at all. Migration 067 fixes the index; this fixes the test's
+        // ability to tell.
+        await client.query('ANALYZE documents');
         const explained = await client.query<{ 'QUERY PLAN': string }>(
           `EXPLAIN
            SELECT id, created_at FROM documents

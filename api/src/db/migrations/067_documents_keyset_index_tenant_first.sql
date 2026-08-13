@@ -1,0 +1,54 @@
+-- 067 — the documents keyset index leads with the tenant, not the timestamp.
+--
+-- 063 shipped `(created_at DESC, id DESC)`. That is the ORDER BY and nothing
+-- else, and it is the wrong shape for the query it exists to serve:
+--
+--   WHERE workspace_id = $1
+--     AND archived_at IS NULL AND deleted_at IS NULL
+--     AND document_type = ANY($3)
+--     AND (created_at, id) < ($4, $5)
+--   ORDER BY created_at DESC, id DESC
+--   LIMIT 26
+--
+-- An index leading on `created_at` cannot satisfy the `workspace_id` equality,
+-- so Postgres has two options: walk EVERY workspace's rows in timestamp order
+-- and discard the ones that do not match, or sort. It picks the sort — which is
+-- what PF-259 caught, with `enable_seqscan` and `enable_bitmapscan` already off.
+--
+-- The test was right and the index was wrong. This was read as a small-table
+-- planner artifact twice (F44) because on 50 rows a Sort genuinely is cheaper;
+-- the artifact was real and it was hiding a defect underneath.
+--
+-- Correct shape is equality columns first, then the sort keys in their sort
+-- direction: the scan opens at `workspace_id`, walks in `(created_at DESC,
+-- id DESC)` order, and the keyset predicate becomes a range start rather than
+-- a filter. That is what makes the public list endpoint O(page) instead of
+-- O(table) — and MVP gate item 9 budgets per-route query counts against the
+-- Part 1 baseline, so an unusable index is a graded regression, not a nicety.
+--
+-- The partial predicate matches the query's own soft-delete filters so the
+-- index carries only live rows.
+
+CREATE INDEX IF NOT EXISTS idx_documents_keyset_tenant
+  ON documents (workspace_id, created_at DESC, id DESC)
+  WHERE archived_at IS NULL AND deleted_at IS NULL;
+
+-- 063's index STAYS. I dropped it in the first version of this migration on the
+-- theory that it was superseded, and that was wrong: there are two keyset
+-- queries, not one.
+--
+--   PF-222's `assertKeysetIndexed` explains a SIMPLIFIED page query with no
+--   workspace equality — for that shape, `(created_at DESC, id DESC)` is the
+--   correct and only usable index.
+--
+--   PF-259 explains the REAL route query, workspace equality included — for
+--   that shape, the tenant must lead.
+--
+-- Dropping 063 made PF-222 fail with its own remediation line telling me to
+-- recreate exactly what I had just deleted. L09's comment had already named the
+-- trap: "a simplified stand-in can ride an index the real query does not." It
+-- rides a different one, and both are load-bearing.
+--
+-- The redundancy is real but small, and the alternative — rewriting PF-222's
+-- contract to use the full predicate — collapses two independent checks into
+-- one and loses the stand-in's value as an early signal.

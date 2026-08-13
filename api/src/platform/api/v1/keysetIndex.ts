@@ -92,6 +92,15 @@ export async function assertKeysetIndexed(
   try {
     await client.query('BEGIN');
     await client.query('SET LOCAL enable_seqscan = off');
+    // Statistics, before the plan is read. `setup.ts` TRUNCATEs between test
+    // files and nothing ANALYZEs after a seed, so pg_statistic still describes
+    // an empty table: the planner estimates `rows=1`, every plan costs the same
+    // rounding error, and a Sort wins regardless of what indexes exist. Without
+    // this the contract measures pg_statistic's staleness, not the schema —
+    // which is exactly how it read as intermittent small-table flake (F44)
+    // while a genuinely wrong index sat underneath it (063 led with
+    // `created_at`, not `workspace_id`; migration 067 corrects it).
+    await client.query(`ANALYZE ${table}`);
     // Bitmap scans are also disabled, and this one is not obvious. A bitmap index
     // scan DOES use the index — but it returns rows in heap order, so the planner
     // has to add a Sort to satisfy the ORDER BY, and the page query is back to

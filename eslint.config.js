@@ -28,6 +28,10 @@ export default tseslint.config(
   {
     // Generated, vendored, or build output — never linted.
     ignores: [
+      // Agent worktrees are checkouts of this repo. Linting them reports every
+      // pre-existing problem once per worktree, which buried 40 duplicate errors
+      // in a run that was otherwise clean.
+      '.claude/worktrees/**',
       '**/dist/**',
       '**/dev-dist/**', // vite-plugin-pwa generates a bundled service worker here
       '**/node_modules/**',
