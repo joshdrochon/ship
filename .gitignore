@@ -171,3 +171,9 @@ docs/audit/raw/e2e-*.log
 
 # Agent worktrees (isolation checkouts, never committed)
 .claude/worktrees/
+
+# L26 PF-804 scratch: one real measurement plus the doctored baselines derived from
+# it. Regenerable with `pnpm baseline:compare -- --measure-out .l26-evidence/current.json`
+# then `pnpm baseline:evidence`; the numbers and exit codes are quoted in
+# docs/mvp-gate-item-9.md, which is what git carries.
+.l26-evidence/
