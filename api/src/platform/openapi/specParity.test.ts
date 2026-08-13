@@ -188,26 +188,38 @@ describe('PF-373/375 — the real app: every mounted route is documented and vic
     expect(documented).toEqual(mounted);
   });
 
-  it('covers L09\'s three real routes, L10\'s /me, and the spec endpoint', () => {
-    // FLIPPED BY L10 (PF-271/PF-294), not deleted. This exact-equality assertion
-    // was written so that a new resource could not enter the spec unnoticed;
-    // `GET /me` is that new resource, and this is where it gets noticed.
+  it('covers L09\'s three routes, L10\'s /me and /issues, and the spec endpoint', () => {
+    // FLIPPED AGAIN BY L10 (PF-277–283, PF-294), not deleted. This
+    // exact-equality assertion was written so that a new resource could not
+    // enter the spec unnoticed; the four `/issues` operations are that new
+    // resource, and this is where they get noticed.
     //
-    // What did NOT change is the point of PF-294: no file under
-    // `platform/openapi/` other than the two enumerating TESTS. The generator
-    // (`registry.ts`, `operations.ts`, `route.ts`, `specParity.ts`,
-    // `staticCopy.ts`) took a fourth operation with no edit at all — it learned
-    // about `/me` from the same `declareV1Route()` call that recorded the scope
-    // and built the guard.
+    // What did NOT change is the point of PF-294, and it is now proved over a
+    // MUCH bigger delta than `/me` was: no file under `platform/openapi/` other
+    // than the enumerating TESTS. The generator (`registry.ts`, `operations.ts`,
+    // `route.ts`, `specParity.ts`, `staticCopy.ts`) took four more operations —
+    // including the first `PATCH` on the public surface and a second
+    // cursor-paginated list with its own item schema and its own enums — with no
+    // edit at all. It learned all of it from the same `declareV1Route()` calls
+    // that recorded the scopes and built the guards.
+    //
+    // That is the claim Build Strategy §4 (p.11) was making when it said to get
+    // the generator working on one resource "before adding issues, sprints, and
+    // me". A generator that needed an edit to take the second resource would
+    // have bought nothing.
     const documented = listSpecOperations(generatePublicOpenAPIDocument()).map(
       (o) => `${o.method.toUpperCase()} ${o.path}`,
     );
     expect(documented.sort()).toEqual([
       'GET /documents',
       'GET /documents/{id}',
+      'GET /issues',
+      'GET /issues/{id}',
       'GET /me',
       'GET /openapi.json',
+      'PATCH /issues/{id}',
       'POST /documents',
+      'POST /issues',
     ]);
   });
 });

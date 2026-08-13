@@ -48,6 +48,18 @@ const API_SRC = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PUBLISH_ALLOWLIST = [
   join('services', 'documents.ts'),
   join('services', 'sprints.ts'),
+  // Added by L10 S2 (PF-292/293), and it is a domain service by the test above's
+  // own question: `api/src/routes/issues.ts` and
+  // `api/src/platform/api/v1/issues/routes.ts` BOTH call it, it takes a
+  // `DomainContext` of plain values, and it imports no `express`. It publishes
+  // `issue.created` after COMMIT and `issue.assigned` / `issue.status_changed`
+  // off the same `changes[]` diff that `logDocumentChange` writes to
+  // `document_history` — which is what makes the envelope's `{from,to}` equal
+  // the history row's `old_value`/`new_value` by construction.
+  //
+  // Before this entry, three of the eight event types p.3 registers had no
+  // producer anywhere in the repo.
+  join('services', 'issues.ts'),
 ];
 
 /** Trees that must never publish. */
