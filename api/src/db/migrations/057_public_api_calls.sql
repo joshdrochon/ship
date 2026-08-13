@@ -33,13 +33,23 @@ CREATE TABLE IF NOT EXISTS public_api_calls (
   -- module to keep that true. Not unique: a retry from a client is a new
   -- request with a new id, but a middleware bug that wrote twice would show up
   -- as a duplicate here rather than being silently rejected.
-  request_id     uuid        NOT NULL,
+  --
+  -- `text`, not `uuid`, and the same goes for `user_id` below. Both hold values
+  -- that are UUIDs in every path this codebase has — and that is exactly why the
+  -- constraint is the wrong tool. An audit trail records WHAT IT OBSERVED; a
+  -- type check that makes an unusual request unrecordable deletes precisely the
+  -- rows worth having, and it does it silently, because PF-328 requires the
+  -- sink to swallow its own failures rather than break the request. The choice
+  -- is "store the odd value" or "lose the row", and for an audit log that is not
+  -- a close call. Format is enforced upstream, where a bad id is a bug someone
+  -- can act on, not here where it is data loss.
+  request_id     text        NOT NULL,
 
   -- NULL means the request never authenticated (401, or a route above bearer
   -- auth). It never means "unknown".
   client_id      text,
   -- NULL means unauthenticated OR machine-to-machine (client_credentials).
-  user_id        uuid,
+  user_id        text,
 
   method         text        NOT NULL,
   -- The route TEMPLATE, /api/v1-prefixed — `/api/v1/documents/:id`, never a

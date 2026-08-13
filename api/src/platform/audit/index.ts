@@ -7,3 +7,4 @@
  */
 export * from './audit.js';
 export * from './pgAuditSink.js';
+export * from './retention.js';

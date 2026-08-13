@@ -42,7 +42,7 @@ export class PgAuditSink implements IAuditSink {
     await this.db.query(
       `INSERT INTO public_api_calls
          (request_id, client_id, user_id, method, route, scope_used, status, latency_ms, occurred_at)
-       VALUES ($1::uuid, $2, $3::uuid, $4, $5, $6, $7, $8, $9::timestamptz)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::timestamptz)`,
       [
         entry.requestId,
         entry.clientId,

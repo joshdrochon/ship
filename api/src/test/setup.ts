@@ -23,7 +23,7 @@ beforeAll(async () => {
     issue_iterations, documents, audit_logs, workspace_memberships,
     oauth_authorization_codes, oauth_tokens, oauth_apps, client_secret_auth_log,
     users, workspaces,
-    public_api_calls
+    public_api_calls, public_api_call_daily
     CASCADE`)
 })
 
