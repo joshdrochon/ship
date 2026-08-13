@@ -28,7 +28,7 @@ import type {
 const COLUMNS = `
   id, client_id, client_secret_hash, secret_prefix, secret_version, name,
   owner_user_id, workspace_id, redirect_uris, requested_scopes, active,
-  is_first_party, deactivated_at, deactivation_reason, created_at, updated_at
+  is_first_party, is_public, deactivated_at, deactivation_reason, created_at, updated_at
 `;
 
 /** The raw row shape as `pg` returns it. */
@@ -45,6 +45,7 @@ interface Row {
   requested_scopes: string[];
   active: boolean;
   is_first_party: boolean;
+  is_public: boolean;
   deactivated_at: Date | null;
   deactivation_reason: string | null;
   created_at: Date;
@@ -69,6 +70,9 @@ function toDomain(row: Row): OAuthApp {
     requestedScopes: row.requested_scopes as Scope[],
     active: row.active,
     isFirstParty: row.is_first_party,
+    // Migration 074. `NOT NULL DEFAULT false` means a pre-074 row reads false,
+    // which is the confidential default and is what we want it to read.
+    isPublic: row.is_public,
     deactivatedAt: row.deactivated_at,
     deactivationReason: row.deactivation_reason,
     createdAt: row.created_at,
@@ -83,8 +87,9 @@ export class PgOAuthAppRepo implements IOAuthAppRepo {
     const result = await this.db.query<Row>(
       `INSERT INTO oauth_apps
          (client_id, client_secret_hash, secret_prefix, name,
-          owner_user_id, workspace_id, redirect_uris, requested_scopes, is_first_party)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          owner_user_id, workspace_id, redirect_uris, requested_scopes, is_first_party,
+          is_public)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING ${COLUMNS}`,
       [
         input.clientId,
@@ -96,6 +101,7 @@ export class PgOAuthAppRepo implements IOAuthAppRepo {
         input.redirectUris,
         input.requestedScopes,
         input.isFirstParty ?? false,
+        input.isPublic ?? false,
       ]
     );
     const row = result.rows[0];

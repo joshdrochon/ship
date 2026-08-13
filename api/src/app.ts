@@ -327,15 +327,24 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
   // That last group IS the internal security model, and PRD p.11 requires the
   // public router share none of it.
   //
-  // It also sits above `cors`, which means /api/v1 serves NO CORS headers. That
-  // is deliberate and it is a decision, not an oversight. The internal cors
-  // config is `origin: <the Ship frontend>, credentials: true` — precisely wrong
-  // for a public API, which has many origins and no cookies. Reusing it would
-  // advertise one arbitrary origin; moving the public router below it would
-  // reorder the INTERNAL stack (cors currently sits below the limiter) and break
-  // the byte-for-byte promise for no benefit. A browser-based public consumer
-  // needs its own CORS policy keyed on the registered app's origins; that is a
-  // real ticket and it belongs with the developer portal, not here.
+  // It also sits above `cors`, which means /api/v1 serves NO *INTERNAL* CORS
+  // headers. That is deliberate and it is a decision, not an oversight. The
+  // internal cors config is `origin: <the Ship frontend>, credentials: true` —
+  // precisely wrong for a public API, which has many origins and no cookies.
+  // Reusing it would advertise one arbitrary origin; moving the public router
+  // below it would reorder the INTERNAL stack (cors currently sits below the
+  // limiter) and break the byte-for-byte promise for no benefit.
+  //
+  // L99 F38 closed (L24, PF-733/PF-734): the public surface has its OWN policy,
+  // and it is a DECLARED LAYER INSIDE the public router (`v1_public_cors` in
+  // `V1_MIDDLEWARE_ORDER`), not a second mount here.
+  //
+  // A second `app.use('/api/v1', …)` was the obvious first attempt and it broke
+  // PF-234's "exactly ONE /api/v1 mount exists" — correctly. That assertion is
+  // what stops the public surface accumulating layers nobody declared, which is
+  // exactly the class of drift F1 and F2 were. The policy belongs in the
+  // router's own ordered contract, where `router.test.ts` checks it against the
+  // live stack, rather than sitting outside it where only this comment would.
   //
   // Insertion point chosen so the internal stack's ORDER is untouched: every
   // internal layer keeps its relative position and exactly one layer is added.

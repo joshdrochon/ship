@@ -69,6 +69,22 @@ export const V1_MIDDLEWARE_ORDER: readonly V1MiddlewareEntry[] = [
       'to the audit trail, and 401/413/429 are precisely the traffic an audit trail exists for.',
   },
   {
+    name: 'v1_public_cors',
+    level: 'router',
+    why:
+      'L99 F38 (L24 PF-733/PF-734). The public surface is reachable from a browser and had ' +
+      'no CORS policy at all, so a cross-origin consumer — the PKCE single-page demo, which ' +
+      'is one of p.8\'s five integrations — could not read a single response. ' +
+      'ABOVE the body parser, bearer auth and both limiters, because a browser must be able ' +
+      'to READ a 413, a 401 and a 429; a CORS-less error response is an opaque network ' +
+      'failure and the consumer cannot tell which one it got. A preflight OPTIONS terminates ' +
+      'here with 204 rather than falling through to a 401 it carries no credential to avoid. ' +
+      'BELOW audit, deliberately, so a preflight is still recorded — same shape as the spec ' +
+      "route's null-clientId row (F42), and it keeps p.4's \"every public API call\" free of " +
+      'an exception list. Policy is `*` with credentials OFF; see platform/publicCors.ts for ' +
+      'why that is correct for a bearer-only surface rather than lazy.',
+  },
+  {
     name: 'v1_body_parser',
     level: 'router',
     why:
