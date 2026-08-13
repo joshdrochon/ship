@@ -199,15 +199,27 @@ describe('PF-373/375 — the real app: every mounted route is documented and vic
     // `staticCopy.ts`) took a fourth operation with no edit at all — it learned
     // about `/me` from the same `declareV1Route()` call that recorded the scope
     // and built the guard.
+    //
+    // EXTENDED AGAIN BY L15 (PF-428), and PF-294 held a second time: six
+    // `/webhooks` operations entered the spec with zero lines changed under
+    // `platform/openapi/` outside this enumerating test. Two independent
+    // resources have now proved the generator is open for extension, which is
+    // more than one resource could.
     const documented = listSpecOperations(generatePublicOpenAPIDocument()).map(
       (o) => `${o.method.toUpperCase()} ${o.path}`,
     );
     expect(documented.sort()).toEqual([
+      'DELETE /webhooks/{id}',
       'GET /documents',
       'GET /documents/{id}',
       'GET /me',
       'GET /openapi.json',
+      'GET /webhooks',
+      'GET /webhooks/{id}',
+      'PATCH /webhooks/{id}',
       'POST /documents',
+      'POST /webhooks',
+      'POST /webhooks/{id}/rotate',
     ]);
   });
 });

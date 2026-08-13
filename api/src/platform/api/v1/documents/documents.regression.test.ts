@@ -45,6 +45,10 @@ describe('PF-265 · documents is the only resource mounted', () => {
     // resource — it is the contract describing the rest, mounted through the
     // `mountUnauthenticated` seam rather than `mountResources`.
     //
+    // EXTENDED AGAIN BY L15, for the same reason and by the same rule: the six
+    // `/webhooks` methods are PF-428, and landing them meant coming here and
+    // saying so rather than loosening the assertion.
+    //
     // Still an exact equality rather than a `toContain`. `issues` and `sprints`
     // are the rest of L10 and are NOT here yet, so this list keeps doing the job
     // it was written for.
@@ -53,11 +57,17 @@ describe('PF-265 · documents is the only resource mounted', () => {
       .sort();
 
     expect(routes).toEqual([
+      'DELETE /api/v1/webhooks/:id',
       'GET /api/v1/documents',
       'GET /api/v1/documents/:id',
       'GET /api/v1/me',
       'GET /api/v1/openapi.json',
+      'GET /api/v1/webhooks',
+      'GET /api/v1/webhooks/:id',
+      'PATCH /api/v1/webhooks/:id',
       'POST /api/v1/documents',
+      'POST /api/v1/webhooks',
+      'POST /api/v1/webhooks/:id/rotate',
     ]);
   });
 
@@ -93,7 +103,17 @@ describe('PF-265 · documents is the only resource mounted', () => {
       expect(metadata!.scope, `${route.method} ${route.path}.scope`).toBeDefined();
       expect(metadata!.response, `${route.method} ${route.path}.response`).toBeDefined();
       if (metadata!.list === 'cursor') {
-        expect(metadata!.resource, `${route.method} ${route.path}.resource`).toBe('documents');
+        // A cursor route must name the collection its cursors are BOUND to
+        // (PF-218) — not necessarily `documents`. This read `toBe('documents')`
+        // while documents was the only paginated resource; L15's
+        // `GET /api/v1/webhooks` is the second, and hardcoding the first
+        // resource's name would have made this assertion a statement about how
+        // many resources exist rather than about cursor binding.
+        expect(metadata!.resource, `${route.method} ${route.path}.resource`).toBeTruthy();
+        expect(
+          route.path.startsWith(`/api/v1/${metadata!.resource}`),
+          `${route.method} ${route.path} binds cursors to "${metadata!.resource}"`,
+        ).toBe(true);
       }
     }
   });

@@ -52,6 +52,7 @@ import { assertEveryRouteDeclaresScope } from './platform/api/v1/declareV1Route.
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
 import { documentsResources } from './platform/api/v1/documents/routes.js';
 import { meResources } from './platform/api/v1/me/routes.js';
+import { webhooksResources } from './platform/api/v1/webhooks/routes.js';
 import { mountAllResources } from './platform/api/v1/mountResources.js';
 import { generatePublicOpenAPIDocumentOrDie } from './platform/openapi/registry.js';
 import { mountOpenApiSpec } from './platform/openapi/route.js';
@@ -370,6 +371,11 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     mountResources: mountAllResources([
       documentsResources({ db: deps.db, bus: deps.bus }),
       meResources({ db: deps.db, appsRepo }),
+      // L15 PF-428 — all six methods declare `webhooks:manage`. Takes the
+      // repository, not `deps.db`: the repository is where the signing secret
+      // is encrypted and decrypted, and handing the route layer a db handle
+      // would make a second place that could read one.
+      webhooksResources({ repo: deps.subsRepo }),
     ]),
   }));
 

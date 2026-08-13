@@ -30,6 +30,7 @@ import { PUBLIC_SPEC_FILE, writePublicSpec } from './staticCopy.js';
 // list appears.
 import '../api/v1/documents/routes.js';
 import '../api/v1/me/routes.js';
+import '../api/v1/webhooks/routes.js';
 
 describe('PF-368 — docs/openapi.json is the served document', () => {
   it('the file exists and is committed', () => {
