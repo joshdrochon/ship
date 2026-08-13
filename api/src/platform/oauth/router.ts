@@ -54,6 +54,7 @@ import {
 import { authorizationCodeGrant } from './authCodeGrant.js';
 import type { IDeviceCodeRepo } from './deviceCodes.js';
 import type { UserCodeAttemptThrottle } from './deviceThrottle.js';
+import { deviceCodeGrant, DEVICE_CODE_GRANT_TYPE } from './deviceGrant.js';
 import { mountDeviceAuthorizationRoutes } from './deviceAuthorization.js';
 import { mountDeviceVerifyRoutes } from './deviceVerify.js';
 
@@ -216,7 +217,31 @@ export function grantHandlers(deps: OAuthRouterDeps): Record<string, GrantHandle
 
     // (L04's authorization_code is registered at the TOP of this map — the
     //  instruction here was followed literally: a new entry, no dispatcher edit.)
-    // TODO(L05): urn:ietf:params:oauth:grant-type:device_code — same seam.
+
+    /**
+     * ★ DEVICE GRANT. L05's entry, added as a NEW KEY in this map — the
+     * dispatcher below was not touched, which is the property PF-166/PF-134
+     * exist to preserve. That is now three lanes registering three grant types
+     * against one dispatcher, none of which edited it.
+     *
+     * Conditional on `deviceCodeRepo`, on exactly `authorization_code`'s
+     * reasoning: a server with nowhere to record a device authorization cannot
+     * honour a grant that redeems one. Omitting the key means the dispatcher
+     * answers `unsupported_grant_type`, which is true, rather than
+     * `invalid_grant`, which would send the client hunting for a bad
+     * device_code it is actually holding correctly.
+     */
+    ...(deps.deviceCodeRepo
+      ? {
+          [DEVICE_CODE_GRANT_TYPE]: deviceCodeGrant({
+            deviceCodeRepo: deps.deviceCodeRepo,
+            tokenRepo: deps.tokenRepo,
+            clock: deps.clock,
+            ttl: deps.ttl,
+          }),
+        }
+      : {}),
+
     // TODO(L05/D5): client_credentials for the seeded first-party agent app.
   };
 }

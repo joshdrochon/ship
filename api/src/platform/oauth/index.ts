@@ -32,6 +32,12 @@ export * from './deviceCodes.js';
 export { PgDeviceCodeRepo } from './pgDeviceCodeRepo.js';
 export * from './deviceThrottle.js';
 export {
+  deviceCodeGrant,
+  DEVICE_CODE_GRANT_TYPE,
+  DEVICE_GRANT_ERROR_DESCRIPTIONS,
+  type DeviceGrantDeps,
+} from './deviceGrant.js';
+export {
   mountDeviceVerifyRoutes,
   DEVICE_DECISION_PATH,
   DEVICE_VERIFY_MESSAGES,
