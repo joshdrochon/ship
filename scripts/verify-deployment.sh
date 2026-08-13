@@ -100,10 +100,15 @@ NCODE=$(curl -s -o /tmp/.n.$$ -w '%{http_code}' -m 25 "$BASE/api/v1/__does_not_e
 NBODY=$(cat /tmp/.n.$$ 2>/dev/null); rm -f /tmp/.n.$$
 emit "HTTP $NCODE"
 emit "body: $(printf '%s' "$NBODY" | head -c 400)"
-if printf '%s' "$NBODY" | grep -q '"error"'; then
-  emit "  ok — JSON error envelope; the public router is mounted"
+# The ApiError envelope is `{code, message, details?, request_id}` -- keyed on
+# `code`, NOT on `error`. An earlier version of this check grepped for `"error"`
+# and reported a WARN against a perfectly correct envelope, which is the same
+# class of mistake as trusting a 200: a check that is wrong about what success
+# looks like is worse than no check, because it teaches you to ignore it.
+if printf '%s' "$NBODY" | grep -q '"code"' && printf '%s' "$NBODY" | grep -q '"request_id"'; then
+  emit "  ok — ApiError envelope with a request_id; the public router is mounted"
 else
-  emit "  WARN — no error envelope. Something other than the v1 router may be answering."
+  emit "  WARN — no ApiError envelope. Something other than the v1 router may be answering."
 fi
 emit ""
 
