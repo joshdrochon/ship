@@ -21,3 +21,5 @@ export * from './inMemorySubscriptionRepo.js';
 export * from './pgSubscriptionRepo.js';
 export * from './pipeline.js';
 export * from './replay.js';
+export * from './retention.js';
+export * from './subscriptionCircuit.js';

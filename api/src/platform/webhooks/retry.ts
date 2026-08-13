@@ -168,7 +168,12 @@ export interface RetrySchedulerDeps {
 export interface ISubscriptionCircuit {
   /** May we attempt a delivery to this subscription right now? */
   allows(subscriptionId: string): boolean;
-  record(subscriptionId: string, ok: boolean): void;
+  /**
+   * Record an outcome. **Awaited**, because the shared breaker's only state
+   * transition is async and a fire-and-forget call would leave `allows()`
+   * reading a circuit that has not opened yet.
+   */
+  record(subscriptionId: string, ok: boolean): Promise<void>;
 }
 
 /** What `enqueue` needs beyond a `DeliveryJob` — set only on the replay path. */
@@ -369,7 +374,9 @@ export class RetryScheduler {
     row: DeliveryRecord,
   ): Promise<void> {
     const result = await this.deps.deliverer.deliver(request);
-    this.deps.breaker?.record(job.subscriptionId, result.ok);
+    // Awaited: see `ISubscriptionCircuit.record`. Not awaiting it is a race in
+    // which the next delivery reads a circuit that has not opened yet.
+    await this.deps.breaker?.record(job.subscriptionId, result.ok);
 
     const outcome = classifyDeliveryOutcome(result.status);
 

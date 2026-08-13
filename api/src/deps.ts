@@ -45,6 +45,7 @@ import {
   InMemoryDeliveryLog,
   RetryScheduler,
   ReplayService,
+  SubscriptionCircuits,
   HttpDeliverer,
   SignatureSigner,
   AesGcmSecretCipher,
@@ -542,6 +543,12 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
         // production factory was a TODO(L16) and this is L16 closing it.
         deliverer: overrides.deliverer ?? new HttpDeliverer({ clock }),
         log: overrides.deliveryLog ?? new PgDeliveryLog(pool),
+        // PF-482 — the runaway-cost ceiling (Pre-Search 1.2, p.15). One circuit
+        // per subscription, adapted from `@ship/shared`'s breaker. Chosen HERE
+        // because the scheduler takes it as an argument and knows only the
+        // two-method seam, which is what lets the ceiling be swapped or removed
+        // without touching the ladder.
+        breaker: new SubscriptionCircuits({ clock }),
       });
       return {
         deliveryQueue: scheduler,
