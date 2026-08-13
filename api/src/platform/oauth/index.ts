@@ -31,6 +31,8 @@ export { renderConsentPage, renderAuthorizeErrorPage, escapeHtml } from './conse
 export * from './deviceCodes.js';
 export { PgDeviceCodeRepo } from './pgDeviceCodeRepo.js';
 export * from './deviceThrottle.js';
+export * from './deviceContract.js';
+export * from './deviceSweeper.js';
 export {
   deviceCodeGrant,
   DEVICE_CODE_GRANT_TYPE,
