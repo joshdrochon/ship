@@ -1077,12 +1077,13 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
       return;
     }
 
-    const result = await pool.query(
-      'DELETE FROM documents WHERE id = $1 AND workspace_id = $2 RETURNING id',
-      [id, workspaceId]
-    );
+    // PF-403/PF-409 — the DELETE moved into `documentService.delete`, which
+    // captures the row before removing it and publishes `document.deleted`.
+    // The access checks above stay here: they are this surface's session-auth
+    // policy, and the public surface has a different one.
+    const deleted = await documentService.delete({ workspaceId, userId, db: pool }, { id });
 
-    if (result.rows.length === 0) {
+    if (!deleted) {
       res.status(404).json({ error: 'Document not found' });
       return;
     }

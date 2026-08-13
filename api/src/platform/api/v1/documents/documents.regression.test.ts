@@ -13,6 +13,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createBearerTestApp, type BearerTestApp } from '../../../oauth/bearerTestSupport.js';
 import { createDocumentService } from '../../../../services/documents.js';
+import { RecordingEventBus } from '../../../webhooks/bus.js';
 import { mountDocuments } from './routes.js';
 import { createApp } from '../../../../app.js';
 import { enumerateV1Routes } from '../routeFitness.js';
@@ -286,25 +287,18 @@ describe('PF-263 · TS-6 substrate — a created id resolves through the public 
     expect(fetched.body).toEqual(created.body);
   });
 
-  it('the service already carries the bus, so PF-404 is an added call not a re-plumbing', async () => {
-    // The other half of PF-263 — capturing the `document.created` envelope and
-    // resolving ITS id — cannot be written yet, and this says so as an
-    // assertion rather than leaving a silent gap.
+  it('PF-263/PF-404 — create publishes document.created, and its id resolves through GET', async () => {
+    // PF-263 was written by L09 as a latch: it asserted ZERO events and told
+    // whoever landed L14's PF-404 to flip it. PF-404 has landed, so this is the
+    // assertion it asked for — the envelope is captured and its `data.id` is
+    // resolved through the public GET.
     //
-    // The event does not exist: `documentService.create` takes the bus (PF-262)
-    // and does not publish, because publishing is L14's PF-404. This lane is
-    // tier 3 and L14 is tier 4. That is the cross-tier back-edge the lane file
-    // flags and the spine does not record — L14 blocks on L09, and PF-263 blocks
-    // on L14. It is a genuine cycle in the dependency graph, not a re-pointable
-    // mistake, and it is why PF-263 is the last ticket in the lane.
-    //
-    // What IS assertable now is that the seam is the right shape. Whoever lands
-    // PF-404 adds `bus.publish(...)` inside `create()` after COMMIT and then
-    // writes the envelope assertion here, with no signature and no route file
-    // touched.
-    const recorded: unknown[] = [];
-    const bus = { publish: (e: unknown) => recorded.push(e), subscribe: () => {} };
-    const service = createDocumentService({ bus: bus as never });
+    // That round trip is the property that matters. An event carrying an id the
+    // API cannot resolve is the failure mode the after-COMMIT rule exists to
+    // prevent, and asserting the id is merely "truthy" would not have caught a
+    // publish that fired inside the transaction.
+    const bus = new RecordingEventBus();
+    const service = createDocumentService({ bus });
 
     expect(service.bus, 'the injected bus must reach the service').toBe(bus);
 
@@ -314,15 +308,18 @@ describe('PF-263 · TS-6 substrate — a created id resolves through the public 
     );
     expect(created.id).toBeTruthy();
 
-    // Today: nothing published. When PF-404 lands this expectation flips to
-    // `toHaveLength(1)` and the envelope's id is resolved through GET by id —
-    // the same "the test tells you what to do when it starts failing" discipline
-    // L08 used for the F15 constraint this lane just closed.
-    expect(
-      recorded,
-      'documentService.create now publishes. L14 PF-404 has landed — replace this ' +
-        'with the envelope assertion: capture document.created and assert ' +
-        'GET /api/v1/documents/{envelope.data.id} returns 200 with the same id.',
-    ).toHaveLength(0);
+    expect(bus.ofType('document.created')).toHaveLength(1);
+    const envelope = bus.ofType('document.created')[0]!;
+    const data = envelope.data as { id: string; title: string };
+    expect(data.id).toBe(created.id);
+
+    // The committed row is really there, under the id the event advertised.
+    const read = `Bearer ${(await harness.mint(['documents:read'])).access_token}`;
+    const fetched = await request(harness.app)
+      .get(`/api/v1/documents/${data.id}`)
+      .set('Authorization', read);
+    expect(fetched.status).toBe(200);
+    expect(fetched.body.id).toBe(data.id);
+    expect(data.title).toBe('Bus seam');
   });
 });

@@ -72,7 +72,12 @@ describe('PF-391 — EVENT_TYPES is the eight types of PRD p.3, as data', () => 
     const offenders: string[] = [];
     for (const file of walk(API_SRC)) {
       if (file.endsWith(join('webhooks', 'events.ts'))) continue;
-      if (file.endsWith(join('webhooks', 'events.test.ts'))) continue;
+      // Test files are exempt, deliberately. The drift this guards against is a
+      // SECOND SOURCE that L13's OpenAPI section or L17's SDK types could
+      // generate from — a test generates nothing, and one that names several
+      // types in an assertion (which producers are wired, say) is doing its job
+      // rather than forking the registry.
+      if (file.endsWith('.test.ts')) continue;
       const source = readFileSync(file, 'utf8');
       // A file that names four or more of the eight is restating the set;
       // one or two are a legitimate reference to a specific event.
