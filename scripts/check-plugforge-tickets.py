@@ -266,7 +266,16 @@ def main() -> int:
                     if dep not in all_ids:
                         warn(f"{f.name}:{ln} {tid} depends on {dep}, which no lane file defines")
 
-        for slug in re.findall(r"`pf/(L\d{2})-[\w-]+`", text):
+        # Scoped to the `## Slices` table. It used to scan the WHOLE file, which
+        # made every cross-lane reference an error: L10 re-pointed PF-276's deps
+        # at L05 and named the branch it is now blocked on, which is exactly the
+        # thing a reader needs and exactly what the rule forbade. A lane naming
+        # another lane's branch in prose is correct; a lane DECLARING another
+        # lane's branch as one of its own slices is the mistake worth catching,
+        # and only the Slices table can express that.
+        slices = text.split("## Slices", 1)
+        slice_table = slices[1].split("\n## ", 1)[0] if len(slices) > 1 else ""
+        for slug in re.findall(r"`pf/(L\d{2})-[\w-]+`", slice_table):
             if slug != lane:
                 err(f"{f.name}: slice branch `pf/{slug}-…` does not match lane {lane}")
 
