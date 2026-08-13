@@ -52,6 +52,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@ship/sdk": "workspace:*",
     "@types/bcryptjs": "3.0.0",
     "@types/cookie": "1.0.0",
     "@types/cookie-parser": "1.4.10",

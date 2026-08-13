@@ -1,0 +1,22 @@
+{
+  // Compile-time PROOFS — the assertions that cannot be runtime tests.
+  //
+  // PRD p.2's gate expression and p.4's "consumers can switch on kind
+  // exhaustively" are both properties of the TYPES. A runtime test cannot fail
+  // when `baseUrl` becomes required again or when a sixth `kind` is added, so
+  // the proofs live in `typeProofs/` and are checked by `pnpm type-check`.
+  //
+  // A separate project, and not just `src/**`, for one reason: these files must
+  // NOT be emitted into `dist/`. They are assertions about the published
+  // surface, not part of it.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src/**/*", "typeProofs/**/*"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts", "vitest.config.ts"]
+}
