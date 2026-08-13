@@ -18,15 +18,17 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "db:orphan-check": "tsx src/db/scripts/orphan-diagnostic.ts",
     "openapi:generate": "tsx src/scripts/generate-openapi.ts",
+    "openapi:public": "tsx src/scripts/generate-public-openapi.ts",
     "mcp": "tsx src/mcp/server.ts"
   },
   "dependencies": {
-    "@asteasolutions/zod-to-openapi": "7",
+    "@asteasolutions/zod-to-openapi": "7.3.4",
     "@aws-sdk/client-bedrock-runtime": "3.987.0",
     "@aws-sdk/client-s3": "3.985.0",
     "@aws-sdk/client-secrets-manager": "3.985.0",
     "@aws-sdk/client-ssm": "3.985.0",
     "@aws-sdk/s3-request-presigner": "3.985.0",
+    "@hyperjump/json-schema": "1.17.8",
     "@modelcontextprotocol/sdk": "1.26.0",
     "@ship/agent": "workspace:*",
     "@ship/shared": "workspace:*",
