@@ -1,0 +1,22 @@
+{
+  // Production build only. `tsconfig.json` stays the type-check config and keeps
+  // compiling tests, because several of them ARE the type assertion — L03's
+  // `@ts-expect-error` fixture proves an unregistered scope is a COMPILE error,
+  // and excluding it from type-check would silently retire that proof.
+  //
+  // The production build is a different question. It emits the image that runs in
+  // Elastic Beanstalk, and that image has no business containing compiled tests.
+  // It also cannot build them: `platform/api/v1/sdkGate.test.ts` imports
+  // `@ship/sdk`, the Dockerfile copies only `sdk/package.json` and never the SDK
+  // source, and `pnpm build:api` does not build the SDK — so `tsc` failed with
+  // TS2307 and the deploy script's Docker preflight refused to ship. That preflight
+  // did its job: this would have crashed production.
+  //
+  // Building the SDK inside the image was the other option and is worse. The SDK is
+  // a client library that the server never imports at runtime; compiling it into
+  // the server image to satisfy one test file's import means the image carries it
+  // forever, and the next person to wonder why sees a dependency that does not
+  // exist.
+  "extends": "./tsconfig.json",
+  "exclude": ["src/test/**/*", "**/*.test.ts", "**/testSupport.ts", "**/__fixtures__/**"]
+}
