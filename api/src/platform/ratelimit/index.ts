@@ -7,3 +7,5 @@
  * composition-root change only.
  */
 export * from './limiter.js';
+
+export * from './oauthThrottle.js';

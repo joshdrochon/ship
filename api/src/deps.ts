@@ -107,6 +107,20 @@ export interface AppDeps {
    * because bearer auth rejected them or they were mounted over it.
    */
   anonLimiter: IRateLimiter;
+  /**
+   * Finding F29 — the `/oauth/*` throttle, which no lane owned.
+   *
+   * `POST /oauth/token` presents credentials and met no limit at all: L11 was
+   * scoped to `/api/v1`, L04's PF-107 asserts the internal `apiLimiter` does not
+   * reach the OAuth router (a `/api/` prefix mount does not match `/oauth`), and
+   * L05's PF-132 covers only the device grant's `user_code` guess space.
+   *
+   * A separate instance from `anonLimiter` because the two protect different
+   * things at different rates: `/oauth` is a handful of calls per authorization,
+   * `/api/v1` is an integration's entire traffic. Sharing one bucket would mean
+   * a busy integration's API calls throttle its own token refresh.
+   */
+  oauthLimiter: IRateLimiter;
   /** The only source of "now" under platform/. */
   clock: Clock;
   /**
@@ -233,6 +247,7 @@ const RATE_LIMIT_ENV = {
   perAppPerMinute: 'PUBLIC_RATE_LIMIT_APP_PER_MINUTE',
   perTokenPerMinute: 'PUBLIC_RATE_LIMIT_TOKEN_PER_MINUTE',
   anonPerMinute: 'PUBLIC_RATE_LIMIT_ANON_PER_MINUTE',
+  oauthPerMinute: 'OAUTH_RATE_LIMIT_PER_MINUTE',
   maxKeys: 'PUBLIC_RATE_LIMIT_MAX_KEYS',
 } as const;
 
@@ -241,6 +256,17 @@ const RATE_LIMIT_DEFAULTS = {
   perAppPerMinute: 600,
   perTokenPerMinute: 100,
   anonPerMinute: 1200,
+  /**
+   * Finding F29 — `/oauth/*` per client IP. 30/min.
+   *
+   * An order of magnitude below the API ceilings, because the traffic shape is
+   * completely different: a real client hits `/oauth/token` once per
+   * authorization and once per access-token expiry, so single digits per minute
+   * is normal and thirty is generous. The number is small on purpose — it is
+   * the only thing standing between a stolen `client_id` and an unbounded
+   * `client_secret` guessing loop.
+   */
+  oauthPerMinute: 30,
   /**
    * PF-308 — how many buckets one limiter keeps before it sweeps.
    *
@@ -286,6 +312,7 @@ export function publicRateLimiters(clock: Clock): {
   perAppLimiter: IRateLimiter;
   perTokenLimiter: IRateLimiter;
   anonLimiter: IRateLimiter;
+  oauthLimiter: IRateLimiter;
 } {
   const maxKeys = positiveIntEnv(RATE_LIMIT_ENV.maxKeys, RATE_LIMIT_DEFAULTS.maxKeys);
   return {
@@ -306,6 +333,15 @@ export function publicRateLimiters(clock: Clock): {
     anonLimiter: new InMemoryTokenBucket(
       bucketOptionsPerMinute(
         positiveIntEnv(RATE_LIMIT_ENV.anonPerMinute, RATE_LIMIT_DEFAULTS.anonPerMinute),
+        maxKeys,
+      ),
+      clock,
+    ),
+    // Finding F29. Its own instance, not a share of the anon bucket: a busy
+    // integration's API traffic must not throttle its own token refresh.
+    oauthLimiter: new InMemoryTokenBucket(
+      bucketOptionsPerMinute(
+        positiveIntEnv(RATE_LIMIT_ENV.oauthPerMinute, RATE_LIMIT_DEFAULTS.oauthPerMinute),
         maxKeys,
       ),
       clock,
@@ -458,6 +494,13 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
         // request, so a tiny one here would 429 the third call of every spec in
         // the repo for reasons that have nothing to do with what they assert.
         anonLimiter: new InMemoryTokenBucket(
+          { capacity: 1_000_000, refillPerSecond: 1_000_000, maxKeys: 1_000 },
+          clock,
+        ),
+        // Generous for the same reason as the anon bucket: it is keyed by IP,
+        // which is one key for every request supertest makes, so a tight
+        // default would 429 unrelated OAuth specs on their third request.
+        oauthLimiter: new InMemoryTokenBucket(
           { capacity: 1_000_000, refillPerSecond: 1_000_000, maxKeys: 1_000 },
           clock,
         ),

@@ -91,12 +91,22 @@ describe('PF-107 — the OAuth router is a sibling of /api/v1, not a child', () 
     // the limiter's fingerprint on an /oauth response, not to reason about it.
     const res = await request(app).post('/oauth/token').type('form').send({});
 
-    // express-rate-limit's headers, in either the standard or legacy spelling.
+    // express-rate-limit's OWN headers, in either the standard or the legacy
+    // spelling. These are the internal limiter's fingerprint and must not appear.
     expect(res.headers['ratelimit-limit']).toBeUndefined();
     expect(res.headers['ratelimit-remaining']).toBeUndefined();
-    expect(res.headers['x-ratelimit-limit']).toBeUndefined();
+    expect(res.headers['ratelimit-policy']).toBeUndefined();
     // And not the internal limiter's error body either.
     expect(res.text).not.toContain('Please slow down');
+
+    // `x-ratelimit-limit` USED to be asserted absent here, and under finding F29
+    // that assertion was the bug rather than the guard: it certified that
+    // `/oauth/*` — a credential-presenting surface — met no rate limit at all.
+    // L11 now mounts its own IP-keyed throttle in the composition root, so the
+    // X- family is PRESENT and that is the fix. What this test still proves, and
+    // the only thing it was ever really about, is that the limiter reaching
+    // /oauth is OURS and not the internal one leaking across the boundary.
+    expect(res.headers['x-ratelimit-limit']).toBeDefined();
   });
 
   it('the OAuth router carries its own security headers, not helmet defaults', async () => {

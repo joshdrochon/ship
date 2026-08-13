@@ -50,8 +50,16 @@ function oauthRoutes(app: Express): string[] {
     _router: { stack: { regexp: RegExp; handle?: { stack?: unknown[] } }[] };
   })._router.stack;
 
-  const mount = stack.find((l) => String(l.regexp).includes('oauth'));
-  const inner = (mount?.handle as { stack?: RouteLayer[] } | undefined)?.stack ?? [];
+  // EVERY layer mounted at /oauth, not the first one. `find` was correct while
+  // the OAuth router was the only thing there; it silently returned [] the day
+  // L11 mounted its F29 throttle above the router, because a plain middleware
+  // layer has no `.handle.stack` to descend into. A walker that reads one mount
+  // and calls it "the routes" is the same hand-kept-list fragility this function
+  // exists to avoid, one level down.
+  const mounts = stack.filter((l) => String(l.regexp).includes('oauth'));
+  const inner = mounts.flatMap(
+    (m) => (m.handle as { stack?: RouteLayer[] } | undefined)?.stack ?? [],
+  );
 
   const out: string[] = [];
   for (const layer of inner) {
