@@ -26,6 +26,7 @@ import { asyncRoute } from './errorMiddleware.js';
 import { enumerateV1Routes } from './routeFitness.js';
 import { mountOpenApiSpec } from '../../openapi/route.js';
 import { generatePublicOpenAPIDocument } from '../../openapi/registry.js';
+import { FakeClock } from '../../clock.js';
 
 /** Reads the layer names off a live router, in mount order. */
 function layerNames(router: Router): string[] {
@@ -34,7 +35,10 @@ function layerNames(router: Router): string[] {
 }
 
 function buildRouter(overrides: Partial<Parameters<typeof createPublicRouter>[0]> = {}): Router {
-  const bucket = new InMemoryTokenBucket({ capacity: 1_000_000, refillPerSecond: 1_000_000 });
+  const bucket = new InMemoryTokenBucket(
+    { capacity: 1_000_000, refillPerSecond: 1_000_000, maxKeys: 10_000 },
+    new FakeClock(0),
+  );
   return createPublicRouter({
     bearerAuth: (_req, res, next) => {
       res.locals.platformAuth = fakeAuthContext([]);
@@ -148,7 +152,10 @@ describe('PF-213 — audit sits above every layer that can terminate a request',
   });
 
   it('a request that EXHAUSTS THE BUCKET produces one audit record, status 429', async () => {
-    const oneShot = new InMemoryTokenBucket({ capacity: 1, refillPerSecond: 0.0001 });
+    const oneShot = new InMemoryTokenBucket(
+      { capacity: 1, refillPerSecond: 0.0001, maxKeys: 100 },
+      new FakeClock(0),
+    );
     const { app, auditSink } = createTestPublicApp({
       perAppLimiter: oneShot,
       mountResources: (r) => {

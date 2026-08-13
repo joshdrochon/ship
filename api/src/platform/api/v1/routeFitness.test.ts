@@ -21,6 +21,7 @@ import { asyncRoute } from './errorMiddleware.js';
 import { ApiError, apiErrorBodySchema, API_ERROR_CODES, type ApiErrorCode } from './errors.js';
 import { InMemoryTokenBucket } from '../../ratelimit/limiter.js';
 import { requireScope } from '../../scopes/require-scope.js';
+import { FakeClock } from '../../clock.js';
 
 /** A believable resource surface, standing in for L08–L16's routes. */
 const mountSampleResources = (router: Router): void => {
@@ -356,7 +357,13 @@ describe('PF-203 — one negative case per code, produced by a real request', ()
     // Live rather than a todo: the token bucket already exists. No fake timers —
     // the bucket is exhausted by real requests.
     const { app } = createTestPublicApp({
-      perAppLimiter: new InMemoryTokenBucket({ capacity: 1, refillPerSecond: 0 }),
+      perAppLimiter: new InMemoryTokenBucket(
+        // Refill is a hair above zero rather than zero: PF-302 made the clock
+        // required and PF-306 made `Retry-After` an integer >= 1, and a bucket
+        // that literally never refills computes an infinite one.
+        { capacity: 1, refillPerSecond: 1e-6, maxKeys: 100 },
+        new FakeClock(0),
+      ),
       mountResources: mountSampleResources,
     });
 

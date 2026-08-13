@@ -16,6 +16,7 @@ import { createPublicRouter } from './router.js';
 import { InMemoryAuditSink } from '../../audit/audit.js';
 import { InMemoryTokenBucket } from '../../ratelimit/limiter.js';
 import type { IRateLimiter } from '../../ratelimit/limiter.js';
+import { FakeClock } from '../../clock.js';
 import type { PlatformAuthContext } from '../../scopes/auth-context.js';
 import type { Scope } from '../../scopes/scopes.js';
 
@@ -85,8 +86,16 @@ export function createTestPublicApp(options: TestPublicAppOptions = {}): TestPub
     next();
   };
 
+  // A bucket no test can exhaust by accident, on a clock that never moves. A
+  // `FakeClock` rather than a `SystemClock` because PF-302 made the clock a
+  // required argument precisely so shared wiring like this cannot read wall time
+  // — a suite whose limiter refills on the wall clock is a suite whose
+  // rate-limit assertions depend on how fast the machine ran.
   const generousBucket = (): IRateLimiter =>
-    new InMemoryTokenBucket({ capacity: 1_000_000, refillPerSecond: 1_000_000 });
+    new InMemoryTokenBucket(
+      { capacity: 1_000_000, refillPerSecond: 1_000_000, maxKeys: 10_000 },
+      new FakeClock(0),
+    );
 
   const app = express();
   app.use(

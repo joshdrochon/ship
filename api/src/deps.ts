@@ -181,6 +181,17 @@ export interface AppDeps {
 const PUBLIC_RATE_LIMIT_PER_MINUTE = 100;
 
 /**
+ * PF-308 — how many buckets one limiter keeps before it sweeps.
+ *
+ * A memory bound, not a rate limit. Bucket keys are app ids and TOKEN ids, and
+ * token ids rotate on every refresh (L06), so without a ceiling the map grows
+ * for the life of the process. 100 000 keys at roughly 100 bytes of state each
+ * is single-digit megabytes — high enough that a real deployment never sweeps
+ * on the hot path, low enough that the map cannot become the leak.
+ */
+const PUBLIC_RATE_LIMIT_MAX_KEYS = 100_000;
+
+/**
  * Production wiring. The only place a production concrete is named.
  *
  * Overrides exist for the deployment-shaped cases — a smoke test that wants the
@@ -188,6 +199,11 @@ const PUBLIC_RATE_LIMIT_PER_MINUTE = 100;
  * Anything that needs to override three of these wants `testDeps()`.
  */
 export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
+  // Hoisted so the limiter and everything else share ONE clock instance. PF-302
+  // made the bucket's clock a required argument; handing it a second
+  // `new SystemClock()` would compile and would quietly mean the process has two
+  // notions of now.
+  const clock = overrides.clock ?? new SystemClock();
   return {
     bus: new InProcessEventBus(),
 
@@ -198,11 +214,15 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // called. Do not read this as "webhooks are in-memory in production".
     deliverer: new InMemoryDeliverer(),
 
-    limiter: new InMemoryTokenBucket({
-      capacity: PUBLIC_RATE_LIMIT_PER_MINUTE,
-      refillPerSecond: PUBLIC_RATE_LIMIT_PER_MINUTE / 60,
-    }),
-    clock: new SystemClock(),
+    limiter: new InMemoryTokenBucket(
+      {
+        capacity: PUBLIC_RATE_LIMIT_PER_MINUTE,
+        refillPerSecond: PUBLIC_RATE_LIMIT_PER_MINUTE / 60,
+        maxKeys: PUBLIC_RATE_LIMIT_MAX_KEYS,
+      },
+      clock,
+    ),
+    clock,
     db: pool,
 
     // PF-037: the ONLY construction site for the Postgres app repository.
@@ -282,14 +302,19 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
  * `{ db }` when a caller has provisioned its own (testcontainers, e2e workers).
  */
 export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
+  const clock = overrides.clock ?? new FakeClock();
   return {
     bus: new InProcessEventBus(),
     deliverer: new InMemoryDeliverer(),
-    limiter: new InMemoryTokenBucket({
-      capacity: PUBLIC_RATE_LIMIT_PER_MINUTE,
-      refillPerSecond: PUBLIC_RATE_LIMIT_PER_MINUTE / 60,
-    }),
-    clock: new FakeClock(),
+    limiter: new InMemoryTokenBucket(
+      {
+        capacity: PUBLIC_RATE_LIMIT_PER_MINUTE,
+        refillPerSecond: PUBLIC_RATE_LIMIT_PER_MINUTE / 60,
+        maxKeys: PUBLIC_RATE_LIMIT_MAX_KEYS,
+      },
+      clock,
+    ),
+    clock,
     db: pool,
 
     // PF-016/PF-037: the in-memory double, so a unit test can drive the app

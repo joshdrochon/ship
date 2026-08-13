@@ -62,7 +62,11 @@ beforeEach(async () => {
     requestedScopes: ['documents:read', 'issues:read'],
   });
 
-  const generous = () => new InMemoryTokenBucket({ capacity: 1e6, refillPerSecond: 1e6 });
+  const generous = () =>
+    new InMemoryTokenBucket(
+      { capacity: 1e6, refillPerSecond: 1e6, maxKeys: 10_000 },
+      new FakeClock(0),
+    );
 
   server = express();
   // ONE app, BOTH surfaces, sharing the repositories — which is the only way
