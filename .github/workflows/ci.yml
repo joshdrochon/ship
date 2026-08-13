@@ -205,16 +205,39 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:agent   # shared -> agent; api imports @ship/agent
+      # L17 PF-492 — the MVP gate item 8 test lives in @ship/api (ESLint fence 4
+      # forbids sdk/ importing anything in this repo, so the SDK cannot boot the
+      # server) and it imports `@ship/sdk` through the package's `exports` map.
+      # That resolves to `dist`, so the SDK must be BUILT before the api suite
+      # runs — otherwise the gate test fails on a missing module and looks like a
+      # broken import rather than a missing build.
+      - run: pnpm --filter @ship/sdk build
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
       # Both suites. `pnpm test` alone is api-only and would leave 151 web tests
       # unexecuted, which does not satisfy Rule 2.
       - run: pnpm --filter @ship/api exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
       - run: pnpm --filter @ship/web exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
       # F24 — @ship/sdk had no CI step of any kind, which made it the one package a
-      # stranger installs and the only one nothing verified. --passWithNoTests because
-      # the SDK's own suites arrive with L17/L18; the step exists now so they cannot
-      # land unrun.
+      # stranger installs and the only one nothing verified. L17 filled it with a
+      # real suite, so `--passWithNoTests` is now belt-and-braces rather than the
+      # reason the step passes.
       - run: pnpm --filter @ship/sdk test
+      # L17 PF-514/PF-515 — the p.9 install budget, ENFORCED.
+      #
+      # Pre-Search 1.2 (p.15) asks "how will you enforce it (bundle analyzer, CI
+      # size check)". This is the size-check answer, chosen because an analyzer
+      # REPORTS and a check REFUSES — and only a refusal stops a 400 KB
+      # dependency landing on a Friday. `--check` exits non-zero over budget or
+      # when a declared dependency cannot be measured.
+      #
+      # Runs after the build above, because it measures `dist` plus the
+      # production dependency closure, not the source.
+      - run: pnpm --filter @ship/sdk size:check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sdk-size-report
+          path: sdk/size-report.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -312,6 +335,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:agent   # shared -> agent; api imports @ship/agent
+      # Same reason as the `test` job: `sdkGate.test.ts` imports @ship/sdk
+      # through its exports map, which resolves to dist (L17 PF-492).
+      - run: pnpm --filter @ship/sdk build
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
       - run: pnpm --filter @ship/api test:coverage
       # web needs --coverage.reportOnFailure explicitly; vitest defaults it to false,
