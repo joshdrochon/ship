@@ -231,17 +231,38 @@ echo "✓ Docker build and import test passed"
 
 # Create deployment bundle
 # Dockerfile is at repo root, EB finds it automatically
+# The bundle must contain everything the Dockerfile COPYs, because the image is
+# built ON THE INSTANCE from this zip — `docker build -t aws_beanstalk/staging-app
+# /var/app/staging/`. A path the Dockerfile references and the bundle omits is not
+# a missing file at runtime, it is a build failure at deploy time:
+#
+#   ERROR: failed to compute cache key: "/sdk/package.json": not found
+#
+# which is what took the 2026-08-13 deploy down. The list had drifted: it shipped
+# `api/dist` and `shared/dist` from when the Dockerfile consumed prebuilt output,
+# while the Dockerfile now builds from SOURCE and copies `agent/`, `web/`,
+# `tsconfig.json` and the `sdk` and `integrations/cli` manifests that L01 added as
+# workspace packages. Nothing failed at the time because nobody deployed between
+# the workspace landing and now.
+#
+# Source, not dist, and the manifests for every workspace member — pnpm resolves
+# the whole workspace graph from `pnpm-workspace.yaml`, so a member whose
+# package.json is absent fails the install, not just its own build.
 BUNDLE="/tmp/api-${VERSION}.zip"
 zip -r "$BUNDLE" \
   Dockerfile \
+  tsconfig.json \
   package.json \
   pnpm-lock.yaml \
   pnpm-workspace.yaml \
-  api/dist \
-  api/package.json \
-  shared/dist \
-  shared/package.json \
-  -x "*.git*"
+  api \
+  shared \
+  agent \
+  web \
+  sdk/package.json \
+  integrations/cli/package.json \
+  -x "*.git*" "*/node_modules/*" "*/dist/*" "*/.turbo/*" "*/coverage/*" \
+     "*/test-results/*" "*/playwright-report/*" "*.log"
 
 # Add .ebextensions and .platform at root level (EB expects them at root, not under api/)
 if [ -d "api/.ebextensions" ]; then
