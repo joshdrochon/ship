@@ -89,6 +89,46 @@ export function assertLastPageShape(body: unknown): void {
 export const PAGINATION_PARAMS: readonly string[] = [PAGE_SIZE_PARAM, CURSOR_PARAM];
 
 /**
+ * PF-362 — the same two parameters, as Zod, for the generator to walk.
+ *
+ * Lives HERE rather than in `platform/openapi/` deliberately. The spec module
+ * restating "a list endpoint takes `limit` and `cursor`" would be a second
+ * definition of the pagination protocol, in the one directory this lane exists
+ * to keep free of hand-written contract — and it would be the copy that goes
+ * stale, because the runtime never reads it.
+ *
+ * `cursor` is `z.string()`, and that is the load-bearing part. The cursors are
+ * opaque base64url over `{id, timestamp, resource}`; a spec that typed the
+ * parameter `integer` would tell every SDK generator and every reader that this
+ * is an offset API, which is the exact misunderstanding `POINTED_REJECTIONS`
+ * exists to correct at runtime.
+ *
+ * `limit` is `.coerce`d because query strings are strings on the wire. The
+ * runtime validator is `parseLimit`, which is stricter than this (it rejects
+ * `'1.5'`, `'0x10'` and repeated keys); this schema's job is to describe the
+ * parameter to a reader, not to replace that check.
+ */
+export const paginationQuerySchema = z.object({
+  [PAGE_SIZE_PARAM]: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_PAGE_SIZE)
+    .optional()
+    .describe(
+      `Page size. Default ${DEFAULT_PAGE_SIZE}, maximum ${MAX_PAGE_SIZE}. ` +
+        `Values above the maximum are rejected with 422, not clamped.`,
+    ),
+  [CURSOR_PARAM]: z
+    .string()
+    .optional()
+    .describe(
+      'Opaque cursor from the previous response\'s `next_cursor`. Not an offset — ' +
+        'it is base64url and is bound to the collection that minted it.',
+    ),
+});
+
+/**
  * Parameters that are rejected with a POINTED message rather than a generic
  * "unknown parameter".
  *

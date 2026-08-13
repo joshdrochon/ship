@@ -71,6 +71,12 @@ export interface DocumentsRouteDeps {
 // registry definition resolved at wiring time and nothing per-request.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// `summary` and `params` are L13's fields (PF-358): the same call that records
+// the scope and the pagination mode produces the spec operation, so a route
+// cannot be mounted without being documented. `params` carries the UUID
+// constraint the handler actually enforces — the generator cannot learn that
+// from the path string `:id`.
+
 const listGuard = declareV1Route({
   method: 'get',
   path: '/documents',
@@ -78,6 +84,7 @@ const listGuard = declareV1Route({
   list: 'cursor',
   resource: DOCUMENTS_RESOURCE,
   response: pageSchema(documentSchema),
+  summary: 'List documents, newest first.',
 });
 
 const getGuard = declareV1Route({
@@ -87,7 +94,9 @@ const getGuard = declareV1Route({
   // Not a collection. `false` and `'none'` are different claims and neither is a
   // default — see routeMetadata.ts.
   list: false,
+  params: documentIdParamSchema,
   response: documentSchema,
+  summary: 'Fetch one document by id.',
 });
 
 const createGuard = declareV1Route({
@@ -97,6 +106,7 @@ const createGuard = declareV1Route({
   list: false,
   request: createDocumentRequestSchema,
   response: documentSchema,
+  summary: 'Create a document.',
 });
 
 /**
