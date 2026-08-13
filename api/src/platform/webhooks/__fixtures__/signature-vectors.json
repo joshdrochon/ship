@@ -1,0 +1,70 @@
+{
+  "$comment": "PF-446 — golden signature vectors. GENERATED ONCE and committed. Regenerating is a deliberate act with a diff, never a silent refresh: these are what stop the server signer and the SDK verifier from drifting into agreeing only with themselves. See signatureVectors.test.ts.",
+  "scheme": "HMAC-SHA256 over utf8(`${timestamp}.`) || utf8(rawBody), rendered as `t=<seconds>,v1=<lowercase hex>`",
+  "vectors": [
+    {
+      "name": "ordinary-envelope",
+      "note": "The shape a real document.created carries. The base case.",
+      "secret": "whsec_TFhwadwxlAqBGjbHUeS9zvBTPRnQBs7RCTn6RGHmVQE",
+      "timestamp": 1715985600,
+      "rawBody": "{\"id\":\"3f1b0c2a-0000-4000-8000-000000000001\",\"type\":\"document.created\",\"created_at\":\"2024-05-17T22:40:00.000Z\",\"workspace_id\":\"11111111-1111-4111-8111-111111111111\",\"data\":{\"id\":\"66666666-6666-4666-8666-666666666666\",\"document_type\":\"wiki\",\"title\":\"Release notes\",\"parent_id\":null,\"created_at\":\"2024-05-17T22:39:59.000Z\",\"updated_at\":\"2024-05-17T22:39:59.000Z\",\"created_by\":\"44444444-4444-4444-8444-444444444444\",\"visibility\":\"workspace\"}}",
+      "expectedHeader": "t=1715985600,v1=e3bb3bf74f486ed40d3d3f105b811e37b8fffafd9e16c54dd39dbd12ec04f4e9"
+    },
+    {
+      "name": "empty-body",
+      "note": "A zero-length payload is not an error case. A verifier that special-cases empty input diverges here.",
+      "secret": "whsec_TFhwadwxlAqBGjbHUeS9zvBTPRnQBs7RCTn6RGHmVQE",
+      "timestamp": 1715985600,
+      "rawBody": "",
+      "expectedHeader": "t=1715985600,v1=fb83074ce56f236010d83e26aafea0d5e366cb4b2649581e8c3687dd2a03b4d6"
+    },
+    {
+      "name": "non-ascii",
+      "note": "Multi-byte UTF-8, an em dash and an astral-plane emoji. A verifier that hashes over a JS string rather than bytes gets a different digest here.",
+      "secret": "whsec_TFhwadwxlAqBGjbHUeS9zvBTPRnQBs7RCTn6RGHmVQE",
+      "timestamp": 1715985600,
+      "rawBody": "{\"title\":\"héllo — 世界 🔐 naïve Ærøskøbing\"}",
+      "expectedHeader": "t=1715985600,v1=e4d6b9110cf1a4920999279d1b0037294e473e32f75dcc8ba85c016d571a333d"
+    },
+    {
+      "name": "delimiters-in-body",
+      "note": "The body contains the header's OWN delimiters, including a decoy t=/v1= pair. A verifier that split the body on ',' or scanned it for the signature breaks here.",
+      "secret": "whsec_TFhwadwxlAqBGjbHUeS9zvBTPRnQBs7RCTn6RGHmVQE",
+      "timestamp": 1715985600,
+      "rawBody": "{\"title\":\"a=1,b=2\",\"note\":\"t=999,v1=deadbeef\"}",
+      "expectedHeader": "t=1715985600,v1=c8837171078f83134e9eca67902c1579e20f034cb9af7d817597f5b5bf1ebe3e"
+    },
+    {
+      "name": "forward-slash",
+      "note": "JSON.stringify does not escape `/`, but many serializers do. This pins that the bytes are taken as-is.",
+      "secret": "whsec_TFhwadwxlAqBGjbHUeS9zvBTPRnQBs7RCTn6RGHmVQE",
+      "timestamp": 1715985600,
+      "rawBody": "{\"url\":\"https://example.test/hooks/a?x=1&y=2\"}",
+      "expectedHeader": "t=1715985600,v1=a735abfbbcfffa4599fd732ee58b5d466b4eea85bf3ebd419f3307602c64de83"
+    },
+    {
+      "name": "second-secret-same-body",
+      "note": "Identical bytes to ordinary-envelope under a DIFFERENT secret. The two headers must differ — that is the fanout property the matcher relies on.",
+      "secret": "whsec_9nJXTVFQ0kLgQtEbeYCwcE8ZqRlCiCkGRsCB1TWA-Zk",
+      "timestamp": 1715985600,
+      "rawBody": "{\"id\":\"3f1b0c2a-0000-4000-8000-000000000001\",\"type\":\"document.created\",\"created_at\":\"2024-05-17T22:40:00.000Z\",\"workspace_id\":\"11111111-1111-4111-8111-111111111111\",\"data\":{\"id\":\"66666666-6666-4666-8666-666666666666\",\"document_type\":\"wiki\",\"title\":\"Release notes\",\"parent_id\":null,\"created_at\":\"2024-05-17T22:39:59.000Z\",\"updated_at\":\"2024-05-17T22:39:59.000Z\",\"created_by\":\"44444444-4444-4444-8444-444444444444\",\"visibility\":\"workspace\"}}",
+      "expectedHeader": "t=1715985600,v1=83a554051eb2bc07b571388db21521b3b01cd0455e9c14b68bc418a445f8aedd"
+    },
+    {
+      "name": "epoch-zero",
+      "note": "Timestamp 0. Number(\"\") is also 0, so a parser using Number() instead of a digit check would accept an EMPTY t and land here.",
+      "secret": "whsec_TFhwadwxlAqBGjbHUeS9zvBTPRnQBs7RCTn6RGHmVQE",
+      "timestamp": 0,
+      "rawBody": "{\"t\":0}",
+      "expectedHeader": "t=0,v1=def1ee96d1c1e80fd364413f6b00d446b2180908a449cd0e3c13ba4d32b3ff4a"
+    },
+    {
+      "name": "large-timestamp",
+      "note": "Year 2100. Guards against a 32-bit truncation in any reimplementation.",
+      "secret": "whsec_TFhwadwxlAqBGjbHUeS9zvBTPRnQBs7RCTn6RGHmVQE",
+      "timestamp": 4102444800,
+      "rawBody": "{\"ok\":true}",
+      "expectedHeader": "t=4102444800,v1=c6d77d496a7afd96d6a2ee20b18889209792d6fbded884483dc4e0bf57c1a740"
+    }
+  ]
+}

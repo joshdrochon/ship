@@ -67,6 +67,18 @@ export function createApp(deps = productionDeps()) {
 }
 ```
 
+**What the webhook half of that sketch is called in the code, now that it exists (L15).**
+The sketch predates the build and its shapes are close but not literal; the names below are
+the ones a reader should grep for. `subsRepo(db)` is `PgWebhookSubscriptionRepo(pool,
+envSecretCipher())`, constructed in `productionDeps()` and nowhere else. `new HmacSigner()`
+is `new SignatureSigner(deps.clock)` — the clock is a constructor argument with no default,
+which is what makes the tolerance boundary testable without sleeping. `new
+WebhookPipeline(...)` is `bus.subscribe('*', createWebhookPipeline({ repo, signer, queue }))`
+— a handler registered on the bus rather than an object holding one, so the direction of
+the dependency matches the diagram. `retries` and `deliveryLog(db)` are **not** wired yet:
+they are L16's, and the `queue` argument is the seam they arrive through
+(`ImmediateDeliveryQueue` today, first attempt only and no retries).
+
 Sibling test wiring — same shape, in-memory concretes, no network and no clock:
 
 ```ts
@@ -421,6 +433,66 @@ flowchart LR
 ```
 
 ★ **Signature is computed at send time, per attempt**, with the subscription's **current** secret (**encrypted** at rest, shown once on creation) — the timestamp in the signed payload is what defeats replay; the SDK verifier rejects signatures older than 300 s by default. ◆ **Idempotency-Key originates at the event's first delivery** (derived from `event_id`), and is carried unchanged through every retry and portal replay — that key is the subscriber's dedupe contract.
+
+### The timestamp: what it defends, the window, and clock drift (L15 PF-447)
+
+PRD p.13 asks all three in the interview list: *"Why a timestamp in the header — what
+attack does it prevent, and what is your tolerance window? What happens if your server's
+clock drifts?"*
+
+**The attack.** Capture-and-resend. A signed webhook is a valid, correctly-MACed HTTP
+request; anyone who observes one — a compromised proxy, a logged request body, a
+subscriber's own archived traffic — can send it again, unchanged, and it verifies
+forever. That turns "the subscriber created one issue" into "the subscriber created a
+thousand". The timestamp defeats it because `t` is **inside the signed bytes**: an
+attacker cannot refresh it to the current second without invalidating `v1`, and cannot
+recompute `v1` without the secret. The old `t` is what the verifier rejects.
+
+The timestamp is not a substitute for idempotency, and neither replaces the other. The
+window bounds *how long* a captured request stays usable; `Idempotency-Key` is what stops
+a legitimately-retried delivery being applied twice. A subscriber needs both.
+
+**The window: 300 seconds.** Stripe's default, and the reasoning transfers: wide enough
+to absorb the ordinary skew between two hosts that both run NTP plus a slow retry, narrow
+enough that a captured request is worthless within minutes. It is the default of the
+published `verifyWebhook(headers, rawBody, secret, toleranceSec = 300)` (p.7) and it is
+asserted from **both** sides — 300 s verifies, 301 s does not — so the boundary is a
+tested fact rather than a documented intention. The tolerance is symmetric: a timestamp
+300 s in the *future* is rejected too, because that means either a broken sender clock or
+someone pre-minting signatures to replay later.
+
+A caller may narrow it. Nobody can widen it past what their own verifier accepts, which is
+the right place for the decision to live — the subscriber, not us, knows how stale a
+request they are willing to act on.
+
+**Clock drift.** A server running fast or slow by more than the tolerance signs payloads
+that **every** subscriber rejects. The symptom is distinctive and worth memorising,
+because it is what tells drift apart from the other failure that looks like it:
+
+| Symptom | Cause |
+|---|---|
+| 100% verification failure, **all** subscriptions, starting at once | server clock drift |
+| One subscription failing, the rest fine | that subscriber's secret is stale — it did not update after a rotation |
+| Failures that begin only after a delivery has been retrying a while | signing at enqueue instead of per attempt (which is why we sign per attempt) |
+
+The control is NTP on the host — nothing in the application can detect its own clock being
+wrong, because it has no second source of truth to compare against. What the application
+*does* do is make the failure legible: the timestamp is emitted in unix seconds and read
+from an injected `Clock`, so the value in a rejected header can be compared against a
+subscriber's own clock and the drift read off directly.
+
+The mechanical half of the answer is `SignatureSigner`, which takes a `Clock` as a
+constructor argument with no default. A fitness test asserts `Date.now()` and `new Date()`
+appear nowhere in `platform/webhooks/signer.ts`. That exists for testability first — it is
+what lets the 300 s boundary be asserted without sleeping — but it also means there is
+exactly one place a deployment's notion of time enters the signer.
+
+**Where the signature is computed** is marked ★ on the pipeline figure above: after the
+matcher has selected subscriptions, before the deliverer touches the network, once per
+attempt. `signer.ts` holds the emitter, the parser and the reference verifier;
+`__fixtures__/signature-vectors.json` holds eight committed vectors that both this server
+and L18's SDK verifier are tested against, so the two implementations agree with the
+specification rather than merely with each other.
 
 ### What is signed, and why the secret is encrypted rather than hashed (L15)
 
