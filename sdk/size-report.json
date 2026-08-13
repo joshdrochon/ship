@@ -1,5 +1,5 @@
 {
-  "measuredAt": "2026-08-13T01:07:34.221Z",
+  "measuredAt": "2026-08-13T01:12:44.350Z",
   "budgetBytes": 256000,
   "method": "gzip of unminified published files (upper bound on min+gzip)",
   "productionDependencyCount": 0,
