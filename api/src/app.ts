@@ -48,6 +48,8 @@ import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js
 import { assertEveryRouteDeclaresScope } from './platform/api/v1/declareV1Route.js';
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
 import { documentsResources } from './platform/api/v1/documents/routes.js';
+import { meResources } from './platform/api/v1/me/routes.js';
+import { mountAllResources } from './platform/api/v1/mountResources.js';
 import { generatePublicOpenAPIDocumentOrDie } from './platform/openapi/registry.js';
 import { mountOpenApiSpec } from './platform/openapi/route.js';
 
@@ -326,14 +328,26 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     //     and only that) and why that is accepted.
     mountUnauthenticated: mountOpenApiSpec(generatePublicOpenAPIDocumentOrDie()),
 
-    // L09 — `documents` is the ONLY resource mounted, and that is Build Strategy
-    // §4 (p.11) rather than an unfinished list: *"Get the generator working
-    // end-to-end with one resource (documents) before adding issues, sprints, and
-    // me."* L13 proves out against this resource alone (PF-363), and PF-265
-    // asserts `/issues`, `/sprints` and `/me` are absent. When L10 lands, the diff
-    // touches its own route modules and the generated spec and ZERO lines of
-    // `platform/openapi/` — that pairing is the proof this pattern is generic.
-    mountResources: documentsResources({ db: deps.db, bus: deps.bus }),
+    // L09 built `documents` first, and that ordering was Build Strategy §4
+    // (p.11) rather than an unfinished list: *"Get the generator working
+    // end-to-end with one resource (documents) before adding issues, sprints,
+    // and me."* That prerequisite is now met, so L10 adds `me` — and the proof
+    // the pattern is generic is what this diff does NOT contain: zero lines
+    // under `platform/openapi/` (PF-294 / L13's PF-363). The generator learned
+    // about `/api/v1/me` from `declareV1Route`, the same call that records the
+    // scope and builds the guard.
+    //
+    // `me` is MVP gate item 8's server half (p.2) and Testing Scenario 3's last
+    // clause (p.5). `issues` and `sprints` are the rest of L10 and are not here
+    // yet — see the lane report.
+    //
+    // Composed as an array rather than by nesting calls: each resource keeps its
+    // own mount function and the composition root stays a list of what is
+    // mounted, which is the thing a reader comes to this file to find out.
+    mountResources: mountAllResources([
+      documentsResources({ db: deps.db, bus: deps.bus }),
+      meResources({ db: deps.db, appsRepo }),
+    ]),
   }));
 
   // ── THE OAUTH SURFACE (L04 PF-107) ────────────────────────────────────────

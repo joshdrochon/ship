@@ -42,7 +42,9 @@ the file yet.
 | 060–062 | **L03/L09** | scope grant storage, `documents.created_at NOT NULL` (F15) — **060 taken by L09**, 061–062 free for L03 |
 | 063–064 | **L08** | keyset indexes for public cursor pagination (PF-222) |
 | 065–066 | **L04** | `oauth_authorization_codes` — the auth-code row and its PKCE challenge (PF-086) |
-| 067–069 | — | unallocated; ask before taking |
+| 067 | **L08/L09 follow-up** | tenant-first documents keyset index (taken) |
+| 068–070 | **L10** | per-`document_type` keyset indexes for the public `issues` and `sprints` lists (F18, PF-281/PF-288) |
+| 071–073 | — | unallocated; ask before taking |
 
 **L04 had no block and took 065–066 under Rule 3** (2026-08-12). Same situation as L08
 below: the table allocated every lane that was known to write DDL, and L04's
@@ -87,6 +89,51 @@ block order above is also the apply order, so the FK's target exists by the time
 L15's file runs. This is the ordering question raised as **B3** in
 `tickets/plugforge/lane-99-unassigned.md`; the answer is "L02's block is numerically
 first", and it holds without any lane having to coordinate at write time.
+
+**L10 took 068–070** (2026-08-12), and has written **no file yet**. The reservation is
+recorded ahead of the file deliberately — Rule 3 is about not reaching into the
+unallocated range silently, and a lane that knows it will write DDL should claim the
+numbers before another lane picks them, not after.
+
+**What the file will contain, and why it is not two more entries in
+`KEYSET_INDEXED_TABLES`.** Finding F18 is stated as *"add `issues` and `sprints` to
+`KEYSET_INDEXED_TABLES`"*. That is wrong here, and the reason is Ship's unified
+document model: `assertKeysetIndexed` runs `EXPLAIN SELECT id, created_at FROM
+${table}`, and **there is no `issues` table and no `sprints` table**. Verified against
+the live database:
+
+```
+SELECT tablename FROM pg_tables
+ WHERE schemaname='public' AND tablename IN ('issues','sprints','documents');
+→ documents
+```
+
+Both resources are rows in `documents` discriminated by `document_type` (`schema.sql:100`).
+Adding the names to that list would fail every run with `relation "issues" does not
+exist`, which reads as a broken test rather than as the wrong model.
+
+What the public lists actually need is what PF-281 and PF-288 say — a **partial** index
+per type, tenant-first, matching migration 067's shape:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_documents_keyset_issue
+  ON documents (workspace_id, created_at DESC, id DESC)
+  WHERE document_type = 'issue' AND archived_at IS NULL AND deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_documents_keyset_sprint
+  ON documents (workspace_id, created_at DESC, id DESC)
+  WHERE document_type = 'sprint' AND archived_at IS NULL AND deleted_at IS NULL;
+```
+
+**Held back until the routes exist, on purpose.** `GET /api/v1/issues` and
+`GET /api/v1/sprints` are not built (S2/S3 of lane 10). An index serves a query; with no
+query it is pure write amplification on `documents`, which is the hottest table in the
+schema — every internal document write would pay to maintain two indexes nothing reads.
+067's tenant-first index already covers `(workspace_id, created_at DESC, id DESC)` with
+the same soft-delete predicate, so the incremental value of these two is the
+`document_type` selectivity and nothing else. Write them in the same commit as the
+routes, and extend the contract by teaching `assertKeysetIndexed` a partial-index /
+`document_type` variant rather than by naming tables that do not exist.
 
 ## Rules
 

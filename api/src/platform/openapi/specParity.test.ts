@@ -188,13 +188,24 @@ describe('PF-373/375 — the real app: every mounted route is documented and vic
     expect(documented).toEqual(mounted);
   });
 
-  it('covers L09\'s three real routes plus the spec endpoint', () => {
+  it('covers L09\'s three real routes, L10\'s /me, and the spec endpoint', () => {
+    // FLIPPED BY L10 (PF-271/PF-294), not deleted. This exact-equality assertion
+    // was written so that a new resource could not enter the spec unnoticed;
+    // `GET /me` is that new resource, and this is where it gets noticed.
+    //
+    // What did NOT change is the point of PF-294: no file under
+    // `platform/openapi/` other than the two enumerating TESTS. The generator
+    // (`registry.ts`, `operations.ts`, `route.ts`, `specParity.ts`,
+    // `staticCopy.ts`) took a fourth operation with no edit at all — it learned
+    // about `/me` from the same `declareV1Route()` call that recorded the scope
+    // and built the guard.
     const documented = listSpecOperations(generatePublicOpenAPIDocument()).map(
       (o) => `${o.method.toUpperCase()} ${o.path}`,
     );
     expect(documented.sort()).toEqual([
       'GET /documents',
       'GET /documents/{id}',
+      'GET /me',
       'GET /openapi.json',
       'POST /documents',
     ]);

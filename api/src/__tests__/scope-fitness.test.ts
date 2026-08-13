@@ -27,7 +27,10 @@ import { apiErrorMiddleware } from '../platform/api/v1/errorMiddleware.js';
 import type { IRateLimiter } from '../platform/ratelimit/limiter.js';
 import type { IAuditSink } from '../platform/audit/audit.js';
 import { mountDocuments } from '../platform/api/v1/documents/routes.js';
+import { mountMe } from '../platform/api/v1/me/routes.js';
 import { createDocumentService } from '../services/documents.js';
+import { createIdentityService } from '../services/identity.js';
+import { InMemoryOAuthAppRepo } from '../platform/apps/repo.js';
 import { pool } from '../db/client.js';
 
 function authContext(scopes: string[]): PlatformAuthContext {
@@ -166,7 +169,21 @@ describe('PF-079 · applied to the real public router', () => {
     perAppLimiter: noopLimiter,
     perTokenLimiter: noopLimiter,
     auditSink: noopSink,
-    mountResources: (r) => mountDocuments(r, { db: pool, service: createDocumentService() }),
+    mountResources: (r) => {
+      mountDocuments(r, { db: pool, service: createDocumentService() });
+      // L10 — `/me` is mounted HERE too, and that is the point of PF-271 rather
+      // than an incidental addition. It is the only route on the surface that
+      // declares `scope: null`, so a scope audit run over a router without it
+      // proves the check tolerates a declared null exactly as well as a router
+      // with no routes at all proves anything: not at all. The fixture at
+      // "passes a route that declared scope: null" showed the mechanism; this
+      // shows the REAL route going through it.
+      mountMe(r, {
+        db: pool,
+        service: createIdentityService(),
+        appsRepo: new InMemoryOAuthAppRepo(),
+      });
+    },
   });
 
   it('has no route that fails to declare a scope', () => {
@@ -191,16 +208,36 @@ describe('PF-079 · applied to the real public router', () => {
     expect(routes.map((r) => `${r.method.toUpperCase()} ${r.path}`).sort()).toEqual([
       'GET /documents',
       'GET /documents/:id',
+      'GET /me',
       'POST /documents',
     ]);
   });
 
-  it('PF-265 — `documents` is the only resource; /issues, /sprints and /me are absent', () => {
+  it('the scope:null route is a REAL mounted route, not only a fixture (PF-271)', () => {
+    // FLIPPED BY L10. This case previously asserted `/me` was absent alongside
+    // `/issues` and `/sprints`, recording the absence while the lane was
+    // unwritten. Flipped rather than deleted, because the property worth
+    // holding was never "me does not exist" — it was "the scope audit does not
+    // silently tolerate a route with no scope". That property is now testable
+    // against production wiring instead of a fixture.
+    //
+    // The assertion that matters is the one above: `auditRouterScopes(router)`
+    // returns no violations over a router that includes `/me`. A `scope: null`
+    // route passing there is B6's whole claim — and an eighth scope, which was
+    // the alternative, would have broken PF-062's exactly-seven assertion and
+    // with it MVP gate item 6.
+    const paths = mountedRoutes(router).map((r) => r.path);
+    expect(paths).toContain('/me');
+    expect(scopeRegistry.size, 'no eighth scope was invented for /me').toBe(7);
+  });
+
+  it('PF-265 — /issues and /sprints are still absent; the rest of L10 has not landed', () => {
     // Build Strategy §4 (p.11) sequences this deliberately: the generator proves
     // out on one resource before issues, sprints and me are added. L13's PF-363
-    // asserts the same thing from the generator's side.
+    // asserts the same thing from the generator's side. `me` has landed; the two
+    // remaining resources have not, and this keeps saying so.
     const paths = mountedRoutes(router).map((r) => r.path);
-    for (const absent of ['/issues', '/sprints', '/me']) {
+    for (const absent of ['/issues', '/sprints']) {
       expect(paths.filter((p) => p.startsWith(absent))).toEqual([]);
     }
   });

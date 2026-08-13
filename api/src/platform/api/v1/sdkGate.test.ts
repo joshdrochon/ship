@@ -15,34 +15,29 @@
  * Express, real `createPublicRouter`, real `bearerTokenMiddleware`, real
  * tokens, real HTTP.
  *
- * ── ⚑ `/api/v1/me` DOES NOT EXIST, AND THAT IS NOT AN SDK DEFECT ────────────
- * The route is **L10's** ("Resources: Issues, Sprints, Me") and L10 has not
- * landed. It is not merely missing — its absence is PINNED by two tests already
- * on the integration branch:
+ * ── ✅ `/api/v1/me` NOW EXISTS — L10 PF-271 LANDED ──────────────────────────
+ * This header used to say the opposite, at length: the route was L10's, L10 had
+ * not landed, and its absence was PINNED by two tests on the integration branch
+ * (`documents.regression.test.ts` and `__tests__/scope-fitness.test.ts`). Both
+ * of those have now been FLIPPED — deliberately, in the same commit that mounted
+ * the route, and each with a note saying which assertion it replaced.
  *
- *   - `documents/documents.regression.test.ts` asserts the mounted v1 route set
- *     is exactly the three `documents` routes (L13's PF-363, from the
- *     generator's side);
- *   - `__tests__/scope-fitness.test.ts` asserts no path starting `/me`,
- *     `/issues` or `/sprints` is mounted.
+ * The consequence for this file is the whole point of gate item 8: §1 no longer
+ * documents an absence. It boots `createApp()` — the REAL composition root, with
+ * `productionDeps()`, the Postgres app and token repositories and the real
+ * bearer middleware — on a real socket, mints a real token against a real
+ * database, and asserts that `new ShipClient({token}).me()` RESOLVES to a typed
+ * user.
  *
- * So adding the route to close this gate item would break two other lanes'
- * shipped assertions. It is a two-lane change and a spine edit
- * (`Blocks on: L13, L10`), not a local one — L17's lane file says the same. It
- * is therefore reported, not stubbed.
+ * What each section proves:
  *
- * What this file proves instead, and what it does not:
- *
- *   §1  The production surface, honestly: `.me()` against the app as it stands
- *       today reaches the server, authenticates, and comes back as a TYPED
- *       `ShipError` — `kind: 'not_found'`. Everything L17 owns works; the route
- *       is absent. This test will start failing the day L10 lands, which is the
- *       correct signal.
- *   §2  The typed round-trip, against a `/me` mounted into the SAME
- *       `createPublicRouter` behind the SAME real bearer middleware. Every
- *       clause of gate item 8 except "the route ships in the composition root"
- *       is demonstrated: a real token, a real socket, and a resolved value whose
- *       `app.client_id`, `user` and `scopes` are populated and typed.
+ *   §1  MVP gate item 8 on the production surface. Nothing is mounted by the
+ *       test: the route is there because `app.ts` mounts it. The old version of
+ *       this section asserted a typed 404 and said it "will start failing the
+ *       day L10 lands" — this is that replacement, not a deletion.
+ *   §2  The same round-trip against a hand-mounted `/me`, kept because it pins
+ *       the SDK's contract independently of L10's implementation: if the two
+ *       ever disagree, the disagreement is visible here rather than absorbed.
  *   §3  PF-494 live — the same call through a path-prefixed mount.
  */
 import { createServer, type Server } from 'node:http';
@@ -53,6 +48,15 @@ import { ShipClient, ShipError, type Me } from '@ship/sdk';
 import { createBearerTestApp, type BearerTestApp } from '../../oauth/bearerTestSupport.js';
 import { enumerateV1Routes } from './routeFitness.js';
 import type { PlatformAuthContext } from '../../scopes/auth-context.js';
+import { createApp } from '../../../app.js';
+import { pool } from '../../../db/client.js';
+import { PgOAuthAppRepo } from '../../apps/pg-repo.js';
+import { PgTokenRepo } from '../../oauth/pgTokenRepo.js';
+import { issueTokenPair } from '../../oauth/issue.js';
+import { DEFAULT_TOKEN_TTL } from '../../oauth/tokens.js';
+import { SystemClock } from '../../clock.js';
+import { secretMaterial } from '../../apps/repo.js';
+import { generateClientId, generateClientSecret } from '../../apps/secrets.js';
 
 /** Boots an Express app on an ephemeral port and returns its base URL. */
 async function listen(app: express.Express): Promise<{ server: Server; baseUrl: string }> {
@@ -67,43 +71,129 @@ function close(server: Server): Promise<void> {
 }
 
 describe('§1 · MVP gate item 8 against the PRODUCTION public surface', () => {
-  let harness: BearerTestApp;
   let server: Server;
   let baseUrl: string;
   let token: string;
+  let workspaceId: string;
+  let userId: string;
+  let userName: string;
+  let userEmail: string;
+  let clientId: string;
+  let appName: string;
+
+  const runId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
   beforeAll(async () => {
-    harness = await createBearerTestApp();
-    ({ server, baseUrl } = await listen(harness.app));
-    token = (await harness.mint()).access_token;
+    // Real rows, because everything below this line is real: `createApp()` with
+    // `productionDeps()` resolves tokens through `PgTokenRepo` and apps through
+    // `PgOAuthAppRepo`, and `/api/v1/me` reads `users` through
+    // `identityService`. An in-memory harness would prove the SDK works against
+    // a fixture, which §2 already does.
+    const workspace = await pool.query<{ id: string }>(
+      `INSERT INTO workspaces (name) VALUES ($1) RETURNING id`,
+      [`gate8 ${runId}`],
+    );
+    workspaceId = workspace.rows[0]!.id;
+
+    userName = 'Gate Eight User';
+    userEmail = `gate8-${runId}@ship.local`;
+    const user = await pool.query<{ id: string }>(
+      `INSERT INTO users (email, password_hash, name)
+       VALUES ($1, 'test-hash', $2) RETURNING id`,
+      [userEmail, userName],
+    );
+    userId = user.rows[0]!.id;
+
+    await pool.query(
+      `INSERT INTO workspace_memberships (workspace_id, user_id, role) VALUES ($1, $2, 'member')`,
+      [workspaceId, userId],
+    );
+
+    const appsRepo = new PgOAuthAppRepo(pool);
+    appName = `Gate 8 CLI ${runId}`;
+    clientId = generateClientId();
+    const oauthApp = await appsRepo.create({
+      clientId,
+      ...secretMaterial(generateClientSecret()),
+      name: appName,
+      ownerUserId: userId,
+      workspaceId,
+      redirectUris: ['https://example.test/cb'],
+      requestedScopes: ['documents:read', 'documents:write'],
+    });
+
+    // Through the one issuance site, against the Postgres repository the running
+    // server will resolve it from.
+    const issued = await issueTokenPair(
+      { tokenRepo: new PgTokenRepo(pool), clock: new SystemClock(), ttl: DEFAULT_TOKEN_TTL },
+      { app: oauthApp, userId, scopes: ['documents:read'] },
+    );
+    token = issued.response.access_token;
+
+    // THE COMPOSITION ROOT. No `mountResources` argument anywhere in this
+    // section — `/api/v1/me` is reachable because `app.ts` mounts it.
+    ({ server, baseUrl } = await listen(createApp()));
   });
 
   afterAll(async () => {
     await close(server);
+    await pool.query(`DELETE FROM oauth_tokens WHERE workspace_id = $1`, [workspaceId]);
+    await pool.query(`DELETE FROM oauth_apps WHERE workspace_id = $1`, [workspaceId]);
+    await pool.query(`DELETE FROM workspace_memberships WHERE workspace_id = $1`, [workspaceId]);
+    await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);
+    await pool.query(`DELETE FROM workspaces WHERE id = $1`, [workspaceId]);
   });
 
-  it('the gate expression constructs and reaches the server over a real socket', async () => {
+  it('`new ShipClient({ token }).me()` returns the typed authenticated user', async () => {
+    // PRD p.2, gate item 8, verbatim: *"SDK skeleton exists in a pnpm workspace
+    // package; `new ShipClient({ token }).me()` against a running server returns
+    // the typed authenticated user."* This is that sentence, executed.
     const client = new ShipClient({ token, baseUrl });
     expect(client.baseUrl).toBe(baseUrl);
 
-    const error = (await client.me().catch((e: unknown) => e)) as ShipError;
+    const me: Me = await client.me();
 
-    // A typed error, not a crash, not a hang, not an HTML page.
-    expect(error).toBeInstanceOf(ShipError);
-    expect(error.status).toBe(404);
-    expect(error.kind).toBe('not_found');
-    expect(error.code).toBe('not_found');
-    // L07's envelope arrived intact, with the request id PF-191 guarantees.
-    expect(error.requestId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(me.user).not.toBeNull();
+    expect(me.user?.id).toBe(userId);
+    expect(me.user?.name).toBe(userName);
+    expect(me.app.client_id).toBe(clientId);
+    expect(me.app.name).toBe(appName);
+    expect(me.scopes).toEqual(['documents:read']);
+
+    // Typed, not `any`: these compile because `Me` says so, and
+    // `sdk/typeProofs/gateItem8.ts` proves `me.app.nonexistent` does not.
+    const id: string = me.app.client_id;
+    const scopes: string[] = me.scopes;
+    expect(typeof id).toBe('string');
+    expect(Array.isArray(scopes)).toBe(true);
   });
 
-  it('…and the reason is that GET /api/v1/me is not mounted — L10, not L17', () => {
-    // Walks the LIVE Express stack rather than trusting a list, using the same
-    // enumerator the route-fitness harness uses. Stated as an assertion so this
-    // file fails loudly the day L10 lands, at which point §1 should be replaced
-    // by the real gate assertion.
-    const mounted = enumerateV1Routes(harness.app).map((r) => `${r.method} ${r.path}`);
-    expect(mounted).not.toContain('GET /api/v1/me');
+  it('the SDK’s hand-declared `Me` agrees with the SERVED schema, field for field', async () => {
+    // PF-493's other half. `Me` was hand-written by L17 because there was no
+    // `/me` operation to check it against; there is one now, so the check is a
+    // comparison against the served document rather than against another
+    // literal. A field the server adds and the SDK does not know about is a
+    // silent type lie to every consumer.
+    const spec = (await (await fetch(`${baseUrl}/api/v1/openapi.json`)).json()) as {
+      paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
+    };
+    const operation = spec.paths['/me']?.get;
+    expect(operation, 'GET /me has no operation in the served spec').toBeDefined();
+
+    const schema = (
+      operation as unknown as {
+        responses: { 200: { content: { 'application/json': { schema: { properties: object } } } } };
+      }
+    ).responses[200].content['application/json'].schema;
+
+    expect(Object.keys(schema.properties).sort()).toEqual(['app', 'scopes', 'user']);
+  });
+
+  it('GET /api/v1/me IS mounted by the composition root — L10 PF-271', () => {
+    // The inverse of the assertion this replaced, walking the LIVE Express stack
+    // with the same enumerator the route-fitness harness uses.
+    const mounted = enumerateV1Routes(createApp()).map((r) => `${r.method} ${r.path}`);
+    expect(mounted).toContain('GET /api/v1/me');
   });
 
   it('a bad token is a typed auth error carrying B14’s reason — the SDK can tell refresh from re-auth', async () => {

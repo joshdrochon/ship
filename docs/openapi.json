@@ -880,6 +880,129 @@
           }
         }
       }
+    },
+    "/me": {
+      "get": {
+        "operationId": "getMe",
+        "tags": [
+          "me"
+        ],
+        "summary": "The authenticated caller: which app, which user, and what the token may do.",
+        "description": "Resolves the presented bearer token into the app it was issued to, the user who consented (null for a machine-to-machine token), and the scopes the token actually carries — which may be a subset of the scopes the app requested. Requires no scope: a token can always discover its own identity.",
+        "security": [
+          {
+            "shipOAuth2": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authenticated caller: which app, which user, and what the token may do.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "email",
+                        "name",
+                        "workspace_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "app": {
+                      "type": "object",
+                      "properties": {
+                        "client_id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "client_id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "documents:read",
+                          "documents:write",
+                          "issues:read",
+                          "issues:write",
+                          "sprints:read",
+                          "sprints:write",
+                          "webhooks:manage"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "user",
+                    "app",
+                    "scopes"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "webhooks": {}

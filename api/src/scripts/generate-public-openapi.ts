@@ -12,6 +12,7 @@
  * as a `git diff` rather than as a silently smaller spec.
  */
 import '../platform/api/v1/documents/routes.js';
+import '../platform/api/v1/me/routes.js';
 import '../platform/openapi/route.js';
 import { writePublicSpec } from '../platform/openapi/staticCopy.js';
 

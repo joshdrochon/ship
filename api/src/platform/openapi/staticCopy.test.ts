@@ -15,7 +15,21 @@ import { V1_PREFIX } from '../api/v1/testSupport.js';
 import { mountOpenApiSpec, OPENAPI_SPEC_PATH } from './route.js';
 import { generatePublicOpenAPIDocument } from './registry.js';
 import { PUBLIC_SPEC_FILE, writePublicSpec } from './staticCopy.js';
+// ⚠ THE IMPORT LIST IS LOAD-BEARING, AND THIS FILE WRITES TO A COMMITTED FILE.
+//
+// The idempotence case below calls `writePublicSpec()` for real, so whatever
+// operations are registered in THIS module's graph is what lands in
+// `docs/openapi.json`. A route module missing from these lines does not merely
+// go unasserted — it gets DELETED from the committed artifact by running the
+// test suite, and the next assertion to fail is the one above it, pointing at
+// drift it caused itself.
+//
+// L10 hit exactly that: `/me` was generated correctly by `pnpm openapi:public`
+// and then silently removed by `pnpm test`. Keep these lines in step with
+// `api/src/scripts/generate-public-openapi.ts`, which is the other place the
+// list appears.
 import '../api/v1/documents/routes.js';
+import '../api/v1/me/routes.js';
 
 describe('PF-368 — docs/openapi.json is the served document', () => {
   it('the file exists and is committed', () => {

@@ -28,17 +28,25 @@ const BASELINE = JSON.parse(
 describe('PF-265 · documents is the only resource mounted', () => {
   const app = createApp();
 
-  it('enumerateV1Routes returns exactly the three documents routes + the spec', () => {
+  it('enumerateV1Routes returns the documents routes, the spec, and L10’s /me', () => {
     // Build Strategy §4 (p.11): "Get the generator working end-to-end with one
-    // resource (documents) before adding issues, sprints, and me." L13 proves
-    // out against this resource alone (PF-363) and asserts the same thing from
-    // the generator's side.
+    // resource (documents) before adding issues, sprints, and me."
+    //
+    // FLIPPED BY L10, not deleted. This assertion was written to be exact — the
+    // three documents routes and nothing else — so that the day a second
+    // resource landed, whoever landed it had to come here and say so. That is
+    // the day. `GET /api/v1/me` is L10's PF-271; the "before" in Build Strategy
+    // §4 is a sequencing instruction that has now been satisfied, not a
+    // permanent ceiling, and PF-294 is the proof it was satisfied properly:
+    // adding `me` changed zero lines under `platform/openapi/`.
     //
     // `/openapi.json` joined this list when L13 landed (PF-365). It is not a
-    // resource — it is the contract describing the three below, mounted through
-    // the `mountUnauthenticated` seam rather than `mountResources`. The
-    // resource-only claim is the assertion below it, which is the one Build
-    // Strategy §4 is actually about.
+    // resource — it is the contract describing the rest, mounted through the
+    // `mountUnauthenticated` seam rather than `mountResources`.
+    //
+    // Still an exact equality rather than a `toContain`. `issues` and `sprints`
+    // are the rest of L10 and are NOT here yet, so this list keeps doing the job
+    // it was written for.
     const routes = enumerateV1Routes(app)
       .map((r) => `${r.method} ${r.path}`)
       .sort();
@@ -46,14 +54,29 @@ describe('PF-265 · documents is the only resource mounted', () => {
     expect(routes).toEqual([
       'GET /api/v1/documents',
       'GET /api/v1/documents/:id',
+      'GET /api/v1/me',
       'GET /api/v1/openapi.json',
       'POST /api/v1/documents',
     ]);
   });
 
-  it('no mounted route path matches /issues, /sprints or /me', () => {
+  it('/me IS mounted now — L10 landed it (PF-271), closing MVP gate item 8', () => {
+    // This assertion used to read "no mounted route path matches /issues,
+    // /sprints or /me". Flipped in the same spirit as the `/openapi.json` one
+    // below it: the absence was recorded as a fact while the lane was unwritten,
+    // and the interesting property now is that the route the SDK's `.me()` has
+    // always called actually exists. `sdkGate.test.ts` §1 asserts the other
+    // half — that the call resolves rather than 404s.
     const paths = enumerateV1Routes(app).map((r) => r.path);
-    for (const absent of ['/api/v1/issues', '/api/v1/sprints', '/api/v1/me']) {
+    expect(paths).toContain('/api/v1/me');
+  });
+
+  it('/issues and /sprints are still absent — the rest of L10 has not landed', () => {
+    // The half of the old assertion that is still TRUE, kept as its own case so
+    // it goes on failing until those routes ship rather than being flipped
+    // wholesale alongside `/me`.
+    const paths = enumerateV1Routes(app).map((r) => r.path);
+    for (const absent of ['/api/v1/issues', '/api/v1/sprints']) {
       expect(paths.filter((p) => p.startsWith(absent)), `${absent} is mounted`).toEqual([]);
     }
   });
