@@ -119,3 +119,80 @@ artifact p.5 asks for.
 ---
 
 <!-- END PF-646. Before/after policy work (PF-633–638) is appended below this line. -->
+
+# The least-privilege drill (PF-633–638)
+
+**PRD p.5:** *"Start with an `AdministratorAccess` task role"*, reduce to minimum, verify
+the service still works, verify an action outside the policy is **denied**, and submit the
+before/after policy with a rationale for every permission.
+
+**Subject:** `aws_iam_role.eb_instance` (`ship-eb-instance-role`), reached through
+`aws_iam_instance_profile.eb`. Per the PF-646 mapping above, that is the **task role** in
+p.2's vocabulary — the role the application itself assumes, and the credential anything
+compromising the application inherits.
+
+**Mechanism:** Terraform, in `terraform/iam-least-privilege.tf`. p.5 asks for a
+before/after *policy*, and a console click leaves nothing to diff. `git log -p` on that
+file is the artifact.
+
+---
+
+## PF-634 — what the platform actually needs
+
+One row per permission, each with the code path or command that requires it. Anything
+`AdministratorAccess` covers that no code path uses gets a row saying so — that is the
+rationale column p.5 demands.
+
+### Inline policies (already scoped; written by the project, kept)
+
+| Permission | Resource scope | What needs it | Verdict |
+|---|---|---|---|
+| `ssm:GetParameter`, `GetParameters`, `GetParametersByPath` | `arn:aws:ssm:us-east-1:<acct>:parameter/ship/dev/*` | `api/src/config/ssm.ts` → `loadProductionSecrets()` at boot, for `DATABASE_URL`, `SESSION_SECRET`, `CORS_ORIGIN`, `CDN_DOMAIN`, `APP_BASE_URL` and the three OAuth app secrets. Runs in all three entrypoints (`index.ts`, `db/migrate.ts`, `db/seed.ts`). | **Keep.** Path-scoped to one prefix. This boundary is what PF-637 proves. |
+| `kms:Decrypt` | `*`, conditioned `kms:ViaService = ssm.us-east-1.amazonaws.com` | Decrypting the `SecureString` parameters above. | **Keep.** `Resource: "*"` looks wide and is not: the condition means the key can only be used *through* SSM, so it cannot decrypt anything the SSM path scope does not already permit. Scoping to the AWS-managed `alias/aws/ssm` key ARN would be tighter still and is the one improvement left on the table. |
+| `secretsmanager:GetSecretValue` | `secret:ship/*`, `secret:/ship/*` | Nothing on this branch. Secrets Manager is not read by any code path in `api/src`. | **Drop the write half, keep the read.** See below. |
+| `secretsmanager:CreateSecret`, `UpdateSecret`, `TagResource` | same | **Nothing.** No code path creates or updates a secret at runtime. | **DROP.** A running web application that can rewrite its own secrets is a privilege-escalation primitive, not a feature. This is the clearest genuine finding in the enumeration. |
+| `kms:Decrypt`, `kms:GenerateDataKey` | `*`, conditioned via `secretsmanager` | Paired with the above. `GenerateDataKey` exists only to *create* secrets. | **Drop `GenerateDataKey`** with the write actions. |
+| `bedrock:InvokeModel` | `foundation-model/anthropic.*`, `inference-profile/anthropic.*`, `inference-profile/global.anthropic.*` | `api/src/services/ai-analysis.ts`. Note Implementation Rule 10 — the platform does zero AI work; this serves the FleetGraph agent path only. | **Keep, scoped.** Already restricted to Anthropic models rather than `*`. |
+
+### AWS managed policies — decided individually
+
+p.5's point, and PF-635 states it outright: *a managed policy is not least privilege
+merely because AWS wrote it.* Each of the three attached was read (`aws iam
+get-policy-version`) rather than assumed.
+
+| Policy | What it actually grants | Decision |
+|---|---|---|
+| `AWSElasticBeanstalkWebTier` | `s3:Get*`/`List*` on `elasticbeanstalk-*` buckets (downloading the application version bundle), `s3:PutObject` for log rotation, `cloudwatch:PutMetricData`, `logs:*` on the environment's log groups, `elasticbeanstalk:PutInstanceStatistics` for enhanced health. | **KEEP.** Every one of these is exercised on every deploy and every health report. Without it the instance cannot fetch its own application version. |
+| `AWSElasticBeanstalkWorkerTier` | `sqs:ReceiveMessage`/`DeleteMessage`/`SendMessage`/`ChangeMessageVisibility`, and **DynamoDB `GetItem`, `PutItem`, `DeleteItem`, `UpdateItem`, `Query`, `Scan`, `BatchGetItem`, `BatchWriteItem`** for worker-tier periodic tasks. | **DROP.** This is a **web server** environment (`EnvironmentType = LoadBalanced`), and EB says so itself — the deploy log for this environment reads `This is a web server environment instance, skip configure sqsd daemon`. There is no queue and no periodic-task table. Full DynamoDB item CRUD plus `Scan`, granted to a web instance for a daemon that is explicitly skipped, is the textbook case for reading a managed policy before trusting it. |
+| `AWSElasticBeanstalkMulticontainerDocker` | `ecs:RegisterContainerInstance`, `DeregisterContainerInstance`, `StartTask`, `StopTask`, `Poll`, `Submit*`, `StartTelemetrySession`, `TagResource`; plus `bedrock:InvokeModel` and `elasticbeanstalk:DescribeEvents`/`DescribeEnvironmentHealth` for EB's "AI environment analysis". | **DROP.** It exists for the **ECS-backed Multi-container Docker** platform. This environment runs `64bit Amazon Linux 2023 v4.13.6 running Docker` — the plain Docker platform, which does not use ECS at all. The ECS grants are dead weight with a real edge: `RegisterContainerInstance` lets a compromised instance join an ECS cluster. It also carries a **second, independent `bedrock:InvokeModel` grant** covering `amazon.nova-*` as well as Anthropic models — quietly wider than the project's own deliberately Anthropic-scoped policy, and a good illustration that attaching managed policies can silently undo scoping decisions made elsewhere. |
+
+### Permissions `AdministratorAccess` covered that nothing uses
+
+Recorded because p.5 wants the reduction justified, not just the result. Under admin the
+role could do all of the following; no code path in `api/`, `agent/` or the deploy path
+touches any of them: create or delete IAM roles and policies (privilege escalation to
+account takeover), read or modify the Aurora cluster through the RDS API (the application
+reaches Postgres over the wire with a password, never through the control plane), read or
+write **any** S3 bucket including `ship-terraform-state-<acct>` (which holds the Aurora
+master password in cleartext), delete CloudTrail trails, terminate EC2 instances, or read
+every SSM parameter in the account rather than the eleven under `/ship/dev/`.
+
+That last one is the drill's whole point, and it is what PF-637 tests: under admin, the
+prefix is decoration; under the reduced policy, it is a boundary.
+
+## PF-635 — the applied "after" policy
+
+Applied via Terraform. See `terraform/iam-least-privilege.tf` and `terraform/ssm.tf`.
+
+## PF-636 — the service still works under the reduced policy
+
+## PF-637 — an action outside the policy is denied
+
+## PF-638 — before/after with rationale
+
+*Sections PF-635 through PF-638 are completed in the S4 slice
+(`pf/L21-least-privilege`). The enumeration above (PF-634) and the role mapping (PF-646)
+are complete; the apply, the instance-replacement verification and the recorded
+`AccessDenied` transcript are what remain. **Status is tracked honestly here rather than
+implied: if this note is still present, those three tickets are NOT done.***
+
