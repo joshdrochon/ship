@@ -45,7 +45,22 @@ the file yet.
 | 067 | **L08/L09 follow-up** | tenant-first documents keyset index (taken) |
 | 068–070 | **L10** | per-`document_type` keyset indexes for the public `issues` and `sprints` lists (F18, PF-281/PF-288) |
 | 071–072 | **L05** | `oauth_device_codes` — the RFC 8628 device authorization row (PF-121) |
-| 073 | — | unallocated; ask before taking |
+| 073 | **L01 follow-up** | drop the redundant `idx_documents_keyset_tenant` that 067 should never have created (taken) |
+| 074 | — | unallocated; ask before taking |
+
+**The coordinator took 068 without reading this file** (2026-08-13) for the migration that
+drops 067's redundant index, and 068–070 had been reserved for L10 since the day before.
+L10 was building on it concurrently and shipped `068_public_issue_sprint_keyset_indexes.sql`
+as it was entitled to, so both branches carried an `068_`. Renumbered to **073** on merge —
+the reservation table is the authority and the lane that reserved the number keeps it.
+
+Two things this cost, recorded so the next person does not repeat them. The rename leaves a
+`068_drop_redundant_keyset_tenant_index` row in `schema_migrations` on any database that
+already applied it, pointing at a filename that no longer exists; the DROP is
+`IF EXISTS`, so re-applying under the new number is a no-op and a fresh database sees only
+073. And the collision was invisible until merge, because two branches each holding one
+`068_*.sql` file conflict on nothing — git merges them cleanly into a directory with two.
+**Read this file before taking a number, not after.**
 
 **L12 took 057 and 058** (2026-08-12), from its own allocated block.
 
