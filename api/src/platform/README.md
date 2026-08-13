@@ -212,6 +212,86 @@ size `limit` (default 25, max 100, **rejected not clamped** above the max), and
 `next_cursor` **present and null** on the last page. The parameter name and the
 three numbers are ours — the PRD names none of them.
 
+## Rate limiting — the three decisions (L11)
+
+The limits themselves are configuration and live in `api/src/deps.ts` (PF-309); this
+section records the three judgement calls the PRD does **not** make for us, with the
+options that were rejected. All three are policy, not bugs — disagreeing with one is a
+change with a documented predecessor, not a defect report.
+
+### What `X-RateLimit-Reset` means (PF-307)
+
+A token bucket has no window boundary, so "reset" has to be *defined*. The shipped
+answer is split by outcome:
+
+| response | `X-RateLimit-Reset` is | why |
+|---|---|---|
+| allowed | unix seconds at which the bucket is **full** again | a client being served wants to know when it can resume its normal rate |
+| 429 | unix seconds at which **one** token is available | the earliest useful retry, and it agrees with `Retry-After` |
+
+Rejected:
+
+- **Seconds-remaining rather than an epoch.** Every `X-RateLimit-Reset` in the wild is
+  an epoch, and `Retry-After` already carries the relative form on the one response
+  that needs it.
+- **One-token-available on allowed responses too.** While a bucket is serving, that is
+  identical to *now* — which is what the L01 sketch returned (`ceil(now/1000)`) and is
+  information a client already has.
+
+Both branches are strictly in the future and rise monotonically as the bucket drains.
+
+### What counts as a "public API response" for the p.6 100% target (PF-313)
+
+PRD p.6 targets **100% of public API responses** carrying the three headers. Taken
+literally that includes responses the per-app/per-token limiter never runs for, because
+something above it answered first: a 401 from bearer auth, a 404 on an unmatched
+`/api/v1` path, and `/api/v1/openapi.json`, which is mounted above bearer auth by
+design (PF-216) and which L13 measured (finding F45) as bypassing the limiter entirely.
+
+**Shipped: option (b) — an unauthenticated fallback bucket keyed by client IP**,
+mounted as `v1_anon_rate_limit` above both the unauthenticated mount and bearer auth.
+The literal 100% becomes true, and those responses carry a real decision rather than a
+back-filled placeholder. It is also protection the surface wanted anyway: before it,
+an anonymous caller could hammer the spec endpoint and the 401 path with no limit at
+all.
+
+Rejected:
+
+- **(a) Scope the target to authenticated responses and document the deviation.**
+  Defensible, and it is what we would have written down if (b) had been expensive. It
+  is not — one middleware and one bucket — and it leaves the spec endpoint unthrottled.
+- **(c) A header-emitting shim that runs first and back-fills from the decision when
+  there is one.** The headers on a 401 would then be a placeholder describing no
+  actual limit. A number that does not correspond to a bucket is worse than a missing
+  header, because a client will plan against it.
+
+**The knock-on, stated rather than left to be found.** The anon bucket charges *every*
+request, authenticated ones included, so its ceiling is configured deliberately **above**
+the per-app ceiling (1200/min vs 600/min by default) — a backstop that binds before the
+real limit is not a backstop. The residual caveat is real: a very large single-egress
+deployment (one NAT, many users) can still meet it, and the fix there is to raise
+`PUBLIC_RATE_LIMIT_ANON_PER_MINUTE` or to run the limiter off a header the load
+balancer sets.
+
+### Bucket state is per-process, and therefore per-instance (PF-315)
+
+`InMemoryTokenBucket` keeps its buckets in a `Map` in one Node process. On the
+single-service topology this deploys to, the configured limit **is** the real limit. On
+N instances behind a load balancer it becomes **N × the configured rate**, because each
+instance counts only the traffic it happened to receive.
+
+This is not a defect to be discovered at defense; it is the cost of PRD p.10's
+"Token-bucket in-memory must-ship". The mitigation is the interface, not the
+implementation: `IRateLimiter` is what makes p.10's own alternatives —
+`@upstash/ratelimit`, a Redis bucket, Cloudflare edge rules — a `productionDeps()` edit
+rather than a rewrite. `peek` and `consume` are both single-key operations with no
+in-process assumption, which is what keeps that true.
+
+The same applies to eviction: `sweep()` drops only buckets that are provably at
+capacity, so it can never loosen a limit, and `maxKeys` bounds the map without a
+scheduler. Bucket keys include **token ids**, which rotate on every refresh (L06), so an
+unbounded map was a real leak rather than a theoretical one.
+
 ## The boundary contract
 
 Two rules. Both are mechanical — a violation fails `pnpm lint`, it is not caught in

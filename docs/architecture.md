@@ -202,6 +202,52 @@ Enforced structurally rather than by convention: a test asserts the public route
 mounted at exactly one version prefix and that no registered route path contains a
 second version segment.
 
+### Rate-limiting decisions (L11)
+
+**`X-RateLimit-Reset` on a windowless bucket (PF-307).** A token bucket has no window
+boundary, so "reset" is defined rather than derived: on an allowed response it is the
+unix second at which the bucket is **full** again, and on a 429 it is the unix second at
+which **one** token is available. A client being served wants to know when it can resume
+its normal rate; a throttled client wants the earliest useful retry, which is also what
+`Retry-After` says. Rejected: seconds-remaining rather than an epoch (every
+`X-RateLimit-Reset` in the wild is an epoch), and one-token-available on allowed
+responses too (identical to *now* while the bucket serves, which is what the L01 sketch
+returned and is information the client already had). Both branches are strictly in the
+future and rise monotonically as the bucket drains.
+
+**The denominator for p.6's "100% of public API responses with rate-limit headers"
+(PF-313).** Taken literally the target includes responses the per-app/per-token limiter
+never runs for, because something above it answered first: a 401 from bearer auth, a 404
+on an unmatched `/api/v1` path, and `/api/v1/openapi.json`, which is mounted above
+bearer auth by design and which L13 measured (F45) as bypassing the limiter entirely.
+**Shipped: an unauthenticated fallback bucket keyed by client IP** (`v1_anon_rate_limit`,
+above both the unauthenticated mount and bearer auth), so the literal 100% is true and
+those responses carry a real decision. Rejected: scoping the target to authenticated
+responses and documenting the deviation — defensible, but it leaves the most-polled
+public endpoint unthrottled for the sake of a sentence; and a header-emitting shim that
+back-fills placeholder values, because a number that corresponds to no bucket is worse
+than a missing header, since a client will plan against it. The anon bucket charges
+authenticated requests too, so its ceiling is configured **above** the per-app ceiling
+(1200/min vs 600/min) — a backstop that binds before the real limit is not a backstop.
+The residual caveat: a very large single-egress deployment can still meet it.
+
+**Limits are per-process (PF-315).** Bucket state is a `Map` in one Node process. On the
+single-service topology this deploys to, the configured limit is the real limit; on N
+instances it becomes N × the configured rate. That is the cost of p.10's "token-bucket
+in-memory must-ship", and the mitigation is the interface: `IRateLimiter` makes p.10's
+own alternatives (`@upstash/ratelimit`, Redis, Cloudflare edge rules) a `productionDeps()`
+edit. Full discussion, including the bucket-map eviction rule, in
+`api/src/platform/README.md`.
+
+**`/oauth/*` throttling (finding F29).** `/oauth/token` presents credentials and, until
+L11 took the finding, met no rate limit at all: the lane was scoped to `/api/v1`, L04's
+PF-107 asserts the internal `apiLimiter` does not reach the OAuth router, and L05's
+PF-132 throttles only the device grant's `user_code` guess space. It is now throttled by
+the same `IRateLimiter`, keyed by client IP, mounted in the composition root. The 429
+keeps the **OAuth** error surface — `{error: 'slow_down', error_description}` per RFC
+8628 §3.5, not the `ApiError` envelope — because `/oauth` is not `/api/v1` and an OAuth
+client library looks for `error`, never for `code`.
+
 ## OAuth Flows
 
 ```mermaid
