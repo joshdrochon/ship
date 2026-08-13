@@ -12,7 +12,10 @@ import type { Express } from 'express';
 import request from 'supertest';
 import { createApp } from '../../app.js';
 import { testDeps } from '../../deps.js';
-import { enumerateV1Routes } from '../api/v1/routeFitness.js';
+
+interface InnerLayer {
+  route?: { path: string };
+}
 
 let app: Express;
 
@@ -56,10 +59,28 @@ describe('PF-107 — the OAuth router is a sibling of /api/v1, not a child', () 
     expect(res.body).toHaveProperty('request_id');
   });
 
-  it('no /oauth path appears in the v1 route table', () => {
-    const v1 = enumerateV1Routes(app);
-    for (const route of v1) {
-      expect(String(route.path ?? route)).not.toContain('oauth');
+  it('no /oauth path appears in the v1 router', () => {
+    // Walks the v1 mount's own sub-stack rather than calling
+    // `enumerateV1Routes(app)`.
+    //
+    // ⚑ CROSS-LANE DEFECT, found here and filed in lane-99-unassigned.md:
+    // `enumerateV1Routes` throws `suffix.startsWith is not a function` on any
+    // app carrying a RegExp route, and `createApp` mounts exactly one — the SPA
+    // fallback — whenever `web/dist` is on disk. So the helper passes on a
+    // machine that has not run `pnpm build:web` and throws on one that has,
+    // which is an environment-dependent failure rather than a real one.
+    // Production boot is unaffected: `assertEveryRouteDeclaresList` runs before
+    // the SPA block. Not fixed here because the file is L07/L08's.
+    const stack = (app as unknown as {
+      _router: { stack: { regexp: RegExp; handle?: { stack?: InnerLayer[] } }[] };
+    })._router.stack;
+
+    const v1Mount = stack.find((l) => String(l.regexp).includes('api\\/v1'));
+    expect(v1Mount, 'the /api/v1 mount must exist for this assertion to mean anything').toBeDefined();
+
+    const inner = v1Mount!.handle?.stack ?? [];
+    for (const layer of inner) {
+      expect(String(layer.route?.path ?? '')).not.toContain('oauth');
     }
   });
 

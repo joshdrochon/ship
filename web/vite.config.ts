@@ -31,6 +31,22 @@ export default defineConfig(({ mode }) => {
       target: `http://localhost:${apiPort}`,
       changeOrigin: true,
     },
+    /**
+     * The OAuth surface (L04 PF-094). Proxied for the same reason `/api` is,
+     * and one reason of its own.
+     *
+     * `/oauth/authorize` renders the consent screen server-side, deliberately
+     * outside React — but "same origin as Ship" is load-bearing, not cosmetic.
+     * The screen redirects an anonymous visitor to `/login?returnTo=…` with a
+     * RELATIVE path, and the SPA hands back to the same relative path after
+     * sign-in. Serving the two halves from different origins would break that
+     * round trip and would put the session cookie on the wrong side of a
+     * `sameSite: 'strict'` boundary.
+     */
+    '/oauth': {
+      target: `http://localhost:${apiPort}`,
+      changeOrigin: true,
+    },
     '/collaboration': {
       target: `http://localhost:${apiPort}`,
       changeOrigin: true,

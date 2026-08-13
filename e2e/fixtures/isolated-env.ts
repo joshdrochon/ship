@@ -568,20 +568,69 @@ async function runMigrations(dbUrl: string): Promise<void> {
     // `GET /api/fleetgraph/notifications` answering 500, which reads as "the agent
     // surfaced nothing", which is exactly the quiet failure the agent exists to prevent.
     //
-    // Listed explicitly rather than replaying every migration: schema.sql really does
-    // carry 001-037, and re-running those fails on CREATE TABLE statements that predate
-    // the IF NOT EXISTS convention. 038 is guarded throughout, so applying it here is
-    // safe whether or not schema.sql later grows the same objects.
-    const MIGRATIONS_MISSING_FROM_SCHEMA_SQL = ['038_fleetgraph.sql'];
-    for (const file of MIGRATIONS_MISSING_FROM_SCHEMA_SQL) {
+    // schema.sql really does carry 001-037, and re-running those fails on CREATE
+    // TABLE statements that predate the IF NOT EXISTS convention. So the cut-off
+    // below is a fact about schema.sql, not a preference.
+    //
+    // ─────────────────────────────────────────────────────────────────────────
+    // 2026-08-12 (L04). THE SAME BUG HAD RECURRED, SILENTLY, FOR THE WHOLE
+    // PLUGFORGE MIGRATION BLOCK — so the list became a RULE.
+    // ─────────────────────────────────────────────────────────────────────────
+    // The hard-coded list said `['038_fleetgraph.sql']`. Every migration from
+    // 039 on — L02's `oauth_apps`, L02's `client_secret_auth_log`, L02's
+    // platform-app seed, L06's `oauth_tokens`, L08's keyset indexes, L04's
+    // `oauth_authorization_codes` — was marked applied by step 3 and then never
+    // run. Every E2E worker was therefore running against a database with no
+    // OAuth tables at all, and step 3's INSERT meant nothing would ever notice:
+    // `schema_migrations` claimed they were applied.
+    //
+    // The symptom is exactly the one the 038 note above describes: not a missing
+    // table error in a test, but `POST /api/apps` answering 500, which reads as
+    // "app registration is broken" rather than "the fixture never created the
+    // table". L04's PF-108 gate test is what surfaced it.
+    //
+    // Fixed as a rule rather than by appending six filenames, because appending
+    // is what produced the bug: the list is a second place to remember, and the
+    // person adding migration NNN is not reading this file. Everything numbered
+    // above the cut-off is applied in filename order, which is also `migrate.ts`'s
+    // order. All of 039+ are idempotent (IF NOT EXISTS / ON CONFLICT DO NOTHING),
+    // and the assertion below fails loudly the day one is not.
+    const SCHEMA_SQL_COVERS_THROUGH = 37;
+    const migrationNumber = (file: string): number => Number.parseInt(file.slice(0, 3), 10);
+
+    const missingFromSchemaSql = migrationFiles.filter((f) => {
+      const n = migrationNumber(f);
+      return Number.isFinite(n) && n > SCHEMA_SQL_COVERS_THROUGH;
+    });
+
+    if (missingFromSchemaSql.length === 0) {
+      throw new Error(
+        `No migrations above ${SCHEMA_SQL_COVERS_THROUGH} were found. Either the migrations ` +
+          `directory is not being read, or SCHEMA_SQL_COVERS_THROUGH in ` +
+          `e2e/fixtures/isolated-env.ts is stale. Both leave every worker database ` +
+          `missing tables while schema_migrations claims otherwise.`
+      );
+    }
+
+    for (const file of missingFromSchemaSql) {
       const filePath = path.join(migrationsDir, file);
       if (!existsSync(filePath)) {
+        throw new Error(`Migration ${file} disappeared between listing and reading.`);
+      }
+      try {
+        await pool.query(readFileSync(filePath, 'utf-8'));
+      } catch (err) {
+        // Loud, and naming the file. A migration above the cut-off that is not
+        // idempotent is a real problem for every worker, and swallowing it here
+        // is how it would come back as a 500 in an unrelated test.
         throw new Error(
-          `Migration ${file} is listed as missing from schema.sql but does not exist. ` +
-            `Remove it from MIGRATIONS_MISSING_FROM_SCHEMA_SQL in e2e/fixtures/isolated-env.ts.`
+          `E2E fixture failed to apply ${file}. Migrations above ` +
+            `${SCHEMA_SQL_COVERS_THROUGH} must be idempotent (IF NOT EXISTS / ` +
+            `ON CONFLICT DO NOTHING) because this fixture applies them to a database ` +
+            `schema.sql has already partially built.`,
+          { cause: err }
         );
       }
-      await pool.query(readFileSync(filePath, 'utf-8'));
     }
 
     // Step 5: Seed minimal test data

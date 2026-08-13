@@ -35,6 +35,7 @@ import {
   InMemoryTokenRepo,
   PgAuthCodeRepo,
   InMemoryAuthCodeRepo,
+  bearerTokenMiddleware,
   DEFAULT_TOKEN_TTL,
   type IEventBus,
   type IWebhookDeliverer,
@@ -250,8 +251,19 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // public route is reachable yet (bearerAuth below rejects everything).
     auditSink: new InMemoryAuditSink(),
 
-    // TODO(L06): the real bearer middleware. Fails closed until then.
-    bearerAuth: rejectAllBearerAuth,
+    // L06 PF-158 — the real bearer middleware, wired here because this is the
+    // only file allowed to choose a concrete.
+    //
+    // Wired by L04, whose PF-108 gate reads "…→ usable access token" and cannot
+    // demonstrate the last word against a middleware that rejects everything.
+    // `rejectAllBearerAuth` remains exported and remains the `testDeps()`
+    // default, so the fail-closed posture it was written for still holds
+    // wherever a test has not opted in.
+    bearerAuth: bearerTokenMiddleware({
+      tokenRepo: overrides.tokenRepo ?? new PgTokenRepo(pool),
+      appsRepo: overrides.appsRepo ?? new PgOAuthAppRepo(pool),
+      clock: overrides.clock ?? new SystemClock(),
+    }),
     ...overrides,
   };
 }
