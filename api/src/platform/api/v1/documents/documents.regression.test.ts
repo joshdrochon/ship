@@ -190,7 +190,7 @@ describe('PF-265 · documents is the only resource mounted', () => {
         // this checks — not a raw string prefix, which stopped holding when the
         // first NESTED collection landed.
         expect(
-          route.path.startsWith(`/api/v1/${metadata!.resource.split('_').join('/')}`),
+          route.path.startsWith(`/api/v1/${(metadata!.resource ?? '').split('_').join('/')}`),
           `${route.method} ${route.path} binds cursors to "${metadata!.resource}"`,
         ).toBe(true);
       }
