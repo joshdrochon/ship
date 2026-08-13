@@ -44,7 +44,21 @@ export interface Transport {
   request<T>(
     method: string,
     path: string,
-    options?: { query?: Record<string, string>; body?: unknown },
+    options?: {
+      query?: Record<string, string>;
+      body?: unknown;
+      /**
+       * Send NO `Authorization` header and require no credential.
+       *
+       * Exactly one spec operation declares `security: []` — `GET /openapi.json`,
+       * which L13 mounts above `bearerAuth` on purpose so a developer can read
+       * the contract before they have a token. Without this flag the SDK would
+       * throw `not authenticated` before the request left the process, and the
+       * one operation whose whole point is being reachable unauthenticated would
+       * be the one operation the SDK could not call.
+       */
+      anonymous?: boolean;
+    },
   ): Promise<T>;
 }
 
@@ -92,12 +106,16 @@ export class ShipTransport implements Transport {
   async request<T>(
     method: string,
     path: string,
-    options: { query?: Record<string, string>; body?: unknown } = {},
+    options: { query?: Record<string, string>; body?: unknown; anonymous?: boolean } = {},
   ): Promise<T> {
     const url = buildRequestUrl(this.deps.baseUrl, path, options.query ?? {}).toString();
     const serialisedBody = options.body !== undefined ? JSON.stringify(options.body) : undefined;
 
-    let credential = await this.resolveCredential();
+    // `anonymous` skips credential resolution entirely — not "resolve it and
+    // ignore failures", which would still refresh a token nobody asked to spend.
+    let credential: Credential = options.anonymous === true
+      ? { accessToken: '', store: null, refreshToken: null }
+      : await this.resolveCredential();
     let attempt = 0;
     let refreshAttempted = false;
 
@@ -178,10 +196,13 @@ export class ShipTransport implements Transport {
     | { kind: 'transport'; error: ShipError }
   > {
     const headers: Record<string, string> = {
-      authorization: `Bearer ${accessToken}`,
       accept: 'application/json',
       'user-agent': this.deps.userAgent,
     };
+    // Empty only on the `anonymous` path. Sending `Bearer ` with nothing after
+    // it is worse than sending no header: L06 reads it as a malformed credential
+    // and answers 401 on a route that would have served the request.
+    if (accessToken !== '') headers.authorization = `Bearer ${accessToken}`;
     if (body !== undefined) headers['content-type'] = 'application/json';
 
     try {

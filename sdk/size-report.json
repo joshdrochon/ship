@@ -1,33 +1,41 @@
 {
-  "measuredAt": "2026-08-13T01:12:44.350Z",
+  "measuredAt": "2026-08-13T19:58:11.520Z",
   "budgetBytes": 256000,
   "method": "gzip of unminified published files (upper bound on min+gzip)",
   "productionDependencyCount": 0,
   "unresolvedDependencies": [],
   "dist": {
-    "fileCount": 121,
-    "rawBytes": 306436,
-    "gzippedBytes": 120305,
+    "fileCount": 151,
+    "rawBytes": 435577,
+    "gzippedBytes": 164284,
     "files": [
       {
         "file": "dist/errors.d.ts",
         "gzippedBytes": 4418
       },
       {
+        "file": "dist/cjs/transport.js",
+        "gzippedBytes": 4109
+      },
+      {
         "file": "dist/cjs/errors.js",
         "gzippedBytes": 4078
+      },
+      {
+        "file": "dist/transport.js",
+        "gzippedBytes": 4013
       },
       {
         "file": "dist/errors.js",
         "gzippedBytes": 3939
       },
       {
-        "file": "dist/cjs/transport.js",
-        "gzippedBytes": 3901
+        "file": "dist/client.d.ts",
+        "gzippedBytes": 3041
       },
       {
-        "file": "dist/transport.js",
-        "gzippedBytes": 3800
+        "file": "dist/operations.d.ts",
+        "gzippedBytes": 2668
       },
       {
         "file": "dist/cjs/baseUrl.js",
@@ -38,20 +46,12 @@
         "gzippedBytes": 2536
       },
       {
-        "file": "dist/client.d.ts",
-        "gzippedBytes": 2406
-      },
-      {
-        "file": "dist/cjs/retry.js",
-        "gzippedBytes": 2367
-      },
-      {
-        "file": "dist/cjs/auth/fileTokenStore.js",
-        "gzippedBytes": 2361
+        "file": "dist/cjs/operations.js",
+        "gzippedBytes": 2479
       }
     ]
   },
   "dependencies": [],
-  "totalGzippedBytes": 120305,
+  "totalGzippedBytes": 164284,
   "withinBudget": true
 }
