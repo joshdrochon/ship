@@ -218,6 +218,132 @@ ${hiddenFields}
  * this page is the user they sent here. The `error` code is shown because it is
  * what the developer will ask for.
  */
+/**
+ * L05 PF-129 — the device verification entry screen.
+ *
+ * In THIS file rather than a `devicePage.ts` because PF-129 asks for one
+ * template family, not two: same `document_`, same `STYLES`, same `escapeHtml`
+ * on every interpolation. A second template file is how two consent surfaces end
+ * up with two different ideas of what a scope row looks like — and L03's
+ * open/closed claim has to survive both of them.
+ */
+export interface DeviceEntryPageModel {
+  /** Pre-filled when the user arrived via `verification_uri_complete`. */
+  userCode: string;
+  actionPath: string;
+  csrfToken: string;
+  userLabel: string;
+  /** Shown above the form when a previous attempt failed. */
+  error?: string;
+}
+
+export function renderDeviceEntryPage(model: DeviceEntryPageModel): string {
+  const error = model.error
+    ? `  <div class="error"><p class="sub">${escapeHtml(model.error)}</p></div>\n`
+    : '';
+
+  return document_(
+    'Connect a device',
+    `${error}  <h1>Connect a device</h1>
+  <p class="sub">Signed in as ${escapeHtml(model.userLabel)}. Enter the code shown in your terminal.</p>
+  <form method="post" action="${escapeHtml(model.actionPath)}">
+      <input type="hidden" name="_csrf" value="${escapeHtml(model.csrfToken)}">
+      <label for="user_code" class="sub">Device code</label>
+      <input id="user_code" name="user_code" value="${escapeHtml(model.userCode)}"
+             autocomplete="off" autocapitalize="characters" spellcheck="false"
+             style="width:100%;padding:.6rem .7rem;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:1.1rem;letter-spacing:.08em;border:1px solid #c6cad1;border-radius:7px;margin:.3rem 0 1.1rem;">
+    <div class="actions">
+      <button class="allow" type="submit">Continue</button>
+    </div>
+  </form>`,
+  );
+}
+
+/**
+ * L05 PF-130 / PF-128 — the device consent screen.
+ *
+ * ---------------------------------------------------------------------------
+ * THE CODE IS RENDERED, AND THE USER IS ASKED TO CONFIRM IT (PF-128).
+ * ---------------------------------------------------------------------------
+ * This is the load-bearing half of D-PF-128, and it is the half that is easy to
+ * drop because the flow "works" without it. `verification_uri_complete` ships a
+ * clickable link that carries the code, which is a materially better demo — and
+ * a one-click device-phishing primitive if the page simply says "Allow?".
+ *
+ * RFC 8628 §5.4 names the attack: an attacker starts their OWN device flow,
+ * sends the victim the completed URL, and the victim authorizes the ATTACKER's
+ * device while believing they are authorizing their own. The only thing standing
+ * between the link and a silently authorized attacker device is the user
+ * checking that the code on this screen matches the code in front of them.
+ *
+ * So the code is displayed prominently and the copy asks for the comparison
+ * explicitly. `consent.test.ts`'s device half asserts the code appears in the
+ * rendered body — an implementation that dropped it would otherwise pass every
+ * other assertion in this lane.
+ */
+export interface DeviceConsentPageModel {
+  appName: string;
+  clientId: string;
+  /** Displayed for the PF-128 confirmation. Canonical hyphenated form. */
+  userCode: string;
+  /** Read from the registry by the caller. Never a literal in this file. */
+  scopes: ScopeDefinition<string>[];
+  actionPath: string;
+  csrfToken: string;
+  userLabel: string;
+}
+
+export function renderDeviceConsentPage(model: DeviceConsentPageModel): string {
+  const scopeItems = model.scopes
+    .map(
+      (def) => `      <li>
+        ${escapeHtml(def.description)}
+        <span class="scope">${escapeHtml(def.scope)}</span>
+      </li>`,
+    )
+    .join('\n');
+
+  return document_(
+    `Authorize ${model.appName}`,
+    `  <h1>Authorize <strong>${escapeHtml(model.appName)}</strong> on this device</h1>
+  <p class="sub">Signed in as ${escapeHtml(model.userLabel)}.</p>
+  <dl>
+    <dt>Confirm this code matches the one in your terminal</dt>
+    <dd style="font-size:1.35rem;letter-spacing:.12em;margin-top:.35rem;">${escapeHtml(model.userCode)}</dd>
+  </dl>
+  <p class="sub">If this code is not the one displayed on the device you are setting up, press Deny — someone else may be trying to connect their device to your account.</p>
+  <ul>
+${scopeItems}
+  </ul>
+  <dl>
+    <dt>Application ID</dt><dd>${escapeHtml(model.clientId)}</dd>
+  </dl>
+  <form method="post" action="${escapeHtml(model.actionPath)}">
+      <input type="hidden" name="_csrf" value="${escapeHtml(model.csrfToken)}">
+      <input type="hidden" name="user_code" value="${escapeHtml(model.userCode)}">
+    <div class="actions">
+      <button class="deny" type="submit" name="decision" value="deny">Deny</button>
+      <button class="allow" type="submit" name="decision" value="allow">Allow</button>
+    </div>
+  </form>`,
+  );
+}
+
+/**
+ * L05 PF-130 / PF-133 — the terminal states of the verification screen.
+ *
+ * One renderer for "you are done here", because every one of these outcomes has
+ * the same shape: the browser half of the flow is over and the answer is in the
+ * terminal. Separate pages would invite one of them to grow a form.
+ */
+export function renderDeviceResultPage(heading: string, message: string): string {
+  return document_(
+    heading,
+    `  <h1>${escapeHtml(heading)}</h1>
+  <p class="sub">${escapeHtml(message)}</p>`,
+  );
+}
+
 export function renderAuthorizeErrorPage(error: string, description: string): string {
   return document_(
     'Authorization failed',
