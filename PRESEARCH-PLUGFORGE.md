@@ -2444,4 +2444,267 @@ Option 1 is the only real one and it changes the published contract. **Absent th
 answers "did Ship deliver this exactly once, and if not, how many times and with which key" —
 which is the question Ship can actually answer** — and Q30's published dedupe contract is the
 instrument by which the subscriber takes responsibility for the other half.
+
+---
+
+# Defended-Tradeoff Sweep
+
+<!-- PF-769 -->
+
+The PRD demands a defense at **exactly six bullets**, in those words. Each gets the same
+four-part block: **decision · why · alternatives rejected with reasons · why this wins**. A
+decision stated without a named rejected alternative fails this sweep, and **cost-to-build is
+never the deciding argument** — it appears only as a stated cost.
+
+| # | Bullet | PRD wording | Page | Q |
+|---|---|---|---|---|
+| D-1 | webhook payload contents | *"Defend the tradeoff between subscriber convenience and exposure surface"* | p.15 | [Q14](#q14) |
+| D-2 | sparse fieldsets | *"Defend the call."* | p.16 | [Q24](#q24) |
+| D-3 | SDK generated vs hand-written | *"Defend the tradeoff between type quality and drift risk"* | p.16 | [Q31](#q31) |
+| D-4 | portal payload display | *"Defend the choice against the leakage concerns from 1.4"* | p.17 | [Q38](#q38) |
+| D-5 | agent OAuth flow | *"Defend the choice."* | p.17 | [Q39](#q39) |
+| D-6 | agent scopes | *"what is your defense for each?"* | p.17 | [Q41](#q41) |
+
+---
+
+## D-1 · Webhook payload contents ⚠ **open (D7)**
+
+**Decision.** Identifiers plus `title`; never `content` or `properties`. **Stated as a lean, not
+a closure** — D7 is being re-litigated by L14 and this document does not close it.
+
+**Why.** A payload should carry what a subscriber needs to decide **whether to care**, and
+nothing it needs to **act**. `title` answers "is this relevant"; content answers "what do I do",
+and that one requires a fetch. The fetch is not friction — it **re-checks the subscriber's
+scopes at fetch time**, whereas a pushed payload checks them once at subscription time and never
+again. A subscription created six months ago under scopes since narrowed keeps receiving whatever
+the payload carries.
+
+**Alternatives rejected, with reasons.**
+
+- **Ids only.** Rejected as a *universal* rule because it is **impossible**, not because it is
+  inconvenient. **F10**: `DELETE /api/documents/:id` is a hard delete
+  (`api/src/routes/documents.ts:1081`), so an ids-only `document.deleted` is unresolvable
+  **forever** — the row is gone before the subscriber can fetch it. Any ids-only policy needs a
+  `document.deleted` exception, at which point it is not a rule.
+- **Full object (Stripe's model).** Rejected on **exposure multiplied by the retry ladder**:
+  every subscriber's logs would hold every document body, at every one of up to six attempts,
+  permanently. One leaked subscriber log becomes six copies of the content. Stripe can afford
+  this because a Stripe event object is a payment record the merchant already holds; a Ship
+  document is arbitrary user prose we would be pushing into third-party storage.
+
+**Why this wins.** It is the only option that is *representable* for all eight event types while
+keeping the exposure surface bounded by a field rather than by a document.
+
+**The cost, stated.** `title` **is** user content by any honest reading, and PF-410 exists solely
+to suppress it when `visibility='private'` — a special case a cleaner rule would not need. That
+patch is the tell that the middle was reached by accretion rather than by design, which is
+exactly why D7 is open rather than declared settled.
+
+---
+
+## D-2 · Sparse fieldsets
+
+**Decision.** Skipped for the week — and skipped **verifiably**: `?fields=` returns **422** with
+a message naming what to use instead. Query parameters on public list endpoints are a strict
+allowlist (`limit`, `cursor`).
+
+**Why.** *"We skipped sparse fieldsets"* and *"we silently ignore unknown query parameters"* look
+**identical to a consumer** until the day they differ. A caller who sends `?fields=id,title`
+against a server that ignores it receives a full document and **no error**, writes code against
+that behaviour, and discovers the gap on the day someone implements `fields` and the response
+shape changes under them. The 422 turns an absence into a **checkable fact**.
+
+**Alternatives rejected, with reasons.**
+
+- **`Prefer:` header.** Rejected because a header is **invisible where the API is actually
+  discovered** — in a browser address bar, in a `curl` a developer pastes into an issue, in the
+  OpenAPI spec's example requests. It raises the discovery cost of the feature it is meant to
+  make cheap.
+- **Implementing `?fields=` properly.** Rejected on a **correctness interaction**, not on
+  schedule. **F17**: internal create returns `RETURNING *`, so the public projection has to be an
+  **allowlist, not an exclusion list**. Building a field selector on top of a projection layer
+  written the same week is how you ship a selector that can name a column the projection was
+  supposed to hide — the two features would have to be verified against each other, and the
+  selector is the one with no requirement behind it.
+- **Silently ignoring the parameter.** Rejected as the worst option: it is the only one that
+  produces a wrong belief in the consumer rather than an error.
+
+**Why this wins.** It is the only variant where the decision is **legible from outside the
+repository**. A consumer learns the answer from the API rather than from our changelog.
+
+**The cost, stated.** A strict allowlist means **a future optional parameter is a breaking change
+for a caller already sending it** — a real constraint under Q25's additive-only policy. Accepted
+because the failure it prevents is silent and the failure it causes is loud.
+
+---
+
+## D-3 · SDK generated vs hand-written
+
+**Decision.** Hand-written, with a method-signature parity fitness test against the OpenAPI
+document; drift fails CI.
+
+**Why — the tradeoff on the PRD's own axes.** Generation gives **drift-freedom free** and costs
+**type quality**: the types are the spec's types, so `Record<string, unknown>` wherever a schema
+is loose, method names derived from `operationId`, and an ergonomics ceiling set by the
+generator's templates. Hand-writing inverts it. The defense is therefore entirely about **what
+buys back the drift-freedom**, and there are four mechanisms, not a promise:
+
+1. **Method-signature parity fitness test** over every resource client against the spec.
+2. **`SDK_KIND_BY_CODE` published as data** and imported by the SDK, so the 6→5 error mapping
+   cannot be restated (F6 was this exact drift, caught in a comment before it shipped).
+3. **Compiled type proofs as permanent fixtures** — `sdk/typeProofs/gateItem8.ts` compiles MVP
+   gate item 8's literal expression under `pnpm type-check`, so **F19 cannot recur silently**.
+4. **`openapi-freshness`** regenerating `docs/openapi.json` with `git diff --exit-code`, so the
+   spec side cannot go stale either.
+
+**Alternatives rejected, with reasons.**
+
+- **Fully generated client.** Rejected because **three of the SDK's four load-bearing features
+  are not expressible as generated output**: async-iterator pagination that hides cursors
+  entirely (a generator emits the cursor because the spec has one); `verifyWebhook(...)` as one
+  call returning a boolean (it is a **client-side** operation and appears in no spec); and a
+  conditional `exports` map with a browser-safe subgraph (F14 — the fix that keeps the package
+  inside its 250 KB budget).
+- **Generated core plus a hand-written ergonomics layer.** Rejected because it produces **two
+  surfaces to keep in parity instead of one**, and the parity problem it was meant to solve
+  reappears between the two layers.
+
+**Why this wins.** The four mechanisms above make drift **a build failure**, which is the same
+guarantee generation offers — while keeping the three features that are the SDK's actual value.
+Generation would have bought a guarantee we can reproduce, at the price of features we cannot.
+
+**The cost, stated.** The parity test is now load-bearing infrastructure: if it is ever weakened,
+the entire defense collapses to "we were careful." **Cost-to-build is explicitly not the
+argument here — generation would have been faster.**
+
+---
+
+## D-4 · Portal payload display
+
+**Decision.** Click-to-reveal, collapsed by default, for **both** the request payload and
+`response_excerpt`.
+
+**Why, answered against 1.4's mitigations by name.** Q15 defends **one** secret shown **once**, at
+a moment the user chose. The delivery log is the opposite on both axes: **many** payloads,
+**permanently**, on a screen a developer keeps open while debugging — which is exactly when they
+screen-share it. Taking Q15's four mitigations in turn: **auto-remask after 30 s** does not
+transfer (a timer per row is hostile to the scanning that gives the log its value; collapsed-by-
+default achieves the same exposure reduction without fighting the workflow); **never in a URL or
+`history.state`** transfers unchanged; **not an `<input>`** is n/a; and **never in IndexedDB
+(F25)** is the one that matters most and **does not fully transfer** — delivery rows *are*
+legitimate query data, unlike a shown-once secret, so they live in the TanStack cache that
+persists to disk. Click-to-reveal reduces what a **screenshot** captures, not what the **disk**
+holds, and saying otherwise would be the dishonest version of this answer.
+
+**Alternatives rejected, with reasons.**
+
+- **Full display.** Rejected because one screenshot of a debugging session leaks every payload in
+  the viewport, and this is the screen most likely to end up in a bug report or a screen-share.
+- **Server-side redaction.** Rejected even though it is the **strongest** option, and the reason
+  matters: a developer debugging a delivery needs **the exact bytes that were signed** (Q27).
+  Redacting them makes the log unable to answer the only question anyone brings to it. A security
+  control that destroys the artifact's purpose has not secured it, it has removed it.
+
+**Why this wins.** It is the only option that keeps the log **usable for its one job** while
+making the default state safe to screen-share.
+
+**Two things it does not claim.** `response_excerpt` is a **third party's body we never
+controlled**, so collapsing is the only honest treatment. And click-to-reveal is a **screenshot**
+mitigation, not an **access** mitigation — anyone who can open the portal can click. Access
+control is the owner-scoping on the route; conflating the two would be the error here.
+
+**Bonus property.** The choice is **independent of D7** (D-1 above). If the payload contents flip
+to ids-only or to full objects, collapsed-by-default remains correct. Deliberately decoupled so
+an open decision does not have a second lane hanging off it.
+
+---
+
+## D-5 · Agent OAuth flow
+
+**Decision.** Client Credentials, RFC 6749 §4.4 (D5a).
+
+**Why.** The agent runs **on a schedule with no user at the keyboard**, and — the deeper reason —
+**it acts on behalf of no one.** Auth Code and Device both exist to let an application act *on a
+user's behalf*, and their tokens carry a `user_id` naming whose consent the access rests on.
+Minting the agent a user-delegated token would stamp a real person's identity on every audit row
+for actions that person did not take and did not consent to. **That corrupts the exact artifact
+Epic 7's claim depends on.** Client Credentials produces a token with a **null `user_id`**, and
+L23 PF-709 asserts that null as part of the proof. The grant choice and the audit claim are the
+same decision.
+
+**Alternatives rejected, with reasons.**
+
+- **Authorization Code + PKCE.** Requires a browser redirect and a consenting user. Using it
+  anyway means either a human re-authorizes a cron job by hand — indefinitely — or a refresh
+  token is persisted forever while the code pretends the grant was interactive. The second is
+  worse than the first because it *looks* correct.
+- **Device Grant.** The same objection with an extra step. Its purpose is input-constrained
+  devices with a human present; the agent has no human, not a small screen.
+- **No OAuth at all — keep the in-process import.** Rejected because it is the thing Epic 7
+  exists to remove, and because it leaves the audit trail with a hole shaped exactly like the
+  agent.
+
+**Why this wins.** It is the only grant whose **security model matches the actual principal.**
+The others would work; they would work by misrepresenting who is acting.
+
+**The cost, stated.** A client-credentials token **cannot be scoped to a user's permissions**, so
+the app's scopes are the entire authorization story — which is what makes D-6's least-privilege
+argument load-bearing rather than decorative.
+
+**Documentation consequence.** **G4**: `docs/architecture.md` says "first-party OAuth app" and
+never names the grant. The seeding is grant-agnostic by construction (no column encodes a grant
+type), so closing D5a required no schema change — only that the doc now say it.
+
+---
+
+## D-6 · Agent scopes — per scope
+
+**Decision.** Read-only, exactly three: `documents:read`, `issues:read`, `sprints:read` (D5b).
+
+**Why, per scope** — a defense for each, as the bullet demands:
+
+| Scope | Defense | Why not narrower |
+|---|---|---|
+| `documents:read` | the graph fetch nodes read documents to build the dependency view every detector runs over. Without it the agent has no graph | p.3 registers exactly seven scopes; there is no per-document-type scope to drop to |
+| `issues:read` | all five detectors are about issue state — load imbalance, sprint-miss risk, rework churn | as above |
+| `sprints:read` | sprint-miss risk needs sprint boundaries and membership to compute "will this land" | as above |
+| `issues:write` | **not requested** — see below | |
+| `documents:write` · `sprints:write` · `webhooks:manage` | **not requested.** The agent creates nothing, schedules nothing, subscribes to nothing | |
+
+**Why read-only — and this is a measured argument, not a principle.** **B12**: the agent's three
+action types are `comment`, `history_note` and `notify`
+(`agent/src/actions/act.ts:74,77,83`). The first reaches Ship through
+`POST /api/documents/:id/comments`, the second through `POST /api/issues/:id/history`, and
+**the public API exposes neither — no route, and none of the seven scopes covers either.** So a
+write scope would not even help: there is nothing public to write to. Under D5b those two become
+**recommendations** through `fleetgraph_notifications`.
+
+**Alternatives rejected, with reasons.**
+
+- **Grant `issues:write`.** Rejected because it would be a scope the agent **cannot use** — the
+  routes it needs are not public. It would widen the credential's blast radius while changing
+  nothing the agent can do, which is the worst possible trade.
+- **Add the missing public routes (comments, history) and grant write.** A defensible larger
+  build and rejected on scope: it invents public API surface the PRD never asks for, and every
+  new public route is a permanent contract.
+- **Disable the two write detectors under the flag.** Rejected outright — **it is a regression
+  wearing a feature flag**, and it would make the flag-on/flag-off comparison meaningless.
+
+**Why this wins.** It is what makes Epic 7's claim **literally true**: "every action the agent
+takes is a public API call" has no holes precisely because the actions that *could not* be public
+API calls stopped being actions. A read-only agent's audit trail is complete **by
+construction**, not by diligence.
+
+**The cost, stated, because it is a real behaviour change and not a refactor.** The agent stops
+commenting. L23 PF-700 records the loss explicitly: no `document_history` row, so the agent's
+trail moves from `document_history` to `public_api_calls` + `fleetgraph_notifications`, and
+`docs/architecture.md:178` — which currently says "the scopes its detectors and actions need"
+without naming them — must be reconciled to read-only. It also means Part 2's suite does **not**
+pass byte-for-byte in both flag states: one assertion is forked and named (Q42).
+
+**⚠ As-built divergence.** `api/src/db/platformApps.ts:93` currently seeds
+`['documents:read', 'issues:read', 'issues:write', 'sprints:read']` — **four scopes, including a
+write** — under a comment reading "Least privilege, not `*`". **The seed predates D5b and
+contradicts it.** L23 PF-690's assertion would fail today. This is the single most consequential
+gap between this document and the tree.
 </content>
