@@ -9,6 +9,37 @@
 | **Unblocks** | L18 (`client.issues` / `client.sprints` need routes to compile against), L20 (TTFE drill), L23 (the agent's scopes are only meaningful once its resources exist) |
 | **MVP gate** | Item 8 (p.2) jointly with L17 — *"`new ShipClient({ token }).me()` against a running server returns the typed authenticated user"*: L17 owns the client, this lane owns the endpoint it calls |
 
+## State — 2026-08-12
+
+**S1 shipped on `pf/L10-me` (commit `070c915`). S2–S5 are not built.**
+
+| Slice | Tickets | State |
+|---|---|---|
+| S1 `pf/L10-me` | PF-271–276 | **Done**, except PF-275 (shipped with `list: false`, see its row) and PF-276 (**blocked on L05** — no device grant exists) |
+| S2 `pf/L10-issues` | PF-277–283 | Not started |
+| S3 `pf/L10-sprints` | PF-284–289 | Not started |
+| S4 `pf/L10-event-callsites` | PF-290–293 | Not started |
+| S5 `pf/L10-parity-and-budget` | PF-294–296 | PF-294 **done and asserted** (`me.fitness.test.ts` diffs `platform/openapi/` against the merge base). PF-295/296 not started |
+
+**MVP gate item 8 now closes on the production surface.** `new ShipClient({token}).me()`
+against `createApp()` on a real socket returns the typed user — proved in
+`sdkGate.test.ts` §1 (which no longer mounts anything itself) and again manually
+outside vitest. api suite: **100 files, 1607 passing**, from a 98/1568 baseline.
+
+**No other gate item depends on S2–S5.** MVP-4 reads *"At least one resource
+(documents) implements GET list, GET by id, and POST"* and L09 satisfies it; the
+`MVP-4` tags on PF-277–279 and PF-284–286 are the second-resource reading the lane
+file's own audit notes offer to demote. So the remaining slices are contract
+breadth, not gate risk — which is why they were left rather than rushed against
+1607 passing tests and Ship's Part 1 internal issues/weeks behaviour.
+
+**The cost that remains, measured.** S2 and S3 are dominated by the domain-service
+extraction, not the routes: `api/src/routes/issues.ts` is 1635 lines and
+`api/src/routes/weeks.ts` is 3141, against L09's comparable extraction which was
+842 insertions for `documents` alone. Budget accordingly, and keep
+`list-endpoints-regression.test.ts` and PF-264's query-count assertions green
+throughout — they are what stop the extraction changing the internal API.
+
 **Why this lane is tier 4 and not tier 3.** Build Strategy §4 (p.11): *"Get the generator working
 end-to-end with one resource (documents) before adding issues, sprints, and me."* Sequencing this
 lane after L09 and L13 is not caution, it is the PRD's instruction — and PF-294 turns it into a
@@ -99,6 +130,42 @@ the acceptance criterion each slice advances and confirms its fitness test passe
 | S3 | `pf/L10-sprints` | PF-284–289 | `sprints` as a public contract name over Ship's `weeks` vocabulary, with computed fields declared honestly | Grep finds no `'weeks'` literal under `platform/api/v1/sprints/`; a workspace with five sprints lists five (the internal route returns one); `EXPLAIN` shows no sort over a JSONB expression |
 | S4 | `pf/L10-event-callsites` | PF-290–293 | Five of the eight registered event types get their publish call site — in the domain services, never in `api/v1/` | Grep finds no `.publish(` under `platform/api/v1/`; re-start emits zero `sprint.started`; state PATCH emits exactly one `issue.status_changed` matching the history row; `sprint.completed` test fails if nothing writes the value |
 | S5 | `pf/L10-parity-and-budget` | PF-294–296 | The generator proves generic, Testing Scenario 4 runs over a real eight-route surface, and the +10% budget holds | `git diff --stat` empty under `platform/openapi/`; enumeration ≥ 8 routes with all four clauses green; 3×3 scope matrix; per-route query counts within baseline |
+
+## Corrections found by building S1
+
+Four claims in this file are wrong, and each was verified against the repo rather
+than reasoned about.
+
+1. **`api/src/app.ts:240` is stale — the internal weeks router mounts at `:293`.**
+   Cited in the sprints-trap section above. L03's `resource-map.ts` already
+   records the corrected line.
+2. **The resource map is at `platform/api/v1/resource-map.ts`, not
+   `platform/scopes/resource-map.ts`.** L03 created it at the corrected path
+   (dispute B7 in its header), so PF-287's citation points at a file that does
+   not exist. The map itself is fine and unconsumed so far — S3 is its first
+   consumer.
+3. **PF-275's `list: 'none'` is not available to `me`.** L08's
+   `assertNoCursorOnFixedList` requires a `'none'` route's body to have an array
+   at `data`, because `'none'` means *bounded-by-code collection*. `me` returns
+   one object. Shipped as `list: false` with both observable criteria intact;
+   full reasoning in `platform/api/v1/me/routes.ts`.
+4. **F18's "add `issues` and `sprints` to `KEYSET_INDEXED_TABLES`" cannot work.**
+   `assertKeysetIndexed` runs `EXPLAIN SELECT … FROM ${table}`, and neither is a
+   table — `SELECT tablename FROM pg_tables WHERE tablename IN
+   ('issues','sprints','documents')` returns only `documents`. Both are
+   `document_type` values in the unified model. The correct artifact is two
+   partial tenant-first indexes; the DDL and the reasoning for holding them back
+   are recorded in `api/src/db/migrations/RESERVATIONS.md` under L10's block
+   068–070.
+
+One further defect, in L13's shipped code rather than in this file:
+**`platform/openapi/staticCopy.test.ts` writes to the committed
+`docs/openapi.json`** (its idempotence case calls `writePublicSpec()` for real).
+A route module absent from that test file's import graph is therefore deleted
+from the artifact by running `pnpm test`. `/me` generated correctly via
+`pnpm openapi:public` and was silently removed minutes later. Fixed by extending
+that file's import list; the durable fix is for the test to write to a temporary
+path, which is L13's call.
 
 ## Notes for the audit agent
 
