@@ -23,7 +23,13 @@
  * advance, which is app-level rather than route-level state; PF-163's gate test
  * asserts it once, against a booted app.
  */
-import request from 'supertest';
+// Deferred, not top-level: `supertest` is a devDependency and this module sits in
+// the production bundle. A top-level import kills the server at boot with
+// ERR_MODULE_NOT_FOUND under `pnpm install --prod`, the one install that omits
+// it. See the long note in `../api/v1/envelopeAssertion.ts`.
+async function loadRequest() {
+  return (await import('supertest')).default;
+}
 import { apiErrorBodySchema } from '../api/v1/errors.js';
 import { registerRouteAssertion, type RouteAssertionContext } from '../api/v1/routeFitness.js';
 import { concretePath } from '../api/v1/envelopeAssertion.js';
@@ -45,6 +51,7 @@ export async function assertMissingTokenIs401({
   route,
   app,
 }: RouteAssertionContext): Promise<void> {
+  const request = await loadRequest();
   const method = route.method.toLowerCase() as Method;
   const res = await request(app)[method](concretePath(route.path));
 
@@ -69,6 +76,7 @@ export async function assertInvalidTokenIs401({
   route,
   app,
 }: RouteAssertionContext): Promise<void> {
+  const request = await loadRequest();
   const method = route.method.toLowerCase() as Method;
   const agent = request(app);
   const res = await agent[method](concretePath(route.path)).set(

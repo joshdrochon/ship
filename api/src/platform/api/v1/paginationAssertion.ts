@@ -24,7 +24,15 @@
  * question decidable, and `assertEveryRouteDeclaresList` makes an undeclared
  * route a boot failure rather than a route this clause skips.
  */
-import request from 'supertest';
+// Deferred, not top-level: `supertest` is a devDependency and this module is in
+// the production bundle via the `platform/api/v1` barrel. A top-level import
+// kills the server at boot with ERR_MODULE_NOT_FOUND under `pnpm install --prod`,
+// which is the only install that omits it — so nothing local, and no CI job that
+// installs devDependencies, can catch it. See the long note in
+// `envelopeAssertion.ts`.
+async function loadRequest() {
+  return (await import('supertest')).default;
+}
 import { anyPageSchema, assertLastPageShape } from './page.js';
 import { decodeCursor, DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './pagination.js';
 import { routeMetadata, RouteMetadataRegistry } from './routeMetadata.js';
@@ -82,6 +90,7 @@ export async function assertCursorPagination({
     throw new Error(`declares list:'cursor' but is a ${route.method} — only GET can be a list`);
   }
 
+  const request = await loadRequest();
   const path = concretePath(route.path);
   const headers = options.authHeaders ?? {};
 
@@ -183,6 +192,7 @@ export async function assertNoCursorOnFixedList({
   const metadata = metadataFor(route);
   if (!metadata || metadata.list !== 'none') return;
 
+  const request = await loadRequest();
   const path = concretePath(route.path);
   const headers = options.authHeaders ?? {};
 

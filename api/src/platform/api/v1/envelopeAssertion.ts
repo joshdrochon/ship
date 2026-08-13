@@ -9,7 +9,29 @@
  *
  * PF-201 (envelope on every route's failure path), PF-202 (proves the seam runs).
  */
-import request from 'supertest';
+// `supertest` is a devDependency and this module is REACHABLE FROM PRODUCTION
+// CODE, so it must not be imported at module scope.
+//
+// The chain is not obvious, which is why this broke a deploy rather than a test:
+// `platform/api/v1/index.ts` re-exports this file with `export * from
+// './envelopeAssertion.js'`, and `bearerFitness.ts` and `paginationAssertion.ts`
+// both import `concretePath` from here — a pure string function that has nothing
+// to do with HTTP. Any of those pulls the whole module in, and a top-level
+// `import request from 'supertest'` is evaluated whether or not the one function
+// that uses it is ever called.
+//
+// It is invisible everywhere except the place it matters. Local dev, `pnpm
+// test`, `pnpm build` and the Docker BUILD stage all install devDependencies, so
+// supertest is present and nothing complains. Only the runtime stage —
+// `pnpm install --frozen-lockfile --prod` — omits it, and the failure surfaces
+// as the server dying at boot with ERR_MODULE_NOT_FOUND while migrations and
+// seeding have already succeeded, so the deploy looks 90% healthy.
+//
+// A type-only import is not enough: the value `request(app)` is genuinely used.
+// So the import is deferred into the one function that needs it. In a test run
+// supertest is installed and this resolves normally; in production the module
+// loads and only a caller of `assertEnvelopeOnFailure` — of which there are none
+// outside the suite — would ever fail.
 import { apiErrorBodySchema } from './errors.js';
 import { registerRouteAssertion, type RouteAssertionContext } from './routeFitness.js';
 import { isBareAsyncHandler } from './errorMiddleware.js';
@@ -58,6 +80,10 @@ export async function assertEnvelopeOnFailure({ route, app }: RouteAssertionCont
   // this clause deliberately does not mask — see the 200 assertion in
   // `router.test.ts`, which is where the positive half lives.
   if (isUnauthenticatedV1Path(route.path)) return;
+
+  // Deferred so the module can be imported without supertest installed — see the
+  // note at the top of this file.
+  const { default: request } = await import('supertest');
 
   const method = route.method.toLowerCase() as 'get' | 'post' | 'put' | 'patch' | 'delete';
   const res = await request(app)[method](concretePath(route.path));
