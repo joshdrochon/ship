@@ -10,6 +10,7 @@ import { csrfSync } from 'csrf-sync';
 import rateLimit from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
 import documentsRoutes from './routes/documents.js';
+import { createDocumentService } from './services/documents.js';
 import issuesRoutes from './routes/issues.js';
 import feedbackRoutes, { publicFeedbackRouter } from './routes/feedback.js';
 import programsRoutes from './routes/programs.js';
@@ -479,6 +480,16 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
 
   // Apply CSRF protection to all state-changing API routes
   app.use('/api/auth', conditionalCsrf, authRoutes);
+  // L14 PF-405 — the internal surface gets a bus-carrying document service, so
+  // `document.created`/`document.deleted` fire for a document made through the
+  // Ship UI exactly as they do for one made through `POST /api/v1/documents`.
+  // `docs/architecture.md`'s "same service, same publish" was previously true
+  // only of the public router; this is the line that makes it true of both.
+  //
+  // On `app.locals` rather than a module-level binding because tests construct
+  // many apps in one process, and a module-level service would mean the last
+  // app built silently owned every earlier app's events.
+  app.locals.documentService = createDocumentService({ bus: deps.bus });
   app.use('/api/documents', conditionalCsrf, documentsRoutes);
   app.use('/api/documents', conditionalCsrf, backlinksRoutes);
   app.use('/api/documents', conditionalCsrf, associationsRoutes);

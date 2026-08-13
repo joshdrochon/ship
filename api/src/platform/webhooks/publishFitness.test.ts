@@ -285,3 +285,76 @@ describe('PF-412 — TS-6 substrate: a real public write publishes one valid env
     expect(bus.events).toHaveLength(0);
   });
 });
+
+describe('PF-405 — one publish, both surfaces', () => {
+  it('the internal session route gets a bus-carrying service from the composition root', async () => {
+    // `docs/architecture.md` marks the internal path "same service, same
+    // publish". Before PF-405 that was true of the public router only: the
+    // internal route used the module-level service, which carries no bus, so a
+    // document created through the Ship UI — which is where documents are
+    // actually created — published nothing at all.
+    const { createApp } = await import('../../app.js');
+    const { testDeps } = await import('../../deps.js');
+    const bus = new RecordingEventBus();
+    const app = createApp(testDeps({ bus }));
+
+    const internalService = app.locals.documentService as ReturnType<typeof createDocumentService>;
+
+    expect(
+      internalService,
+      'createApp did not put a document service on app.locals — the internal ' +
+        'surface is back to the module default and publishes nothing.',
+    ).toBeTruthy();
+    expect(internalService.bus, 'the internal service did not get the injected bus').toBe(bus);
+  });
+
+  it('each surface produces exactly ONE document.created, with the same envelope shape', async () => {
+    const { createApp } = await import('../../app.js');
+    const { testDeps } = await import('../../deps.js');
+
+    const internalBus = new RecordingEventBus();
+    const app = createApp(testDeps({ bus: internalBus }));
+    const internalService = app.locals.documentService as ReturnType<typeof createDocumentService>;
+
+    const runId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const ws = await pool.query(`INSERT INTO workspaces (name) VALUES ($1) RETURNING id`, [
+      `L14 both ${runId}`,
+    ]);
+    const wsId = ws.rows[0].id;
+    const user = await pool.query(
+      `INSERT INTO users (email, password_hash, name) VALUES ($1, 'h', 'Both') RETURNING id`,
+      [`l14-both-${runId}@ship.local`],
+    );
+    const uId = user.rows[0].id;
+
+    try {
+      await internalService.create(
+        { workspaceId: wsId, userId: uId, db: pool },
+        { title: 'Internal write', documentType: 'wiki' },
+      );
+
+      // Exactly one — not zero (unwired) and not two (a route publishing on top
+      // of the service, which is the duplicate PF-411 exists to prevent).
+      expect(internalBus.ofType('document.created')).toHaveLength(1);
+
+      const publicBus = new RecordingEventBus();
+      const publicService = createDocumentService({ bus: publicBus });
+      await publicService.create(
+        { workspaceId: wsId, userId: uId, db: pool },
+        { title: 'Public write', documentType: 'wiki' },
+      );
+      expect(publicBus.ofType('document.created')).toHaveLength(1);
+
+      // Identical envelope SHAPE, differing only in data and id — p.8's contract.
+      const a = internalBus.ofType('document.created')[0]!;
+      const b = publicBus.ofType('document.created')[0]!;
+      expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort());
+      expect(Object.keys(a.data as object).sort()).toEqual(Object.keys(b.data as object).sort());
+      expect(a.id).not.toBe(b.id);
+    } finally {
+      await pool.query(`DELETE FROM documents WHERE workspace_id = $1`, [wsId]);
+      await pool.query(`DELETE FROM workspaces WHERE id = $1`, [wsId]);
+      await pool.query(`DELETE FROM users WHERE id = $1`, [uId]);
+    }
+  });
+});
