@@ -42,11 +42,14 @@ import {
   InMemoryWebhookSubscriptionRepo,
   AesGcmSecretCipher,
   envSecretCipher,
+  ImmediateDeliveryQueue,
+  RecordingDeliveryQueue,
   bearerTokenMiddleware,
   DEFAULT_TOKEN_TTL,
   type IEventBus,
   type IWebhookDeliverer,
   type IWebhookSubscriptionRepo,
+  type IDeliveryQueue,
   type IRateLimiter,
   type IOAuthAppRepo,
   type ITokenRepo,
@@ -198,6 +201,19 @@ export interface AppDeps {
    * would be a second place that knows how to read a secret.
    */
   subsRepo: IWebhookSubscriptionRepo;
+  /**
+   * Where the webhook pipeline hands a SIGNED request off (L15 PF-441).
+   *
+   * The seam between L15 and L16. L15 matches, signs and enqueues, and the bus
+   * handler returns without awaiting the wire — so a subscriber's latency is
+   * never inside `POST /api/v1/documents`'s P95 and MVP-9's +10% budget stays
+   * ours to spend rather than a third party's to blow.
+   *
+   * `ImmediateDeliveryQueue` is the first attempt and nothing else. **L16
+   * replaces it** with the retry ladder, the delivery log, the DLQ and the
+   * circuit breaker, and that replacement is an edit to this file only.
+   */
+  deliveryQueue: IDeliveryQueue;
   /**
    * L04 PF-094 / PF-098 — resolves the browser's `session_id` cookie to the
    * human sitting at the consent screen, or `null` for an anonymous visitor.
@@ -475,6 +491,10 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // subscription or signing a delivery throws with the reason.
     subsRepo: new PgWebhookSubscriptionRepo(pool, envSecretCipher()),
 
+    // L15 PF-441 — the first-attempt queue. See `deliveryQueue` above; L16
+    // swaps this for the real one and nothing outside this file moves.
+    deliveryQueue: new ImmediateDeliveryQueue(overrides.deliverer ?? new InMemoryDeliverer()),
+
     // L04 PF-098. Two queries on a page that renders once per authorization:
     // the shared session validator (which owns the timeout rules and the
     // activity throttle), then the user's own row for the display label. The
@@ -621,6 +641,16 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
       cipher: new AesGcmSecretCipher(Buffer.alloc(32, 0x5a)),
       clock,
     }),
+
+    // L15 PF-441 — records what was handed over and delivers nothing.
+    //
+    // A RECORDING queue rather than `ImmediateDeliveryQueue` over the in-memory
+    // deliverer, because the property almost every test wants to assert is
+    // "exactly one correctly signed request was produced by this write", and
+    // that is a synchronous fact about the hand-off. Routing it through a
+    // fire-and-forget dispatch would make every such assertion await something.
+    // A test that wants the wire passes its own `ImmediateDeliveryQueue`.
+    deliveryQueue: new RecordingDeliveryQueue(),
 
     // Nobody is signed in by default. A test that wants the consent screen to
     // render overrides this with a fixed user — which is also what keeps the

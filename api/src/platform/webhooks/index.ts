@@ -16,3 +16,4 @@ export * from './targetUrl.js';
 export * from './subscriptions.js';
 export * from './inMemorySubscriptionRepo.js';
 export * from './pgSubscriptionRepo.js';
+export * from './pipeline.js';
