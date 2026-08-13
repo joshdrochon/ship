@@ -62,6 +62,29 @@ const SPA_FALLBACK = '(?!api';
  * safety rail becomes a rubber stamp.
  */
 const V1_MOUNT = 'api\\/v1';
+/**
+ * The `/oauth` mount (L04 PF-107), excluded on exactly the same grounds as
+ * `/api/v1` above: it is a SIBLING of the internal `/api` surface, not part of
+ * it, and by construction it shares none of its middleware.
+ *
+ * Same argument against leaving it in, too. Its insides are asserted by
+ * `platform/oauth/consent.test.ts` and `authCodeGrant.test.ts`, and its POSITION
+ * relative to the internal middleware — which is the thing that matters, and the
+ * thing PF-107 is actually about — is asserted by
+ * `platform/oauth/oauthBoundary.test.ts`, which drives real requests through
+ * `createApp()` and checks that the internal limiter, the 10 MB body parser, the
+ * v1 bearer auth and the SPA fallback each fail to reach it. That is a stronger
+ * check than a layer count, and it is the check that would actually catch a
+ * regression.
+ *
+ * NOTE FOR THE AUDIT: nothing else about this rail moved. `cookieParser` and
+ * `session` are now named locals rather than inline expressions in `createApp`
+ * — the same instances, in the same positions, so that the consent screen shares
+ * one session store with the portal instead of constructing a second one. Layer
+ * names, order and count for every internal layer are unchanged, which is what
+ * the assertions below still check.
+ */
+const OAUTH_MOUNT = '/^\\/oauth\\/?(?=\\/|$)/i';
 /** How Express compiles `app.use('/api/', …)`. Identifies the internal limiter. */
 const API_PREFIX_MOUNT = '/^\\/api\\/?(?=\\/|$)/i';
 
@@ -99,6 +122,7 @@ function captureStack(): Layer[] {
     .map((l) => ({ name: l.name, path: l.route?.path ?? null, mount: String(l.regexp) }))
     .filter((l) => !l.mount.includes(SPA_FALLBACK))
     .filter((l) => !l.mount.includes(V1_MOUNT))
+    .filter((l) => l.mount !== OAUTH_MOUNT)
     .filter((l) => !(l.name === 'serveStatic' && l.mount === ROOT_MOUNT));
 }
 

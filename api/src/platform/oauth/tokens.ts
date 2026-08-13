@@ -108,6 +108,27 @@ export function generateRefreshToken(): string {
 }
 
 /**
+ * L04 PF-087 — the authorization code (RFC 6749 §4.1.2).
+ *
+ * Here rather than in `authCodes.ts`, which is where it is used, and the reason
+ * is this file's own fitness test: PF-155 asserts that `tokens.ts` is the ONLY
+ * file under `platform/oauth/` that draws random bytes. That invariant is worth
+ * more than the locality — it makes "every opaque credential this surface issues
+ * is 32 bytes of CSPRNG output" a claim you can check by reading one file, and a
+ * lane that added its own `randomBytes` call with a smaller budget would be
+ * invisible without it. L04 hit exactly that assertion and moved the function
+ * rather than widening the rule.
+ *
+ * No tag prefix, unlike the two above. A code is never stored by a client, never
+ * pasted into a config file and never appears in a log a human greps — the tags
+ * exist so a leaked *token* is identifiable on sight, and a value that lives for
+ * sixty seconds inside one redirect has no such audience.
+ */
+export function generateAuthorizationCode(): string {
+  return crypto.randomBytes(TOKEN_ENTROPY_BYTES).toString('base64url');
+}
+
+/**
  * THE ONLY token-hashing site in this lane.
  *
  * One site means one place to audit and one place to change. `tokens.test.ts`

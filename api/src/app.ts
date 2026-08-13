@@ -43,6 +43,7 @@ import { setupSwagger } from './swagger.js';
 import { initializeCAIA } from './services/caia.js';
 import { productionDeps, type AppDeps } from './deps.js';
 import { createPublicRouter } from './platform/api/v1/router.js';
+import { createOAuthRouter } from './platform/oauth/index.js';
 import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js';
 import { assertEveryRouteDeclaresScope } from './platform/api/v1/declareV1Route.js';
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
@@ -172,6 +173,32 @@ const apiLimiter = rateLimit({
  * either from silently regressing if this function is reordered again.
  */
 export function createApp(deps: AppDeps = productionDeps()): express.Express {
+  // ── ONE cookie parser and ONE session instance, named rather than inline ──
+  //
+  // L04 PF-094: `/oauth/authorize`'s consent screen needs the browser's session
+  // and the csrf-sync synchroniser, but it is mounted ABOVE this block (as a
+  // sibling of /api/v1, per PF-107). Constructing a SECOND `session()` there
+  // would create a second MemoryStore, and the consent screen would silently not
+  // see the user's login.
+  //
+  // So both are built once here and the same instances are handed to the OAuth
+  // router and used by `app.use` below. Constructed per `createApp` call rather
+  // than at module scope, so two apps in one test process still get separate
+  // stores. The internal stack's layer ORDER and COUNT are unchanged — these two
+  // lines replace inline construction with a named local and nothing else.
+  const cookieMiddleware = cookieParser(sessionSecret);
+  const sessionMiddleware = session({
+    secret: sessionSecret,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000, // 15 minutes
+    },
+  });
+
   // `deps.bus`, `deps.deliverer`, `deps.limiter`, `deps.clock` and `deps.db` are
   // not destructured yet because nothing below reads them — the routers that do
   // are L02–L16's. Destructuring them into unused locals now would be five lint
@@ -287,6 +314,52 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     mountResources: documentsResources({ db: deps.db, bus: deps.bus }),
   }));
 
+  // ── THE OAUTH SURFACE (L04 PF-107) ────────────────────────────────────────
+  //
+  // Mounted as a SIBLING of /api/v1, exactly as the composition-root sketch in
+  // `docs/architecture.md` has it, and sharing NO middleware with the v1 stack:
+  // no bearer auth (there is no token yet — that is the point of the endpoint),
+  // no requireScope, no apiErrorMiddleware, no publicAuditMiddleware.
+  //
+  // Position, and what each side of it buys:
+  //
+  //   ABOVE `app.use('/api/', apiLimiter)`  — the internal limiter is a PATH
+  //     PREFIX mount on `/api/`, which does not match `/oauth`. Asserted by path
+  //     rather than assumed from the prefix (`oauthBoundary.test.ts`).
+  //   ABOVE `express.urlencoded({ limit: '10mb' })` — so the OAuth router's own
+  //     64 kb form limit is the first parser to see the body and is real code
+  //     rather than dead code. Mounted below it, this would be finding F2 again.
+  //   ABOVE the SPA fallback regex — which would otherwise serve index.html for
+  //     `/oauth/authorize` on any deployment that has a `web/dist`.
+  //   BELOW helmet — security headers apply to every surface. The OAuth router
+  //     then sets `frame-ancestors`, `X-Frame-Options` and `no-store` itself,
+  //     because helmet's configuration above sets none of the three (PF-096).
+  //
+  // THE CONSEQUENCE, STATED RATHER THAN LEFT TO BE FOUND: L12's audit middleware
+  // lives inside the v1 router, so no `public_api_calls` row will ever record a
+  // token exchange. That is exactly the gap L02's `recordSecretAuth` fills with
+  // its own signal. If a later lane moves `/oauth` under `/api/v1`, the boundary
+  // test fails — which is the intended trigger to revisit both.
+  app.use('/oauth', createOAuthRouter({
+    appsRepo,
+    tokenRepo: deps.tokenRepo,
+    authCodeRepo: deps.authCodeRepo,
+    clock: deps.clock,
+    ttl: deps.tokenTtl,
+    browser: {
+      // The SAME instances used by the internal stack below. See the note at the
+      // top of this function for why a second `session()` would be a bug.
+      sessionMiddleware: [cookieMiddleware, sessionMiddleware],
+      // The UNCONDITIONAL synchroniser, deliberately not `conditionalCsrf`:
+      // that one skips CSRF on any Bearer header (L99 F26), and the consent
+      // route refuses bearer outright rather than depending on that coupling.
+      csrfProtection: csrfSynchronisedProtection,
+      generateCsrfToken: (req) => generateToken(req),
+      resolveBrowserUser: deps.resolveBrowserUser,
+      loginPath: '/login',
+    },
+  }));
+
   // PF-228 — every mounted public route must carry a metadata record declaring
   // `list`. Enforced HERE, at wiring time, walking the live Express stack rather
   // than any hand-maintained list.
@@ -321,20 +394,10 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
   }));
   app.use(express.json({ limit: '10mb' }));  // Large wiki documents can be several MB
   app.use(express.urlencoded({ extended: true, limit: '10mb' })); // For HTML form submissions
-  app.use(cookieParser(sessionSecret));
+  app.use(cookieMiddleware);
 
   // Session middleware for CSRF token storage
-  app.use(session({
-    secret: sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 15 * 60 * 1000, // 15 minutes
-    },
-  }));
+  app.use(sessionMiddleware);
 
   // CSRF token endpoint (must be before CSRF protection middleware)
   app.get('/api/csrf-token', (req, res) => {

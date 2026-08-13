@@ -75,13 +75,21 @@ refute rather than rediscover:
   `scopes/` at all, versus `api/v1/`. The scope string is just an identifier; the resource routing
   is arguably L08/L10's problem, and if the audit agrees, PF-077/078 should move and this lane keeps
   only the scope-name half. Do not silently split it across both lanes — that is the failure mode.
-- **PF-076 is a decision I made on the user's behalf and should be re-litigated.** p.16 asks it as
-  an open question: *"does a user who originally granted `documents:read` need to re-consent to
-  grant `documents:write`, or do you support incremental consent?"* I picked re-consent-with-union
-  because it is the smaller build and matches what a hand-rolled RFC 6749 implementation does by
-  default. Incremental consent is the better product answer and the more defensible one in the
-  Architecture Defense. If the audit has budget, flag PF-076 `⚑` and escalate rather than
-  rubber-stamping it.
+- ~~**PF-076 is a decision I made on the user's behalf and should be re-litigated.**~~
+  **`⚑` CLEARED 2026-08-12 by L99's D4 and L04's PF-099.** The escalation happened and the answer
+  came back the same: **re-consent with union**. p.16's question — *"does a user who originally
+  granted `documents:read` need to re-consent to grant `documents:write`, or do you support
+  incremental consent?"* — is answered in the Pre-Search document as a deliberate cut, with
+  incremental consent named as the rejected alternative and Google named as the vendor who ships
+  it. L04 implemented the authorize half and the implementation is *the absence of grant state*:
+  no grant table, no read of a prior grant, no `UPDATE` against one. `consent.test.ts` asserts
+  both halves PF-076 specifies (the upgrade consent lists the union; the resulting code carries
+  both scopes) plus the absence itself, which is the property that makes the decision cheap.
+  The original note is kept below the strikethrough because the reasoning is still the honest
+  account of how the decision was reached:
+  > I picked re-consent-with-union because it is the smaller build and matches what a hand-rolled
+  > RFC 6749 implementation does by default. Incremental consent is the better product answer and
+  > the more defensible one in the Architecture Defense.
 - **`/api/v1/scopes` is not ticketed.** p.16 references it in passing — *"small static lists (like
   `/api/v1/scopes`)"* — as an example in a pagination question, not as a requirement. A discovery
   endpoint listing the registry would be a natural PF-081 append and would make PF-063's

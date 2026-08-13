@@ -41,7 +41,19 @@ the file yet.
 | 057–059 | **L12** | public API audit log + the per-day-per-app rollup (D10) |
 | 060–062 | **L03/L09** | scope grant storage, `documents.created_at NOT NULL` (F15) — **060 taken by L09**, 061–062 free for L03 |
 | 063–064 | **L08** | keyset indexes for public cursor pagination (PF-222) |
-| 065–069 | — | unallocated; ask before taking |
+| 065–066 | **L04** | `oauth_authorization_codes` — the auth-code row and its PKCE challenge (PF-086) |
+| 067–069 | — | unallocated; ask before taking |
+
+**L04 had no block and took 065–066 under Rule 3** (2026-08-12). Same situation as L08
+below: the table allocated every lane that was known to write DDL, and L04's
+`oauth_authorization_codes` (PF-086) was not among them — the lane was scoped as
+"endpoints and a consent screen" before it was clear the code itself had to be a
+persisted row rather than a process-local map. Two numbers: one file today, one spare
+if the sweeper's retention window (PF-112) needs its own index later.
+
+Apply order matters here and it holds without coordination: the new table's FK targets
+are `oauth_apps` (039, L02), `users` and `workspaces` (schema.sql), all numerically
+earlier. It does **not** depend on L06's 043.
 
 **L08 had no block and took 063–064 under Rule 3** (2026-08-12). The table above
 allocated every lane that writes DDL except this one, and PF-222 ships an index

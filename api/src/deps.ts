@@ -33,15 +33,21 @@ import {
   InMemoryOAuthAppRepo,
   PgTokenRepo,
   InMemoryTokenRepo,
+  PgAuthCodeRepo,
+  InMemoryAuthCodeRepo,
+  bearerTokenMiddleware,
   DEFAULT_TOKEN_TTL,
   type IEventBus,
   type IWebhookDeliverer,
   type IRateLimiter,
   type IOAuthAppRepo,
   type ITokenRepo,
+  type IAuthCodeRepo,
+  type BrowserUser,
   type TokenTtlConfig,
   type Clock,
 } from './platform/index.js';
+import { validateSessionForConnection } from './db/sessions.js';
 import { InMemoryAuditSink, type IAuditSink } from './platform/audit/audit.js';
 import { ApiError } from './platform/api/v1/errors.js';
 
@@ -109,6 +115,29 @@ export interface AppDeps {
    * `bearerTokenMiddleware` and `oauthRouter`.
    */
   tokenRepo: ITokenRepo;
+  /**
+   * The `oauth_authorization_codes` store (L04 PF-086).
+   *
+   * A repository for the same reason `tokenRepo` is one. It is on `AppDeps`
+   * rather than constructed inside `createApp` so `testDeps()` can hand over the
+   * in-memory double and drive the whole authorize → consent → token flow with
+   * no database at all.
+   */
+  authCodeRepo: IAuthCodeRepo;
+  /**
+   * L04 PF-094 / PF-098 — resolves the browser's `session_id` cookie to the
+   * human sitting at the consent screen, or `null` for an anonymous visitor.
+   *
+   * A function on `AppDeps` rather than an import inside `platform/oauth/`,
+   * because `eslint.config.js` fences `platform/**` out of `middleware/**` —
+   * and rightly: the platform having its own opinion about session auth is
+   * exactly the drift the public/internal split exists to prevent. Production
+   * delegates to `validateSessionForConnection`, which already owns Ship's
+   * 15-minute inactivity and 12-hour absolute timeout rules, so the consent
+   * screen cannot disagree with the rest of the application about whether a
+   * session is still alive.
+   */
+  resolveBrowserUser: (req: Request) => Promise<BrowserUser | null>;
   /**
    * Access and refresh TTLs (PF-157), injected rather than imported (PF-173).
    *
@@ -186,6 +215,33 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // the app repository.
     tokenRepo: new PgTokenRepo(pool),
 
+    // L04 PF-086: the ONLY construction site for the Postgres auth-code
+    // repository, on the same rule as the two above.
+    authCodeRepo: new PgAuthCodeRepo(pool),
+
+    // L04 PF-098. Two queries on a page that renders once per authorization:
+    // the shared session validator (which owns the timeout rules and the
+    // activity throttle), then the user's own row for the display label. The
+    // label is cosmetic — the consent screen says who it thinks you are, which
+    // is what stops a user approving a grant on an account they forgot they
+    // were signed into.
+    resolveBrowserUser: async (req) => {
+      const sessionId = (req as Request & { cookies?: Record<string, string> }).cookies?.session_id;
+      if (!sessionId) return null;
+      const session = await validateSessionForConnection(sessionId);
+      if (!session) return null;
+      const who = await pool.query<{ email: string; name: string | null }>(
+        'SELECT email, name FROM users WHERE id = $1',
+        [session.userId],
+      );
+      const row = who.rows[0];
+      return {
+        userId: session.userId,
+        workspaceId: session.workspaceId,
+        ...(row ? { label: row.name ?? row.email } : {}),
+      };
+    },
+
     tokenTtl: DEFAULT_TOKEN_TTL,
 
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
@@ -195,8 +251,19 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // public route is reachable yet (bearerAuth below rejects everything).
     auditSink: new InMemoryAuditSink(),
 
-    // TODO(L06): the real bearer middleware. Fails closed until then.
-    bearerAuth: rejectAllBearerAuth,
+    // L06 PF-158 — the real bearer middleware, wired here because this is the
+    // only file allowed to choose a concrete.
+    //
+    // Wired by L04, whose PF-108 gate reads "…→ usable access token" and cannot
+    // demonstrate the last word against a middleware that rejects everything.
+    // `rejectAllBearerAuth` remains exported and remains the `testDeps()`
+    // default, so the fail-closed posture it was written for still holds
+    // wherever a test has not opted in.
+    bearerAuth: bearerTokenMiddleware({
+      tokenRepo: overrides.tokenRepo ?? new PgTokenRepo(pool),
+      appsRepo: overrides.appsRepo ?? new PgOAuthAppRepo(pool),
+      clock: overrides.clock ?? new SystemClock(),
+    }),
     ...overrides,
   };
 }
@@ -235,6 +302,15 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // suites that want the real thing pass `{ tokenRepo: new PgTokenRepo(db) }`
     // alongside their own `db`.
     tokenRepo: new InMemoryTokenRepo(),
+
+    // L04 PF-016/PF-086: the in-memory double, so a unit test can drive the
+    // whole authorize -> consent -> token flow with no database at all.
+    authCodeRepo: new InMemoryAuthCodeRepo(),
+
+    // Nobody is signed in by default. A test that wants the consent screen to
+    // render overrides this with a fixed user — which is also what keeps the
+    // consent tests free of a session table, a cookie and a login round trip.
+    resolveBrowserUser: async () => null,
 
     // Production TTLs by default. A drill that needs expiry without waiting
     // overrides this — `testDeps({ tokenTtl: { accessSeconds: 2, refreshSeconds: 5 } })`

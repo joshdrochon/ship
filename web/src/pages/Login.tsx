@@ -23,6 +23,18 @@ function isValidReturnTo(url: string): boolean {
   }
 }
 
+/**
+ * Paths this SPA does not route, which the server renders itself.
+ *
+ * Exactly one prefix today: `/oauth/*`, the Authorization Code + PKCE consent
+ * screen (L04 PF-094). Kept as an explicit prefix list rather than "anything the
+ * router does not match", because the router's fallback renders a page and there
+ * is no way to ask it "would you have matched this?" before navigating.
+ */
+function isServerRenderedPath(path: string): boolean {
+  return path.startsWith('/oauth/');
+}
+
 export function LoginPage() {
   // Don't pre-fill in E2E tests (navigator.webdriver is true when controlled by Playwright)
   const isAutomated = typeof navigator !== 'undefined' && navigator.webdriver;
@@ -167,6 +179,15 @@ export function LoginPage() {
     const result = await login(email, password);
 
     if (result.success) {
+      // `/oauth/*` is served by the API, not by this router (L04 PF-094 — the
+      // consent screen is a server-rendered endpoint, deliberately not a React
+      // route). `navigate()` is client-side and would land on the SPA's
+      // not-found instead of resuming the authorization, silently stranding a
+      // user mid-OAuth-flow. A real navigation is required to leave the SPA.
+      if (isServerRenderedPath(from)) {
+        window.location.assign(from);
+        return;
+      }
       navigate(from, { replace: true });
     } else {
       setError(result.error || 'Login failed');
