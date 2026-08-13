@@ -53,6 +53,21 @@ export interface IterateOptions {
   limit?: number;
 }
 
+/**
+ * `/documents/{id}`, with the id escaped.
+ *
+ * A module-level function rather than a `protected` method, and the reason is
+ * PF-531. `protected` is erased by `tsc`, so a protected method is an ordinary
+ * enumerable member of the prototype at runtime — and the reverse-parity walk,
+ * which reads the real prototypes, correctly reported it as a public SDK method
+ * with no spec operation behind it. The choice was to teach the walk about
+ * TypeScript's access modifiers (it cannot see them) or to stop putting
+ * non-public members on the prototype. This is the second.
+ */
+export function resourceItemPath(collectionPath: string, id: string): string {
+  return `${collectionPath}/${encodeURIComponent(id)}`;
+}
+
 /** Turns `ListOptions` into the transport's flat query record. */
 export function listQuery(options: ListOptions): Record<string, string> {
   const query: Record<string, string> = {};
@@ -84,7 +99,7 @@ export abstract class ResourceClient<TItem> {
 
   /** One row by id. */
   get(id: string): Promise<TItem> {
-    return this.transport.request<TItem>('GET', this.itemPath(id));
+    return this.transport.request<TItem>('GET', resourceItemPath(this.collectionPath, id));
   }
 
   /**
@@ -99,10 +114,5 @@ export abstract class ResourceClient<TItem> {
         ...(options.limit !== undefined ? { limit: options.limit } : {}),
       }),
     );
-  }
-
-  /** `/documents/{id}`, with the id escaped. */
-  protected itemPath(id: string): string {
-    return `${this.collectionPath}/${encodeURIComponent(id)}`;
   }
 }
