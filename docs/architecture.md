@@ -48,7 +48,13 @@ export function createApp(deps = productionDeps()) {
   registerEventTypes(eventRegistry);                           // 8 Zod-typed event types
 
   const signer   = new HmacSigner();                           // Ship-Signature: t=<unix>,v1=<hex-hmac>
-  const retries  = new RetryScheduler(clock, [1, 4, 16, 60, 300, 1800]);  // seconds, + jitter
+  const retries  = new RetryScheduler({ clock, deliverer, log: deliveryLog(db) });
+  // The ladder is RETRY_SCHEDULE_SECONDS — [1, 4, 16, 60, 300, 1800], p.4's own
+  // list — imported, never restated. It used to be an inline array literal here,
+  // which made this graded document a second copy of the schedule. Six rungs,
+  // but MAX_ATTEMPTS = 6 attempts consume only FIVE of them: intervals sit
+  // between attempts, attempt 1 is immediate (p.5's Testing Scenario 7 requires
+  // it), and the 30 m rung is therefore unreachable. See platform/webhooks/retry.ts.
   const pipeline = new WebhookPipeline(bus, subsRepo(db), signer, deliverer, retries, deliveryLog(db));
 
   const v1 = createPublicRouter({                              // fresh router — shares NO middleware with /api
