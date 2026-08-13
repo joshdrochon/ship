@@ -43,7 +43,7 @@ import { setupSwagger } from './swagger.js';
 import { initializeCAIA } from './services/caia.js';
 import { productionDeps, type AppDeps } from './deps.js';
 import { createPublicRouter } from './platform/api/v1/router.js';
-import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js';
+import { assertEveryRouteDeclaresList, routeMetadata } from './platform/api/v1/routeMetadata.js';
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
 import { generatePublicOpenAPIDocument } from './platform/openapi/index.js';
 
@@ -294,6 +294,27 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     // enforcing it. Second, generation walks every registered Zod schema, which
     // is real work to repeat on a cacheable, unauthenticated route.
     mountUnauthenticated: (r) => {
+      // PF-228 — every mounted /api/v1 route must declare `list`, and
+      // `assertEveryRouteDeclaresList` enforces it at WIRING time. Omitting this
+      // does not fail a test later; `createApp()` refuses to boot. (Which it
+      // did, on the deployed instance, after migrations and seeding had already
+      // succeeded — the harness working exactly as designed.)
+      //
+      // `false`: the spec is a single document, not a collection. `'none'` would
+      // claim it returns `{ data }` with a bounded length, which it does not.
+      //
+      // `scope` is deliberately omitted rather than set: this route answers
+      // WITHOUT an Authorization header (it is the sole entry in
+      // V1_UNAUTHENTICATED_PATHS), so there is no scope to require. L03's
+      // `scope: null` convention for "explicitly no scope" is not on this branch;
+      // the field is still optional here, and `auditRouteMetadata` will report
+      // this route when L03 lands, which is the correct prompt to revisit it.
+      routeMetadata.declare({
+        method: 'GET',
+        path: '/api/v1/openapi.json',
+        list: false,
+      });
+
       const spec = generatePublicOpenAPIDocument();
       r.get('/openapi.json', (_req, res) => {
         res.type('application/json').send(JSON.stringify(spec));
