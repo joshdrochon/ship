@@ -23,6 +23,7 @@ import { namedLayer } from './middlewareOrder.js';
 import { bodyErrorMiddleware } from './bodyErrors.js';
 import type { IAuditSink } from '../../audit/audit.js';
 import { publicAuditMiddleware } from '../../audit/audit.js';
+import { publicCors } from '../../publicCors.js';
 import type { IRateLimiter } from '../../ratelimit/limiter.js';
 import { rateLimitMiddleware, anonymousRateLimitMiddleware } from '../../ratelimit/limiter.js';
 
@@ -131,6 +132,10 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
   // capture (PRD p.4: every public API call). 401 (bearer auth), 429 (bucket) and
   // 413 (body parser) are all such layers.
   router.use(namedLayer('v1_audit', publicAuditMiddleware(deps.auditSink)));
+
+  // L99 F38 — CORS for the public surface. See `middlewareOrder.ts` for why it
+  // sits here: above everything that can terminate a request, below audit.
+  router.use(namedLayer('v1_public_cors', publicCors()));
 
   router.use(namedLayer('v1_body_parser', json({ limit: PUBLIC_BODY_LIMIT })));
 

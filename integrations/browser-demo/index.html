@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      `Referrer-Policy: no-referrer` is not decoration.
+
+      PF-734 asserts the `code_verifier` never appears in a `Referer` header.
+      The verifier never enters a URL in the first place (see src/pkce.ts), so
+      this is belt-and-braces — but the AUTHORIZATION CODE *does* arrive in this
+      page's own URL, and without this header a third-party asset loaded on the
+      callback page would receive that URL as its `Referer`. There are no
+      third-party assets here, and this header means adding one later cannot
+      quietly leak the code.
+    -->
+    <meta name="referrer" content="no-referrer" />
+    <title>Ship — Browser SDK Demo (Authorization Code + PKCE)</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --fg: #16181d;
+        --muted: #5b6472;
+        --bg: #ffffff;
+        --card: #f6f7f9;
+        --line: #dfe3e8;
+        --accent: #2f5bd7;
+        --danger-fg: #7a1420;
+        --danger-bg: #fdeaec;
+        --danger-line: #f2b8c0;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --fg: #e8eaed;
+          --muted: #9aa4b2;
+          --bg: #14161a;
+          --card: #1c1f25;
+          --line: #2c313a;
+          --accent: #7ea1ff;
+          --danger-fg: #ffc4cc;
+          --danger-bg: #3a1a20;
+          --danger-line: #6d2a34;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 2.5rem 1.25rem;
+        background: var(--bg);
+        color: var(--fg);
+        font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      main { max-width: 44rem; margin: 0 auto; }
+      h1 { font-size: 1.35rem; margin: 0 0 .35rem; }
+      .sub { color: var(--muted); margin: 0 0 1.75rem; }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 1.1rem 1.25rem;
+        margin-bottom: 1.1rem;
+      }
+      dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin: 0; }
+      dt { color: var(--muted); }
+      dd { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; word-break: break-all; }
+      button {
+        font: inherit;
+        font-weight: 600;
+        padding: .55rem 1.1rem;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        background: var(--accent);
+        color: #fff;
+        cursor: pointer;
+      }
+      button.secondary { background: transparent; color: var(--fg); border-color: var(--line); }
+      #error {
+        background: var(--danger-bg);
+        border: 1px solid var(--danger-line);
+        color: var(--danger-fg);
+        border-radius: 8px;
+        padding: .8rem 1rem;
+        margin-bottom: 1.1rem;
+      }
+      ul { list-style: none; margin: 0; padding: 0; }
+      .doc {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: .5rem 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .doc:last-child { border-bottom: 0; }
+      .doc-type, .empty { color: var(--muted); font-size: .85rem; }
+      .row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Ship — Browser SDK Demo</h1>
+      <p class="sub">
+        Authorization Code + PKCE, run entirely in this page. No server of its own,
+        no client secret, and the <code>code_verifier</code> never leaves the browser.
+        <!--
+          "client secret" is written with a space on purpose. PF-734 greps the
+          BUILT assets for the parameter name, and prose in the shipped HTML
+          would be a false positive in the one place a strict grep can stay
+          strict — there is no library code in index.html to tolerate.
+        -->
+      </p>
+
+      <div id="error" data-testid="error" hidden></div>
+
+      <section class="card">
+        <dl>
+          <dt>Ship instance</dt><dd id="base-url" data-testid="base-url">—</dd>
+          <dt>client_id</dt><dd id="client-id" data-testid="client-id">—</dd>
+        </dl>
+      </section>
+
+      <section id="screen-loading" data-testid="screen-loading">
+        <p class="sub">Checking for a stored credential…</p>
+      </section>
+
+      <section id="screen-logged-out" data-testid="screen-logged-out" hidden>
+        <div class="card row">
+          <button id="sign-in" data-testid="sign-in">Sign in with Ship</button>
+          <span class="sub" style="margin:0">You are signed out.</span>
+        </div>
+      </section>
+
+      <section id="screen-logged-in" data-testid="screen-logged-in" hidden>
+        <div class="card row">
+          <strong>Signed in.</strong>
+          <span class="sub" style="margin:0">
+            scopes <code id="scopes" data-testid="scopes">—</code> ·
+            <span data-testid="doc-count" id="doc-count">0</span> documents
+          </span>
+          <button id="sign-out" class="secondary" data-testid="sign-out">Sign out</button>
+        </div>
+        <div class="card">
+          <ul id="documents" data-testid="documents"></ul>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -29,6 +29,12 @@ export interface CreateOAuthAppInput {
   requestedScopes: Scope[];
   /** Only the seeding path (PF-054) sets this. */
   isFirstParty?: boolean;
+  /**
+   * RFC 6749 §2.1 public client — a browser SPA or a CLI. Omitted means
+   * confidential, which is the safe default and what every caller that predates
+   * migration 074 gets. See `OAuthApp.isPublic`.
+   */
+  isPublic?: boolean;
 }
 
 /** D2 bookkeeping. `reason` is a machine-readable tag, not prose. */
@@ -161,6 +167,7 @@ export class InMemoryOAuthAppRepo implements IOAuthAppRepo {
       requestedScopes: [...input.requestedScopes],
       active: true,
       isFirstParty: input.isFirstParty ?? false,
+      isPublic: input.isPublic ?? false,
       deactivatedAt: null,
       deactivationReason: null,
       createdAt: at,

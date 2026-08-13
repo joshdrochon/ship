@@ -238,6 +238,48 @@ openapi-freshness:
       }
   allow_failure: false
 
+# L26 PF-804 — MVP gate item 9's enforcement half.
+#
+# PRD p.2 item 9: "Existing Playwright regression suite passes on main; P95 latency,
+# bundle size, and per-route query counts within +10% of the Part 1 baseline." p.6
+# restates the budget. p.18's Pre-Search question asks how it will be enforced —
+# "manual benchmark, automated baseline comparison, perf job that fails the PR?" —
+# and this job is the third answer. `compare-baseline.ts` exits non-zero over budget,
+# so there is no output to parse and no way to be over budget and green.
+#
+# `needs: ['build']` for web/dist: the bundle figure is measured off the built
+# assets, and PF-802 rejects a comparison with no bundle number rather than skipping
+# that third of the gate.
+#
+# ── Why latency is advisory here and enforced elsewhere ────────────────────────
+# Bundle bytes and query counts are deterministic: same tree, same numbers, any
+# machine. An in-process P95 is not. The baseline was captured on darwin-arm64 /
+# node v26 / 10 cores; this runner is linux-x64 / node 22 / whatever the shared
+# fleet gives it. Comparing those measures the runner, in BOTH directions — it can
+# hide a real regression behind a faster box as easily as invent one on a slower
+# box, and a perf job that goes red for reasons unrelated to the diff gets disabled
+# within a week. So the comparator reads the baseline's environment fingerprint,
+# marks latency advisory when it does not match, and keeps the two deterministic
+# metrics enforced. The latency half is enforced on a machine matching the baseline
+# and recorded in docs/mvp-gate-item-9.md. This is a deliberate split, not a gap:
+# the report names it in the artifact every run.
+regression-budget:
+  stage: verify
+  needs: ['build']
+  services:
+    - name: postgres:16
+      alias: postgres
+  script:
+    - pnpm --filter @ship/api exec tsx src/db/migrate.ts
+    - pnpm baseline:compare
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - docs/regression-report.md
+      - docs/regression-report.json
+  allow_failure: false
+
 test:
   stage: verify
   needs: ['build']

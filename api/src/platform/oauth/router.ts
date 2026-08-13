@@ -57,6 +57,7 @@ import type { UserCodeAttemptThrottle } from './deviceThrottle.js';
 import { deviceCodeGrant, DEVICE_CODE_GRANT_TYPE } from './deviceGrant.js';
 import { mountDeviceAuthorizationRoutes } from './deviceAuthorization.js';
 import { mountDeviceVerifyRoutes } from './deviceVerify.js';
+import { publicCors } from '../publicCors.js';
 
 export interface OAuthRouterDeps {
   appsRepo: IOAuthAppRepo;
@@ -256,6 +257,41 @@ export function grantHandlers(deps: OAuthRouterDeps): Record<string, GrantHandle
  * redefined here — that function is the only client-secret comparison site in
  * the repository, it is constant-time, and it deliberately cannot tell the
  * caller WHICH of unknown-client / bad-secret / deactivated-app happened.
+ *
+ * ---------------------------------------------------------------------------
+ * PUBLIC CLIENTS — L99 F27 / F50, closed by migration 074 (found by L17 and
+ * L05, landed from L24 under MVP-gate pressure; see RESERVATIONS.md).
+ * ---------------------------------------------------------------------------
+ * RFC 6749 §2.1 defines a public client as one that cannot keep a secret, and
+ * §3.2.1 requires client authentication only of clients that HAVE credentials.
+ * A browser SPA and a CLI are the two canonical public clients, and RFC 7636
+ * (PKCE) exists so that they can run the authorization-code grant safely.
+ *
+ * Before this, `if (!clientId || !clientSecret) return null` ran above every
+ * grant, so a public client got `401 invalid_client` on every exchange:
+ * PRD p.5's Testing Scenario 2 ("from a registered web app") was unreachable
+ * except by publishing a secret in a JavaScript bundle, and F50 measured the
+ * device grant failing identically for TS-3's "test CLI".
+ *
+ * The narrow fix: a request presenting `client_id` and no secret authenticates
+ * ONLY IF the registration says `is_public`. Three properties this shape has
+ * that the tempting one-liner ("no secret presented → skip the check") does
+ * not:
+ *
+ *   1. A confidential app cannot be downgraded by omitting a parameter. That
+ *      downgrade is the entire attack, and it is why the column exists rather
+ *      than an inference from the request.
+ *   2. `active` is still honoured, so D2/PF-052 holds for public clients too —
+ *      a deactivated public app authenticates nothing.
+ *   3. Every failure is still one indistinguishable `null`. Unknown client,
+ *      inactive app, and confidential-app-without-secret produce the same 401
+ *      with the same body, so this adds no enumeration oracle to the one
+ *      PF-036 is careful not to be.
+ *
+ * What this does NOT do is make PKCE optional. `authorize.ts` requires
+ * `code_challenge` + S256 with no fallback path, and `authorizationCodeGrant`
+ * verifies the verifier. For a public client that verification is the whole of
+ * the security, which is the RFC 7636 threat model exactly.
  */
 async function authenticateClient(
   repo: IOAuthAppRepo,
@@ -276,7 +312,14 @@ async function authenticateClient(
     }
   }
 
-  if (!clientId || !clientSecret) return null;
+  // Identification is required of every client, public or not (RFC 6749 §3.2.1).
+  if (!clientId) return null;
+
+  if (!clientSecret) {
+    const app = await repo.findByClientId(clientId);
+    if (!app || !app.active || !app.isPublic) return null;
+    return app;
+  }
 
   const outcome = await verifyClientSecret(repo, clientId, clientSecret);
   return outcome.ok ? outcome.app : null;
@@ -344,6 +387,24 @@ export function createOAuthRouter(deps: OAuthRouterDeps): Router {
       ...(deps.scopeRegistry ? { registry: deps.scopeRegistry } : {}),
     });
   }
+
+  // L99 F38 — CORS, on the TOKEN ENDPOINT ONLY.
+  //
+  // A public client is a browser app by definition (RFC 6749 §2.1), and a
+  // browser app's token exchange is a cross-origin `fetch`. Without this the
+  // exchange fails in the browser and *only* in the browser: `curl` succeeds,
+  // every server-side test succeeds, and the single-page demo shows an opaque
+  // network error. That is the failure mode this endpoint had before migration
+  // 074 made public clients reachable at all.
+  //
+  // Scoped to `/token` rather than mounted router-wide, deliberately. The
+  // neighbours on this router — `/authorize`, `/authorize/decision`,
+  // `/device/verify` — are SESSION-COOKIE-authenticated browser pages, and a
+  // cookie-authenticated surface is exactly what CORS exists to protect. They
+  // are top-level navigations and same-origin form posts, so they need no CORS
+  // headers and must not advertise any. `/token` carries no ambient credential:
+  // its caller presents a code plus a PKCE verifier it already holds.
+  router.use('/token', publicCors());
 
   router.post('/token', (req, res, next) => {
     void (async () => {
