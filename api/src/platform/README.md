@@ -362,3 +362,57 @@ asserts lint **fails** on each of them. A rule that never fires is an untested r
 Wiring happens in `api/src/app.ts` — the composition root, and the only file that
 chooses production concretes (`api/src/deps.ts` → `productionDeps()`). Test wiring
 (`testDeps()`) swaps in the in-memory implementations: no network, no wall clock.
+
+## The subscriber dedupe contract (L16 PF-471)
+
+Pre-Search 2.3 (PRD p.16) asks for *"the contract you document for subscriber
+dedupe"* — not just the mechanism. This is that contract. It is what a
+subscriber may rely on, stated as obligations on both sides.
+
+**What Ship guarantees.**
+
+1. Every POST carries an `Idempotency-Key` header. **Every** one — first
+   attempt, every retry, and every portal replay alike. A header that appeared
+   only on the first attempt would be worse than no header, because it teaches
+   subscribers to trust it and then goes missing exactly when a retry makes it
+   matter. `delivererContract.ts` asserts presence and value on every request
+   both deliverer implementations make.
+2. The key is **stable per (event, subscription)**. It is derived once, at the
+   first delivery, as `<event_id>:<subscription_id>`, and is then **persisted on
+   the attempt-1 row and read back from the database** on every later attempt.
+   It is never recomputed. That is what makes it survive a future change to the
+   derivation — `dlqAndReplay.test.ts` replaces the derivation function after a
+   delivery has dead-lettered and asserts the replayed POST still carries the
+   stored key.
+3. The key is **never reused across distinct events**. `event_id` is a UUID
+   minted once per publish (L14 PF-394).
+4. A **replay carries the original key**, unchanged (p.4). Replaying the same
+   delivery twice produces two POSTs with one key — deliberately, so a
+   subscriber's dedupe absorbs the second. Rejecting a second replay would break
+   the legitimate case of replaying after fixing a subscriber twice.
+
+**What the subscriber must do.** Treat the key as an idempotency token: if you
+have already processed it, return **200 without re-processing**. Do not answer
+409, and do not return a 2xx-shaped error — the retry ladder reads any non-2xx
+as a failure and will keep trying, and a 4xx other than 408/425/429 will
+dead-letter a delivery you have in fact handled.
+
+**What Ship does NOT guarantee, stated plainly.**
+
+- **The key is not unique per POST.** Retries and replays repeat it on purpose.
+  A subscriber that logs by key will see collisions; that is the feature.
+- **We cannot tell you whether your dedupe is working.** Pre-Search 3.5 (p.18)
+  asks whether that is visible from the portal alone. The honest answer is
+  **no**. `GET /api/v1/webhooks/deliveries` reports, per key, how many times *we
+  sent* it and how those attempts terminated (`key_usage`) — the half we can
+  observe. Whether the subscriber acted on it once or twice needs the
+  subscriber's own signal, which we do not have and do not pretend to.
+- **Two subscriptions of the same app pointed at the same URL for the same event
+  get two different keys**, because the key includes `subscription_id`. Each is
+  a distinct delivery and both should be processed. Keying on the event alone
+  would collapse them — and would also collapse deliveries to two *unrelated
+  apps* that happened to share a target URL, which is the case that decided the
+  derivation.
+- **Ordering is not guaranteed.** The retry ladder means a failed earlier event
+  can arrive after a successful later one. Use the envelope's own timestamp, not
+  arrival order.

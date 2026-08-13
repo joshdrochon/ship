@@ -202,6 +202,40 @@ process, approved through a browser hitting possibly another, and polled by a th
 is the one flow in this build where a process-local store is guaranteed to break rather
 than merely likely to.
 
+**L16 took 051** (2026-08-13) — `051_webhook_deliveries.sql`, from its own allocated
+block 051–056, leaving 052–056 free. Worth stating for the reason L15's entry gives:
+the highest APPLIED migration is 073, so "the next free one" would have been 074,
+which is unallocated. Block order is also apply order and it holds — the only FK
+targets are `webhook_subscriptions` (047, L15) and `oauth_apps` (039, L02), both
+numerically earlier.
+
+Two columns are NOT in PF-458's list and both are recorded rather than smuggled in:
+
+- **`app_id`**, with an FK to `oauth_apps`. It is a DENORMALISATION, which every
+  other column here is not, and it is there because the alternative was measured
+  and does not work. p.4's *"Queryable per app"* has no `app_id` on this table —
+  the path is `webhook_deliveries → webhook_subscriptions → app_id` — and a keyset
+  page written as that join plans as `Seq Scan on webhook_deliveries` + `Sort` even
+  with `(subscription_id, attempted_at DESC, id DESC)` present, because the equality
+  sits on the JOINED table and no `subscription_id` is known at plan time. Resolving
+  the app's subscription ids first and using `= ANY(...)` is no better under
+  `ORDER BY … LIMIT`: N index ranges become a MergeAppend or a bitmap scan plus a
+  sort. Safe to denormalise because the value is immutable (nothing in L15's route
+  surface changes a subscription's app — PATCH sets `active` and nothing else), and
+  it is written by a SUBSELECT inside the INSERT rather than accepted from a caller,
+  so it cannot disagree with the subscription's. Precedent: 047 denormalises
+  `workspace_id` onto `webhook_subscriptions` for exactly this reason and says so.
+- **`delivery_group_id`**, which carries the real per-attempt uniqueness constraint.
+  PF-462 asks for `UNIQUE (subscription_id, event_id, attempt_number)`; that is
+  wrong in the presence of replay, because a replay is a new ladder starting at
+  attempt 1 against the same subscription and the same event and would collide with
+  the original's attempt 1 on its first insert. PF-462's literal triple survives as
+  a PARTIAL unique index `WHERE replay_of_delivery_id IS NULL`, where it is a true
+  statement about original deliveries.
+
+`webhook_deliveries` was added to `api/src/test/setup.ts`'s TRUNCATE list **in the
+same commit as the migration**, per the standing rule F54 records.
+
 ## Rules
 
 1. **Never renumber a migration that has been applied anywhere**, including a
