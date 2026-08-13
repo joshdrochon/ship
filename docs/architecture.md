@@ -296,6 +296,24 @@ flowchart LR
 
 `@ship/sdk` (new workspace package). **Stable for the week:** `ShipClient` with resource clients (`documents`, `issues`, `sprints`, `webhooks` — method signatures fitness-tested against the OpenAPI spec, drift fails CI); `ShipClient.authorizationCodeFlow()` and `ShipClient.deviceLogin()`; async-iterator pagination (`for await (const doc of client.documents.iterate())` — consumers never see cursors); `verifyWebhook(headers, rawBody, secret, toleranceSec = 300)` → boolean in one call; typed error union discriminated on `kind: 'auth' | 'rate_limit' | 'not_found' | 'validation' | 'server'`. **Pre-1.0 (may move):** `ITokenStore` implementations beyond in-memory/file, OAuth helper option bags, CLI internals. Install footprint budget: < 250 KB min+gzip, production deps only, enforced in CI.
 
+### `ITokenStore` — the contract, and where it lives (L17 PF-503/504/509)
+
+Pre-Search 2.4 (p.17) asks three questions about this interface. The answers are here, and the interface is declared in `sdk/src/auth/tokenStore.ts` and exported from the package root.
+
+**Three methods, structurally satisfied.** `load(): Promise<StoredTokens | null>` · `save(tokens): Promise<void>` · `clear(): Promise<void>`. Any object with those three methods is an `ITokenStore` — a consumer writing a Keychain or Vault store imports no base class and registers nothing. There is deliberately no `update`: a rotation replaces the whole pair, and a partial update is exactly the shape that lets an access token and a refresh token belong to different generations.
+
+**It persists BOTH tokens, not only the access token** — `{accessToken, refreshToken | null, expiresAtSeconds | null, scopes[]}`. p.3 mandates one-time-use refresh with rotation, and the drill's stage-2 outcome measures persistence *across process restarts* (p.8); an access-token-only store makes `ship login` a device flow on every invocation and fails TTFE on the second command. The cost is stated rather than hidden: the file on disk now holds the credential worth stealing, which is why `FileTokenStore` writes `~/.ship/credentials.json` at mode 0600 inside a 0700 directory, atomically (temp file + `rename`, never truncate-then-write), and why no SDK code path puts a token into a message, a log line or a stack.
+
+**Three implementations.** `InMemoryTokenStore` (the default, and the test double p.10 asks for), `FileTokenStore` (Node only — `@ship/sdk/node`, or the `node` export condition), `LocalStorageTokenStore` (browser; `localStorage` is XSS-readable, so it is the store the PRD names rather than the store to reach for when an in-memory credential would do).
+
+**Threading model for refresh: single-flight, keyed on the store instance.** Concurrent 401s await one in-flight refresh promise and retry once with its result. This is not a performance choice — p.3's refresh tokens are one-time-use with family revocation, so two parallel refreshes present the same token twice and the second **revokes the family**, logging the user out. Ten concurrent expired calls produce exactly one `/oauth/token` request. The guarantee is process-scoped: two terminals sharing one `~/.ship/credentials.json` are two processes and this promise cannot see across them (D14, below). The client is therefore built to work under **strict** rotation and assumes no server-side replay window exists; it re-reads the store inside the critical section so a refresh performed elsewhere is picked up rather than overwritten, and it never retries a failed refresh. A cross-process lockfile is the real fix for concurrent CLIs and belongs with the CLI (L19), not with a library that also runs in a browser.
+
+**Corruption.** See Failure Modes: a read that fails or returns garbage is logged-out — one attempt at most, `{ kind: 'auth' }`, and **no write-back**, including no `clear()`. `clear()` is a write, and a credential the SDK cannot parse may still be one a human can repair.
+
+### Browser and Node entry points (L17 PF-507)
+
+The package root used to re-export `verifyWebhook`, whose module imports `node:crypto` at top level, so any bundler resolving `@ship/sdk` for the browser pulled a Node built-in — failing to resolve, or silently polyfilling crypto into every consumer's bundle against a 250 KB budget. The `exports` map is now conditional: the `browser` condition resolves to `dist/browser.js` (client, errors, retry, `InMemoryTokenStore`, `LocalStorageTokenStore` — no `node:` specifier anywhere in its import graph), every other condition resolves to `dist/index.js`, which adds `verifyWebhook` and `FileTokenStore`. Node consumers are unaffected; `@ship/sdk/browser` and `@ship/sdk/node` exist for a consumer who wants to be explicit.
+
 ## Agent-as-Citizen (Epic 7)
 
 Today FleetGraph is a privileged insider by construction — two separate back doors:
