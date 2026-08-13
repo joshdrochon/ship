@@ -37,6 +37,15 @@ export interface TestPublicAppOptions {
   /** Override the rate limiters — e.g. a capacity-1 bucket to produce a 429. */
   perAppLimiter?: IRateLimiter;
   perTokenLimiter?: IRateLimiter;
+  /**
+   * L11 PF-313 — the IP-keyed backstop above bearer auth.
+   *
+   * Defaults to a bucket no test can exhaust. A tight default here would 429 the
+   * third request of every spec in the repo for a reason unrelated to what it
+   * asserts, and the anon bucket is keyed by IP, which is the SAME key for every
+   * request supertest makes.
+   */
+  anonLimiter?: IRateLimiter;
   /** Routes mounted ABOVE bearer auth (PF-216). Paths must be in V1_UNAUTHENTICATED_PATHS. */
   mountUnauthenticated?: (router: Router) => void;
   /**
@@ -104,6 +113,7 @@ export function createTestPublicApp(options: TestPublicAppOptions = {}): TestPub
       bearerAuth,
       perAppLimiter: options.perAppLimiter ?? generousBucket(),
       perTokenLimiter: options.perTokenLimiter ?? generousBucket(),
+      anonLimiter: options.anonLimiter ?? generousBucket(),
       auditSink,
       ...(options.mountUnauthenticated
         ? { mountUnauthenticated: options.mountUnauthenticated }

@@ -24,7 +24,7 @@ import { bodyErrorMiddleware } from './bodyErrors.js';
 import type { IAuditSink } from '../../audit/audit.js';
 import { publicAuditMiddleware } from '../../audit/audit.js';
 import type { IRateLimiter } from '../../ratelimit/limiter.js';
-import { rateLimitMiddleware } from '../../ratelimit/limiter.js';
+import { rateLimitMiddleware, anonymousRateLimitMiddleware } from '../../ratelimit/limiter.js';
 
 /**
  * PF-216 — the paths inside `/api/v1` that answer WITHOUT an Authorization
@@ -60,6 +60,16 @@ export interface PublicRouterDeps {
   bearerAuth: (req: Request, res: Response, next: NextFunction) => void;
   perAppLimiter: IRateLimiter;
   perTokenLimiter: IRateLimiter;
+  /**
+   * L11 PF-313 — the IP-keyed backstop mounted ABOVE bearer auth.
+   *
+   * Optional so the several dozen specs that build a bare v1 app keep exactly
+   * the stack they were written against; `createApp` always supplies one. When
+   * it is absent the layer is still mounted (as a pass-through) so the layer
+   * ORDER does not change shape between a test app and the production one —
+   * `middlewareOrder.ts` is asserted positionally.
+   */
+  anonLimiter?: IRateLimiter;
   auditSink: IAuditSink;
   /**
    * Routes that must answer without an Authorization header — the OpenAPI spec,
@@ -129,6 +139,30 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
   // with a client-error code instead of letting them be scrubbed into a 500 that
   // an SDK would retry forever. See bodyErrors.ts.
   router.use(namedLayer('v1_body_errors', bodyErrorMiddleware()));
+
+  // L11 PF-313 — the anonymous backstop, above BOTH the unauthenticated mount
+  // and bearer auth.
+  //
+  // Above `v1_unauthenticated` on purpose: `/api/v1/openapi.json` is mounted
+  // there, and L13's finding F45 measured it as bypassing the rate limiter
+  // entirely. It is also the most-polled endpoint on the public surface and the
+  // only one an anonymous caller can reach, so "unauthenticated and
+  // unthrottled" was the wrong pair. Above bearer auth so a 401 carries the
+  // three headers too — which is what makes p.6's 100% target literally true
+  // rather than true-for-authenticated-responses.
+  //
+  // Mounted as a named layer even when no limiter is supplied, so the layer
+  // order does not change shape between a test app and the production one.
+  router.use(
+    namedLayer(
+      'v1_anon_rate_limit',
+      deps.anonLimiter
+        ? anonymousRateLimitMiddleware(deps.anonLimiter)
+        : ((_req, _res, next) => {
+            next();
+          }),
+    ),
+  );
 
   // PF-216 — the anonymous-reachable routes, above bearer auth by necessity.
   // Mounted as one named layer even when the hook is absent, so the layer order

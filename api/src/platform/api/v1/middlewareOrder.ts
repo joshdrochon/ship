@@ -85,6 +85,17 @@ export const V1_MIDDLEWARE_ORDER: readonly V1MiddlewareEntry[] = [
       '500 — telling an SDK retry ladder to retry a request that can never succeed. See bodyErrors.ts.',
   },
   {
+    name: 'v1_anon_rate_limit',
+    level: 'router',
+    why:
+      'L11 PF-313. The IP-keyed backstop, above BOTH the unauthenticated mount and bearer ' +
+      'auth. PRD p.6 targets 100% of public API responses carrying rate-limit headers, and ' +
+      'the per-app/per-token limiter below cannot head a response bearer auth already ' +
+      'rejected — a 401, a 404, or /api/v1/openapi.json, which L13 measured (F45) as ' +
+      'bypassing the limiter entirely. Deliberately coarse: its ceiling is set ABOVE the ' +
+      'per-app one so it is an abuse backstop rather than a working limit.',
+  },
+  {
     name: 'v1_unauthenticated',
     level: 'router',
     why:

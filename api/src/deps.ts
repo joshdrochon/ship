@@ -84,8 +84,29 @@ export interface AppDeps {
   bus: IEventBus;
   /** Courier for signed webhook POSTs. */
   deliverer: IWebhookDeliverer;
-  /** Public API token bucket (per-app and per-token keys). */
-  limiter: IRateLimiter;
+  /**
+   * PF-304 — the per-APP ceiling. One bucket instance, keyed `app:<appId>`.
+   *
+   * Three separate instances rather than one shared one with three key
+   * namespaces, and that is the ticket rather than a style choice: a shared
+   * instance gives all three the same capacity and the same refill rate, which
+   * makes "per-app AND per-token limits" (PRD p.4) one limit charged three
+   * times. The whole point of the pair is that an app's ceiling is larger than
+   * any single token's share of it, and that is only expressible as two
+   * differently-configured buckets.
+   */
+  perAppLimiter: IRateLimiter;
+  /** PF-304 — the per-TOKEN ceiling. Keyed `token:<tokenId>`. */
+  perTokenLimiter: IRateLimiter;
+  /**
+   * PF-313 (option b) — the IP-keyed backstop, above bearer auth.
+   *
+   * What makes the p.6 target ("100% of public API responses carry rate-limit
+   * headers") literally true rather than true-for-authenticated-responses: a
+   * 401, a 404 and `/api/v1/openapi.json` never reach the two buckets above,
+   * because bearer auth rejected them or they were mounted over it.
+   */
+  anonLimiter: IRateLimiter;
   /** The only source of "now" under platform/. */
   clock: Clock;
   /**
@@ -167,29 +188,148 @@ export interface AppDeps {
 }
 
 /**
- * Rate-limit ceiling for the public API.
+ * PF-309 — the public API's rate limits, chosen HERE and nowhere else.
  *
- * Derived, not invented: the internal limiter in `app.ts` has run at 100
- * requests/minute in production since Part 1, so the public surface starts at
- * parity rather than at a number nobody can defend. Burst capacity equals the
- * per-minute allowance, which is what a token bucket is for — an integration
- * that fires ten calls at once and then idles is normal traffic, not abuse.
+ * `platform/ratelimit/` contains no numbers at all; `TokenBucketOptions` has no
+ * defaults, so a limit that is not chosen in this file does not compile. This is
+ * the whole ticket: a constant inside the module that enforces a limit is a
+ * limit nobody decided on, and it is the one a deployment cannot change.
  *
- * L11 owns the real numbers and the `X-RateLimit-*` contract (PRD p.6). When it
- * lands, this constant moves into its config and this comment goes away.
+ * ── The numbers, and where each comes from ───────────────────────────────────
+ *
+ *   per-token   100/min. Parity with the internal limiter, which has run at 100
+ *               requests/minute in production since Part 1. Starting the public
+ *               surface at a number this codebase already survives is a defence;
+ *               inventing a rounder one is not.
+ *
+ *   per-app     600/min, six times a single token. An app is not one integration
+ *               — it is every install of that integration — so an app ceiling
+ *               equal to a token ceiling would mean the second user of an app
+ *               starves the first. Six is the smallest multiple that makes the
+ *               two limits observably different behaviour (PF-304 proves both
+ *               directions) while keeping the app ceiling well under the anon
+ *               backstop below.
+ *
+ *   anonymous   1200/min per client IP. DELIBERATELY ABOVE the per-app ceiling.
+ *               It is an abuse backstop for traffic that never reaches the two
+ *               buckets above (PF-313), not a working limit, and it charges
+ *               authenticated requests too — so setting it below the per-app
+ *               number would mean a legitimate app behind one NAT is throttled
+ *               by a limiter that exists for anonymous callers. The residual
+ *               caveat is real and recorded in `platform/README.md`: a very
+ *               large single-egress deployment can still meet it.
+ *
+ * Burst capacity equals the per-minute allowance in all three cases, which is
+ * what a token bucket is for — an integration that fires ten calls at once and
+ * then idles is normal traffic, not abuse.
+ *
+ * ── Environment ──────────────────────────────────────────────────────────────
+ * Every number is overridable, so a deployment tunes limits without a release.
+ * The names below are what L21's `variables.tf` must declare; at the time of
+ * writing it declares none of them, which is recorded as a gap rather than
+ * papered over — the defaults are the shipped behaviour until it does.
  */
-const PUBLIC_RATE_LIMIT_PER_MINUTE = 100;
+const RATE_LIMIT_ENV = {
+  perAppPerMinute: 'PUBLIC_RATE_LIMIT_APP_PER_MINUTE',
+  perTokenPerMinute: 'PUBLIC_RATE_LIMIT_TOKEN_PER_MINUTE',
+  anonPerMinute: 'PUBLIC_RATE_LIMIT_ANON_PER_MINUTE',
+  maxKeys: 'PUBLIC_RATE_LIMIT_MAX_KEYS',
+} as const;
+
+/** Documented defaults. See the rationale above for where each number is from. */
+const RATE_LIMIT_DEFAULTS = {
+  perAppPerMinute: 600,
+  perTokenPerMinute: 100,
+  anonPerMinute: 1200,
+  /**
+   * PF-308 — how many buckets one limiter keeps before it sweeps.
+   *
+   * A memory bound, not a rate limit. Bucket keys are app ids and TOKEN ids, and
+   * token ids rotate on every refresh (L06), so without a ceiling the map grows
+   * for the life of the process. 100 000 keys at roughly 100 bytes of state each
+   * is single-digit megabytes — high enough that a real deployment never sweeps
+   * on the hot path, low enough that the map cannot become the leak.
+   */
+  maxKeys: 100_000,
+} as const;
 
 /**
- * PF-308 — how many buckets one limiter keeps before it sweeps.
+ * Reads a positive-integer override, falling back to the documented default.
  *
- * A memory bound, not a rate limit. Bucket keys are app ids and TOKEN ids, and
- * token ids rotate on every refresh (L06), so without a ceiling the map grows
- * for the life of the process. 100 000 keys at roughly 100 bytes of state each
- * is single-digit megabytes — high enough that a real deployment never sweeps
- * on the hot path, low enough that the map cannot become the leak.
+ * A malformed or non-positive value falls back rather than throwing. A zero
+ * capacity is a bucket that denies every request forever, and taking the whole
+ * public API down because someone typed `PUBLIC_RATE_LIMIT_APP_PER_MINUTE=` is
+ * the wrong failure for a tuning knob.
  */
-const PUBLIC_RATE_LIMIT_MAX_KEYS = 100_000;
+function positiveIntEnv(name: string, fallback: number): number {
+  const parsed = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const SECONDS_PER_MINUTE = 60;
+
+/** Per-minute allowance → token-bucket options, with burst equal to the rate. */
+function bucketOptionsPerMinute(perMinute: number, maxKeys: number) {
+  return {
+    capacity: perMinute,
+    refillPerSecond: perMinute / SECONDS_PER_MINUTE,
+    maxKeys,
+  };
+}
+
+/**
+ * The three configured limiters. Exported so PF-309's test can assert the env
+ * names bind and that the module under `ratelimit/` carries none of these
+ * numbers itself.
+ */
+export function publicRateLimiters(clock: Clock): {
+  perAppLimiter: IRateLimiter;
+  perTokenLimiter: IRateLimiter;
+  anonLimiter: IRateLimiter;
+} {
+  const maxKeys = positiveIntEnv(RATE_LIMIT_ENV.maxKeys, RATE_LIMIT_DEFAULTS.maxKeys);
+  return {
+    perAppLimiter: new InMemoryTokenBucket(
+      bucketOptionsPerMinute(
+        positiveIntEnv(RATE_LIMIT_ENV.perAppPerMinute, RATE_LIMIT_DEFAULTS.perAppPerMinute),
+        maxKeys,
+      ),
+      clock,
+    ),
+    perTokenLimiter: new InMemoryTokenBucket(
+      bucketOptionsPerMinute(
+        positiveIntEnv(RATE_LIMIT_ENV.perTokenPerMinute, RATE_LIMIT_DEFAULTS.perTokenPerMinute),
+        maxKeys,
+      ),
+      clock,
+    ),
+    anonLimiter: new InMemoryTokenBucket(
+      bucketOptionsPerMinute(
+        positiveIntEnv(RATE_LIMIT_ENV.anonPerMinute, RATE_LIMIT_DEFAULTS.anonPerMinute),
+        maxKeys,
+      ),
+      clock,
+    ),
+  };
+}
+
+/** The env var names, for the L21 hand-off and for PF-309's assertion. */
+export const PUBLIC_RATE_LIMIT_ENV_NAMES: readonly string[] = Object.values(RATE_LIMIT_ENV);
+
+/**
+ * The defaults, exported so a test can assert the shipped numbers rather than
+ * re-typing them and asserting its own copy.
+ */
+export const PUBLIC_RATE_LIMIT_DEFAULTS = RATE_LIMIT_DEFAULTS;
+
+/**
+ * A tiny bucket for tests — small enough to exhaust in a couple of requests.
+ *
+ * PF-309 asks `testDeps()` to supply one, and this is why it cannot just be a
+ * smaller number passed inline: a spec that wants a 429 should say "exhaust the
+ * bucket", not restate the arithmetic that produces one.
+ */
+export const TEST_RATE_LIMIT_PER_MINUTE = 2;
 
 /**
  * Production wiring. The only place a production concrete is named.
@@ -214,14 +354,9 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // called. Do not read this as "webhooks are in-memory in production".
     deliverer: new InMemoryDeliverer(),
 
-    limiter: new InMemoryTokenBucket(
-      {
-        capacity: PUBLIC_RATE_LIMIT_PER_MINUTE,
-        refillPerSecond: PUBLIC_RATE_LIMIT_PER_MINUTE / 60,
-        maxKeys: PUBLIC_RATE_LIMIT_MAX_KEYS,
-      },
-      clock,
-    ),
+    // PF-304 / PF-309 — three separately-configured buckets, all reading the
+    // one hoisted clock.
+    ...publicRateLimiters(clock),
     clock,
     db: pool,
 
@@ -306,14 +441,28 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
   return {
     bus: new InProcessEventBus(),
     deliverer: new InMemoryDeliverer(),
-    limiter: new InMemoryTokenBucket(
-      {
-        capacity: PUBLIC_RATE_LIMIT_PER_MINUTE,
-        refillPerSecond: PUBLIC_RATE_LIMIT_PER_MINUTE / 60,
-        maxKeys: PUBLIC_RATE_LIMIT_MAX_KEYS,
-      },
-      clock,
-    ),
+    // PF-309 — a TINY bucket, so a spec that wants a 429 can produce one in two
+    // requests instead of a hundred. Deliberately not the production numbers:
+    // a test that has to send 601 requests to observe the app ceiling is a test
+    // nobody writes, and the limit then goes untested.
+    ...(() => {
+      const tiny = {
+        capacity: TEST_RATE_LIMIT_PER_MINUTE,
+        refillPerSecond: TEST_RATE_LIMIT_PER_MINUTE / 60,
+        maxKeys: 1_000,
+      };
+      return {
+        perAppLimiter: new InMemoryTokenBucket(tiny, clock),
+        perTokenLimiter: new InMemoryTokenBucket(tiny, clock),
+        // The anon backstop stays generous even in tests: it charges every
+        // request, so a tiny one here would 429 the third call of every spec in
+        // the repo for reasons that have nothing to do with what they assert.
+        anonLimiter: new InMemoryTokenBucket(
+          { capacity: 1_000_000, refillPerSecond: 1_000_000, maxKeys: 1_000 },
+          clock,
+        ),
+      };
+    })(),
     clock,
     db: pool,
 

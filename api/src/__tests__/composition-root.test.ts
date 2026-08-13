@@ -56,7 +56,14 @@ describe('PF-015 / PF-016 · dependency factories', () => {
     const deps = productionDeps();
     expect(deps.clock).toBeInstanceOf(SystemClock);
     expect(deps.bus).toBeInstanceOf(InProcessEventBus);
-    expect(deps.limiter).toBeInstanceOf(InMemoryTokenBucket);
+    // L11 PF-304 — three SEPARATE bucket instances, not one shared one. A
+    // shared instance would give per-app and per-token the same capacity and
+    // refill rate, which is one limit charged twice.
+    expect(deps.perAppLimiter).toBeInstanceOf(InMemoryTokenBucket);
+    expect(deps.perTokenLimiter).toBeInstanceOf(InMemoryTokenBucket);
+    expect(deps.anonLimiter).toBeInstanceOf(InMemoryTokenBucket);
+    expect(deps.perAppLimiter).not.toBe(deps.perTokenLimiter);
+    expect(deps.perAppLimiter).not.toBe(deps.anonLimiter);
     expect(deps.db).toBeDefined();
   });
 
@@ -66,7 +73,9 @@ describe('PF-015 / PF-016 · dependency factories', () => {
     expect(deps.clock).not.toBeInstanceOf(SystemClock);
     expect(deps.deliverer, 'a test must never reach the network').toBeInstanceOf(InMemoryDeliverer);
     expect(deps.bus).toBeInstanceOf(InProcessEventBus);
-    expect(deps.limiter).toBeInstanceOf(InMemoryTokenBucket);
+    expect(deps.perAppLimiter).toBeInstanceOf(InMemoryTokenBucket);
+    expect(deps.perTokenLimiter).toBeInstanceOf(InMemoryTokenBucket);
+    expect(deps.anonLimiter).toBeInstanceOf(InMemoryTokenBucket);
   });
 
   it('overrides replace exactly one concrete and leave the rest alone', () => {

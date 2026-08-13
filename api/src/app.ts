@@ -297,11 +297,16 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
   // internal layer keeps its relative position and exactly one layer is added.
   app.use('/api/v1', createPublicRouter({
     bearerAuth: deps.bearerAuth,
-    // One bucket instance, two key namespaces (`app:` / `token:`) — the middleware
-    // namespaces its keys, so per-app and per-token limits do not collide. L11
-    // splits these into two configured buckets when it owns the numbers.
-    perAppLimiter: deps.limiter,
-    perTokenLimiter: deps.limiter,
+    // L11 PF-304 — TWO separately-configured bucket instances, not one instance
+    // with two key namespaces. Namespacing alone would give per-app and
+    // per-token the same capacity and the same refill rate, which makes PRD
+    // p.4's "per-app AND per-token limits" one limit charged twice. The numbers
+    // are chosen in `deps.ts` (PF-309).
+    perAppLimiter: deps.perAppLimiter,
+    perTokenLimiter: deps.perTokenLimiter,
+    // L11 PF-313 — the IP-keyed backstop that sits above bearer auth, so a 401,
+    // a 404 and the openapi.json route all carry rate-limit headers too.
+    anonLimiter: deps.anonLimiter,
     auditSink: deps.auditSink,
 
     // L13 (PF-357, PF-365, PF-366) — the generated spec, served from INSIDE the
