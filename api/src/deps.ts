@@ -36,6 +36,8 @@ import {
   InMemoryTokenRepo,
   PgAuthCodeRepo,
   InMemoryAuthCodeRepo,
+  PgDeviceCodeRepo,
+  InMemoryDeviceCodeRepo,
   bearerTokenMiddleware,
   DEFAULT_TOKEN_TTL,
   type IEventBus,
@@ -43,6 +45,7 @@ import {
   type IRateLimiter,
   type IOAuthAppRepo,
   type ITokenRepo,
+  type IDeviceCodeRepo,
   type IAuthCodeRepo,
   type BrowserUser,
   type TokenTtlConfig,
@@ -161,6 +164,25 @@ export interface AppDeps {
    * no database at all.
    */
   authCodeRepo: IAuthCodeRepo;
+  /**
+   * The `oauth_device_codes` store (L05 PF-121).
+   *
+   * On `AppDeps` for `authCodeRepo`'s reason: `testDeps()` hands over the
+   * in-memory double so the whole device-code → verify → poll → token flow runs
+   * with no database at all.
+   */
+  deviceCodeRepo: IDeviceCodeRepo;
+  /**
+   * L05 PF-122 — the absolute origin this instance is reachable at, used to
+   * build `verification_uri`.
+   *
+   * On `AppDeps` rather than read from `process.env` inside `platform/`, both
+   * because L01's fence forbids the latter and because a test needs to assert
+   * the URL is absolute and points where the deployment actually is. A CLI
+   * pointed at the deployed instance printing a `localhost` URL is the defect
+   * this value exists to make impossible.
+   */
+  publicBaseUrl: string;
   /**
    * L04 PF-094 / PF-098 — resolves the browser's `session_id` cookie to the
    * human sitting at the consent screen, or `null` for an anonymous visitor.
@@ -412,6 +434,22 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // repository, on the same rule as the two above.
     authCodeRepo: new PgAuthCodeRepo(pool),
 
+    // L05 PF-121: the ONLY construction site for the Postgres device-code
+    // repository, on the same rule as the three above.
+    deviceCodeRepo: new PgDeviceCodeRepo(pool),
+
+    // L05 PF-122. `APP_BASE_URL` is the value SSM already populates
+    // (`config/ssm.ts:66`) and the value `routes/admin-credentials.ts:29`
+    // already reads, so the device flow's `verification_uri` resolves to the
+    // same origin every other absolute link in the product does — rather than
+    // introducing a second, separately-configured notion of "where we are".
+    //
+    // The localhost fallback is the DEV default only. Production sets
+    // APP_BASE_URL through SSM; if it ever did not, the failure is a
+    // verification URL pointing at the developer's own machine, which is
+    // exactly what PF-122's assertion is written to catch.
+    publicBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
+
     // L04 PF-098. Two queries on a page that renders once per authorization:
     // the shared session validator (which owns the timeout rules and the
     // activity throttle), then the user's own row for the display label. The
@@ -534,6 +572,16 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // L04 PF-016/PF-086: the in-memory double, so a unit test can drive the
     // whole authorize -> consent -> token flow with no database at all.
     authCodeRepo: new InMemoryAuthCodeRepo(),
+
+    // L05 PF-016/PF-121: the in-memory double, so a unit test can drive the
+    // whole device/code -> verify -> poll -> token flow with no database at all.
+    deviceCodeRepo: new InMemoryDeviceCodeRepo(),
+
+    // L05 PF-122. A syntactically valid absolute origin, so a test asserting
+    // `verification_uri` is absolute is asserting the handler's behaviour rather
+    // than a fixture's shape. Deliberately NOT localhost:3000 — a test that
+    // passed only against the dev default would not catch a hard-coded URL.
+    publicBaseUrl: 'https://ship.test',
 
     // Nobody is signed in by default. A test that wants the consent screen to
     // render overrides this with a fixed user — which is also what keeps the

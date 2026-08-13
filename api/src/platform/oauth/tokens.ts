@@ -129,6 +129,77 @@ export function generateAuthorizationCode(): string {
 }
 
 /**
+ * L05 PF-124 — the device code (RFC 8628 §3.2).
+ *
+ * Here, and not in `deviceCodes.ts` where it is used, for this file's own
+ * fitness assertion: `issue.test.ts` requires `tokens.ts` to be the ONLY file
+ * under `platform/oauth/` that draws random bytes. L04 hit the same assertion
+ * with `generateAuthorizationCode` and moved the function rather than widening
+ * the rule; L05 does the same. The invariant is worth more than the locality —
+ * it makes "every opaque credential this surface issues is 32 bytes of CSPRNG
+ * output" checkable by reading one file.
+ *
+ * No tag prefix, for `generateAuthorizationCode`'s reason: a device code lives
+ * inside one polling loop, is never stored by a user, never pasted into a config
+ * file and never appears in a log a human greps.
+ */
+export function generateDeviceCode(): string {
+  return crypto.randomBytes(TOKEN_ENTROPY_BYTES).toString('base64url');
+}
+
+/**
+ * L05 PF-123 — the `user_code` alphabet (RFC 8628 §6.1).
+ *
+ * Uppercase alphanumerics with the eight visually ambiguous characters removed:
+ * `B` `I` `O` `S` and `0` `1` `5` `8`. Each of those is the one a human
+ * mistranscribes when reading a code off a terminal in a bad font — `O`/`0`,
+ * `I`/`1`, `S`/`5`, `B`/`8`. Removing BOTH members of each confusable pair is
+ * the point: dropping only `0` would still leave the user typing `0` when they
+ * saw `O`, and the lookup would fail on a code they read correctly.
+ *
+ * 22 letters + 6 digits = 28 characters. See `USER_CODE_ENTROPY_BITS`.
+ */
+const USER_CODE_ALPHABET = 'ACDEFGHJKLMNPQRTUVWXYZ234679';
+
+/** Characters drawn, excluding the display hyphen. Formatted `XXXX-XXXX`. */
+const USER_CODE_LENGTH = 8;
+
+/**
+ * L05 PF-123 — a `user_code` a human can read aloud and type.
+ *
+ * ---------------------------------------------------------------------------
+ * REJECTION SAMPLING, AND WHY `% 28` WOULD BE WRONG.
+ * ---------------------------------------------------------------------------
+ * 256 is not a multiple of 28 — it is 9×28 + 4 — so mapping a uniform byte with
+ * `byte % 28` makes the first four characters of the alphabet ~11% more likely
+ * than the rest. That is a real, if small, reduction in the effective search
+ * space of a code whose whole defense is the product of its entropy and
+ * PF-132's throttle. Bytes at or above the largest multiple of 28 are discarded
+ * and redrawn instead, which costs a few extra bytes and keeps the draw uniform.
+ *
+ * Returns the CANONICAL hyphenated form. That is what the row stores, what the
+ * terminal prints, and what `normalizeUserCode` (PF-131) reduces every user
+ * input back to.
+ */
+export function generateUserCode(): string {
+  const max = Math.floor(256 / USER_CODE_ALPHABET.length) * USER_CODE_ALPHABET.length;
+  let out = '';
+  while (out.length < USER_CODE_LENGTH) {
+    for (const byte of crypto.randomBytes(USER_CODE_LENGTH)) {
+      if (out.length === USER_CODE_LENGTH) break;
+      // Discard the biased tail rather than folding it back in. See the header.
+      if (byte >= max) continue;
+      out += USER_CODE_ALPHABET[byte % USER_CODE_ALPHABET.length];
+    }
+  }
+  return `${out.slice(0, 4)}-${out.slice(4)}`;
+}
+
+/** Exported for `deviceCodes.ts`'s pattern and entropy assertions. */
+export const USER_CODE_CHARSET = USER_CODE_ALPHABET;
+export const USER_CODE_RAW_LENGTH = USER_CODE_LENGTH;
+
+/**
  * THE ONLY token-hashing site in this lane.
  *
  * One site means one place to audit and one place to change. `tokens.test.ts`

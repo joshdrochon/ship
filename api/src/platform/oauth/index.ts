@@ -26,6 +26,19 @@ export {
 } from './consent.js';
 export { renderConsentPage, renderAuthorizeErrorPage, escapeHtml } from './consentPage.js';
 
+// Device Authorization Grant — L05. The device-code row and its repository
+// seam, the issuance endpoint, and the response contract L18/L19 import.
+export * from './deviceCodes.js';
+export { PgDeviceCodeRepo } from './pgDeviceCodeRepo.js';
+export {
+  mountDeviceAuthorizationRoutes,
+  deviceAuthorizationResponseSchema,
+  DEVICE_CODE_PATH,
+  DEVICE_VERIFY_PATH,
+  type DeviceAuthorizationResponse,
+  type DeviceAuthorizationDeps,
+} from './deviceAuthorization.js';
+
 // Token lifecycle — L06. Generation and hashing, the repository seam, the one
 // issuance site, resolution, the bearer middleware and refresh rotation.
 export * from './tokens.js';

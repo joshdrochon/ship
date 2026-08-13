@@ -425,6 +425,10 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     appsRepo,
     tokenRepo: deps.tokenRepo,
     authCodeRepo: deps.authCodeRepo,
+    // L05 PF-121/PF-122 — the device grant's store and the origin its
+    // `verification_uri` is built from.
+    deviceCodeRepo: deps.deviceCodeRepo,
+    publicBaseUrl: deps.publicBaseUrl,
     clock: deps.clock,
     ttl: deps.tokenTtl,
     browser: {
