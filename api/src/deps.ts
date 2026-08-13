@@ -38,10 +38,15 @@ import {
   InMemoryAuthCodeRepo,
   PgDeviceCodeRepo,
   InMemoryDeviceCodeRepo,
+  PgWebhookSubscriptionRepo,
+  InMemoryWebhookSubscriptionRepo,
+  AesGcmSecretCipher,
+  envSecretCipher,
   bearerTokenMiddleware,
   DEFAULT_TOKEN_TTL,
   type IEventBus,
   type IWebhookDeliverer,
+  type IWebhookSubscriptionRepo,
   type IRateLimiter,
   type IOAuthAppRepo,
   type ITokenRepo,
@@ -183,6 +188,16 @@ export interface AppDeps {
    * this value exists to make impossible.
    */
   publicBaseUrl: string;
+   * The `webhook_subscriptions` store (L15 PF-427), on migration 047.
+   *
+   * This is the `subsRepo(db)` argument the composition-root sketch p.12
+   * requires the architecture document to show. A repository rather than the
+   * raw `db` handle for the same reason as the three above — and one extra:
+   * the repository is where the signing secret is encrypted and decrypted, so
+   * a caller that had `db` could write a `SELECT secret_ciphertext` and there
+   * would be a second place that knows how to read a secret.
+   */
+  subsRepo: IWebhookSubscriptionRepo;
   /**
    * L04 PF-094 / PF-098 — resolves the browser's `session_id` cookie to the
    * human sitting at the consent screen, or `null` for an anonymous visitor.
@@ -449,6 +464,16 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // verification URL pointing at the developer's own machine, which is
     // exactly what PF-122's assertion is written to catch.
     publicBaseUrl: process.env.APP_BASE_URL || 'http://localhost:3000',
+    // L15 PF-427: the ONLY construction site for the Postgres subscription
+    // repository, on the same rule again.
+    //
+    // `envSecretCipher()` resolves `WEBHOOK_SECRET_KEY` LAZILY — see that
+    // function. Eager resolution would turn a missing key into a boot failure
+    // for the whole application rather than a failure of the one feature that
+    // needs it, and `productionDeps()` is constructed by every test file in the
+    // repository. Fail-closed is preserved where it matters: creating a
+    // subscription or signing a delivery throws with the reason.
+    subsRepo: new PgWebhookSubscriptionRepo(pool, envSecretCipher()),
 
     // L04 PF-098. Two queries on a page that renders once per authorization:
     // the shared session validator (which owns the timeout rules and the
@@ -582,6 +607,20 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // than a fixture's shape. Deliberately NOT localhost:3000 — a test that
     // passed only against the dev default would not catch a hard-coded URL.
     publicBaseUrl: 'https://ship.test',
+    // L15 PF-016/PF-427: the in-memory double, so a unit test can drive
+    // subscribe → match → sign with no database at all.
+    //
+    // A REAL cipher over a fixed test key, not a pass-through. The shared
+    // contract suite runs against both implementations, and a double that
+    // stored plaintext would satisfy PF-422's round-trip assertion without
+    // ever exercising encryption — which is the one property the ticket
+    // exists to establish. The key is a constant here rather than from the
+    // environment because a test wiring that depended on an env var would be a
+    // test wiring that fails on a machine where it is unset.
+    subsRepo: new InMemoryWebhookSubscriptionRepo({
+      cipher: new AesGcmSecretCipher(Buffer.alloc(32, 0x5a)),
+      clock,
+    }),
 
     // Nobody is signed in by default. A test that wants the consent screen to
     // render overrides this with a fixed user — which is also what keeps the

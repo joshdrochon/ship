@@ -174,6 +174,43 @@ so that 401s and 429s are audited.
 
 `route.test.ts` asserts each row of that table, so the exemption cannot quietly widen.
 
+## Two secrets, two treatments — and why that is not an inconsistency (L15 PF-424)
+
+`oauth_apps.client_secret_hash` is a **SHA-256 hash**.
+`webhook_subscriptions.secret_ciphertext` is **AES-256-GCM ciphertext**.
+
+The one sentence that explains it: **a client secret is presented back to us and can
+therefore be verified by comparing digests, so hashing costs nothing; a webhook signing
+secret is used by us to produce a MAC and is never presented, so hashing costs
+everything and buys nothing.**
+
+PRD p.3 says the signing secret is *"hashed"*, and p.12's Failure Modes row asks what
+happens when *"a subscriber's signing secret is rotated mid-flight"* — which presumes
+the server re-signs each attempt with the subscription's current secret. HMAC-SHA256 is
+symmetric and a hash is one-way, so the two requirements are not in tension, they are
+mutually impossible. That contradiction is the PRD's and is filed as **C3** in
+`tickets/plugforge/lane-99-unassigned.md`.
+
+The tempting non-answer — store `sha256(secret)` and sign with *that* — satisfies the
+word and is theater: whatever the server signs with **is** the key, so a database dump
+forges signatures either way, and it silently breaks p.7's printed
+`verifyWebhook(headers, rawBody, secret)` unless the SDK hashes internally.
+
+| | `client_secret` | webhook signing secret |
+|---|---|---|
+| At rest | SHA-256, unsalted (D1) | AES-256-GCM, key in `WEBHOOK_SECRET_KEY` |
+| Key material in the DB? | n/a — one-way | **no**, environment only |
+| Shown raw | once, at create and rotate | once, at create and rotate |
+| Identified afterwards by | `secret_prefix` (8 chars) | `secret_prefix` (8 chars) |
+| Recoverable | never | by the server, with the env key, and by nothing else |
+| Rotation | instant invalidation (D3) | instant invalidation (PF-433) |
+
+`WEBHOOK_SECRET_KEY` is resolved **lazily**, on first use. A deployment missing it boots
+and serves every other route; creating a subscription or signing a delivery throws with
+the reason. Eager resolution would make one missing variable a total boot failure, which
+is a worse outcome than a scoped one — but the failure is still **closed**: nothing is
+ever delivered unsigned.
+
 ## Pagination — where the line falls (L08 PF-227)
 
 **A collection endpoint backed by a database table paginates with an opaque

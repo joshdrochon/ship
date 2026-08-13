@@ -64,16 +64,19 @@ export interface IssuedTokens {
   scopes: Scope[];
 }
 
-export interface WebhookSubscription {
-  id: string;
-  appId: string;
-  targetUrl: string;
-  eventTypes: string[];
-  /** SHA-256 hash of the signing secret; raw shown once. */
-  signingSecretHash: string;
-  active: boolean;
-  createdAt: Date;
-}
+// REMOVED by L15 (PF-421/PF-427): an unused `WebhookSubscription` sketch lived
+// here with ZERO consumers repo-wide, and every one of its fields contradicts
+// what shipped — `signingSecretHash` (PF-422 encrypts, it cannot hash),
+// `eventTypes: string[]` (p.7's drill loop is a singular `event`), and camelCase
+// where the public representation is snake_case. The real declaration is
+// `platform/webhooks/subscriptions.ts`.
+//
+// It had to go rather than be shadowed: both are re-exported through
+// `platform/index.ts` and TS2308 makes the duplicate name a BUILD failure, not
+// a style problem. Filed in `lane-99-unassigned.md` rather than fixed silently
+// — and note for L16: `WebhookDelivery` and `DeliveryStatus` below are the same
+// species of stale sketch and will collide with L16's own declarations the same
+// way. They are left alone because they are L16's to name.
 
 export type DeliveryStatus = 'pending' | 'delivered' | 'retrying' | 'dead_lettered';
 
