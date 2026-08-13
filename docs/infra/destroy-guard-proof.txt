@@ -1,0 +1,50 @@
+----------------------------------------------------------------------
+CASE: bare terraform destroy
+payload: {"tool_name":"Bash","tool_input":{"command":"terraform destroy -auto-approve"}}
+BLOCKED — terraform destroy
+
+Destroying the graded environment deletes the Aurora cluster with NO final snapshot (skip_final_snapshot is true whenever environment != 'prod', and it is 'dev') and releases the EB environment CNAME that every published grader link points at -- cname_prefix is unset, so the replacement name is AWS-generated and unpinnable. The destroy-redeploy drill must run against a throwaway environment with its own state key and project_name prefix (PRD p.5, p.2; L21 PF-640). Confirm which environment you are pointed at first.
+
+Command: terraform destroy -auto-approve
+
+PlugForge branch policy: per-slice branches under pf/** are preserved until Final Submission. See TICKETS-PLUGFORGE.md → 'Branching & PR Discipline'.
+If this is genuinely intended, the user must run it themselves or set ALLOW_GRADED_BRANCH_OPS=1 — do not work around this guard.
+exit code: 2
+
+----------------------------------------------------------------------
+CASE: destroy-redeploy wrapper
+payload: {"tool_name":"Bash","tool_input":{"command":"./scripts/destroy-redeploy.sh"}}
+BLOCKED — destroy-redeploy wrapper
+
+scripts/destroy-redeploy.sh runs `terraform destroy` internally. NOTE: that script is Render-specific end to end (it lifts prevent_destroy off render_postgres and checks a GHCR image tag) and does NOT drive the AWS root -- running it is not the AWS drill. The AWS drill is PF-642, run by hand against the PF-640 throwaway environment. Blocked either way (PRD p.5, p.2).
+
+Command: ./scripts/destroy-redeploy.sh
+
+PlugForge branch policy: per-slice branches under pf/** are preserved until Final Submission. See TICKETS-PLUGFORGE.md → 'Branching & PR Discipline'.
+If this is genuinely intended, the user must run it themselves or set ALLOW_GRADED_BRANCH_OPS=1 — do not work around this guard.
+exit code: 2
+
+----------------------------------------------------------------------
+CASE: terraform workspace select prod
+payload: {"tool_name":"Bash","tool_input":{"command":"terraform workspace select prod"}}
+BLOCKED — terraform workspace select prod
+
+Switching to the live workspace ahead of a destructive command. The graded environment carries the Aurora cluster and the CNAME every published link resolves through (PRD p.5, p.2). Confirm intent.
+
+Command: terraform workspace select prod
+
+PlugForge branch policy: per-slice branches under pf/** are preserved until Final Submission. See TICKETS-PLUGFORGE.md → 'Branching & PR Discipline'.
+If this is genuinely intended, the user must run it themselves or set ALLOW_GRADED_BRANCH_OPS=1 — do not work around this guard.
+exit code: 2
+
+----------------------------------------------------------------------
+CASE: benign command (must be ALLOWED)
+payload: {"tool_name":"Bash","tool_input":{"command":"terraform plan"}}
+exit code: 0
+
+----------------------------------------------------------------------
+CASE: bare terraform destroy WITH override
+payload: {"tool_name":"Bash","tool_input":{"command":"terraform destroy"}}
+env: ALLOW_GRADED_BRANCH_OPS=1
+exit code: 0
+

@@ -2,6 +2,115 @@
 
 This directory contains all infrastructure as code for deploying Ship to AWS.
 
+---
+
+## Week 6 (PlugForge) — read this first
+
+**Which root is applied.** `terraform/*.tf` — the flat root, the one you are standing
+in. `terraform/environments/{dev,prod,shadow}` are **NOT APPLIED**; they are a second
+configuration of the *same* resources under the *same* account-global IAM role names, so
+applying both fails with `EntityAlreadyExists` rather than producing two environments.
+They are alternatives, not layers. `terraform/render/` is the retained Render fallback
+and is not destroyed. Full inventory with proof: **`docs/infra/topology.md`** (PF-616).
+
+**State backend (PF-620).** S3, bucket `ship-terraform-state-<account-id>`, key
+`ship/terraform.tfstate`, versioned + encrypted + public-access-blocked, created by
+`terraform/bootstrap`.
+
+```bash
+terraform init -backend-config="bucket=$(aws ssm get-parameter \
+  --name /ship/terraform-state-bucket --query Parameter.Value --output text)"
+```
+
+### The chicken-and-egg, written down
+
+The backend block in `versions.tf` deliberately omits `bucket`. The bucket name embeds
+the account id and is a compliance-sensitive value we do not commit, so it is read at
+`init` time from the SSM parameter `/ship/terraform-state-bucket`.
+
+That parameter is created by `terraform/bootstrap`. So:
+
+1. **`terraform/bootstrap` cannot use the S3 backend** — the bucket it would store state
+   in is the bucket it is being run to create. It declares no `backend` block at all, so
+   it uses the **local backend** and its state is a `terraform.tfstate` file next to
+   `bootstrap/main.tf`.
+2. The bucket carries `lifecycle { prevent_destroy = true }`, which is the thing standing
+   between a stray `terraform destroy` in `bootstrap/` and the state of every other root.
+
+**Measured, not assumed — and the answer is worse than the design.** As of 2026-08-12
+there is **no bootstrap state anywhere**:
+
+```
+$ ls -a terraform/bootstrap/
+.  ..  main.tf          # no terraform.tfstate, no .terraform/
+```
+
+The bucket nevertheless exists and carries exactly the tags `bootstrap/main.tf` sets
+(`Name=Terraform State`, `Project=ship`, `ManagedBy=Terraform`), so it *was* created from
+this config — the state file simply did not survive, and `*.tfstate` is gitignored so it
+was never going to.
+
+Consequences, stated so nobody discovers them during an incident:
+
+- **The state bucket is currently unmanaged.** No Terraform state tracks it. It is real
+  infrastructure that no `plan` will ever mention.
+- Re-running `terraform apply` in `bootstrap/` **will fail**, not converge —
+  `BucketAlreadyOwnedByYou`. Recovery is `terraform import` of the four bootstrap
+  resources (bucket, versioning, encryption, public-access-block) plus the SSM parameter,
+  and only then an apply.
+- **The graded root is unaffected.** Its state is in S3, it does not depend on the
+  bootstrap, and `prevent_destroy` on the bucket still applies to anyone who does re-import
+  it. This is a recoverability gap in the backend's own provenance, not a risk to the
+  deployed environment.
+- This is the one piece of infrastructure in the account that **is not** described by
+  applied IaC, which is worth saying out loud in a lane whose claim is that the config is
+  the source of truth. The claim holds for everything the graded root manages; it does not
+  hold for the bucket that holds the graded root's state.
+
+### State locking (PF-621)
+
+`use_lockfile = true` is set on the backend block of **every** root that can `init` —
+the graded root and all three under `environments/`.
+
+Before this, there was **no locking of any kind**: no `dynamodb_table` in any backend
+block, no `use_lockfile`, and no `aws_dynamodb_table` anywhere under `terraform/` (L99
+finding F32). Two concurrent applies would both write state and the loser's resources
+become untracked orphans.
+
+`use_lockfile` is S3-native conditional-write locking — Terraform writes a `<key>.tflock`
+object and relies on S3 compare-and-swap for atomicity. Chosen over a DynamoDB lock table
+because it adds **zero** resources and because HashiCorp deprecated `dynamodb_table` in
+Terraform 1.11; adopting it now would be adopting a documented dead end. Requires
+Terraform >= 1.10.
+
+Proof that it holds — two concurrent runs, the second refused with an S3 `412
+PreconditionFailed` — is captured in **`docs/infra/state-lock-proof.txt`** and is
+reproducible with:
+
+```bash
+scripts/prove-state-lock.sh
+```
+
+### Other Week 6 artifacts
+
+| Artifact | Ticket | What it is |
+|---|---|---|
+| `docs/infra/topology.md` | PF-616, PF-617, PF-646 | Inventory, the D6 ADR, IAM role-name mapping |
+| `docs/infra/aws-account.md` | PF-618, PF-619 | Operator identity, MFA state, budget tripwire |
+| `docs/infra/pin-audit.txt` | PF-622 | Provider-pin audit output |
+| `docs/infra/plan-baseline-w6.txt` | PF-623 | `terraform plan` against real credentials |
+| `terraform/PLAN-ANNOTATED.md` | PF-626 | The annotated plan (p.2 submission artifact) |
+| `docs/infra/iam-least-privilege.md` | PF-633–638 | Before/after policy, rationale, `AccessDenied` transcript |
+| `docs/infra/drift-demo.md` | PF-639 | Planted drift → detected → reconciled |
+| `docs/infra/plan-reading.md` | PF-643 | Plan-reading primer + blast-radius crib |
+
+**A PreToolUse hook blocks `terraform destroy`, `scripts/destroy-redeploy.sh` and
+`terraform workspace select prod`.** That is deliberate. Destroying the graded
+environment deletes the Aurora cluster and releases the environment CNAME that every
+published grader link points at. See `.claude/hooks/guard-graded-branches.py`.
+
+---
+
 ## Directory Structure
 
 ```

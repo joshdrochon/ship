@@ -1,0 +1,116 @@
+This exercise is the full terminal session, not just the plan. Read all of it.
+
+──────────────────────────────────────────────────────────────────────────────
+$ git diff terraform/versions.tf
+──────────────────────────────────────────────────────────────────────────────
+diff --git a/terraform/versions.tf b/terraform/versions.tf
+index 4c1a9f2..b7e0d31 100644
+--- a/terraform/versions.tf
++++ b/terraform/versions.tf
+@@ -12,11 +12,11 @@ terraform {
+   required_providers {
+     aws = {
+       source  = "hashicorp/aws"
+-      version = "5.100.0"
++      version = "~> 6.0"
+     }
+     random = {
+       source  = "hashicorp/random"
+-      version = "3.7.2"
++      version = "~> 3.7"
+     }
+   }
+
+──────────────────────────────────────────────────────────────────────────────
+$ terraform init -upgrade -backend-config="bucket=$(aws ssm get-parameter --name /ship/terraform-state-bucket --query Parameter.Value --output text)"
+──────────────────────────────────────────────────────────────────────────────
+
+Initializing the backend...
+
+Successfully configured the backend "s3"! Terraform will automatically
+use this backend unless the backend configuration changes.
+
+Initializing provider plugins...
+- Finding latest version of hashicorp/random...
+- Finding hashicorp/aws versions matching "~> 6.0"...
+- Installing hashicorp/random v3.7.2...
+- Installed hashicorp/random v3.7.2 (signed by HashiCorp)
+- Installing hashicorp/aws v6.0.0...
+- Installed hashicorp/aws v6.0.0 (signed by HashiCorp)
+
+Terraform has made some changes to the provider dependency selections recorded
+in the .terraform.lock.hcl file. Review those changes and commit them to your
+version control system if they represent changes you intended to make.
+
+Terraform has been successfully initialized!
+
+──────────────────────────────────────────────────────────────────────────────
+$ git diff terraform/.terraform.lock.hcl
+──────────────────────────────────────────────────────────────────────────────
+diff --git a/terraform/.terraform.lock.hcl b/terraform/.terraform.lock.hcl
+index 9d7c118..2ae4f03 100644
+--- a/terraform/.terraform.lock.hcl
++++ b/terraform/.terraform.lock.hcl
+@@ -2,20 +2,20 @@
+ # Manual edits may be lost in future updates.
+
+ provider "registry.terraform.io/hashicorp/aws" {
+-  version     = "5.100.0"
+-  constraints = "5.100.0"
++  version     = "6.0.0"
++  constraints = "~> 6.0"
+   hashes = [
+-    "h1:Ijt7pOlB7Tr7maGQIqtsLFbl7pSpEBpQCPFhz5x3XfM=",
++    "h1:E9tCXNKGWXJoWYUxNH9x0Y+eLZ0OTShcVKzYtoTQeZQ=",
+   ]
+ }
+
+ provider "registry.terraform.io/hashicorp/random" {
+-  version     = "3.7.2"
+-  constraints = "3.7.2"
++  version     = "3.7.2"
++  constraints = "~> 3.7"
+   hashes = [
+     "h1:KG4NuIBl1mRWU0KD/BntApW1HbCZQZUq+ZFwUE4x0j0=",
+   ]
+ }
+
+──────────────────────────────────────────────────────────────────────────────
+$ terraform plan
+──────────────────────────────────────────────────────────────────────────────
+
+data.aws_caller_identity.current: Reading...
+data.aws_availability_zones.available: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=379484935796]
+data.aws_availability_zones.available: Read complete after 0s [id=us-east-1]
+aws_vpc.main: Refreshing state... [id=vpc-0a3f21c9e4b7d5081]
+aws_elastic_beanstalk_application.api: Refreshing state... [id=ship-api]
+aws_iam_role.eb_instance: Refreshing state... [id=ship-eb-instance-role]
+aws_iam_role.eb_service: Refreshing state... [id=ship-eb-service-role]
+aws_iam_role.vpc_flow_logs: Refreshing state... [id=ship-vpc-flow-logs]
+aws_iam_role.cloudfront_realtime_logs: Refreshing state... [id=ship-dev-cf-realtime-logs]
+aws_kinesis_stream.cloudfront_logs: Refreshing state... [id=arn:aws:kinesis:us-east-1:379484935796:stream/ship-dev-cloudfront-logs]
+aws_s3_bucket.frontend: Refreshing state... [id=ship-frontend-dev-379484935796]
+aws_s3_bucket.uploads: Refreshing state... [id=ship-uploads-dev-379484935796]
+aws_subnet.public[0]: Refreshing state... [id=subnet-07b2e94c1d6a5f083]
+aws_subnet.public[1]: Refreshing state... [id=subnet-0c9d13f8ae65b247a]
+aws_subnet.private[0]: Refreshing state... [id=subnet-041c8e77a2b93f6de]
+aws_subnet.private[1]: Refreshing state... [id=subnet-0d92b4fa617c30e85]
+aws_eip.nat[0]: Refreshing state... [id=eipalloc-0f61c7a2d84b39e57]
+aws_nat_gateway.main[0]: Refreshing state... [id=nat-09f7ed15834926679]
+aws_db_subnet_group.aurora: Refreshing state... [id=ship-aurora]
+aws_security_group.alb: Refreshing state... [id=sg-06f4a1d2e8b73c95f]
+aws_security_group.eb_instance: Refreshing state... [id=sg-0b83e5c17df246a90]
+aws_security_group.aurora: Refreshing state... [id=sg-0e21d7b845f9c3a6e]
+aws_rds_cluster.aurora: Refreshing state... [id=ship-aurora]
+aws_rds_cluster_instance.aurora: Refreshing state... [id=ship-aurora-instance-1]
+aws_wafv2_ip_set.bad_ips[0]: Refreshing state... [id=8b1e0c47-2f9a-4d63-91ab-7c5e0f2d84a6]
+aws_wafv2_regex_pattern_set.static_files[0]: Refreshing state... [id=d40c92f7-6b18-4e35-a2f1-59c3ba7e061d]
+aws_wafv2_web_acl.cloudfront[0]: Refreshing state... [id=f27a5be3-9c04-41d8-b6e7-3a10d95c8274]
+aws_cloudfront_distribution.frontend: Refreshing state... [id=E3VSP84GNHG3D]
+aws_elastic_beanstalk_environment.api: Refreshing state... [id=e-2mqk7pv3xw]
+
+No changes. Your infrastructure matches the configuration.
+
+Terraform has compared your real infrastructure against your configuration and
+found no differences, so no changes are needed.
