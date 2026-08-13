@@ -98,21 +98,25 @@ export async function loadProductionSecrets(): Promise<void> {
     'DEMO_CLIENT_SECRET',
   ] as const;
 
-  const appSecrets = await Promise.allSettled(
-    appSecretNames.map((n) => getSSMSecret(`${basePath}/${n}`))
+  // Each secret settles on its own rather than zipping a Promise.allSettled
+  // result array back against the name array by index. That zip was the first
+  // version and it does not compile under `noUncheckedIndexedAccess`:
+  // `appSecretNames[i]` is `string | undefined`, and `process.env[name]` then
+  // fails with TS2538, "Type 'undefined' cannot be used as an index type".
+  // Handling each one inside its own closure means the name is captured by the
+  // parameter and is never an index lookup, so there is nothing to narrow.
+  await Promise.all(
+    appSecretNames.map(async (name) => {
+      try {
+        process.env[name] = await getSSMSecret(`${basePath}/${name}`);
+      } catch (err) {
+        console.error(
+          `WARNING: ${basePath}/${name} could not be read (${String(err)}). ` +
+            `The OAuth app it seeds will not exist in this environment.`
+        );
+      }
+    })
   );
-
-  appSecrets.forEach((result, i) => {
-    const name = appSecretNames[i];
-    if (result.status === 'fulfilled') {
-      process.env[name] = result.value;
-    } else {
-      console.error(
-        `WARNING: ${basePath}/${name} could not be read (${String(result.reason)}). ` +
-          `The OAuth app it seeds will not exist in this environment.`
-      );
-    }
-  });
 
   console.log('Secrets loaded from SSM Parameter Store');
   console.log(`CORS_ORIGIN: ${corsOrigin}`);
