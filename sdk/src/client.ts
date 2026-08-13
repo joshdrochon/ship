@@ -24,6 +24,9 @@ import type { RateLimitStatus } from './rateLimit.js';
 import { realClock, type SdkClock } from './retry.js';
 import { ShipTransport, type Transport } from './transport.js';
 import { DocumentsClient } from './resources/documents.js';
+import { IssuesClient } from './resources/issues.js';
+import { SprintsClient } from './resources/sprints.js';
+import { WebhooksClient } from './resources/webhookSubscriptions.js';
 import { InMemoryTokenStore, type ITokenStore } from './auth/tokenStore.js';
 
 /** Sent as `User-Agent`. Version is a literal because the SDK reads no package.json at runtime. */
@@ -104,8 +107,58 @@ export interface Me {
   scopes: string[];
 }
 
+/**
+ * The four resource names, as data — PF-521's test iterates this rather than a
+ * copy of it, and PF-531's reverse walk uses it to enumerate every public method
+ * the SDK offers.
+ */
+export const RESOURCE_NAMES = ['documents', 'issues', 'sprints', 'webhooks'] as const;
+export type ResourceName = (typeof RESOURCE_NAMES)[number];
+
+/**
+ * Assigns a property that is genuinely non-writable at runtime.
+ *
+ * `readonly` in TypeScript is erased by `tsc`, so a plain `this.documents = …`
+ * leaves a field any consumer can reassign — and PF-521 asks for non-writable,
+ * which is a runtime claim. Swapping `client.documents` for a look-alike is how
+ * a token ends up going somewhere it should not, so this is a small security
+ * property and not tidiness.
+ */
+function defineReadonly<T, K extends keyof T>(target: T, key: K, value: T[K]): void {
+  Object.defineProperty(target, key, {
+    value,
+    writable: false,
+    enumerable: true,
+    configurable: false,
+  });
+}
+
+/** `GET /api/v1/openapi.json` — the served spec document, minimally typed. */
+export interface ShipOpenApiDocument {
+  openapi: string;
+  info: { title: string; version: string };
+  paths: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export class ShipClient {
-  readonly documents: DocumentsClient;
+  /**
+   * PRD p.7's interface sketch, literally:
+   *
+   *     readonly documents: DocumentsClient;
+   *     readonly issues:    IssuesClient;
+   *     readonly sprints:   SprintsClient;
+   *     readonly webhooks:  WebhooksClient;
+   *
+   * Four named classes rather than one object with every method on it — p.12
+   * cites this exact structure as the SDK's Interface-Segregation evidence, so
+   * the shape is a graded claim. Assigned through `defineReadonly` in the
+   * constructor, hence the definite-assignment `!`.
+   */
+  readonly documents!: DocumentsClient;
+  readonly issues!: IssuesClient;
+  readonly sprints!: SprintsClient;
+  readonly webhooks!: WebhooksClient;
 
   /** Where the base URL came from — `'option' | 'env' | 'default'`. Useful in a support log. */
   readonly baseUrlSource: BaseUrlSource;
@@ -142,7 +195,10 @@ export class ShipClient {
       },
     });
 
-    this.documents = new DocumentsClient(this.transport);
+    defineReadonly(this, 'documents', new DocumentsClient(this.transport));
+    defineReadonly(this, 'issues', new IssuesClient(this.transport));
+    defineReadonly(this, 'sprints', new SprintsClient(this.transport));
+    defineReadonly(this, 'webhooks', new WebhooksClient(this.transport));
   }
 
   /**
@@ -151,6 +207,19 @@ export class ShipClient {
    */
   me(): Promise<Me> {
     return this.transport.request<Me>('GET', '/me');
+  }
+
+  /**
+   * `GET /api/v1/openapi.json` — the served contract, fetched with no credential.
+   *
+   * The only spec operation declaring `security: []`. It is here because TS-5
+   * (p.5) walks EVERY spec method and asserts the SDK exposes a typed call for
+   * it, and "every" includes the one a developer reads before they have a token.
+   */
+  openapi(): Promise<ShipOpenApiDocument> {
+    return this.transport.request<ShipOpenApiDocument>('GET', '/openapi.json', {
+      anonymous: true,
+    });
   }
 
   /**

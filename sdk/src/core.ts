@@ -12,8 +12,8 @@
  */
 
 // ── client ──────────────────────────────────────────────────────────────────
-export { ShipClient, SDK_USER_AGENT } from './client.js';
-export type { ShipClientOptions, Me } from './client.js';
+export { ShipClient, SDK_USER_AGENT, RESOURCE_NAMES } from './client.js';
+export type { ShipClientOptions, Me, ResourceName, ShipOpenApiDocument } from './client.js';
 
 // ── base URL resolution (PF-491 / PF-494) ───────────────────────────────────
 export {
@@ -78,10 +78,61 @@ export { InMemoryTokenStore, isStoredTokens } from './auth/tokenStore.js';
 export type { ITokenStore, StoredTokens } from './auth/tokenStore.js';
 export { exchangeRefreshToken, singleFlight } from './auth/refresh.js';
 
-// ── pagination ──────────────────────────────────────────────────────────────
-export { paginate } from './pagination.js';
+// ── pagination (PF-533 – PF-536) ────────────────────────────────────────────
+export { paginate, PaginationStalledError } from './pagination.js';
 export type { Page } from './pagination.js';
+export { ResourceClient } from './resources/base.js';
+export type { ListOptions, IterateOptions } from './resources/base.js';
 
-// ── resources ───────────────────────────────────────────────────────────────
-export { DocumentsClient } from './resources/documents.js';
-export type { ShipDocument, CreateDocumentInput } from './resources/documents.js';
+// ── resources (PF-521 – PF-527) ─────────────────────────────────────────────
+export { DocumentsClient, PUBLIC_DOCUMENT_TYPES, BELONGS_TO_TYPES, DOCUMENT_FIELDS, CREATE_DOCUMENT_FIELDS } from './resources/documents.js';
+export type {
+  ShipDocument,
+  CreateDocumentInput,
+  PublicDocumentType,
+  BelongsToType,
+  BelongsToRef,
+  DocumentPage,
+} from './resources/documents.js';
+
+export { IssuesClient, ISSUE_STATES, ISSUE_PRIORITIES, ISSUE_FIELDS, CREATE_ISSUE_FIELDS, UPDATE_ISSUE_FIELDS } from './resources/issues.js';
+export type {
+  ShipIssue,
+  CreateIssueInput,
+  UpdateIssueInput,
+  IssueState,
+  IssuePriority,
+} from './resources/issues.js';
+
+export { SprintsClient, SPRINT_STATUSES, SPRINT_FIELDS, CREATE_SPRINT_FIELDS, UPDATE_SPRINT_FIELDS } from './resources/sprints.js';
+export type {
+  ShipSprint,
+  CreateSprintInput,
+  UpdateSprintInput,
+  SprintStatus,
+} from './resources/sprints.js';
+
+export {
+  WebhooksClient,
+  SHIP_EVENT_TYPES,
+  WEBHOOK_SUBSCRIPTION_FIELDS,
+  WEBHOOK_SUBSCRIPTION_WITH_SECRET_FIELDS,
+  CREATE_WEBHOOK_FIELDS,
+  UPDATE_WEBHOOK_FIELDS,
+} from './resources/webhookSubscriptions.js';
+export type {
+  WebhookSubscription,
+  WebhookSubscriptionWithSecret,
+  CreateWebhookInput,
+  UpdateWebhookInput,
+  ShipEventType,
+} from './resources/webhookSubscriptions.js';
+
+// ── spec parity binding (PF-528 – PF-532) ───────────────────────────────────
+export {
+  OPERATION_BINDINGS,
+  BINDING_BY_OPERATION_ID,
+  resolveBoundMethod,
+  listPublicMethodPaths,
+} from './operations.js';
+export type { OperationBinding, ClientMethodPath, ReturnShape } from './operations.js';

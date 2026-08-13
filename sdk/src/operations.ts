@@ -1,0 +1,410 @@
+/**
+ * PF-529 — the operation→method binding, as EXPORTED DATA.
+ *
+ * Testing Scenario 5 (p.5) is *"validate the generated /api/v1/openapi.json
+ * against the OpenAPI 3.1 JSON schema. Then walk every spec method and assert
+ * the SDK exposes a typed call for it."* L13 owns the validation and the
+ * spec-side walk (`listSpecOperations`, PF-378). This file is the SDK side of
+ * the join, and it is the whole reason the walk can be exact.
+ *
+ * ── Why a table and not a heuristic ─────────────────────────────────────────
+ * The obvious implementation derives `documents.list` from `GET /documents` by
+ * string surgery. It is rejected on purpose. A heuristic answers "is there a
+ * method for this operation?" by CONSTRUCTING the name it expects and looking it
+ * up — which means it also cheerfully "matches" `POST /widgets` to a
+ * `widgets.create` that nobody wrote, as long as the lookup is written the
+ * slightly-wrong way, and it can never detect a method the SDK invented. A
+ * table is a claim someone made, and a claim can be wrong in a way a test can
+ * see.
+ *
+ * ── The two failure modes, and where each one fires ─────────────────────────
+ *   a spec operation with no entry here   → `specSurfaceParity.test.ts` fails
+ *                                           at runtime, naming the operationId
+ *                                           and its `METHOD /path`
+ *   an entry naming a method that does
+ *   not exist on the client               → `pnpm type-check` fails, because
+ *                                           `ClientMethodPath` below is derived
+ *                                           from the real classes
+ *
+ * The second is the one that matters most: it means this table cannot rot into
+ * a list of aspirations. Rename `DocumentsClient.list` and the SDK stops
+ * compiling here.
+ *
+ * ── This file parses NOTHING ────────────────────────────────────────────────
+ * There is no OpenAPI reading anywhere under `sdk/` — no YAML walker, no JSON
+ * schema traversal, no re-read of `docs/openapi.json`. Exactly one
+ * implementation of "every spec method" exists in this repository and it is
+ * L13's. `specSurfaceParity.test.ts` greps for that and fails if a second one
+ * appears, because Scenario 5 comparing two parsers would be measuring their
+ * agreement rather than the spec's agreement with the SDK.
+ */
+import type { ShipClient } from './client.js';
+import type { DocumentsClient } from './resources/documents.js';
+import type { IssuesClient } from './resources/issues.js';
+import type { SprintsClient } from './resources/sprints.js';
+import type { WebhooksClient } from './resources/webhookSubscriptions.js';
+// The field tuples come from the resource modules rather than being restated
+// here, so the binding and the type it describes cannot drift: adding a field to
+// `ShipIssue` without adding it to `ISSUE_FIELDS` is already a type error
+// (`typeProofs/resourceTypes.ts`), and this table reads that same tuple.
+import { CREATE_DOCUMENT_FIELDS, DOCUMENT_FIELDS } from './resources/documents.js';
+import { CREATE_ISSUE_FIELDS, ISSUE_FIELDS, UPDATE_ISSUE_FIELDS } from './resources/issues.js';
+import { CREATE_SPRINT_FIELDS, SPRINT_FIELDS, UPDATE_SPRINT_FIELDS } from './resources/sprints.js';
+import {
+  CREATE_WEBHOOK_FIELDS,
+  UPDATE_WEBHOOK_FIELDS,
+  WEBHOOK_SUBSCRIPTION_FIELDS,
+  WEBHOOK_SUBSCRIPTION_WITH_SECRET_FIELDS,
+} from './resources/webhookSubscriptions.js';
+
+/** Keys of `T` whose value is callable. */
+type MethodNames<T> = {
+  [K in keyof T]-?: T[K] extends (...args: never[]) => unknown ? K : never;
+}[keyof T];
+
+/** `'documents.list'`, `'webhooks.rotate'`, … — derived from the real classes. */
+type ResourceMethodPath =
+  | `documents.${MethodNames<DocumentsClient> & string}`
+  | `issues.${MethodNames<IssuesClient> & string}`
+  | `sprints.${MethodNames<SprintsClient> & string}`
+  | `webhooks.${MethodNames<WebhooksClient> & string}`;
+
+/** A method on `ShipClient` itself — `me`, `openapi`. */
+type ClientOwnMethodPath = MethodNames<ShipClient> & string;
+
+/**
+ * Every legal value of `call` below. A typo, a renamed method or a method that
+ * was never written is a compile error rather than a test that quietly passes.
+ */
+export type ClientMethodPath = ResourceMethodPath | ClientOwnMethodPath;
+
+/** How the operation's success body is shaped. Drives PF-530's return check. */
+export type ReturnShape =
+  /** `{ data: T[]; next_cursor: string | null }` */
+  | 'page'
+  /** A single resource object. */
+  | 'item'
+  /** Something with no field list to compare — the spec document itself. */
+  | 'opaque';
+
+export interface OperationBinding {
+  /** L13's stable `operationId` (PF-364). The join key. */
+  operationId: string;
+  /** Lower-case HTTP method, as `listSpecOperations` reports it. */
+  method: 'get' | 'post' | 'patch' | 'delete';
+  /** The spec `paths` key — `/api/v1`-relative, `{id}`-braced. */
+  path: string;
+  /** The SDK method, checked against the real classes at compile time. */
+  call: ClientMethodPath;
+  /**
+   * Other SDK methods that call this same operation — `documents.iterate` is a
+   * second spelling of `documents.list`, walking it page by page.
+   *
+   * They are listed rather than exempted because PF-531's reverse walk asserts
+   * EVERY public method resolves to a spec operation, and an exemption list is a
+   * place to hide an invented method. `iterate` is bound, not excused.
+   */
+  aliasCalls?: readonly ClientMethodPath[];
+  /** Path parameters the method takes positionally. */
+  pathParams: readonly string[];
+  /** Query parameters the method's options object admits. */
+  queryParams: readonly string[];
+  /** Request-body fields the method's input type admits. `[]` for a bodyless verb. */
+  bodyFields: readonly string[];
+  /** The response shape, and the field names of the item inside it. */
+  returns: { shape: ReturnShape; fields: readonly string[] };
+}
+
+/** The two query parameters every cursor-paginated list accepts. */
+const LIST_QUERY = ['limit', 'cursor'] as const;
+
+/** The path parameter every single-row operation takes. */
+const ID_PARAM = ['id'] as const;
+
+/**
+ * THE TABLE. One row per spec operation, and the parity test asserts the two
+ * sets are equal in both directions.
+ */
+export const OPERATION_BINDINGS: readonly OperationBinding[] = [
+  {
+    operationId: 'getOpenapiJson',
+    method: 'get',
+    path: '/openapi.json',
+    call: 'openapi',
+    pathParams: [],
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'opaque', fields: [] },
+  },
+  {
+    operationId: 'getMe',
+    method: 'get',
+    path: '/me',
+    call: 'me',
+    pathParams: [],
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'item', fields: ['user', 'app', 'scopes'] },
+  },
+
+  // ── documents ─────────────────────────────────────────────────────────────
+  {
+    operationId: 'getDocuments',
+    method: 'get',
+    path: '/documents',
+    call: 'documents.list',
+    aliasCalls: ['documents.iterate'],
+    pathParams: [],
+    queryParams: LIST_QUERY,
+    bodyFields: [],
+    returns: { shape: 'page', fields: DOCUMENT_FIELDS },
+  },
+  {
+    operationId: 'postDocuments',
+    method: 'post',
+    path: '/documents',
+    call: 'documents.create',
+    pathParams: [],
+    queryParams: [],
+    bodyFields: CREATE_DOCUMENT_FIELDS,
+    returns: { shape: 'item', fields: DOCUMENT_FIELDS },
+  },
+  {
+    operationId: 'getDocumentsById',
+    method: 'get',
+    path: '/documents/{id}',
+    call: 'documents.get',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'item', fields: DOCUMENT_FIELDS },
+  },
+
+  // ── issues ────────────────────────────────────────────────────────────────
+  {
+    operationId: 'getIssues',
+    method: 'get',
+    path: '/issues',
+    call: 'issues.list',
+    aliasCalls: ['issues.iterate'],
+    pathParams: [],
+    queryParams: LIST_QUERY,
+    bodyFields: [],
+    returns: { shape: 'page', fields: ISSUE_FIELDS },
+  },
+  {
+    operationId: 'postIssues',
+    method: 'post',
+    path: '/issues',
+    call: 'issues.create',
+    pathParams: [],
+    queryParams: [],
+    bodyFields: CREATE_ISSUE_FIELDS,
+    returns: { shape: 'item', fields: ISSUE_FIELDS },
+  },
+  {
+    operationId: 'getIssuesById',
+    method: 'get',
+    path: '/issues/{id}',
+    call: 'issues.get',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'item', fields: ISSUE_FIELDS },
+  },
+  {
+    operationId: 'patchIssuesById',
+    method: 'patch',
+    path: '/issues/{id}',
+    call: 'issues.update',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: UPDATE_ISSUE_FIELDS,
+    returns: { shape: 'item', fields: ISSUE_FIELDS },
+  },
+
+  // ── sprints ───────────────────────────────────────────────────────────────
+  {
+    operationId: 'getSprints',
+    method: 'get',
+    path: '/sprints',
+    call: 'sprints.list',
+    aliasCalls: ['sprints.iterate'],
+    pathParams: [],
+    queryParams: LIST_QUERY,
+    bodyFields: [],
+    returns: { shape: 'page', fields: SPRINT_FIELDS },
+  },
+  {
+    operationId: 'postSprints',
+    method: 'post',
+    path: '/sprints',
+    call: 'sprints.create',
+    pathParams: [],
+    queryParams: [],
+    bodyFields: CREATE_SPRINT_FIELDS,
+    returns: { shape: 'item', fields: SPRINT_FIELDS },
+  },
+  {
+    operationId: 'getSprintsById',
+    method: 'get',
+    path: '/sprints/{id}',
+    call: 'sprints.get',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'item', fields: SPRINT_FIELDS },
+  },
+  {
+    operationId: 'patchSprintsById',
+    method: 'patch',
+    path: '/sprints/{id}',
+    call: 'sprints.update',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: UPDATE_SPRINT_FIELDS,
+    returns: { shape: 'item', fields: SPRINT_FIELDS },
+  },
+
+  // ── webhook subscriptions ─────────────────────────────────────────────────
+  {
+    operationId: 'postWebhooks',
+    method: 'post',
+    path: '/webhooks',
+    call: 'webhooks.create',
+    pathParams: [],
+    queryParams: [],
+    bodyFields: CREATE_WEBHOOK_FIELDS,
+    // The ONE response that carries the secret — PF-525's separate type.
+    returns: { shape: 'item', fields: WEBHOOK_SUBSCRIPTION_WITH_SECRET_FIELDS },
+  },
+  {
+    operationId: 'getWebhooks',
+    method: 'get',
+    path: '/webhooks',
+    call: 'webhooks.list',
+    aliasCalls: ['webhooks.iterate'],
+    pathParams: [],
+    queryParams: LIST_QUERY,
+    bodyFields: [],
+    returns: { shape: 'page', fields: WEBHOOK_SUBSCRIPTION_FIELDS },
+  },
+  {
+    operationId: 'getWebhooksById',
+    method: 'get',
+    path: '/webhooks/{id}',
+    call: 'webhooks.get',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'item', fields: WEBHOOK_SUBSCRIPTION_FIELDS },
+  },
+  {
+    operationId: 'patchWebhooksById',
+    method: 'patch',
+    path: '/webhooks/{id}',
+    call: 'webhooks.update',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: UPDATE_WEBHOOK_FIELDS,
+    returns: { shape: 'item', fields: WEBHOOK_SUBSCRIPTION_FIELDS },
+  },
+  {
+    operationId: 'deleteWebhooksById',
+    method: 'delete',
+    path: '/webhooks/{id}',
+    call: 'webhooks.delete',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'item', fields: WEBHOOK_SUBSCRIPTION_FIELDS },
+  },
+  {
+    operationId: 'postWebhooksByIdRotate',
+    method: 'post',
+    path: '/webhooks/{id}/rotate',
+    call: 'webhooks.rotate',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'item', fields: WEBHOOK_SUBSCRIPTION_WITH_SECRET_FIELDS },
+  },
+];
+
+/** Lookup by `operationId`. Built once. */
+export const BINDING_BY_OPERATION_ID: ReadonlyMap<string, OperationBinding> = new Map(
+  OPERATION_BINDINGS.map((binding) => [binding.operationId, binding]),
+);
+
+/**
+ * Resolves a `call` path against a live client — PF-528's "resolves to a
+ * callable SDK method", executed rather than asserted.
+ *
+ * Returns `null` rather than throwing so the test can report every unresolved
+ * binding in one run instead of one per re-run.
+ */
+export function resolveBoundMethod(
+  client: ShipClient,
+  call: string,
+): ((...args: never[]) => unknown) | null {
+  const parts = call.split('.');
+  let current: unknown = client;
+  for (const part of parts) {
+    if (current === null || (typeof current !== 'object' && typeof current !== 'function')) {
+      return null;
+    }
+    // Walks the prototype chain on purpose: `list` lives on `ResourceClient`,
+    // not on the instance, and an own-property check would report every
+    // inherited method as missing.
+    current = (current as Record<string, unknown>)[part];
+  }
+  return typeof current === 'function' ? (current as (...args: never[]) => unknown) : null;
+}
+
+/**
+ * Every public method the SDK offers, as `'resource.method'` / `'method'` paths
+ * — PF-531's reverse walk reads this and asserts each one appears in the table.
+ *
+ * Read off the real prototypes rather than from a list, because a list of
+ * methods maintained beside a table of bindings is two lists that agree until
+ * someone adds a method to only one.
+ */
+export function listPublicMethodPaths(client: ShipClient): string[] {
+  const paths: string[] = [];
+
+  for (const name of prototypeMethods(client)) paths.push(name);
+
+  for (const resource of ['documents', 'issues', 'sprints', 'webhooks'] as const) {
+    for (const name of prototypeMethods(client[resource])) paths.push(`${resource}.${name}`);
+  }
+
+  return paths.sort();
+}
+
+/**
+ * Callable, non-private, non-constructor members of an object's prototype
+ * chain, stopping at `Object.prototype`.
+ *
+ * `iterate` is included and is meant to be: PF-531 asks that EVERY public method
+ * appear in the binding table, and `iterate` is bound to the same `list`
+ * operation as `list` is — it is a second spelling of one spec call, not an
+ * unbound method.
+ */
+function prototypeMethods(instance: object): string[] {
+  const names = new Set<string>();
+  let prototype: object | null = Object.getPrototypeOf(instance) as object | null;
+
+  while (prototype !== null && prototype !== Object.prototype) {
+    for (const [key, descriptor] of Object.entries(
+      Object.getOwnPropertyDescriptors(prototype),
+    )) {
+      if (key === 'constructor' || key.startsWith('_')) continue;
+      // A getter must not be INVOKED to classify it — `rateLimit` would run.
+      if (descriptor.get !== undefined || descriptor.set !== undefined) continue;
+      if (typeof descriptor.value === 'function') names.add(key);
+    }
+    prototype = Object.getPrototypeOf(prototype) as object | null;
+  }
+
+  return [...names];
+}
