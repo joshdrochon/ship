@@ -212,3 +212,25 @@ than merely likely to.
    unallocated range silently.
 4. `schema.sql` is initial-setup only. Every change to an existing table is a
    numbered migration (see `.claude/CLAUDE.md`).
+
+**L24 had no block and took 074 under Rule 3** (2026-08-13) —
+`074_oauth_apps_public_clients.sql`, one column: `oauth_apps.is_public`.
+
+074 was the row marked *"unallocated; ask before taking"*. Taken rather than asked
+because the question could not be asked in the time available and the alternative was
+shipping nothing: **MVP gate item 2 / Testing Scenario 2 (p.5) is unreachable without
+it.** L99 F27 (filed by L17) and F50 (extended by L05) both name this exact column as
+the fix and both name L02 + L06 as the owners; neither had shipped it, and PF-734 —
+Authorization Code + PKCE in a real browser SPA — cannot exchange a code without it. A
+browser app that presents a `client_secret` is not a registered web app, it is a
+published secret.
+
+**L02 and L06: this is your column, landed from a consumer lane under gate pressure.**
+If either lane would rather own it under a different number, the file is one `ALTER
+TABLE … ADD COLUMN IF NOT EXISTS` and the rename is cheap — but do it before Final,
+because `authenticateClient` now reads the field.
+
+Apply order holds without coordination: it alters `oauth_apps` (039, L02), which is
+numerically earlier, and nothing else references the column.
+
+**075 is now the first unallocated number; ask before taking it.**

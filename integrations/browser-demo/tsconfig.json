@@ -1,0 +1,35 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+
+    // A BROWSER program. `lib` gains DOM; it does NOT gain `@types/node`, and
+    // that omission is load-bearing — if `node:crypto` or `process` typechecked
+    // here, a Node-only import could reach the bundle and PF-738's assertion
+    // would be the first thing to find out.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+
+    // `bundler` + `customConditions: ["browser"]` makes TypeScript resolve
+    // `@ship/sdk` through the SAME `exports` condition Vite will use at build
+    // time — `sdk/dist/browser.d.ts`, not the Node barrel.
+    //
+    // This is what makes the type checker agree with the bundler about what
+    // exists. Under `NodeNext` the compiler would resolve the Node entry and
+    // happily typecheck `verifyWebhook`, which is exactly the import that pulls
+    // `node:crypto` into a browser bundle (L99 F14). A build error at the point
+    // of writing beats a 250 KB surprise at the point of measuring.
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "customConditions": ["browser"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "skipLibCheck": false
+  },
+  "include": ["src/**/*", "vite.config.ts"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

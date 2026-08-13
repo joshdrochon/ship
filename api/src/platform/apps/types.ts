@@ -37,6 +37,19 @@ export interface OAuthApp {
   active: boolean;
   /** First-party apps (the FleetGraph agent) are seeded by migration (PF-054). */
   isFirstParty: boolean;
+  /**
+   * RFC 6749 §2.1 — a PUBLIC client: one that cannot keep a secret. A browser
+   * SPA and a CLI are the two canonical cases.
+   *
+   * `true` means `/oauth/token` authenticates this client on `client_id` alone
+   * and PKCE carries the proof (migration 074, L99 F27/F50). `false` — the
+   * default and every pre-074 row — is a confidential client and its secret is
+   * still required.
+   *
+   * Default-false is the security property: becoming public is a recorded act,
+   * never an inference from an omitted request parameter.
+   */
+  isPublic: boolean;
   deactivatedAt: Date | null;
   /** Machine-readable tag, e.g. 'owner_deleted' — not prose. */
   deactivationReason: string | null;
