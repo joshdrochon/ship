@@ -101,7 +101,10 @@ export async function createBearerTestApp(
   });
 
   const generous = (): IRateLimiter =>
-    new InMemoryTokenBucket({ capacity: 1_000_000, refillPerSecond: 1_000_000 });
+    new InMemoryTokenBucket(
+      { capacity: 1_000_000, refillPerSecond: 1_000_000, maxKeys: 10_000 },
+      new FakeClock(0),
+    );
 
   const app = express();
   app.use(

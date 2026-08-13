@@ -16,6 +16,7 @@ import { createPublicRouter } from './router.js';
 import { InMemoryAuditSink } from '../../audit/audit.js';
 import { InMemoryTokenBucket } from '../../ratelimit/limiter.js';
 import type { IRateLimiter } from '../../ratelimit/limiter.js';
+import { FakeClock } from '../../clock.js';
 import type { PlatformAuthContext } from '../../scopes/auth-context.js';
 import type { Scope } from '../../scopes/scopes.js';
 
@@ -36,6 +37,15 @@ export interface TestPublicAppOptions {
   /** Override the rate limiters — e.g. a capacity-1 bucket to produce a 429. */
   perAppLimiter?: IRateLimiter;
   perTokenLimiter?: IRateLimiter;
+  /**
+   * L11 PF-313 — the IP-keyed backstop above bearer auth.
+   *
+   * Defaults to a bucket no test can exhaust. A tight default here would 429 the
+   * third request of every spec in the repo for a reason unrelated to what it
+   * asserts, and the anon bucket is keyed by IP, which is the SAME key for every
+   * request supertest makes.
+   */
+  anonLimiter?: IRateLimiter;
   /** Routes mounted ABOVE bearer auth (PF-216). Paths must be in V1_UNAUTHENTICATED_PATHS. */
   mountUnauthenticated?: (router: Router) => void;
   /**
@@ -85,8 +95,16 @@ export function createTestPublicApp(options: TestPublicAppOptions = {}): TestPub
     next();
   };
 
+  // A bucket no test can exhaust by accident, on a clock that never moves. A
+  // `FakeClock` rather than a `SystemClock` because PF-302 made the clock a
+  // required argument precisely so shared wiring like this cannot read wall time
+  // — a suite whose limiter refills on the wall clock is a suite whose
+  // rate-limit assertions depend on how fast the machine ran.
   const generousBucket = (): IRateLimiter =>
-    new InMemoryTokenBucket({ capacity: 1_000_000, refillPerSecond: 1_000_000 });
+    new InMemoryTokenBucket(
+      { capacity: 1_000_000, refillPerSecond: 1_000_000, maxKeys: 10_000 },
+      new FakeClock(0),
+    );
 
   const app = express();
   app.use(
@@ -95,6 +113,7 @@ export function createTestPublicApp(options: TestPublicAppOptions = {}): TestPub
       bearerAuth,
       perAppLimiter: options.perAppLimiter ?? generousBucket(),
       perTokenLimiter: options.perTokenLimiter ?? generousBucket(),
+      anonLimiter: options.anonLimiter ?? generousBucket(),
       auditSink,
       ...(options.mountUnauthenticated
         ? { mountUnauthenticated: options.mountUnauthenticated }

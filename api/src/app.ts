@@ -45,6 +45,8 @@ import { initializeCAIA } from './services/caia.js';
 import { productionDeps, type AppDeps } from './deps.js';
 import { createPublicRouter } from './platform/api/v1/router.js';
 import { createOAuthRouter } from './platform/oauth/index.js';
+// Finding F29 — the /oauth throttle. See the mount below.
+import { oauthRateLimitMiddleware } from './platform/ratelimit/index.js';
 import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js';
 import { assertEveryRouteDeclaresScope } from './platform/api/v1/declareV1Route.js';
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
@@ -315,11 +317,16 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
   // internal layer keeps its relative position and exactly one layer is added.
   app.use('/api/v1', createPublicRouter({
     bearerAuth: deps.bearerAuth,
-    // One bucket instance, two key namespaces (`app:` / `token:`) — the middleware
-    // namespaces its keys, so per-app and per-token limits do not collide. L11
-    // splits these into two configured buckets when it owns the numbers.
-    perAppLimiter: deps.limiter,
-    perTokenLimiter: deps.limiter,
+    // L11 PF-304 — TWO separately-configured bucket instances, not one instance
+    // with two key namespaces. Namespacing alone would give per-app and
+    // per-token the same capacity and the same refill rate, which makes PRD
+    // p.4's "per-app AND per-token limits" one limit charged twice. The numbers
+    // are chosen in `deps.ts` (PF-309).
+    perAppLimiter: deps.perAppLimiter,
+    perTokenLimiter: deps.perTokenLimiter,
+    // L11 PF-313 — the IP-keyed backstop that sits above bearer auth, so a 401,
+    // a 404 and the openapi.json route all carry rate-limit headers too.
+    anonLimiter: deps.anonLimiter,
     auditSink: deps.auditSink,
 
     // L13 (PF-357, PF-365, PF-366) — the generated spec, served from INSIDE the
@@ -392,6 +399,28 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
   // token exchange. That is exactly the gap L02's `recordSecretAuth` fills with
   // its own signal. If a later lane moves `/oauth` under `/api/v1`, the boundary
   // test fails — which is the intended trigger to revisit both.
+  //
+  // FINDING F29 — and it is fixed HERE, one line above the router.
+  //
+  // `/oauth/*` met no rate limit at all. Three separately true statements added
+  // up to it: L11 was scoped to `/api/v1`; PF-107 (above) asserts the internal
+  // `apiLimiter` does not reach this router, which is correct and is the reason
+  // it does not; and L05's PF-132 throttles only the device grant's `user_code`
+  // guess space. So `POST /oauth/token` — an endpoint whose whole job is to say
+  // whether a `client_secret`, an authorization code or a refresh token is
+  // right — answered an unbounded number of guesses per second.
+  //
+  // Mounted in the composition root rather than inside the OAuth router:
+  // throttling is not one of that router's concerns, and this is the file that
+  // already knows which `IRateLimiter` this deployment has. Above the router so
+  // it runs before the body is parsed and before any credential is checked — a
+  // limiter that only counts requests it has already done the work for has
+  // already done the work.
+  //
+  // The 429 keeps the RFC 6749 error shape, NOT the ApiError envelope. See
+  // platform/ratelimit/oauthThrottle.ts.
+  app.use('/oauth', oauthRateLimitMiddleware(deps.oauthLimiter));
+
   app.use('/oauth', createOAuthRouter({
     appsRepo,
     tokenRepo: deps.tokenRepo,

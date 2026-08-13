@@ -22,6 +22,7 @@ import { InMemoryTokenBucket } from '../ratelimit/limiter.js';
 import { mountOpenApiSpec, OPENAPI_SPEC_PATH } from './route.js';
 import { generatePublicOpenAPIDocument, PUBLIC_API_SERVER_URL } from './registry.js';
 import '../api/v1/documents/routes.js';
+import { FakeClock } from '../clock.js';
 
 const document = generatePublicOpenAPIDocument();
 
@@ -162,8 +163,16 @@ describe('PF-367 — what the spec route bypasses, measured rather than assumed'
     // A capacity-1 bucket. If the spec route consumed a token, the second
     // request would 429 — and more importantly a resource request afterwards
     // would be throttled by traffic it did not cause.
-    const perAppLimiter = new InMemoryTokenBucket({ capacity: 1, refillPerSecond: 0 });
-    const perTokenLimiter = new InMemoryTokenBucket({ capacity: 1, refillPerSecond: 0 });
+    // `1e-6` rather than `0`: PF-306 requires an integer `Retry-After` >= 1, and
+    // a bucket that never refills computes an infinite one.
+    const perAppLimiter = new InMemoryTokenBucket(
+      { capacity: 1, refillPerSecond: 1e-6, maxKeys: 100 },
+      new FakeClock(0),
+    );
+    const perTokenLimiter = new InMemoryTokenBucket(
+      { capacity: 1, refillPerSecond: 1e-6, maxKeys: 100 },
+      new FakeClock(0),
+    );
     const harness = await createBearerTestApp({
       mountUnauthenticated: mountOpenApiSpec(document),
       mountResources,
