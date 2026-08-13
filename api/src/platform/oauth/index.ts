@@ -30,6 +30,18 @@ export { renderConsentPage, renderAuthorizeErrorPage, escapeHtml } from './conse
 // seam, the issuance endpoint, and the response contract L18/L19 import.
 export * from './deviceCodes.js';
 export { PgDeviceCodeRepo } from './pgDeviceCodeRepo.js';
+export * from './deviceThrottle.js';
+export {
+  mountDeviceVerifyRoutes,
+  DEVICE_DECISION_PATH,
+  DEVICE_VERIFY_MESSAGES,
+  type DeviceVerifyDeps,
+} from './deviceVerify.js';
+export {
+  renderDeviceEntryPage,
+  renderDeviceConsentPage,
+  renderDeviceResultPage,
+} from './consentPage.js';
 export {
   mountDeviceAuthorizationRoutes,
   deviceAuthorizationResponseSchema,

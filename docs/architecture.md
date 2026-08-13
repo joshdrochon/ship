@@ -387,6 +387,24 @@ The argument is structural, not aesthetic. Ship's UI is a Vite SPA that boots a 
 
 **CSRF** on the decision POST is the same `csrf-sync` synchroniser token the internal surface uses, injected rather than re-created so it shares one session store with the portal. The route additionally **refuses bearer authentication outright**: `conditionalCsrf` in `app.ts` skips CSRF whenever an `Authorization: Bearer` header is present, which is safe only because the internal middleware does not fall back to session auth on an invalid bearer, and this route closes that locally rather than depending on the coupling.
 
+### The device verification UX: a code-entry form, with the completed URI as a confirmed convenience
+
+PRD p.16 asks it as a genuinely open question — *"For the Device Authorization Grant: what is your verification URL UX — do users paste a code into a form, or do you embed the code in a URL they click? RFC 8628 allows both."*
+
+**Both ship, and the form is the normative path.** `GET /oauth/device/verify` renders a one-field form; `POST /oauth/device/verify` accepts the code and shows consent; `POST /oauth/device/verify/decision` records it. `verification_uri_complete` (RFC 8628 §3.3.1) is returned alongside `verification_uri` and pre-fills that field.
+
+The form is normative because it is what p.3 actually requires — *"`/oauth/device/verify` accepts the `user_code`"*, and a URL that carries the code does not "accept" it — and because p.7's SDK callback `onUserCode: (code, verifyUrl) => void` hands the caller a code *and* a URL as two separate values, which presumes the user does something with the code.
+
+**The load-bearing part is not which one ships. It is that the completed URI still renders the code and asks the user to confirm it matches their terminal.** Without that confirmation the completed URI is a one-click device-phishing primitive, and RFC 8628 §5.4 names exactly this attack: an attacker starts their *own* device flow, sends the victim the completed URL, and the victim authorizes the attacker's device believing it is their own. The consent screen therefore displays the `user_code` prominently and asks for the comparison in words, with a Deny prompt naming the attack. A test asserts the code appears in the rendered body — an implementation that dropped it would pass every other assertion in the lane.
+
+**Rejected:** form-only, which is a worse demo for no security gain (the form stays reachable either way, and the confirmation is what does the work); and complete-URI-only, which removes the confirmation step and contradicts p.3.
+
+**Cost, stated:** the confirmation is one extra thing to read on a screen users will click through, and it is only as good as the user's attention. It is still the only control available — the server cannot distinguish the victim's browser from the attacker's.
+
+The screen reuses the authorization-code consent screen's hardening rather than restating it: one template family (`consentPage.ts`), the same `frame-ancestors 'none'` / `X-Frame-Options: DENY` / `Cache-Control: no-store` set router-wide, the same unconditional `csrf-sync` protection, and the same outright refusal of bearer authentication — each asserted on *this* route rather than assumed from the neighbour.
+
+**Guessing the `user_code`** is bounded by the product RFC 8628 §5.1 actually requires, not by either half alone: a 28-character ambiguity-free alphabet at length 8 gives ≈ 38.5 bits (3.8 × 10¹¹ codes), and `/oauth/*` is rate-limited at 30 requests/minute per IP — so a code is exposed to at most ~300 attempts across its whole 600-second life, giving P(hit) ≈ 10⁻⁶ even assuming a hundred codes live at once. On top of that transport limit the verification screen counts *failed lookups* per session and per IP, cutting entry off for 15 minutes after five, and **invalidating any code found after three distinct wrong ones** — after three misses a correct guess is evidence about the guesser, and the legitimate user re-runs one command. The arithmetic is asserted against the shipped constants, so lowering the entropy or loosening the limit fails a test rather than quietly invalidating this paragraph.
+
 ### The `/oauth` error surface is deliberately **not** the `ApiError` envelope
 
 `/oauth/*` emits RFC 6749 §5.2's `{error, error_description?, error_uri?}`. `/api/v1/*` emits `ApiError`. Two specifications govern two surfaces and they are not collapsed.

@@ -53,7 +53,9 @@ import {
 } from './consent.js';
 import { authorizationCodeGrant } from './authCodeGrant.js';
 import type { IDeviceCodeRepo } from './deviceCodes.js';
+import type { UserCodeAttemptThrottle } from './deviceThrottle.js';
 import { mountDeviceAuthorizationRoutes } from './deviceAuthorization.js';
+import { mountDeviceVerifyRoutes } from './deviceVerify.js';
 
 export interface OAuthRouterDeps {
   appsRepo: IOAuthAppRepo;
@@ -102,6 +104,14 @@ export interface OAuthRouterDeps {
    * does not resolve on the deployed instance.
    */
   publicBaseUrl?: string;
+  /**
+   * L05 PF-132 — the `user_code` guess counter.
+   *
+   * Injected so a table test can drive tight thresholds against a `FakeClock`
+   * rather than making 5 real requests to observe a cooldown. Defaults to the
+   * shipped constants.
+   */
+  deviceThrottle?: UserCodeAttemptThrottle;
   /** Overridable scope registry, for PF-095's mutated-description test. */
   scopeRegistry?: ScopeRegistry<string>;
 }
@@ -281,6 +291,21 @@ export function createOAuthRouter(deps: OAuthRouterDeps): Router {
       publicBaseUrl: deps.publicBaseUrl,
       ...(deps.scopeRegistry ? { registry: deps.scopeRegistry } : {}),
     });
+
+    // L05 PF-129/PF-130 — the human-facing half. Needs the same browser
+    // dependencies the consent screen does, so it mounts only when they are
+    // wired; a device flow with no verification screen can issue a code that
+    // nobody can ever approve, and answering 404 says so.
+    if (deps.browser) {
+      mountDeviceVerifyRoutes(router, {
+        appsRepo: deps.appsRepo,
+        deviceCodeRepo: deps.deviceCodeRepo,
+        clock: deps.clock,
+        browser: deps.browser,
+        ...(deps.scopeRegistry ? { registry: deps.scopeRegistry } : {}),
+        ...(deps.deviceThrottle ? { throttle: deps.deviceThrottle } : {}),
+      });
+    }
   }
 
   // L04 PF-094 — the browser-facing half. Mounted before `/token` so the route
