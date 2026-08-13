@@ -37,7 +37,10 @@ Cross-lane decisions carry their `D`/`F`/`B`/`U` identifiers from
 [`tickets/plugforge/lane-99-unassigned.md`](tickets/plugforge/lane-99-unassigned.md), which is
 where they were argued.
 
-**Facts were read at** `cd12779` on `pf/integration` (eleven merged lanes, 247 tickets).
+**Facts were read at** `cd12779` on `pf/integration`, and re-checked against `8501b7a` after L10
+merged mid-write. **Measured lane state at that point: ten lane files carrying `☑` rows, 246
+tickets marked done** — the coordinator's brief says eleven and 247, and the difference is L21,
+whose artifacts merged while its checkboxes did not (amendment A-7).
 
 ---
 
@@ -2209,6 +2212,15 @@ a **rendering** of the spec, not a publication of it, and a hosted renderer is a
 that can go stale. The spec is the artifact; a renderer is a convenience the grader can point at
 either URL.
 
+*⚠ A hazard that makes "identical" harder than it sounds.* **F46:**
+`api/src/platform/openapi/staticCopy.test.ts` calls `writePublicSpec()` **for real**, so
+`pnpm test` **overwrites the committed `docs/openapi.json`** — and a route module absent from
+*that test file's* import list is **silently deleted from the artifact**. L10 watched `/me`
+generate correctly and vanish minutes later. The stopgap was extending the import list; the
+durable fix is writing to a temp path and comparing. **A test that mutates a graded submission
+deliverable is the failure mode to fix before Sunday**, because the artifact can regress with a
+green suite.
+
 *What keeps them identical.* Two mechanisms, because one would not be enough:
 
 1. **`pnpm openapi:public`** writes `docs/openapi.json`, and a test asserts **deep equality
@@ -2878,6 +2890,30 @@ exists under `scripts/`, `.github/` or `.gitlab-ci.yml`.
 Fully specified across L20's 24 tickets, all open. `test-results/` does not exist. **The measured
 TTFE figure is the most conspicuous missing number in this document.**
 
+**A-8 · Q54 — a test overwrites the graded OpenAPI artifact (F46), recorded after L10 merged.**
+`pf/integration` advanced to `8501b7a` during this lane's write. The new finding matters to Q54:
+`staticCopy.test.ts` calls `writePublicSpec()` for real, so `pnpm test` rewrites the committed
+`docs/openapi.json`, and any route module missing from that test's import list is silently
+dropped from a **p.13 submission deliverable**. Q54's "asserted byte-identical" claim is
+therefore true of the *mechanism* and fragile in *practice* until the test writes to a temp path
+and compares. Owned by L13.
+
+**A-9 · `pf/integration` does not build from a clean checkout (F47).**
+Thirty files fail with `Failed to resolve entry for package "@ship/shared"` / `"@ship/agent"`
+until `pnpm build:shared`, `pnpm --filter @ship/agent build` and `pnpm --filter @ship/sdk build`
+have run. Every lane has hit it independently. **MVP gate item 9 is "regression suite passes"**,
+so CI will hit it too — and it is unowned. Adjacent to Q6's CI ceiling: a build-order failure
+burns a full job before a single test runs.
+
+**A-10 · F18 was withdrawn by its own author, and the withdrawal is a useful caution.**
+F18 claimed `issues` and `sprints` had unusable sort keys for keyset pagination. **They are not
+tables** — this is the unified document model, everything is `documents` with a `document_type`,
+which `.claude/CLAUDE.md` states in its first architecture line. `assertKeysetIndexed` would have
+failed with `relation "issues" does not exist`. The claim was relayed to L10 as fact without
+being checked. Nothing in this document depended on F18; it is recorded because **the failure
+mode — a finding propagated as fact through a coordination layer — is the one this document is
+most exposed to**, and §4 of the conversation artifact exists precisely to guard against it.
+
 **A-7 · Ticket-count discrepancy in the coordinator's brief.**
 The brief describes eleven merged lanes / 247 tickets. Measured on `pf/integration`: **ten** lane
 files carry `☑` rows, totalling **246**. L21 produced real artifacts (`docs/infra/apply-timing.md`,
@@ -2927,6 +2963,8 @@ evidence of a real Pre-Search than 58 confident answers.**
 | O-17 | Q55 | **D12** — the grader cannot run `ship docs create` | **Open**; second write-scoped app shipped flagged. **The user's decision to close** | close D12, then satisfy PF-580's clean-container command |
 | O-18 | — | **U6** — nothing gives an externally-hosted webhook listener a public URL | **Open and unowned.** The largest execution risk in two lanes | L21 or L26 claiming it: local listener + tunnel, a relay, or long-poll against the delivery log |
 | O-19 | Q16–18 | The 1.5 answers are author-attested | **Unverifiable from the tree, by nature** | author confirmation before submission |
+| O-20 | Q54 | **F46** — `pnpm test` rewrites the committed `docs/openapi.json`, dropping any route absent from one test file's import list | **Divergent** — the artifact can regress with a green suite | L13 writing to a temp path and comparing, instead of writing the real file |
+| O-21 | Q6 | **F47** — `pf/integration` does not build from a clean checkout | **Open and unowned.** MVP gate item 9 is "regression suite passes" | a documented build order in CI before the test job, or a `prepare` script |
 
 ---
 
