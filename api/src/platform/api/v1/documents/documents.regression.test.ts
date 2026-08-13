@@ -45,9 +45,10 @@ describe('PF-265 · documents is the only resource mounted', () => {
     // resource — it is the contract describing the rest, mounted through the
     // `mountUnauthenticated` seam rather than `mountResources`.
     //
-    // Still an exact equality rather than a `toContain`. `issues` and `sprints`
-    // are the rest of L10 and are NOT here yet, so this list keeps doing the job
-    // it was written for.
+    // Still an exact equality rather than a `toContain`, and updated again by
+    // L10's slice S2: `/issues` is here now. Keeping it exact is what forces the
+    // next lane to come to this line and say what it added, which is the whole
+    // reason it was written this way.
     const routes = enumerateV1Routes(app)
       .map((r) => `${r.method} ${r.path}`)
       .sort();
@@ -55,9 +56,13 @@ describe('PF-265 · documents is the only resource mounted', () => {
     expect(routes).toEqual([
       'GET /api/v1/documents',
       'GET /api/v1/documents/:id',
+      'GET /api/v1/issues',
+      'GET /api/v1/issues/:id',
       'GET /api/v1/me',
       'GET /api/v1/openapi.json',
+      'PATCH /api/v1/issues/:id',
       'POST /api/v1/documents',
+      'POST /api/v1/issues',
     ]);
   });
 
@@ -72,14 +77,26 @@ describe('PF-265 · documents is the only resource mounted', () => {
     expect(paths).toContain('/api/v1/me');
   });
 
-  it('/issues and /sprints are still absent — the rest of L10 has not landed', () => {
+  it('/issues IS mounted now — L10 slice S2 landed it (PF-277–283)', () => {
+    // Flipped in the same spirit as `/me` above it: the absence was recorded as
+    // a fact while the slice was unwritten, and this is the day it shipped. The
+    // interesting property now is that all three read/write routes are present,
+    // not merely one of them — a resource that lists but cannot be fetched by id
+    // is what a half-landed mount looks like.
+    const paths = enumerateV1Routes(app).map((r) => r.path);
+    expect(paths).toContain('/api/v1/issues');
+    expect(paths).toContain('/api/v1/issues/:id');
+  });
+
+  it('/sprints is still absent — L10 slice S3 has not landed', () => {
     // The half of the old assertion that is still TRUE, kept as its own case so
     // it goes on failing until those routes ship rather than being flipped
-    // wholesale alongside `/me`.
+    // wholesale alongside `/issues`.
     const paths = enumerateV1Routes(app).map((r) => r.path);
-    for (const absent of ['/api/v1/issues', '/api/v1/sprints']) {
-      expect(paths.filter((p) => p.startsWith(absent)), `${absent} is mounted`).toEqual([]);
-    }
+    expect(
+      paths.filter((p) => p.startsWith('/api/v1/sprints')),
+      '/api/v1/sprints is mounted',
+    ).toEqual([]);
   });
 
   it('every mounted route carries a complete metadata record', () => {
@@ -93,7 +110,14 @@ describe('PF-265 · documents is the only resource mounted', () => {
       expect(metadata!.scope, `${route.method} ${route.path}.scope`).toBeDefined();
       expect(metadata!.response, `${route.method} ${route.path}.response`).toBeDefined();
       if (metadata!.list === 'cursor') {
-        expect(metadata!.resource, `${route.method} ${route.path}.resource`).toBe('documents');
+        // Was `toBe('documents')` while documents was the only list route.
+        // Widened by L10 S2 to the property that actually matters: a cursor
+        // route must name the collection its cursors are BOUND to, and that
+        // binding is what makes a `/documents` cursor a 422 on `/issues`
+        // (PF-218) instead of a plausible wrong page.
+        expect(metadata!.resource, `${route.method} ${route.path}.resource`).toBe(
+          route.path.split('/')[3],
+        );
       }
     }
   });

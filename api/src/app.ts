@@ -51,6 +51,7 @@ import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js
 import { assertEveryRouteDeclaresScope } from './platform/api/v1/declareV1Route.js';
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
 import { documentsResources } from './platform/api/v1/documents/routes.js';
+import { issuesResources } from './platform/api/v1/issues/routes.js';
 import { meResources } from './platform/api/v1/me/routes.js';
 import { mountAllResources } from './platform/api/v1/mountResources.js';
 import { generatePublicOpenAPIDocumentOrDie } from './platform/openapi/registry.js';
@@ -361,14 +362,15 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     // scope and builds the guard.
     //
     // `me` is MVP gate item 8's server half (p.2) and Testing Scenario 3's last
-    // clause (p.5). `issues` and `sprints` are the rest of L10 and are not here
-    // yet — see the lane report.
+    // clause (p.5). `issues` landed with L10's slice S2; `sprints` is S3 and is
+    // not here yet — see the lane report.
     //
     // Composed as an array rather than by nesting calls: each resource keeps its
     // own mount function and the composition root stays a list of what is
     // mounted, which is the thing a reader comes to this file to find out.
     mountResources: mountAllResources([
       documentsResources({ db: deps.db, bus: deps.bus }),
+      issuesResources({ db: deps.db, bus: deps.bus }),
       meResources({ db: deps.db, appsRepo }),
     ]),
   }));

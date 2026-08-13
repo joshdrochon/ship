@@ -29,6 +29,7 @@ import { PUBLIC_SPEC_FILE, writePublicSpec } from './staticCopy.js';
 // `api/src/scripts/generate-public-openapi.ts`, which is the other place the
 // list appears.
 import '../api/v1/documents/routes.js';
+import '../api/v1/issues/routes.js';
 import '../api/v1/me/routes.js';
 
 describe('PF-368 — docs/openapi.json is the served document', () => {
