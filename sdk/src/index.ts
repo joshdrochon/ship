@@ -8,12 +8,18 @@
  * closes (PF-507 / L99 F14).
  *
  * ── Stability ───────────────────────────────────────────────────────────────
- * Stable this week: `ShipClient` and its resource clients, `ShipError` and the
- * five-member `kind` union, `ITokenStore` and its three implementations,
- * `paginate`, `verifyWebhook`.
+ * The split lives in `stability.ts` as two exported arrays, NOT as prose here.
  *
- * Pre-1.0 and may move: `ShipTransport`'s constructor shape, `RETRY_POLICY`'s
- * fields, the OAuth flow helper option bags (L18).
+ * This paragraph used to be the prose version and it had already gone stale: it
+ * named `ShipClient`, `paginate` and `verifyWebhook` and knew nothing about the
+ * four resource clients, the OAuth helpers or the operation bindings added
+ * since. `surfaceStability.test.ts` now asserts that every name this file
+ * re-exports appears in exactly one of `STABLE_SURFACE` / `PRE_1_0_SURFACE`, so
+ * an unmarked export fails the suite rather than quietly acquiring whatever
+ * promise a reader assumes. PF-548; p.12's Required Documentation row.
+ *
+ * The same split is written in prose, for humans, in `docs/architecture.md`'s
+ * SDK Surface section — and §4 of that test asserts the two cannot drift.
  */
 export * from './core.js';
 

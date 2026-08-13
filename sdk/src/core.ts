@@ -164,3 +164,7 @@ export {
   listPublicMethodPaths,
 } from './operations.js';
 export type { OperationBinding, ClientMethodPath, ReturnShape } from './operations.js';
+
+// ── surface stability (PF-548) ──────────────────────────────────────────────
+export { STABLE_SURFACE, PRE_1_0_SURFACE, stabilityOf } from './stability.js';
+export type { StableExport, Pre1_0Export } from './stability.js';
