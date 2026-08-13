@@ -40,6 +40,7 @@ import {
   InMemoryDeviceCodeRepo,
   PgWebhookSubscriptionRepo,
   InMemoryWebhookSubscriptionRepo,
+  PgDeliveryLog,
   AesGcmSecretCipher,
   envSecretCipher,
   ImmediateDeliveryQueue,
@@ -49,6 +50,7 @@ import {
   type IEventBus,
   type IWebhookDeliverer,
   type IWebhookSubscriptionRepo,
+  type IDeliveryLog,
   type IDeliveryQueue,
   type IRateLimiter,
   type IOAuthAppRepo,
@@ -215,6 +217,16 @@ export interface AppDeps {
    * circuit breaker, and that replacement is an edit to this file only.
    */
   deliveryQueue: IDeliveryQueue;
+  /**
+   * The `webhook_deliveries` log (L16 PF-458), on migration 051.
+   *
+   * A port rather than the raw `db` handle, for the reason the four repositories
+   * above give — and one extra: `IDeliveryLog` is what the retry scheduler
+   * writes through, and the scheduler runs from a bus handler with no request in
+   * sight. A dependency that took a `Request` would make the whole ladder
+   * untestable outside HTTP.
+   */
+  deliveryLog: IDeliveryLog;
   /**
    * L04 PF-094 / PF-098 — resolves the browser's `session_id` cookie to the
    * human sitting at the consent screen, or `null` for an anonymous visitor.
@@ -492,6 +504,10 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // subscription or signing a delivery throws with the reason.
     subsRepo: new PgWebhookSubscriptionRepo(pool, envSecretCipher()),
 
+    // L16 PF-458: the ONLY construction site for the Postgres delivery log, on
+    // the same rule as the four repositories above.
+    deliveryLog: new PgDeliveryLog(pool),
+
     // L15 PF-441 — the first-attempt queue. See `deliveryQueue` above; L16
     // swaps this for the real one and nothing outside this file moves.
     deliveryQueue: new ImmediateDeliveryQueue(overrides.deliverer ?? new InMemoryDeliverer()),
@@ -652,6 +668,18 @@ export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // fire-and-forget dispatch would make every such assertion await something.
     // A test that wants the wire passes its own `ImmediateDeliveryQueue`.
     deliveryQueue: new RecordingDeliveryQueue(),
+
+    // L16 PF-458 — the POSTGRES log even in `testDeps()`, deliberately.
+    //
+    // `InMemoryDeliveryLog` exists and is the Liskov sibling, but it cannot be
+    // the default here: it answers "which app owns this subscription" from an
+    // injected SYNCHRONOUS resolver, and at the moment `testDeps()` runs there
+    // is no subscription table to resolve against and no request to await one.
+    // `db` already defaults to the shared pool for exactly this reason, and
+    // `api/src/test/setup.ts` points DATABASE_URL at a throwaway database and
+    // truncates it. A unit test that wants the double constructs it with its own
+    // resolver, which is what the scheduler and scenario suites do.
+    deliveryLog: new PgDeliveryLog(overrides.db ?? pool),
 
     // Nobody is signed in by default. A test that wants the consent screen to
     // render overrides this with a fixed user — which is also what keeps the

@@ -52,8 +52,11 @@ import {
   type IWebhookSubscriptionRepo,
   type WebhookSubscription,
 } from '../../../webhooks/subscriptions.js';
+import type { IDeliveryLog } from '../../../webhooks/deliveryLog.js';
+import { mountDeliveries } from './deliveries.routes.js';
 import {
   WEBHOOKS_RESOURCE,
+  WEBHOOKS_SCOPE,
   createWebhookRequestSchema,
   patchWebhookRequestSchema,
   webhookIdParamSchema,
@@ -66,9 +69,6 @@ import {
 export interface WebhooksRouteDeps {
   repo: IWebhookSubscriptionRepo;
 }
-
-/** The scope every one of the six declares. Named once. */
-const WEBHOOKS_SCOPE = 'webhooks:manage' as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // The six declarations, made ONCE at module load.
@@ -431,11 +431,30 @@ export function mountWebhooks(router: Router, deps: WebhooksRouteDeps): void {
 /**
  * The `mountResources` callback the composition root composes.
  *
- * Takes the repository rather than the db, so the composition root stays the
- * only place a concrete is chosen (PF-014/PF-015/PF-427).
+ * Takes the repository and the delivery log rather than the db, so the
+ * composition root stays the only place a concrete is chosen
+ * (PF-014/PF-015/PF-427/PF-458).
+ *
+ * ## The mount order is load-bearing (L16 PF-464)
+ *
+ * `mountDeliveries` runs FIRST, and that is not a style choice. Express matches
+ * in registration order, so `/webhooks/:id` registered before
+ * `/webhooks/deliveries` swallows the delivery list: the request matches the
+ * subscription route with `id = 'deliveries'`, and the caller gets a
+ * `validation_failed` saying `deliveries` is not a UUID — an error that names
+ * the wrong thing entirely.
+ *
+ * The order is here, in one function, rather than left to whoever calls the two
+ * mounts, so there is no way to compose them wrongly.
+ * `deliveries.routes.test.ts` asserts the shadowing does not happen, because
+ * this failure is invisible in a route table.
  */
 export function webhooksResources(deps: {
   repo: IWebhookSubscriptionRepo;
+  log: IDeliveryLog;
 }): (router: Router) => void {
-  return (router: Router) => mountWebhooks(router, { repo: deps.repo });
+  return (router: Router) => {
+    mountDeliveries(router, { log: deps.log });
+    mountWebhooks(router, { repo: deps.repo });
+  };
 }

@@ -233,6 +233,12 @@ describe('PF-373/375 — the real app: every mounted route is documented and vic
       'GET /sprints',
       'GET /sprints/{id}',
       'GET /webhooks',
+      // ADDED BY L16 (PF-464), by the rule this exact list exists to enforce:
+      // landing a public route means coming to this line and naming it. The two
+      // delivery reads are what make p.4's "visible in the developer portal"
+      // checkable over the public contract rather than only inside L22.
+      'GET /webhooks/deliveries',
+      'GET /webhooks/deliveries/{id}',
       'GET /webhooks/{id}',
       'PATCH /issues/{id}',
       'PATCH /sprints/{id}',

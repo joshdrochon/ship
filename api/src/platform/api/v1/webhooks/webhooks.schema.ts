@@ -27,6 +27,21 @@ import { checkTargetUrl } from '../../../webhooks/targetUrl.js';
 export const WEBHOOKS_RESOURCE = 'webhooks';
 
 /**
+ * The scope every route in this directory declares — the six subscription
+ * methods (PF-428) and the two delivery reads (PF-464).
+ *
+ * It lives in the SCHEMA module rather than in `routes.ts`, where L15 put it,
+ * because `deliveries.routes.ts` needs it too and `routes.ts` imports
+ * `mountDeliveries` to fix the mount order. Importing the constant back the
+ * other way is a cycle, and the symptom is not an import error — it is
+ * `WEBHOOKS_SCOPE` evaluating to `undefined` at module load and
+ * `declareV1Route` throwing "declared without a scope" from a route that
+ * plainly declares one. Both modules import it from here, so there is no cycle
+ * and no second copy. `routes.ts` still re-exports it for existing callers.
+ */
+export const WEBHOOKS_SCOPE = 'webhooks:manage' as const;
+
+/**
  * PF-424 — THE read projection. An allowlist, and there is no secret in it.
  *
  * `.strict()` is the enforcement rather than a stylistic choice: L13's

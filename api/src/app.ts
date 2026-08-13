@@ -409,7 +409,7 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
       // repository, not `deps.db`: the repository is where the signing secret
       // is encrypted and decrypted, and handing the route layer a db handle
       // would make a second place that could read one.
-      webhooksResources({ repo: deps.subsRepo }),
+      webhooksResources({ repo: deps.subsRepo, log: deps.deliveryLog }),
     ]),
   }));
 
