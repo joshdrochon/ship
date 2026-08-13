@@ -86,25 +86,21 @@ export interface IssuedTokens {
 //
 // It had to go rather than be shadowed: both are re-exported through
 // `platform/index.ts` and TS2308 makes the duplicate name a BUILD failure, not
-// a style problem. Filed in `lane-99-unassigned.md` rather than fixed silently
-// — and note for L16: `WebhookDelivery` and `DeliveryStatus` below are the same
-// species of stale sketch and will collide with L16's own declarations the same
-// way. They are left alone because they are L16's to name.
-
-export type DeliveryStatus = 'pending' | 'delivered' | 'retrying' | 'dead_lettered';
-
-export interface WebhookDelivery {
-  id: string;
-  subscriptionId: string;
-  eventId: string;
-  idempotencyKey: string;
-  attemptNumber: number;
-  responseStatus: number | null;
-  responseExcerpt: string | null;
-  latencyMs: number | null;
-  status: DeliveryStatus;
-  createdAt: Date;
-}
-
-// TODO(josh): repos (Postgres-backed) — appsRepo, tokenRepo, subscriptionsRepo,
-// deliveryLogRepo — with in-memory doubles for tests. Schema in migration 039.
+// a style problem. Filed in `lane-99-unassigned.md` rather than fixed silently.
+//
+// REMOVED by L16 (PF-458, finding F53): `WebhookDelivery` and `DeliveryStatus`
+// were the other two of the same stale trio and they collided the same way the
+// moment this lane declared the real ones. Both had ZERO consumers repo-wide and
+// both were wrong in substance, not just in casing: the sketch's
+// `DeliveryStatus` had `'pending' | 'retrying'` and no `'failed'` or
+// `'cancelled'`, so it could not express the state most rows of a retrying
+// delivery are in, nor the deactivated-mid-ladder outcome PF-457 requires; and
+// `WebhookDelivery` had no `dlq_reason`, no `attempted_at` and no way to hold a
+// replayable payload, which are three of the five columns that make p.4's own
+// DLQ and Replay rows reachable. The real declarations are
+// `platform/webhooks/deliveryLog.ts`, on migration 051.
+//
+// TODO(josh): repos (Postgres-backed) — appsRepo, tokenRepo, subscriptionsRepo
+// — with in-memory doubles for tests. Schema in migration 039. The delivery log
+// repository landed with L16: `IDeliveryLog` / `PgDeliveryLog` /
+// `InMemoryDeliveryLog`.
