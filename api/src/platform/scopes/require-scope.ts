@@ -103,6 +103,26 @@ export const PLATFORM_AUTH_LOCAL = 'platformAuth';
  */
 export const UNRECOGNIZED_SCOPES_LOCAL = 'unrecognizedScopes';
 
+/**
+ * L12 PF-333 — where the scope this guard CHECKED is published, for the audit
+ * row's `scope used` (PRD p.4).
+ *
+ * Set whenever a guard actually runs, on both outcomes: a 403 checked a scope
+ * just as much as a 200 did, and an audit trail that only records the scope on
+ * success cannot answer "what was this caller refused for". `null` — i.e. the
+ * key absent — therefore has exactly one meaning: NO SCOPE WAS CHECKED on this
+ * request. An unscoped route (`declareRoute(null, …)`), or a request rejected
+ * upstream by bearer auth or the rate limiter before this middleware ran.
+ *
+ * It is NOT set on the 401 path below, and that is the same rule: a request
+ * with no auth context never reached a scope decision.
+ *
+ * On `res.locals` for the same reason `UNRECOGNIZED_SCOPES_LOCAL` is: the
+ * guard's return channel is `next()`, and the audit sink runs at response
+ * finish, long after.
+ */
+export const SCOPE_USED_LOCAL = 'scopeUsed';
+
 export function getPlatformAuth(res: Response): PlatformAuthContext | undefined {
   return res.locals[PLATFORM_AUTH_LOCAL] as PlatformAuthContext | undefined;
 }
@@ -180,6 +200,20 @@ function buildGuard(scope: string, options: RequireScopeOptions<string>): Reques
     if (unrecognized.length > 0) {
       res.locals[UNRECOGNIZED_SCOPES_LOCAL] = unrecognized;
     }
+
+    // L12 PF-333. Published BEFORE the decision, so both outcomes carry it: the
+    // audit row's `scope used` is "which permission was this request judged
+    // against", not "which permission it turned out to have". Setting it only on
+    // success would make every 403 indistinguishable from an unscoped route.
+    //
+    // PF-075's registry-mismatch case rides through here rather than being
+    // dropped: a token carrying names the registry has forgotten still records
+    // the scope the route required, and the forgotten names appear in the 403's
+    // `details.unrecognized_scopes`. They are deliberately NOT a tenth field on
+    // the audit row — PF-326's key set is closed, and widening it here would
+    // undo the ticket that exists to stop exactly that. Noted as a real seam
+    // between the two tickets rather than resolved by quietly adding a column.
+    res.locals[SCOPE_USED_LOCAL] = definition.scope;
 
     if (effective.includes(definition.scope as Scope)) {
       next();

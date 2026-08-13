@@ -17,7 +17,7 @@ api/src/platform/            (new) everything public-facing; imports domain serv
                              resource-map.ts is the one place public `sprints` maps onto Ship's internal `weeks` route — the contract name, not the table name
                              (`document_type` has said `sprint` since Part 1, so the translation is route-path and vocabulary only)
   openapi/                   public OpenAPI 3.1 registry; generated from route metadata, served at /api/v1/openapi.json
-  audit/                     public API call log — timestamp, app client_id, user_id, route, scope, status, latency; queryable in the dev portal
+  audit/                     public API call log — timestamp, app client_id, user_id, route, scope, status, latency, request_id; queryable in the dev portal
   clock.ts                   Clock / SystemClock / FakeClock — a file, not a module; the retry scheduler, the token bucket and OAuth expiry all read it
 sdk/                         (new) @ship/sdk workspace package — see SDK Surface
 integrations/cli/            (new) must-ship reference integration (ship login / docs / webhooks tail); imports ONLY @ship/sdk (workspace dep rule)
@@ -201,6 +201,90 @@ Shipping the header without the lifecycle would be a claim the project cannot ke
 Enforced structurally rather than by convention: a test asserts the public router is
 mounted at exactly one version prefix and that no registered route path contains a
 second version segment.
+
+### Audit-trail decisions (L12)
+
+**Retention: 30 days of raw rows, plus a per-day-per-app rollup kept indefinitely
+(decision D10, PF-341).** PRD p.10's Cost Analysis assumptions list requires *"plus audit
+log rows. State both"* retention windows and explain why each is set there. This is ours;
+the delivery log's is L16's.
+
+The reason is Epic 7, not storage. p.13 grades the submission on *"the agent's audit-log
+rows showing OAuth app"* authentication, and a policy that deletes the evidence for the
+claim the project is graded on is the wrong policy at any price. Thirty days also
+outlasts the grading window plus a re-review. Pruning is implemented against that number
+(`platform/audit/retention.ts`) and rolls a day up **before** deleting it, in one
+transaction — delete-then-rollup turns a retention job into data loss the first time it
+is interrupted.
+
+Rejected: **7 days raw only** — cheapest and demo-sized, but it makes the Epic 7 claim
+unprovable a week after the demo. **Indefinite raw** — no pruning to write and every
+question stays answerable, but see the arithmetic below.
+
+What is deliberately lost at 30 days: the rollup keeps counts per app per day, not
+per-route or per-request detail. After 30 days you can prove "this app made 412 calls on
+2026-08-12, 9 of them 4xx" and you cannot answer "which document did it read". The first
+question is what Epic 7 and the portal's usage view ask; the second is a debugging
+question whose useful life is days.
+
+**Row-growth arithmetic (PF-342).** Measured, not estimated: 200 000 synthetic rows were
+inserted into the shipped `public_api_calls` table and `pg_total_relation_size` read back.
+
+| | bytes/row |
+|---|---|
+| heap | 141 |
+| indexes (3) | 214 |
+| **total** | **356** |
+
+The indexes cost more than the data, which is the correct trade for a table that exists
+to be queried by app and by request id, and it is why the total is the number the
+arithmetic below uses rather than the heap alone.
+
+Against p.9's projection tiers (100 users → ~20 000 calls/day; 100 000 users → ~20 000 000
+calls/day; the two middle rows interpolate on the same per-user rate):
+
+| tier | calls/day | rows in 30 days | raw storage at 356 B/row |
+|---|---|---|---|
+| 100 users | 20 000 | 600 000 | **≈ 0.2 GB** |
+| 1 000 users | 200 000 | 6 000 000 | ≈ 2.1 GB |
+| 10 000 users | 2 000 000 | 60 000 000 | ≈ 21 GB |
+| 100 000 users | 20 000 000 | 600 000 000 | **≈ 214 GB** |
+
+That table is the whole case against indefinite raw retention: at the top tier it is
+~214 GB *per month*, growing without bound, on a single Postgres instance. It is also why
+30 days is affordable at the tiers this project will actually see — a fifth of a gigabyte
+at the demo tier.
+
+The rollup is one row per app per day. At 50 registered apps that is ~18 000 rows a year,
+under 4 MB with its index, which is why "indefinite" costs essentially nothing.
+
+**Epic 7 proof mechanism: a fitness test, with a SQL query for the demo (decision D11,
+PF-344).** Pre-Search 3.5 (p.18) asks how you would tell, post-demo, that *"the agent
+actually went through the public API for every action"*, and offers a grep of the audit
+log, a dashboard panel, or a fitness test that runs the agent and inspects the trail.
+
+**Shipped choice: the fitness test as the graded artifact, with `callsPerDay` as the demo
+query.** The PRD's own phrasing is "for **every** action", and a grep establishes only
+that *some* calls went through the front door — it cannot see an action that bypassed it,
+because the evidence of a bypass is an absence. The fitness test is also the only option
+that keeps proving it after the demo.
+
+Rejected: **a grep or SQL query alone** — cheapest, and it is kept as the demo artifact
+precisely because a query is what you show on a screen, but it cannot establish the
+"every" half. **A dashboard panel** — demo-friendly, but a screenshot is not an assertion
+and it costs L22 work for evidence that decays the moment the data does.
+
+**Owners, because this decision is not L12's alone to execute:** L23 owns the agent
+rewire and therefore owns the fitness test. L22 owns the portal panel, which remains
+worth building for operators but is not the graded proof. L12 owns what both consume —
+the rows, the `listCalls` query surface, and `callsPerDay`.
+
+**Known limitation, disclosed rather than designed around (B11).** `PublicApiCallRecord`
+is a closed key set, so a call the developer portal made on a user's behalf is
+indistinguishable in this trail from a call the developer's own integration made: both
+authenticate as the same app with the same token type. Adding a "came from the portal"
+field would undo PF-326, the ticket that exists to keep this row from growing fields.
+L22's PF-676 discloses the limitation in the UI instead.
 
 ### Rate-limiting decisions (L11)
 

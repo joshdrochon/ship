@@ -50,6 +50,7 @@ import {
 } from './platform/index.js';
 import { validateSessionForConnection } from './db/sessions.js';
 import { InMemoryAuditSink, type IAuditSink } from './platform/audit/audit.js';
+import { PgAuditSink } from './platform/audit/pgAuditSink.js';
 import { ApiError } from './platform/api/v1/errors.js';
 
 /**
@@ -438,10 +439,11 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
 
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
 
-    // TODO(L12): the Postgres sink, from migration block 057–059. In-memory here
-    // means audit rows do not survive a restart — acceptable only because no
-    // public route is reachable yet (bearerAuth below rejects everything).
-    auditSink: new InMemoryAuditSink(),
+    // PF-339 — the Postgres sink, on migration 057 from L12's reserved block.
+    // The ONLY construction site, on the same rule as the three repositories
+    // above. Rows survive a restart, which is the whole point of an audit trail
+    // whose job is to still be there at the Epic 7 defense.
+    auditSink: new PgAuditSink(pool),
 
     // L06 PF-158 — the real bearer middleware, wired here because this is the
     // only file allowed to choose a concrete.

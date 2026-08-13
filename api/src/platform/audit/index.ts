@@ -6,3 +6,5 @@
  * through the front door" provable with a query rather than a claim.
  */
 export * from './audit.js';
+export * from './pgAuditSink.js';
+export * from './retention.js';
