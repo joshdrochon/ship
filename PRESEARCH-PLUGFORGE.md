@@ -1714,56 +1714,734 @@ not yet chosen by any lane.
 ### Q43
 > What happens when an OAuth app's owner is deleted — apps deactivated, transferred to admin, or orphaned with a soft-flag? Each is a different recovery story.
 
+**Deactivated. `active = false`, tokens stop validating. Decided as D2.**
+
+*The deciding property.* It is the **only option where a deleted user's access cannot outlive
+them.** Everything else on the menu leaves a working credential behind a departed person:
+
+| Option | The access story after the owner is gone |
+|---|---|
+| **Deactivate** (chosen) | tokens stop validating at the next request. Nothing the departed user provisioned keeps working |
+| Transfer to admin | the app keeps running under someone who did not create it, did not choose its scopes, and may not know it exists. An admin inherits liability, not knowledge |
+| Orphan with a soft-flag | the flag is a note in a database. The tokens keep working. This is "we wrote it down" wearing "we handled it" |
+
+*The recovery story, which is what the PRD is actually asking for.* An admin **reactivates and
+reassigns** — the app row survives deletion, so `client_id`, scopes, subscriptions and the whole
+delivery history are intact. Recovery is a two-field update, not a re-registration. That matters
+because re-registering issues a **new `client_id`**, which breaks every integration configured
+against the old one; the recoverable version of "deactivate" must keep the identity.
+
+*What makes deactivation immediate rather than eventual.* Q13's access tokens are **opaque and
+checked against the database on every request**, so `active = false` takes effect at the next
+call. Had the token been a JWT, deactivation would have meant "up to an hour of continued
+access" or a revocation list — which is a database lookup wearing a disguise. **This is the
+cash value of the opaque-token decision**, and it is why the two answers belong together.
+
+*Honest limit.* No lane has shipped the cascade — the behaviour is decided and the trigger
+(user deletion → app deactivation) is not wired. Open Items.
+
 ### Q44
 > What is the failure mode when the webhook deliverer crashes mid-batch — at-least-once delivery (subscribers must dedupe), at-most-once (some lost), or exactly-once aspiration with idempotency keys?
+
+**At-least-once, with `Idempotency-Key` dedupe as the published contract. Silent at-most-once is
+explicitly rejected.**
+
+*Why at-least-once rather than the exactly-once aspiration.* Exactly-once across a network
+boundary is not available: the sender cannot distinguish "the subscriber never received it" from
+"the subscriber received it and the ACK was lost", so it must choose which error to make. Claiming
+exactly-once means choosing to **lose** messages while telling subscribers you don't. At-least-once
+chooses to **duplicate** and says so, which is the only version a subscriber can defend against.
+The `Idempotency-Key` (Q30) is what makes the duplicate cheap for them.
+
+*What makes recovery possible rather than aspirational.* **The delivery log is the durable
+record, and it is in Postgres, not in the process.** Every attempt writes a row — status,
+latency, excerpt — *before* the process can lose it. On restart, incomplete deliveries are
+re-driven from the log and the DLQ, and subscribers dedupe on the key. The in-process must-ship
+deliverer restarts with the process; the queue-backed drop-in inherits the same recovery
+semantics **through the log**, which is what makes them Liskov substitutes rather than two
+different reliability stories behind one interface.
+
+*The window that is honestly open.* An attempt that is **in flight** when the process dies has
+its row written but no terminal status. On restart that row is indistinguishable from "sent,
+response never seen" — so it is re-driven, and the subscriber may receive it twice. **That is
+the at-least-once guarantee doing exactly what it says**, and it is the reason the contract is
+published rather than assumed.
+
+*Status.* The contract is decided and the durability argument depends on a table that does not
+exist yet — `webhook_deliveries` is unwritten, L16 is 0/34. **Today's deliverer is
+`InMemoryDeliverer`, a test double, and its real failure mode is at-most-once**, because there
+is no log to recover from. The gap between the answer and the tree is recorded in the as-built
+reconciliation rather than papered over.
 
 ### Q45
 > How do you detect and respond to a leaked `client_secret` — automatic rotation, manual rotation by the owner, or admin-driven force-rotate? What's the audit signal you'd alert on?
 
+**Owner-initiated rotation and admin force-rotate ship. Automatic rotation is rejected, with its
+reason. Three alertable conditions, each table-tested.**
+
+*Detection — the signal, in its own table.* Every client-secret verification is recorded to
+`client_secret_auth_log` (migration 040) with the `client_id`, the `secret_prefix`, the outcome
+and the source IP — **never the secret and never its hash.**
+
+*The three conditions I would alert on,* which is the specific thing p.17 asks for:
+
+| | Condition | The shape it detects |
+|---|---|---|
+| **(a)** | failed verifications for one `client_id` crossing a threshold inside a window | a **rotated-then-retried thief** — someone still presenting the old secret |
+| **(b)** | ***successful*** verifications for one `client_id` from more than N **distinct source IPs** in a window | a **shared secret being used from somewhere new**. This is the one that catches a live leak, because a working credential produces successes, not failures |
+| **(c)** | **any** verification attempt against an app with `active = false` | nothing legitimate does this |
+
+**(b) is the answer to "what would you alert on."** (a) fires after the response, and (c) is a
+tripwire. A leak in progress looks like success from an unfamiliar place, and an alerting scheme
+that only watches failures watches the wrong column.
+
+*Why this is its own table rather than a filter over the public audit trail* — a measured fact,
+not a preference: the audit middleware sits in the `/api/v1` stack, and `client_secret` is
+presented at `/oauth/token`, which mounts at `/oauth`, **outside `/api/v1`**. **No
+`public_api_calls` row can ever record a secret authentication.** A design that put this signal
+in the audit trail would have produced an empty query and a false sense of coverage.
+
+*Response — and automatic rotation is rejected rather than quietly omitted.* Rotating a
+credential nobody asked to rotate invalidates a live integration, and **there is no channel in
+this build to hand the replacement to its owner** (Q12: the secret is shown once and never
+recoverable). So auto-rotation converts a **suspected** leak into a **certain** outage. The
+suspicion is probabilistic; the outage is not. Owner-initiated rotation and admin force-rotate
+both ship, so a human who can judge the evidence makes the call.
+
+*Blast radius, which is why the playbook has two steps.* **Rotating the secret does not revoke
+tokens already issued.** The secret is an issuance credential, not a session; tokens minted
+before the rotation keep working until they expire. The response to a **confirmed** leak is
+therefore **rotate *and* revoke** — rotation closes the door, revocation evicts whoever is
+already inside. Anyone who rotates and stops has done half of it.
+
+*Honest limit, stated because the alternative is implying a capability.* The three conditions
+are **queryable and tested; they are not paged.** There is no `/metrics` endpoint and no
+notifier in this build, so p.18's "where does it show up" is answered by **"logs and a query"**.
+**The missing piece is an alerting surface, not a signal** — and those are different amounts of
+work to add. Related: **F30** — there is no token-revocation endpoint (RFC 7009 appears nowhere
+in p.10's stack list) and no "your devices" UI, so the *revoke* half of the playbook has the
+capability (L06 PF-165) and nothing that exposes it.
+
 ### Q46
 > What is your CSRF protection on the developer portal's app-form and rotate-secret endpoints, given they sit alongside the OAuth consent screen?
+
+**The same `csrf-sync` synchroniser token the internal surface uses — *injected* rather than
+re-created, so the consent screen and the portal share one session store. Plus one local
+hardening the app-wide stack does not provide.**
+
+*Why "alongside the consent screen" is the substance of the question and not scene-setting.*
+Both surfaces are session-authenticated pages on Ship's origin that perform state-changing
+POSTs, and they must agree about the token. Creating a **second** synchroniser for `/oauth`
+would give two token stores over one session — and the failure mode is not a security hole, it
+is an intermittent 403 on the consent POST when a user has both pages open, which is
+maddening to diagnose and would very plausibly be "fixed" by disabling CSRF on the route.
+**Injecting one synchroniser is a correctness decision before it is a security one.**
+
+*The local hardening, and the measured reason for it.* **F26:** `conditionalCsrf` in
+`api/src/app.ts:81–86` **skips CSRF whenever an `Authorization: Bearer` header is present.**
+That is safe *today* only because `api/src/middleware/auth.ts:135` does **not** fall back to
+session auth on an invalid bearer — a forged bearer gets 401 rather than riding the session.
+**Nothing pins that coupling.** If the fallback is ever added, the CSRF skip becomes a bypass on
+every session-authenticated POST in the app.
+
+So the consent decision route **refuses bearer authentication outright**, closing the hole
+locally rather than depending on a coupling in another file that no test asserts. The portal's
+app-form and rotate-secret endpoints sit behind the same session+CSRF stack, and **L22 PF-665
+adds the regression test that pins F26's assumption** — so the day someone adds a session
+fallback, a test fails instead of a security property silently disappearing.
+
+*Why a regression test rather than removing the skip.* The skip is correct for its purpose:
+Bearer tokens are not auto-attached by browsers, so a bearer-authenticated public API call is
+not CSRF-able and forcing a token on it would break every SDK consumer. The problem is not the
+skip, it is that its safety **rests on a fact in a different file**. The fix for "this is safe
+because of something over there" is a test that fails when *over there* changes.
 
 ## 3.2 — Testing Strategy *(p.17)*
 
 ### Q47
 > How is the TTFE drill written — full `pnpm install` in a fresh container, or workspace symlink with the install step mocked? Which proves more, and which is fast enough for CI?
 
+**Real install of the packed artifact. Symlink rejected. Two modes, because the PRD asks two
+questions and they have different answers.**
+
+*The PRD asks "which proves more" and "which is fast enough" as if one option must win both. It
+doesn't — so both ship:*
+
+| Mode | What it is | Budget | When |
+|---|---|---|---|
+| **default** | `pnpm pack` the SDK, install the **tarball** into an empty directory **outside the workspace** | **60 s** | **every PR** |
+| **`--clean`** | `node:22-bookworm`, **no bind mount, empty pnpm store, no cache**; only two inputs — the packed tarball over HTTP and the published docs | **≤ 30 min** | **on a schedule and before Final Submission**, not per-PR |
+
+Both write the same artifact with a **`mode` field**, so the two figures can never be reported
+as each other — a 12-second warm number and a 20-minute cold number describe different claims
+and must not be averaged or swapped.
+
+*Which proves more: `--clean`, and by a lot.* It is the only one that proves a developer with
+no prior state can get from zero to a verified webhook.
+
+*Why the symlink is rejected, which is the load-bearing half.* **A workspace symlink resolves
+`sdk/src` through tsconfig `paths` and never executes the published artifact.** Four things go
+untested: the `exports` map, the `files` allowlist, the built `dist/`, and peer resolution. That
+is not a theoretical list — **it is exactly the bug class of F14**, where the package root
+re-exported `verifyWebhook` whose module top-level-imports `node:crypto`, so any browser bundler
+either failed to resolve or silently polyfilled crypto against the 250 KB budget. F14 was found
+**independently by two lanes** (L17 and L24), and **a symlinked drill would have found it
+never**, because a symlink resolves source, not the `exports` map.
+
+*Which is fast enough for CI: the default mode, at 60 s.* Q6 prices the alternative — putting
+the 30-minute mode on every PR would eat a third of the daily CI-minute ceiling on its own.
+
+*Two properties that make the drill's numbers trustworthy:*
+
+- **It runs under vitest with `retry: 0`, not Playwright.** `playwright.config.ts:60` grants two
+  CI retries, and a retry is precisely what converts a flake into a pass — so a drill inside the
+  Playwright suite would **silently forfeit p.9's 0%-flake-over-20-runs target** (F27). It also
+  keeps the drill out of the 150-minute e2e job.
+- **The instance under test is real.** Testcontainers Postgres and `createApp()` wired with the
+  **production** deps factory — not `testDeps()` — so the real `HttpDeliverer` runs over a real
+  socket. A drill against in-memory concretes measures the harness.
+
+Six stages in the PRD's own order, as a frozen array, timed with `performance.now()`:
+**install · login · register subscription · create document · receive webhook · verify
+signature**, with stages plus gaps reconciling to the total within 1 ms. Every threshold —
+60,000 ms total, per-stage budgets, the P95 window size — lives in **exactly one committed
+file**, with a grep banning a second `60_000` literal.
+
+*Status.* Fully specified, **never run.** L20 is 0/24 and `test-results/` does not exist. The
+measured TTFE figure is the single most conspicuous missing number in this document.
+
 ### Q48
 > How will OAuth Playwright tests stay stable — do you stub Keycloak/external IdPs, or run a containerized auth server? What does the trade cost in CI minutes?
 
+**Neither — and this is the rare case where the question's premise doesn't apply. Ship *is* the
+authorization server. There is no external IdP to stub or containerize.**
+
+*The premise check first, because answering "we stub it" would have been a fluent wrong answer.*
+The PRD offers stub-vs-container as the axis. Both presume an IdP **outside** the system under
+test. Here, `/oauth/authorize`, `/oauth/token`, `/oauth/device/*` are routes in the same Express
+app the tests already boot. Adding Keycloak would mean **containerizing a dependency in order to
+test something we wrote ourselves**, and nothing in p.10's stack table permits an external IdP.
+
+*What actually keeps these tests stable,* which is the real answer to "how":
+
+1. **The consent screen has no client-side JavaScript.** Server-rendered HTML (Q21) — no
+   hydration wait, no network-idle heuristic, no third-party redirect. The three classic sources
+   of Playwright flake in an auth flow are all absent by construction rather than by waiting
+   harder.
+2. **The clock is injected.** Token expiry in a test is produced by **configuring a 2-second TTL
+   and advancing `FakeClock`**, never by waiting (Q28). A real wait is a race with the CI
+   machine's load, and p.9 budgets 0% flake over 20 runs.
+3. **Assertions are on the response, with negative controls.** The clickjacking headers are
+   asserted positively at `oauthBoundary.test.ts:104` **and negatively at `:112`** — a
+   non-consent route must not carry them.
+
+*The CI-minute cost, priced against Q6's ceiling.* A containerized Keycloak would add image
+pull, boot and realm import to **every** job that touches auth — conservatively 60–90 s per run
+before a single test executes. The chosen approach adds a handful of tests to the ~1.8 s/test
+bucket inside the existing e2e job: **effectively zero marginal CI minutes.** The measured PKCE
+round-trip is **p50 949 ms / p95 980 ms / max 983 ms over twenty consecutive runs** against the
+p.6 target of < 3 s — recorded by `e2e/oauth-pkce.spec.ts`, which **prints the line on every run
+so the figure is re-derived rather than inherited.**
+
+*What that number does and does not cover, since a figure that quietly included think time would
+be measuring the user:* it covers the three **server** legs — authorize render, consent POST,
+token exchange — and **excludes** human think time at the consent screen and browser paint. One
+run is not a P95, which is why there are twenty.
+
+*Honest limit.* Those numbers live in `docs/architecture.md` prose. The spec recomputes and logs
+them per run, but **no committed artifact holds the 949/980/983 figures**, so a reader must
+re-run to verify. That is weaker than the TTFE drill's `test-results/ttfe.json` shape and should
+match it.
+
 ### Q49
 > What is your strategy for testing the webhook deliverer's retry schedule without sleeping in tests? Deterministic clocks, virtual timers, or fast-forward control?
+
+**Deterministic clock injection, by type and injection point: `Clock` / `SystemClock` /
+`FakeClock` in `api/src/platform/clock.ts`, injected through `AppDeps` at `createApp()`. Tests
+advance the clock. And the assertion is negative as well as positive: zero `setTimeout` waits
+anywhere in the suite.**
+
+*The injection point, named.* `api/src/deps.ts` — `testDeps()` supplies `new FakeClock()` where
+`productionDeps()` supplies `SystemClock`; `createApp(testDeps())` is the whole wiring. The
+clock is deliberately **a file, not a module**, because the retry scheduler, the rate-limit token
+bucket and OAuth expiry all read the same one — three subsystems, one notion of time, one thing
+to advance in a test.
+
+*Why injection rather than virtual timers.* Vitest's fake timers would work for `setTimeout`, but
+they patch a **global**, which means every unrelated async in the same file is also frozen and a
+library that reads `Date.now()` internally is not covered at all. An injected clock is explicit
+at the call site, works identically in unit and integration tests, and **composes with real I/O**
+— which matters because the retry scheduler's tests boot a real app with a real database. A
+grep additionally bans `Date.now()` in the lane's non-test source, so there is no second time
+source to forget about.
+
+*The negative assertion, which is the half usually dropped.* p.11 is explicit — *"never with
+`setTimeout` waits in tests. Timing-based webhook tests are flaky tests."* So the suite carries
+**a grep that fails on fixed-duration sleeps**, rather than a convention that someone will
+violate on a Friday. A rule that is only in a document is not a rule.
+
+*What it buys, concretely.* The full ladder — `1 + 4 + 16 + 60 + 300 = 386 s` of waiting — is
+exercised in **milliseconds of wall clock**, deterministically, with no jitter-induced
+flakiness (the ±10% jitter is applied to a value the test reads, not to a value the test waits
+out). The same seam drives L24's token-rotation drill (PF-727), which produces an expired token
+by **configuring a short TTL and advancing the clock, never by waiting** — because p.9 budgets
+0% flake over twenty runs, and a real wait is a race with whatever else the CI runner is doing.
 
 ## 3.3 — Tooling & CI *(p.18)*
 
 ### Q50
 > Which lint rules catch the public/internal boundary violations early — no imports from `api/src/` in `api/src/platform/api/v1/`, no imports from `api/src/` in `integrations/`, both?
 
+**Both — and the honest answer to the PRD's "…both?" is *four*, not two. Four fences ship in
+`eslint.config.js`, each with a negative fixture.**
+
+| # | Fence | Rule | Ticket |
+|---|---|---|---|
+| 1 | `platform/**` → **routes** | may not import `**/routes/**` | PF-009 |
+| 2 | `platform/**` → **middleware** | may not import `**/middleware/**` | PF-010 |
+| 3 | `integrations/**` → **server** | may import **only** `@ship/sdk` | PF-011 |
+| 4 | `sdk/**` → **workspace** | may import **nothing** from this repo — no `@ship/*`, no deep relatives | F24 |
+
+*Why the PRD's two become four.* Its first clause ("no imports from `api/src/`") is really two
+different hazards with different consequences, and collapsing them loses the distinction: a
+platform module importing a **route file** couples the public contract to an internal handler,
+while importing **internal middleware** couples it to the session/CSRF stack. The second is the
+subtler one and it is why Q12's `hashClientSecret()` is **duplicated deliberately** rather than
+imported from `api/src/middleware/auth.ts:84` — the duplication *is* the fence being obeyed, and
+"fixing" it undoes the boundary.
+
+Fence 4 was not in the PRD's list at all. It exists because F14 was found: the SDK is published
+to consumers who do not have this workspace, so **any** repo-internal import is a broken package
+rather than a layering complaint.
+
+*Is fence 3 lint or a workspace dependency rule?* **Both, deliberately.** `integrations/cli`
+declares only `@ship/sdk` in its `package.json`, so pnpm's strict node-linker will not resolve
+anything else at runtime — and the ESLint rule fails the *build* rather than the runtime, which
+is earlier and names the file. Two mechanisms because they fail at different times.
+
+*Why negative fixtures rather than trusting the config.* **A rule that never fires is untested.**
+`eslint-fixtures/` holds one deliberately-violating file per fence —
+`platform/api/v1/imports-internal-route.ts`, `platform/audit/imports-internal-middleware.ts`,
+`integrations/imports-api-source.ts`, `sdk/imports-workspace-package.ts` — and
+`pnpm lint:boundary` (`scripts/check-boundary-lint.mjs`) asserts that lint **actually fails** on
+each. A config typo that silences a rule is otherwise invisible: the build stays green and the
+fence is gone.
+
+*Timing and cost.* Blocking, not warn-only, and it runs in **under a minute — before the
+150-minute e2e job has begun.** That ordering is the point: p.11 calls the public/internal split
+*"a one-way door"* and says the lint rule *"is not optional"*, so the rule has to fail while the
+change is still cheap to unwind.
+
+*Stated limit.* `no-restricted-imports` sees **static specifiers only** — not `require()` and not
+dynamic `import()`. A determined violation routes around all four fences. They are a
+misstep-catcher, not a sandbox, and saying so is better than implying a guarantee.
+
 ### Q51
 > How will the OpenAPI fitness test be wired into CI — fail the build on drift, or warn and post a diff comment? What about additive changes?
 
+**Fail the build. And — answering the second question separately, since it is the half that gets
+dropped — **additive changes get no carve-out.** A new route with no spec entry fails exactly
+like any other drift.**
+
+*The decision, quoted from where it was made* (L13 PF-377): *"fail, not warn-with-diff-comment,
+and no additive carve-out — a new route with no spec entry fails like any other drift, because
+'it's only additive' is how every drift starts."*
+
+*Why warn-and-comment loses.* A warning that appears on every PR becomes furniture within a
+week. The failure mode is not that someone ignores one warning; it is that the diff comment
+becomes the thing you scroll past, and by the time the spec is meaningfully wrong nobody can
+say when it started. p.11 puts this plainly: *"Hand-written specs lie within a week"* — and a
+generated spec with a non-blocking check lies on the same schedule, just with a paper trail.
+
+*Why additive changes specifically get no exemption.* The exemption sounds safe because an added
+route cannot break an existing consumer. But the check is not protecting consumers from the
+route — **it is protecting the spec's status as the contract.** Once "additive is fine" is
+allowed, the spec is no longer *the* description of the server, it is a description of the parts
+someone remembered. And the first genuinely breaking change then arrives in a document nobody
+trusts. This is a different question from p.16's additive-only **versioning** policy (Q25), which
+is about what may change *within* v1 — the two are easy to conflate and they point opposite ways.
+
+*Two gates, not one:*
+
+| Gate | What it catches | Where |
+|---|---|---|
+| **Parity + validation** — every route has a spec entry, every spec entry has a route, the document validates against OpenAPI 3.1 | the server and the spec disagreeing | blocking required check; a fixture PR adding an unregistered route is confirmed **red** |
+| **Freshness** — regenerate and `git diff --exit-code docs/openapi.json` | the committed static copy going stale against the generator | job `openapi-freshness`, `.github/workflows/ci.yml:154` |
+
+The second gate is what makes p.13's static-copy requirement self-maintaining, and it is also
+Q17's fallback: because the file is always current in the repo, a generator that breaks late in
+the week does not cost the deliverable.
+
+*What the validator had to be, and why it is not the obvious choice.* **F43:** Ajv 8.17.1
+**cannot validate an OpenAPI 3.1 document** — it misresolves `$dynamicRef` in the meta-schema and
+rejects valid parameter objects. A validator that wrongly *rejects* is the same class of failure
+as one that accepts everything. Both packages were installed, measured and removed;
+`@hyperjump/json-schema@1.17.8` implements `$dynamicRef` correctly and **bundles** the OAS
+meta-schemas, so there is no network at test time.
+
 ### Q52
 > How will the +10% performance regression budget be enforced — manual benchmark, automated baseline comparison, perf job that fails the PR?
+
+**Automated baseline comparison in a CI job that fails the PR — and the comparator fails loudly
+on a missing denominator rather than passing vacuously.**
+
+*The baseline.* `docs/baseline-part1.json`, generated by `api/src/scripts/measure-baseline.ts`
+(`pnpm baseline:measure`), captured at `2026-08-12T20:31:10.713Z` against
+`b639059`. It is machine-written and marked *"do not hand-edit — re-run the script"*, because a
+denominator anyone can edit is not a denominator.
+
+*Its method, stated because a benchmark without one is a number without units:* in-process
+supertest (**no TCP** — explicitly *"a before/after pair, not a production SLO"*), 60 samples per
+route, 15 warmup, **nearest-rank** percentile, 25 fixture documents, node v26.5.0,
+darwin-arm64, 10 CPUs.
+
+*Three metrics, not one* (`budget.appliesTo`), each at **+10%**:
+
+| Metric | Baseline | Budget |
+|---|---:|---:|
+| `latencyMs.p95` **per route** (6 routes; worst is `/api/dashboard/my-work`) | 6.93 ms | 7.62 ms |
+| the flagship list `/api/documents` | 3.63 ms | **3.99 ms** |
+| `bundle.totalGzipBytes` | 747,644 B | 822,408 B |
+| `queriesPerRequest` per route (24 total across 6) | — | per-route, **never aggregated** |
+
+Query counts matter as much as latency here: an N+1 that adds three queries may not show up in
+p95 on a 25-document fixture and will be catastrophic on a real one. **Per-route and never
+aggregated** is the rule, because a total hides a regression on one route behind an improvement
+on another.
+
+*The comparator's failure behaviour, which is the part that decides whether this is real.*
+L26 PF-802: it **fails loudly on a missing, empty, or schema-mismatched baseline rather than
+passing vacuously.** A comparator that treats an absent denominator as "no regression detected"
+is worse than no comparator — it reports green while measuring nothing, and the day the baseline
+file gets moved is the day the budget silently stops existing.
+
+*How the enforcement itself is proven,* rather than asserted: PF-804 seeds **a deliberate ~11%
+regression in each metric in turn** and shows **three separate failures**, each message naming
+the metric, the affected route, and both numbers. A perf gate nobody has seen fail is a perf gate
+nobody knows works.
+
+*The +10% number's own provenance.* It is `budget.maxRegressionPercent: 10` in the baseline
+file, sourced there to **PRD p.2 (MVP gate item 9)** and **p.6 (Performance Targets)** — one
+constant, one citation, read by the comparator rather than restated in it.
+
+*Status.* The baseline is captured and committed (L01 PF-020, done). **The comparator is not
+built** — L26 PF-802–805 are open, and no comparator script or `baseline-part1` reference exists
+under `scripts/`, `.github/` or `.gitlab-ci.yml`. **The denominator exists; the division does
+not.** Open Items.
 
 ## 3.4 — Deployment & Hosting *(p.18)*
 
 ### Q53
 > Where does the deployed Ship instance live, and how do you give graders a pre-registered OAuth app without exposing your tenant's data?
 
+**AWS `us-east-1` — Elastic Beanstalk + Aurora Serverless v2 + CloudFront, from the Terraform
+root in `terraform/*.tf`. Decided as D6. Grader isolation is a dedicated *workspace*, not
+read-only scopes.**
+
+*The topology, since p.2 grades it:* one region, VPC `vpc-06ed04dea6a97a28c` (`10.0.0.0/16`).
+An **Elastic Beanstalk** environment `ship-api-prod` (Docker on AL2023, `t3.small`,
+load-balanced) whose instances sit in **private** subnets with
+`AssociatePublicIpAddress: false`, behind a public ALB; **Aurora Serverless v2** PostgreSQL
+16.8 (0.5–4 ACU, encrypted, `PubliclyAccessible: false`) in those same private subnets; a **NAT
+gateway** in a public subnet, which is what lets private instances pull images at all; S3 +
+CloudFront (`E3VSP84GNHG3D`) with WAF; configuration in **SSM Parameter Store** under `/ship/*`.
+76 resources in `ship/terraform.tfstate` (S3 backend, `use_lockfile`).
+
+**The security groups are the blast-radius answer, and they are a chain rather than a list:**
+`ship-alb` takes 80/443 from `0.0.0.0/0`; `ship-eb-instance` takes 80 **only** from the ALB's
+group; `ship-aurora` takes 5432 **only** from the instance group. Nothing reaches the database
+except application instances, and the instances are not addressable from the internet.
+
+*Why AWS and not Render, since p.10 permits Render by name.* **A gate outranks a suggestion.**
+p.2 names *"IAM task role and execution role"* as part of the topology the Terraform config must
+describe; p.5 adds VPC/subnets/security groups and an `AdministratorAccess` → least-privilege
+drill that **needs a real IAM surface to lock down and a real denial to demonstrate**. Render
+has none of that — `terraform/render/` contains zero IAM, VPC or SG resources. p.10 is a
+suggestion table (*"Use whatever stack helps you ship"*); p.2 is a hard gate. This is **C2**, a
+PRD internal contradiction, resolved in favour of the gate.
+
+*The two-role mapping, made honestly rather than by renaming things.* EB does not use ECS's
+words. `aws_iam_role.eb_instance` (reached through `aws_iam_instance_profile.eb`) is the role
+**the application assumes** — ECS's *task role*. `aws_iam_role.eb_service` (assumed by
+`elasticbeanstalk.amazonaws.com` under an `sts:ExternalId` condition) is the role **the platform
+assumes on our behalf** — ECS's *execution role*. Same two-role shape, different names; **no
+resource named `task_role` or `execution_role` exists**, and `docs/infra/iam-least-privilege.md`
+says so rather than inventing an alias.
+
+*Configuration kept deliberately expensive.* **Aurora Serverless v2 and the NAT gateway are
+kept.** Neither is free-tier eligible; downgrading to `db.t4g.micro` and public subnets would
+save roughly $20 for the week and would **weaken the blast-radius answer above**, which is an
+Architecture Defense topic. Architecture is not chosen to dodge $20. Week cost ~$15–25 against
+existing credits; the NAT gateway alone is $33/month (~$1.10/day) per
+`INFRASTRUCTURE_SUMMARY.md:205`.
+
+*Grader isolation — and "read-only scopes" is **not** the mechanism.* The grader and demo apps
+belong to a dedicated **Grader Sandbox workspace**, so a token issued to either **sees that
+workspace and no other**. Read-only scopes limit what a grader can *do*; the workspace limits
+what they can *see*, and only the second one answers "without exposing your tenant's data".
+Scopes are the second layer, not the first.
+
+*The isolation bug that was found and closed while building this,* because it is the proof the
+mechanism is real: **F43** — `issueTokenPair` stamped the token with `app.workspaceId`, so a
+user in workspace A consenting to an app registered in B would mint a **B-scoped token on an A
+session**. `client_id`s are not secret, so it was reachable by anyone who could read one. Now
+403, no row written.
+
+*Timing, with its provenance flagged.* `docs/infra/apply-timing.md` records a first full apply of
+**9m19s + 5m00s, Aurora 8m23s** — and marks it ***"Inherited from the lane brief; not observed
+by me… Unverified."*** **Measured** in that session: incremental applies ~2 min / ~2 min / < 30 s;
+**refresh alone ~25–30 s** for 76 resources, which is the floor under any operation; EB Docker
+build on `t3.small` ~3m31s. Quoting the inherited number as measured would contradict the
+artifact that carries it, so it is quoted as what it is.
+
 ### Q54
 > Will the OpenAPI spec be served from the live instance only, or also published as a static doc (Stoplight, Redoc, Swagger UI) at a stable URL?
 
+**Both, because p.13 requires both — and they are asserted byte-identical.**
+
+| Copy | URL | Requirement |
+|---|---|---|
+| **Live** | `http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com/api/v1/openapi.json` | p.13 *"Live at `/api/v1/openapi.json` on the deployed instance"* |
+| **Static** | `docs/openapi.json` in the repo (27,525 B, committed) | p.13 *"plus a static copy at `docs/openapi.json`"* |
+
+*Not a third-party doc host.* p.13 names the two locations; Stoplight/Redoc/Swagger UI would be
+a **rendering** of the spec, not a publication of it, and a hosted renderer is a fourth thing
+that can go stale. The spec is the artifact; a renderer is a convenience the grader can point at
+either URL.
+
+*What keeps them identical.* Two mechanisms, because one would not be enough:
+
+1. **`pnpm openapi:public`** writes `docs/openapi.json`, and a test asserts **deep equality
+   against the served body**. Deliberately **not** `pnpm openapi:generate`, which writes the
+   *internal* 3.0 spec to `api/openapi.json` — F12 established the internal registry is not
+   reusable (it emits `3.0.0` through `OpenApiGeneratorV3`, failing MVP gate item 7 on the
+   version alone).
+2. **CI regenerates and runs `git diff --exit-code`** (`openapi-freshness`), so a stale committed
+   copy fails the build rather than shipping.
+
+*One mount-order defect worth recording, because it is the kind that only appears in production.*
+**F11:** the spec route must be mounted **inside** the public router — above `bearerAuth` and
+above the catch-all — or it returns **401** (the router's own auth) or **404** (the catch-all),
+in the error envelope, to a grader who has no token and correctly expects not to need one.
+Verified against a really booted server: `curl` with no `Authorization` header returns
+**200 + `application/json` + `X-Request-Id`**, while `GET /api/v1/documents` on that same server
+returns 401. The earlier test passed **by construction** — it mounted a two-line stub returning
+`{openapi:'3.1.0',paths:{}}` — and now runs against the real handler.
+
+*One deliberate consequence, so it is not later read as a hole.* **F42/F45:** the spec fetch
+**does** write an audit row (with a null `client_id` — there is no token to attribute it to) and
+consumes **no** rate-limit bucket. Only the limiter is bypassed, because the buckets are keyed
+`app:`/`token:` and an anonymous request has neither key. Documented as a table in
+`platform/README.md`.
+
 ### Q55
 > If a grader wants to install the CLI from your repo and run it against your deployed instance, what is the one-command setup, and where does it live in the README?
+
+**Heading: `### One command`, under `## For graders — the deployed instance` (`README.md:81`,
+nested under `:29`). ⚠ What is there today is a `curl` smoke test, not a CLI install — the
+owning tickets are not yet satisfied.**
+
+*What the README contains today* (`README.md:85–88`):
+
+```bash
+export SHIP_API_URL=http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com
+curl -s "$SHIP_API_URL/api/v1/openapi.json" | head -c 200
+```
+
+That proves the instance is up and the spec resolves. **It does not install the CLI and it does
+not authenticate**, so it does not answer the question as asked.
+
+*What the answer must become,* per the owning tickets — L19 PF-580, L21 PF-631, L26 PF-814: a
+**single documented command, executed verbatim from a clean container**, reaching an
+authenticated **`ship docs ls`** against the deployed instance. `docs ls` rather than
+`docs create`, because the grader app is read-only — which is **D12**, and it is open.
+
+*D12, stated as the open decision it is.* p.6's five-line story is `ship login` →
+**`ship docs create`** → `ship webhooks tail`; p.12 makes that story the demo video and p.13
+makes the terminal screenshot the Social Post. The grader's app is **read-only by requirement**
+(p.2), so **a grader following the README cannot run the headline command.**
+
+| Option | Cost |
+|---|---|
+| **Pre-register a second write-scoped demo app** (lean, and shipped flagged as `ship_app_grader_demo`) | the README explains two apps instead of one — a documentation cost, not a security one |
+| Document `ship docs ls` as the grader's smoke test | cheapest, but **three graded artifacts then show something the reader cannot repeat** |
+| Widen the grader app's scopes | contradicts p.2's "read-only" **in the gate checkbox itself**, which is the one place a grader will look |
+
+The lean is the second app, and it is **the user's decision to close, not a lane's.**
+
+*What else is already in that README section,* since "where does it live" is half the question:
+the grader app table with `client_id`s and scopes (`:57–62`), the two-app D12 explanation
+(`:64–72`), SSM secret retrieval (`:77–80`), and `scripts/verify-deployment.sh "$SHIP_API_URL"`
+(`:96–100`) — carrying an explicit warning that **Elastic Beanstalk's sample app returns HTTP 200
+on every path**, so status codes alone prove nothing. That warning is the difference between a
+verification script and a placebo.
+
+*The risk this answer sits on, named.* **U6:** nothing in this build gives an externally-hosted
+webhook listener a public URL. `ship webhooks tail` — the third line of the story and the Social
+Post screenshot — needs deliveries to reach a developer's laptop, which the PRD never solves.
+The options are a local listener plus a tunnel, a relay, or long-polling the delivery log. **It
+is the largest execution risk in two lanes and it has no owner.**
 
 ## 3.5 — Observability of API Usage *(p.18)*
 
 ### Q56
 > What metrics do you record per public API call (route, status, latency, scope used, app, user, `request_id`), and where do they show up (logs, `/metrics`, dev portal)?
 
+**Nine fields — the PRD's seven, all of them, plus `method` and `occurredAt`. Nothing is
+omitted. They show up in two of the three named surfaces: the dev portal and the database.
+There is no `/metrics`.**
+
+`PublicApiCallRecord` (`api/src/platform/audit/audit.ts:10`), written to table
+`public_api_calls`:
+
+| Field | PRD p.18 asks for | Note |
+|---|---|---|
+| `route` | ✓ | `req.baseUrl + (req.route?.path ?? '<unmatched>')` — so `/api/v1/documents/:id`, **never a raw UUID**. A route field with an id in it has cardinality equal to your data and is useless for grouping |
+| `status` | ✓ | |
+| `latencyMs` | ✓ | |
+| `scopeUsed` | ✓ | nullable, and **null means "no scope was checked", never "passed"** |
+| `clientId` (app) | ✓ | nullable — an unauthenticated request has no app |
+| `userId` | ✓ | nullable, and **null is meaningful**: a client-credentials token has no user (Q39), which is what L23 PF-709 asserts |
+| `requestId` | ✓ | read from `res.locals.requestId`; **zero `'unknown'` fallbacks**, including on 401/404/429 |
+| `method` | — | ours. `GET /documents` and `DELETE /documents` are not the same call |
+| `occurredAt` | — | ours |
+
+Indexes `(client_id, occurred_at DESC)` and `(request_id)` — the first for the portal's
+per-app view, the second because `request_id` is the join key a developer arrives with.
+
+*The middleware order this depends on, which was a real defect.* **F7:** the audit middleware
+originally sat **below** bearer auth and rate limiting, so `res.on('finish')` never fired for
+401s and 429s — **silently exempting exactly the traffic an audit trail exists for.** Audit was
+moved **above** auth. The consequence is recorded rather than discovered: rows for
+unauthenticated traffic carry null `clientId`/`userId`, which is why those columns are nullable
+with documented meanings rather than nullable by accident.
+
+*A documentation drift this answer corrects.* **G2:** `docs/architecture.md`'s audit-field list
+reads *timestamp, client_id, user_id, route, scope, status, latency* and **omits `request_id`** —
+which p.18 names explicitly and which `ApiError` already carries. The **type is right and the
+doc is wrong**; L12 PF-327 corrects the doc and extends L01's PF-022 fitness test to compare the
+documented list against the type's keys, so the two cannot drift again. Filed from this lane.
+
+*Where they show up, honestly, against p.18's three surfaces:*
+
+| Surface | Status |
+|---|---|
+| **Dev portal** | yes — L22 PF-676 renders the full set including `request_id` |
+| **Logs / a query** | yes — `public_api_calls` is queryable; this is what backs Q45's alert conditions |
+| **`/metrics`** | **no. There is no `/metrics` endpoint and no notifier in this build.** The codebase says so about itself at `platform/apps/secret-auth-log.ts:26` |
+
+That third row is a **decision, not an omission**: a Prometheus surface with nothing scraping it
+is a route that looks like observability. The consequence is stated where it bites (Q45): the
+signals are queryable and tested, **not paged.**
+
+*Two limits worth carrying.* **B10** — the audit view has **no route**: L12 ships `listCalls(...)`,
+a repository function React cannot call, and p.4 gives Replay a path while giving the audit trail
+none. **B11** — portal traffic is **indistinguishable from the developer's own** in the trail,
+because `PublicApiCallRecord` is a closed key set asserted against a literal array; L22 PF-676
+**discloses that in the UI** rather than widening the record.
+
 ### Q57
 > How will you tell, post-demo, that the agent actually went through the public API for every action — a grep of the audit log, a dashboard panel, or a fitness test that runs the agent and inspects the trail?
 
+**A fitness test that runs the agent and inspects the trail — as the graded artifact. The SQL
+query is for the demo. Decided as D11.**
+
+*Why a grep cannot do this job, which is the whole reasoning.* The PRD's phrasing is *"for
+**every** action."* A grep over the audit log is an **existence** proof: it shows some rows are
+there. It cannot show that **no action took a different path**, because the actions that
+bypassed the API left no row *in the thing being grepped* — an absent row is exactly what a
+back door looks like. A grep of the audit log is structurally incapable of detecting the failure
+it is being asked to rule out.
+
+*What the fitness test does instead* (L23 PF-709): boot with `testDeps()`, seed the fixture
+workspace, **mint a client-credentials token for the seeded agent app**, run **one full flag-on
+scan**, then assert against `listCalls({clientId})`:
+
+1. **every** Ship-data read has a `public_api_calls` row;
+2. every row carries the **agent's `client_id`**, a **null `user_id`** (which is what Client
+   Credentials produces — Q39), one of the granted scopes, and a **2xx**;
+3. **PF-697's table invariant holds** — flag-on statements touch only
+   `{fleetgraph_watermarks, fleetgraph_observations, fleetgraph_notifications,
+   fleetgraph_checkpoints}` plus a reasoned exception array;
+4. **row count is non-zero.**
+
+*Point 3 is what turns existence into universality.* The table invariant asserts the negative
+from the **database** side — the agent did not read Ship's tables directly — while the audit
+rows assert the positive from the API side. Neither alone answers "every action"; together they
+close it. Point 4 is the anti-vacuity guard: a test that passes because the agent did nothing is
+the easiest way to get a green check here.
+
+*The demo query* (PF-710), embedded in the Epic 7 write-up:
+
+```sql
+SELECT route, scope_used, status, count(*)
+FROM public_api_calls
+WHERE client_id = 'ship_app_firstparty_fleetgraph_agent'
+GROUP BY 1,2,3 ORDER BY 4 DESC;
+```
+
+That is the right artifact for a live demo and the wrong one for a claim — it shows what
+happened, not what could not have happened.
+
+*The exception this proof must survive, stated rather than hidden.* **D13** is open: three of
+five detectors plus two graph fetch nodes read `document_associations` and `document_history`,
+which have **no `/api/v1` surface and no registered scope**. Under the lean (a)+(c), one detector
+(`reworkChurn`) **stays on direct SQL, named and counted** in the exception array. So the honest
+claim is not "every action goes through the public API" — it is **"every action goes through the
+public API except N named reads, listed here."** A bounded, checkable exception is a stronger
+artifact than an absolute claim the test would have to be weakened to keep.
+
+*Retention makes the claim durable.* **D10**: 30 days raw plus an **indefinite per-day-per-app
+rollup**, specifically so Epic 7's claim stays provable after raw rows expire. Sized against
+~20,000 audit rows/day at 100 users → ~20,000,000/day at 100,000 (L12 PF-342). No prune job is
+shipped, and PF-341 is explicit that *"pruning is implemented against the recorded number, never
+ahead of it."*
+
 ### Q58
 > How does `Idempotency-Key` reuse vs. fresh keys show up in your delivery log? Could you tell whether a subscriber's dedupe is working from your portal alone?
+
+**Reuse is visible as *multiple delivery rows sharing one `idempotency_key`*. And the answer to
+the second question is a plain no — with a precise statement of what the portal would need for
+it to be yes.**
+
+*How reuse shows up.* `idempotency_key` is a column on `webhook_deliveries`, **persisted at the
+first attempt and read thereafter, never recomputed** (Q30). So:
+
+| Pattern in the log | What it means |
+|---|---|
+| one key, one row | delivered first time |
+| one key, several rows with ascending `attempt_number` | the retry ladder ran |
+| one key, several rows **with a `replay_of_delivery_id`** | someone hit Replay — the replay carries the **stored** key |
+| several **distinct** keys | genuinely different events |
+
+The delivery detail panel renders `attempt_number`, `response_status`, `latency_ms`,
+`response_excerpt`, `status`, `dlq_reason`, `idempotency_key` and `replay_of_delivery_id` — the
+last as a **link to the ancestor**, so a replay chain is walkable rather than inferred from
+timestamps. L16 PF-472 additionally exposes, per key, the **attempt count and the distinct
+terminal statuses**.
+
+*Could you tell whether a subscriber's dedupe is working, from the portal alone? **No.***
+
+L16 PF-472's own framing is the honest one: *"the honest answer is **no**, and this ticket makes
+it yes for the half we control."* The reason is structural, not a missing feature: **a
+correctly-deduping subscriber and a subscriber that reprocesses every duplicate return the
+identical response — 2xx.** The dedupe happens on their side of the wire and produces no signal
+we receive. Our log can prove *we* sent the same key twice; it cannot prove what they did with
+it. Adding portal columns cannot fix this, because the information never crosses the boundary.
+
+*What the portal would have to show for the answer to become yes* — stated precisely, since
+that is what the question asks:
+
+1. **A subscriber-supplied signal in the response.** A response header such as
+   `Ship-Duplicate: true` on a request whose key the subscriber has already processed, stored on
+   the delivery row and surfaced per key. That is a **contract change on the subscriber**, which
+   is why it is not shipped: we would be requiring subscribers to prove their own correctness to
+   us.
+2. **A deliberate duplicate probe** — send a known-duplicate key on request and show the pair
+   side by side. That measures a synthetic case, not their production path.
+
+Option 1 is the only real one and it changes the published contract. **Absent that, the portal
+answers "did Ship deliver this exactly once, and if not, how many times and with which key" —
+which is the question Ship can actually answer** — and Q30's published dedupe contract is the
+instrument by which the subscriber takes responsibility for the other half.
 </content>
