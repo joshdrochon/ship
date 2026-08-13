@@ -207,10 +207,23 @@ describe('PF-373/375 — the real app: every mounted route is documented and vic
     // the generator working on one resource "before adding issues, sprints, and
     // me". A generator that needed an edit to take the second resource would
     // have bought nothing.
+    // What did NOT change is the point of PF-294: no file under
+    // `platform/openapi/` other than the two enumerating TESTS. The generator
+    // (`registry.ts`, `operations.ts`, `route.ts`, `specParity.ts`,
+    // `staticCopy.ts`) took a fourth operation with no edit at all — it learned
+    // about `/me` from the same `declareV1Route()` call that recorded the scope
+    // and built the guard.
+    //
+    // EXTENDED AGAIN BY L15 (PF-428), and PF-294 held a second time: six
+    // `/webhooks` operations entered the spec with zero lines changed under
+    // `platform/openapi/` outside this enumerating test. Two independent
+    // resources have now proved the generator is open for extension, which is
+    // more than one resource could.
     const documented = listSpecOperations(generatePublicOpenAPIDocument()).map(
       (o) => `${o.method.toUpperCase()} ${o.path}`,
     );
     expect(documented.sort()).toEqual([
+      'DELETE /webhooks/{id}',
       'GET /documents',
       'GET /documents/{id}',
       'GET /issues',
@@ -219,11 +232,16 @@ describe('PF-373/375 — the real app: every mounted route is documented and vic
       'GET /openapi.json',
       'GET /sprints',
       'GET /sprints/{id}',
+      'GET /webhooks',
+      'GET /webhooks/{id}',
       'PATCH /issues/{id}',
       'PATCH /sprints/{id}',
+      'PATCH /webhooks/{id}',
       'POST /documents',
       'POST /issues',
       'POST /sprints',
+      'POST /webhooks',
+      'POST /webhooks/{id}/rotate',
     ]);
   });
 });

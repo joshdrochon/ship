@@ -130,15 +130,89 @@ describe('PF-411 — nothing under the route layer publishes', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('no route file imports the events or bus modules', () => {
+  it('no route file imports the bus or the payload builders', () => {
+    // `bus.js` and `payloads.js` are the PUBLISH machinery and stay fully
+    // banned from the route layer — importing either is the shape of the defect
+    // this rule exists to prevent.
     const offenders: string[] = [];
     for (const file of routeFiles) {
       const code = codeOf(file);
-      if (/from\s+['"][^'"]*webhooks\/(events|bus|payloads)\.js['"]/.test(code)) {
+      if (/from\s+['"][^'"]*webhooks\/(bus|payloads)\.js['"]/.test(code)) {
         offenders.push(file.slice(API_SRC.length + 1));
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * NARROWED by L15, and the narrowing is the point rather than an exemption.
+   *
+   * `events.ts` carries two different things behind one filename: the PUBLISH
+   * vocabulary (`EventEnvelope`, `PublishInput`, `EventRegistry`) and the
+   * READ-ONLY registry of event-type names (`EVENT_TYPES`, `assertEventType`).
+   * The original rule banned the whole module from the route layer, which is
+   * right for the first half and wrong for the second — L15's
+   * `POST /api/v1/webhooks` has to validate a requested event type, and PF-429
+   * requires it to do that by calling `assertEventType` rather than restating
+   * the eight names, precisely so that registering a ninth type is not an edit
+   * to a route handler. That is the same Open/Closed property PF-395 proves.
+   *
+   * The two candidate resolutions were: restate the names in the route (banned
+   * by PF-429, and the drift PF-395 exists to prevent), or re-export the
+   * validation surface from a module outside `webhooks/` (laundering an import
+   * to defeat a grep, which is worse than either). So the rule is narrowed to
+   * what it is actually about, and the ban on the publish half is now
+   * ENFORCED BY NAME rather than by filename — which is stricter than what it
+   * replaced, not looser.
+   *
+   * Filed as a cross-lane amendment in `lane-99-unassigned.md`.
+   */
+  const REGISTRY_READ_ONLY = new Set([
+    'EVENT_TYPES',
+    'EventType',
+    'isEventType',
+    'assertEventType',
+    'UnknownEventTypeError',
+    'eventPayloadSchemas',
+    'eventEnvelopeSchema',
+  ]);
+
+  it('a route file may import the event REGISTRY, and nothing else from events.js', () => {
+    const offenders: string[] = [];
+    for (const file of routeFiles) {
+      const code = codeOf(file);
+      for (const match of code.matchAll(
+        /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"][^'"]*webhooks\/events\.js['"]/g,
+      )) {
+        const named = match[1]!
+          .split(',')
+          .map((s) => s.replace(/^\s*type\s+/, '').split(/\s+as\s+/)[0]!.trim())
+          .filter(Boolean);
+        const forbidden = named.filter((n) => !REGISTRY_READ_ONLY.has(n));
+        if (forbidden.length > 0) {
+          offenders.push(`${file.slice(API_SRC.length + 1)}: ${forbidden.join(', ')}`);
+        }
+      }
+      // A namespace or default import defeats the name check entirely.
+      if (/import\s+\*\s+as[^;]*webhooks\/events\.js/.test(code)) {
+        offenders.push(`${file.slice(API_SRC.length + 1)}: namespace import`);
+      }
+    }
+    expect(
+      offenders,
+      'A route may read the event-type registry (PF-429 requires it) but may not import ' +
+        'the publish vocabulary — EventEnvelope, PublishInput or EventRegistry in a handler ' +
+        'is a handler one line from publishing.',
+    ).toEqual([]);
+  });
+
+  it('the read-only allowlist really excludes the publish vocabulary', () => {
+    // Anti-vacuity, in the same spirit as the allowlist checks below: an
+    // allowlist that happened to contain every export of `events.ts` would pass
+    // the scan above and mean nothing.
+    for (const name of ['EventEnvelope', 'PublishInput', 'EventRegistry']) {
+      expect(REGISTRY_READ_ONLY.has(name), `${name} must not be route-importable`).toBe(false);
+    }
   });
 });
 

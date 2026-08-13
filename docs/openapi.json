@@ -2738,6 +2738,989 @@
           }
         }
       }
+    },
+    "/webhooks": {
+      "post": {
+        "operationId": "postWebhooks",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Subscribe to one event type. Returns the signing secret exactly once.",
+        "description": "Creates a subscription bound to the calling token's app. The `signing_secret` in the response is the only time it is ever returned — capture it here or rotate. `target_url` must be an absolute `https` URL that does not resolve into private address space.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event": {
+                    "type": "string",
+                    "enum": [
+                      "document.created",
+                      "document.updated",
+                      "document.deleted",
+                      "issue.created",
+                      "issue.assigned",
+                      "issue.status_changed",
+                      "sprint.started",
+                      "sprint.completed"
+                    ]
+                  },
+                  "target_url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "event",
+                  "target_url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscribe to one event type. Returns the signing secret exactly once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "signing_secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at",
+                    "signing_secret"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getWebhooks",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "List this app's webhook subscriptions, newest first.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List this app's webhook subscriptions, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "event": {
+                            "type": "string",
+                            "enum": [
+                              "document.created",
+                              "document.updated",
+                              "document.deleted",
+                              "issue.created",
+                              "issue.assigned",
+                              "issue.status_changed",
+                              "sprint.started",
+                              "sprint.completed"
+                            ]
+                          },
+                          "target_url": {
+                            "type": "string"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "secret_prefix": {
+                            "type": "string"
+                          },
+                          "secret_version": {
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "deactivated_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "event",
+                          "target_url",
+                          "active",
+                          "secret_prefix",
+                          "secret_version",
+                          "created_at",
+                          "updated_at",
+                          "deactivated_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/{id}": {
+      "get": {
+        "operationId": "getWebhooksById",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Fetch one subscription by id.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fetch one subscription by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchWebhooksById",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Activate or deactivate a subscription. `active` is the only mutable field.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "active"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Activate or deactivate a subscription. `active` is the only mutable field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWebhooksById",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Deactivate a subscription. Idempotent; the row is retained.",
+        "description": "Sets `active` to false and stamps `deactivated_at`. The row is NOT removed, so the delivery log keeps a resolvable `subscription_id` after a subscriber walks away. Calling it twice returns the same 200 and the same `deactivated_at`.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deactivate a subscription. Idempotent; the row is retained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/{id}/rotate": {
+      "post": {
+        "operationId": "postWebhooksByIdRotate",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Mint a new signing secret. The previous one stops verifying immediately.",
+        "description": "Returns the new `signing_secret` exactly once and increments `secret_version`. There is no grace period: the previous secret verifies nothing from the moment this returns, and the retry ladder is what covers the window while a subscriber updates its environment.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mint a new signing secret. The previous one stops verifying immediately.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "signing_secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at",
+                    "signing_secret"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "webhooks": {}
