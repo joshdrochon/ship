@@ -1,0 +1,886 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Ship Public API",
+    "version": "1.0.0",
+    "description": "The public, versioned Ship platform API.\n\nGenerated from route metadata — every operation below is produced by the same `declareV1Route()` call that mounts its Express handler, so an endpoint cannot exist without appearing here and cannot appear here without existing."
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "This deployment."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "shipOAuth2": {
+        "type": "oauth2",
+        "description": "OAuth 2.0 access token, presented as `Authorization: Bearer <token>`. Every operation lists the scopes it requires.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "/oauth/authorize",
+            "tokenUrl": "/oauth/token",
+            "refreshUrl": "/oauth/token",
+            "scopes": {
+              "documents:read": "Read documents in your workspace",
+              "documents:write": "Create and update documents in your workspace",
+              "issues:read": "Read issues in your workspace",
+              "issues:write": "Create and update issues in your workspace",
+              "sprints:read": "Read sprints in your workspace",
+              "sprints:write": "Create and update sprints in your workspace",
+              "webhooks:manage": "Create, update and delete webhook subscriptions"
+            }
+          },
+          "clientCredentials": {
+            "tokenUrl": "/oauth/token",
+            "scopes": {
+              "documents:read": "Read documents in your workspace",
+              "documents:write": "Create and update documents in your workspace",
+              "issues:read": "Read issues in your workspace",
+              "issues:write": "Create and update issues in your workspace",
+              "sprints:read": "Read sprints in your workspace",
+              "sprints:write": "Create and update sprints in your workspace",
+              "webhooks:manage": "Create, update and delete webhook subscriptions"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "unauthorized"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "expired",
+                      "invalid",
+                      "missing"
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "forbidden"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "missing_scope": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "granted_scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "scope_description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "unrecognized_scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "missing_scope",
+                  "granted_scopes",
+                  "scope_description"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id",
+              "details"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "not_found"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "validation_failed"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "message": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "fields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id",
+              "details"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "rate_limited"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "retry_after_seconds": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "retry_after_seconds"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "server_error"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenapiJson",
+        "tags": [
+          "openapi.json"
+        ],
+        "summary": "The OpenAPI 3.1 description of this API.",
+        "description": "Generated from route metadata at boot — never hand-written. Requires no credentials: a specification a consumer cannot fetch before authenticating is a specification they cannot use to authenticate.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 description of this API.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "openapi": {
+                      "type": "string",
+                      "enum": [
+                        "3.1.0"
+                      ]
+                    },
+                    "info": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "version"
+                      ]
+                    },
+                    "paths": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "openapi",
+                    "info",
+                    "paths"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents": {
+      "get": {
+        "operationId": "getDocuments",
+        "tags": [
+          "documents"
+        ],
+        "summary": "List documents, newest first.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "documents:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List documents, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "document_type": {
+                            "type": "string",
+                            "enum": [
+                              "wiki",
+                              "weekly_plan",
+                              "weekly_retro",
+                              "standup",
+                              "weekly_review"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "parent_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "created_by": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "document_type",
+                          "title",
+                          "parent_id",
+                          "created_at",
+                          "updated_at",
+                          "created_by"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `documents:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postDocuments",
+        "tags": [
+          "documents"
+        ],
+        "summary": "Create a document.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "documents:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "default": "Untitled"
+                  },
+                  "document_type": {
+                    "type": "string",
+                    "enum": [
+                      "wiki",
+                      "weekly_plan",
+                      "weekly_retro",
+                      "standup",
+                      "weekly_review"
+                    ],
+                    "default": "wiki"
+                  },
+                  "parent_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  },
+                  "belongs_to": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "program",
+                            "project",
+                            "sprint",
+                            "parent"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type"
+                      ]
+                    }
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "private",
+                      "workspace"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Create a document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "wiki",
+                        "weekly_plan",
+                        "weekly_retro",
+                        "standup",
+                        "weekly_review"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "parent_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "parent_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `documents:write`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}": {
+      "get": {
+        "operationId": "getDocumentsById",
+        "tags": [
+          "documents"
+        ],
+        "summary": "Fetch one document by id.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "documents:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fetch one document by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "wiki",
+                        "weekly_plan",
+                        "weekly_retro",
+                        "standup",
+                        "weekly_review"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "parent_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "parent_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `documents:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

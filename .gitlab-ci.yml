@@ -179,6 +179,44 @@ doc-links:
     - scripts/check-doc-links.sh
   allow_failure: false
 
+# L13 PF-369 / PF-377 — the committed public spec cannot go stale, and drift FAILS.
+#
+# `docs/openapi.json` is a Submission Requirement (p.13) and is what a grader reads
+# when the deployment is not reachable. It is generated, so it can silently fall
+# behind the routes: add an endpoint, forget to regenerate, and the artifact ships
+# describing an API that no longer exists. This job regenerates and diffs.
+#
+# **Decision (PF-377): fail, not warn, and no additive carve-out.** Pre-Search 3.3
+# (p.18) asks whether additive changes should be exempt. They are not: a new route
+# with no spec entry fails like any other drift, because "it's only additive" is how
+# every drift starts, and an additive-only policy would let a resource land before
+# its spec entry and keep CI green for exactly one commit. p.4 already requires drift
+# to fail CI for the SDK-side test; this is the same posture one lane earlier.
+#
+# The spec↔route PARITY half is not here — it runs inside the `test` job as
+# `platform/openapi/specParity.test.ts`, so it gates every PR through the same
+# required check as everything else rather than through a job someone can retry.
+#
+# `needs: []` so it starts immediately: it runs tsx over source and needs no build.
+openapi-freshness:
+  stage: verify
+  needs: []
+  script:
+    - pnpm openapi:public
+    - |
+      git diff --exit-code docs/openapi.json || {
+        echo ''
+        echo 'docs/openapi.json is STALE — the committed public spec does not match the'
+        echo 'routes on this branch. Fix it with:'
+        echo ''
+        echo '    pnpm openapi:public && git add docs/openapi.json'
+        echo ''
+        echo 'Do not hand-edit the file: it is generated from the declareV1Route() calls'
+        echo 'beside the handlers (PRD p.11), and a hand-edit is undone by the next run.'
+        exit 1
+      }
+  allow_failure: false
+
 test:
   stage: verify
   needs: ['build']

@@ -48,6 +48,16 @@ export interface BearerTestApp {
 export interface BearerTestAppOptions {
   /** Routes under test, mounted above the catch-all through the router hook. */
   mountResources?: (router: Router) => void;
+  /**
+   * Routes mounted ABOVE bearer auth (PF-216). Paths must appear in
+   * `V1_UNAUTHENTICATED_PATHS`.
+   *
+   * Added by L13. The spec endpoint's whole claim is "this answers 200 with no
+   * Authorization header while everything else 401s", and the only harness that
+   * can prove the second half is the one running the REAL bearer middleware —
+   * L07's stub decides the 401 itself.
+   */
+  mountUnauthenticated?: (router: Router) => void;
   /** Short TTLs for expiry-without-waiting (PF-173). */
   ttl?: TokenTtlConfig;
   scopes?: Scope[];
@@ -102,6 +112,9 @@ export async function createBearerTestApp(
       perAppLimiter: options.perAppLimiter ?? generous(),
       perTokenLimiter: options.perTokenLimiter ?? generous(),
       auditSink,
+      ...(options.mountUnauthenticated
+        ? { mountUnauthenticated: options.mountUnauthenticated }
+        : {}),
       ...(options.mountResources ? { mountResources: options.mountResources } : {}),
     }),
   );

@@ -47,6 +47,8 @@ import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js
 import { assertEveryRouteDeclaresScope } from './platform/api/v1/declareV1Route.js';
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
 import { documentsResources } from './platform/api/v1/documents/routes.js';
+import { generatePublicOpenAPIDocumentOrDie } from './platform/openapi/registry.js';
+import { mountOpenApiSpec } from './platform/openapi/route.js';
 
 // Validate SESSION_SECRET in production
 if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
@@ -274,8 +276,28 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     perAppLimiter: deps.limiter,
     perTokenLimiter: deps.limiter,
     auditSink: deps.auditSink,
-    // TODO(L13): mountUnauthenticated for GET /api/v1/openapi.json — the route is
-    // L13's, the mount seam and V1_UNAUTHENTICATED_PATHS are this lane's.
+
+    // L13 (PF-357, PF-365, PF-366) — the generated spec, served from INSIDE the
+    // v1 router and ABOVE bearer auth.
+    //
+    // Generated HERE, once, during assembly. Three consequences, all deliberate:
+    //
+    //   - `generatePublicOpenAPIDocumentOrDie` THROWS on a generation failure, so
+    //     `createApp()` throws and the entry point exits non-zero without ever
+    //     opening a socket. Serving /api/v1 without its contract is the drift the
+    //     parity test exists to prevent (docs/architecture.md, Failure Modes).
+    //     **This is our decision, not the PRD's** — p.12 only requires the
+    //     architecture document to answer the question. The defensible
+    //     alternative is boot-and-serve-503 on the spec route alone.
+    //   - Once, not per request. The document is derived entirely from
+    //     module-load-time registrations and cannot change while the process
+    //     lives, so per-request generation would be work with no possible
+    //     different answer, on the endpoint most likely to be polled.
+    //   - Inside the router, so the spec request carries a request_id and lands
+    //     in the audit trail like every other public call. See the PF-367 note in
+    //     platform/openapi/route.ts for what it does bypass (the rate limiter,
+    //     and only that) and why that is accepted.
+    mountUnauthenticated: mountOpenApiSpec(generatePublicOpenAPIDocumentOrDie()),
 
     // L09 — `documents` is the ONLY resource mounted, and that is Build Strategy
     // §4 (p.11) rather than an unfinished list: *"Get the generator working
