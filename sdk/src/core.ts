@@ -78,6 +78,34 @@ export { InMemoryTokenStore, isStoredTokens } from './auth/tokenStore.js';
 export type { ITokenStore, StoredTokens } from './auth/tokenStore.js';
 export { exchangeRefreshToken, singleFlight } from './auth/refresh.js';
 
+// ── OAuth helpers (PF-537 – PF-541) ─────────────────────────────────────────
+export {
+  runDeviceLogin,
+  runAuthorizationCodeFlow,
+  buildAuthorizationRequest,
+  parseAuthorizationRedirect,
+  exchangeAuthorizationCode,
+  oauthErrorCode,
+  CLIENT_ID_ENV_VAR,
+  SLOW_DOWN_INCREMENT_SECONDS,
+  DEFAULT_POLL_INTERVAL_SECONDS,
+} from './auth/flows.js';
+export type {
+  DeviceLoginOptions,
+  AuthorizationCodeFlowOptions,
+  AuthorizationRequest,
+  FlowResult,
+} from './auth/flows.js';
+export {
+  createPkcePair,
+  generateCodeVerifier,
+  generateState,
+  deriveCodeChallenge,
+  base64UrlEncode,
+  CODE_CHALLENGE_METHOD,
+} from './auth/pkce.js';
+export type { PkcePair } from './auth/pkce.js';
+
 // ── pagination (PF-533 – PF-536) ────────────────────────────────────────────
 export { paginate, PaginationStalledError } from './pagination.js';
 export type { Page } from './pagination.js';

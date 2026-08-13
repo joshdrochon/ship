@@ -28,6 +28,13 @@ import { IssuesClient } from './resources/issues.js';
 import { SprintsClient } from './resources/sprints.js';
 import { WebhooksClient } from './resources/webhookSubscriptions.js';
 import { InMemoryTokenStore, type ITokenStore } from './auth/tokenStore.js';
+import {
+  runDeviceLogin,
+  runAuthorizationCodeFlow,
+  type DeviceLoginOptions,
+  type AuthorizationCodeFlowOptions,
+  type FlowResult,
+} from './auth/flows.js';
 
 /** Sent as `User-Agent`. Version is a literal because the SDK reads no package.json at runtime. */
 export const SDK_USER_AGENT = 'ship-sdk-js/0.1.0';
@@ -219,6 +226,55 @@ export class ShipClient {
   openapi(): Promise<ShipOpenApiDocument> {
     return this.transport.request<ShipOpenApiDocument>('GET', '/openapi.json', {
       anonymous: true,
+    });
+  }
+
+  /**
+   * PF-537 — p.7's static signature, verbatim:
+   *
+   *     static async deviceLogin(opts: {
+   *       onUserCode: (code: string, verifyUrl: string) => void;
+   *       tokenStore?: ITokenStore;
+   *     }): Promise<ShipClient>;
+   *
+   * STATIC because there is no authenticated client to call it on yet — that is
+   * what a login helper is for. This is `ship login` (p.6's five-line story).
+   *
+   * The returned client is wired to the store the flow wrote to and to the same
+   * `clientId`, so its first expiry refreshes rather than sending the user back
+   * through the flow. `baseUrl`, `clientId` and `scopes` are optional additions
+   * to p.7's bag; `deviceLogin({ onUserCode })` compiles exactly as printed.
+   */
+  static async deviceLogin(options: DeviceLoginOptions): Promise<ShipClient> {
+    return ShipClient.fromFlow(await runDeviceLogin(options), options);
+  }
+
+  /**
+   * PF-539 — Authorization Code + PKCE, end to end.
+   *
+   * The verifier is generated here, the S256 challenge is derived from it, and
+   * the verifier does not leave this process until the exchange. `authorize` is
+   * the seam where the caller opens whatever it can open — this SDK opens no
+   * browser (see `auth/flows.ts` for why).
+   */
+  static async authorizationCodeFlow(
+    options: AuthorizationCodeFlowOptions,
+  ): Promise<ShipClient> {
+    return ShipClient.fromFlow(await runAuthorizationCodeFlow(options), options);
+  }
+
+  /** A client wired to the credential a flow just wrote. */
+  private static fromFlow(
+    result: FlowResult,
+    options: { clientSecret?: string; http?: ShipClientOptions['http']; clock?: SdkClock },
+  ): ShipClient {
+    return new ShipClient({
+      baseUrl: result.baseUrl,
+      tokenStore: result.tokenStore,
+      clientId: result.clientId,
+      ...(options.clientSecret !== undefined ? { clientSecret: options.clientSecret } : {}),
+      ...(options.http !== undefined ? { http: options.http } : {}),
+      ...(options.clock !== undefined ? { clock: options.clock } : {}),
     });
   }
 
