@@ -43,10 +43,12 @@ import type { DocumentsClient } from './resources/documents.js';
 import type { IssuesClient } from './resources/issues.js';
 import type { SprintsClient } from './resources/sprints.js';
 import type { WebhooksClient } from './resources/webhookSubscriptions.js';
+import type { WebhookDeliveriesClient } from './resources/webhookDeliveries.js';
 // The field tuples come from the resource modules rather than being restated
 // here, so the binding and the type it describes cannot drift: adding a field to
 // `ShipIssue` without adding it to `ISSUE_FIELDS` is already a type error
 // (`typeProofs/resourceTypes.ts`), and this table reads that same tuple.
+import { WEBHOOK_DELIVERY_FIELDS } from './resources/webhookDeliveries.js';
 import { CREATE_DOCUMENT_FIELDS, DOCUMENT_FIELDS } from './resources/documents.js';
 import { CREATE_ISSUE_FIELDS, ISSUE_FIELDS, UPDATE_ISSUE_FIELDS } from './resources/issues.js';
 import { CREATE_SPRINT_FIELDS, SPRINT_FIELDS, UPDATE_SPRINT_FIELDS } from './resources/sprints.js';
@@ -67,7 +69,13 @@ type ResourceMethodPath =
   | `documents.${MethodNames<DocumentsClient> & string}`
   | `issues.${MethodNames<IssuesClient> & string}`
   | `sprints.${MethodNames<SprintsClient> & string}`
-  | `webhooks.${MethodNames<WebhooksClient> & string}`;
+  | `webhooks.${MethodNames<WebhooksClient> & string}`
+  // Nested collection. p.4 puts the delivery log, DLQ and replay under
+  // `/webhooks`, and the SDK mirrors that URL shape rather than flattening it to
+  // `webhookDeliveries.*`. Derived from the real class for the same reason as
+  // the four above: rename a method on `WebhookDeliveriesClient` and this file
+  // stops compiling instead of a test quietly passing.
+  | `webhooks.deliveries.${MethodNames<WebhookDeliveriesClient> & string}`;
 
 /** A method on `ShipClient` itself — `me`, `openapi`. */
 type ClientOwnMethodPath = MethodNames<ShipClient> & string;
@@ -328,6 +336,36 @@ export const OPERATION_BINDINGS: readonly OperationBinding[] = [
     queryParams: [],
     bodyFields: [],
     returns: { shape: 'item', fields: WEBHOOK_SUBSCRIPTION_WITH_SECRET_FIELDS },
+  },
+  {
+    operationId: 'getWebhooksDeliveries',
+    method: 'get',
+    path: '/webhooks/deliveries',
+    call: 'webhooks.deliveries.list',
+    pathParams: [],
+    queryParams: ['limit', 'cursor', 'status', 'subscription_id', 'event_type'],
+    bodyFields: [],
+    returns: { shape: 'page', fields: WEBHOOK_DELIVERY_FIELDS },
+  },
+  {
+    operationId: 'getWebhooksDeliveriesById',
+    method: 'get',
+    path: '/webhooks/deliveries/{id}',
+    call: 'webhooks.deliveries.get',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'item', fields: WEBHOOK_DELIVERY_FIELDS },
+  },
+  {
+    operationId: 'postWebhooksDeliveriesByIdReplay',
+    method: 'post',
+    path: '/webhooks/deliveries/{id}/replay',
+    call: 'webhooks.deliveries.replay',
+    pathParams: ID_PARAM,
+    queryParams: [],
+    bodyFields: [],
+    returns: { shape: 'item', fields: WEBHOOK_DELIVERY_FIELDS },
   },
 ];
 

@@ -294,7 +294,21 @@ describe('PF-378 — listSpecOperations is L18\'s seam, and nothing more', () =>
   });
 
   it('imports nothing from sdk/ — L13 asserts nothing about the SDK', () => {
+    // ONE sanctioned exception, and naming it is the point of the rule rather
+    // than a hole in it. `sdkSurfaceParity.test.ts` IS Testing Scenario 5's
+    // second half (p.5, "walk every spec method and assert the SDK exposes a
+    // typed call for it"), so importing the SDK is the entire job. L18 landed it
+    // in this directory because it walks L13's `listSpecOperations` seam; L13's
+    // rule was written before that file existed and would otherwise forbid the
+    // only file that is supposed to do this.
+    //
+    // The rule still binds everything else: the GENERATOR must know nothing
+    // about the SDK, which is what keeps spec↔route parity independent of
+    // spec↔SDK parity. Two checks measuring each other prove nothing.
+    const Scenario5 = 'sdkSurfaceParity.test.ts';
+
     for (const file of walk(HERE)) {
+      if (file.endsWith(Scenario5)) continue;
       const source = readFileSync(file, 'utf8');
       expect(
         /from\s+['"](@ship\/sdk|[^'"]*\/sdk\/)/.test(source),

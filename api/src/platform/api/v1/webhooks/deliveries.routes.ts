@@ -52,6 +52,7 @@ import {
   deliveryQuerySchema,
   keyUsageSchema,
   type DeliveryBody,
+  deliveryIdParamSchema,
 } from './deliveries.schema.js';
 
 export interface DeliveriesRouteDeps {
@@ -102,6 +103,10 @@ const replayGuard = declareV1Route({
   path: '/webhooks/deliveries/:id/replay',
   scope: WEBHOOKS_SCOPE,
   list: false,
+  // PF-526 — the path carries `{id}`, so the SPEC must say so. Without this the
+  // generated operation declares no parameters, and L18's signature parity check
+  // correctly reports the SDK accepting an argument the spec never mentions.
+  params: deliveryIdParamSchema,
   response: deliveryListItemSchema,
   status: 201,
   summary: 'Replay a logged delivery, carrying the ORIGINAL idempotency key.',
@@ -121,6 +126,10 @@ const getGuard = declareV1Route({
   path: '/webhooks/deliveries/:id',
   scope: WEBHOOKS_SCOPE,
   list: false,
+  // PF-526 — the path carries `{id}`, so the SPEC must say so. Without this the
+  // generated operation declares no parameters, and L18's signature parity check
+  // correctly reports the SDK accepting an argument the spec never mentions.
+  params: deliveryIdParamSchema,
   response: deliveryListItemSchema,
   summary: 'Fetch one delivery attempt by id.',
 });

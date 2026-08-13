@@ -156,6 +156,17 @@ export type {
   ShipEventType,
 } from './resources/webhookSubscriptions.js';
 
+export {
+  WebhookDeliveriesClient,
+  WEBHOOK_DELIVERY_FIELDS,
+  DELIVERY_STATUSES,
+} from './resources/webhookDeliveries.js';
+export type {
+  WebhookDelivery,
+  DeliveryStatus,
+  ListDeliveriesInput,
+} from './resources/webhookDeliveries.js';
+
 // ── spec parity binding (PF-528 – PF-532) ───────────────────────────────────
 export {
   OPERATION_BINDINGS,

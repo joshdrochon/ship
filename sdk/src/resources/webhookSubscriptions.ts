@@ -29,6 +29,7 @@
  * both directions.
  */
 import type { Transport } from '../transport.js';
+import { WebhookDeliveriesClient } from './webhookDeliveries.js';
 import { ResourceClient, resourceItemPath } from './base.js';
 
 /**
@@ -119,8 +120,17 @@ export interface UpdateWebhookInput {
 }
 
 export class WebhooksClient extends ResourceClient<WebhookSubscription> {
+  /**
+   * The delivery log, DLQ and replay — a NESTED client, not a flat
+   * `client.webhookDeliveries`. p.4 puts the routes under `/webhooks`, and the
+   * SDK surface reads better when it mirrors the URL shape a developer already
+   * saw in the spec: `client.webhooks.deliveries.list({ status: 'dead_lettered' })`.
+   */
+  readonly deliveries: WebhookDeliveriesClient;
+
   constructor(transport: Transport) {
     super(transport, '/webhooks');
+    this.deliveries = new WebhookDeliveriesClient(transport);
   }
 
   /** Returns the signing secret EXACTLY ONCE. Capture it. */

@@ -3059,6 +3059,17 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
         "responses": {
           "201": {
             "description": "Replay a logged delivery, carrying the ORIGINAL idempotency key.",
@@ -3225,6 +3236,26 @@
               }
             }
           },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
             "content": {
@@ -3260,6 +3291,17 @@
             "shipOAuth2": [
               "webhooks:manage"
             ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
           }
         ],
         "responses": {
@@ -3420,6 +3462,26 @@
           },
           "403": {
             "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
             "content": {
               "application/json": {
                 "schema": {

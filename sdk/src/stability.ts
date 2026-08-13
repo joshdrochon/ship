@@ -57,6 +57,13 @@ export const STABLE_SURFACE = [
   'IssuesClient',
   'SprintsClient',
   'WebhooksClient',
+  // Nested under WebhooksClient — p.4 puts the delivery log, DLQ and replay
+  // under /webhooks and the SDK mirrors that shape (PF-526).
+  'WebhookDeliveriesClient',
+  'WebhookDelivery',
+  'DeliveryStatus',
+  'ListDeliveriesInput',
+  'DELIVERY_STATUSES',
   'ResourceClient',
   'ListOptions',
   'IterateOptions',
@@ -260,6 +267,7 @@ export const PRE_1_0_SURFACE = [
   'WEBHOOK_SUBSCRIPTION_WITH_SECRET_FIELDS',
   'CREATE_WEBHOOK_FIELDS',
   'UPDATE_WEBHOOK_FIELDS',
+  'WEBHOOK_DELIVERY_FIELDS',
 ] as const;
 
 export type StableExport = (typeof STABLE_SURFACE)[number];
