@@ -285,11 +285,22 @@ jobs:
       # Runs after the build above, because it measures `dist` plus the
       # production dependency closure, not the source.
       - run: pnpm --filter @ship/sdk size:check
+      # L18 PF-547 — p.8's Signature Challenge target, MEASURED.
+      #
+      # Same shape and the same reason as `size:check`: the ticket is satisfied
+      # by a recorded figure, and a figure over budget is a failure with a name
+      # rather than a rounding conversation. `--check` exits non-zero over the
+      # 1 ms p95 target and refuses outright if `dist` was never built.
+      - run: pnpm --filter @ship/sdk perf:check
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: sdk-size-report
-          path: sdk/size-report.json
+          # Both SDK budget numbers under ONE artifact, so the submission has one
+          # place to look (PF-547).
+          name: sdk-budget-reports
+          path: |
+            sdk/size-report.json
+            sdk/perf-report.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:

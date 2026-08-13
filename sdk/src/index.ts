@@ -18,8 +18,12 @@
 export * from './core.js';
 
 // ── Node-only ───────────────────────────────────────────────────────────────
-export { verifyWebhook, SIGNATURE_HEADER } from './webhooks.js';
-export type { VerifyOptions } from './webhooks.js';
+export {
+  verifyWebhook,
+  SIGNATURE_HEADER,
+  DEFAULT_TOLERANCE_SECONDS,
+} from './webhooks.js';
+export type { VerifyOptions, WebhookHeaders } from './webhooks.js';
 export {
   FileTokenStore,
   defaultCredentialsPath,
