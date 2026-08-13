@@ -1,14 +1,22 @@
 {
-  "measuredAt": "2026-08-13T19:58:11.520Z",
+  "measuredAt": "2026-08-13T20:54:56.307Z",
   "budgetBytes": 256000,
   "method": "gzip of unminified published files (upper bound on min+gzip)",
   "productionDependencyCount": 0,
   "unresolvedDependencies": [],
   "dist": {
-    "fileCount": 151,
-    "rawBytes": 435577,
-    "gzippedBytes": 164284,
+    "fileCount": 163,
+    "rawBytes": 588682,
+    "gzippedBytes": 213786,
     "files": [
+      {
+        "file": "dist/cjs/auth/flows.js",
+        "gzippedBytes": 6008
+      },
+      {
+        "file": "dist/auth/flows.js",
+        "gzippedBytes": 5861
+      },
       {
         "file": "dist/errors.d.ts",
         "gzippedBytes": 4418
@@ -30,28 +38,20 @@
         "gzippedBytes": 3939
       },
       {
-        "file": "dist/client.d.ts",
-        "gzippedBytes": 3041
+        "file": "dist/cjs/webhooks.js",
+        "gzippedBytes": 3781
       },
       {
-        "file": "dist/operations.d.ts",
-        "gzippedBytes": 2668
+        "file": "dist/webhooks.js",
+        "gzippedBytes": 3715
       },
       {
-        "file": "dist/cjs/baseUrl.js",
-        "gzippedBytes": 2639
-      },
-      {
-        "file": "dist/baseUrl.js",
-        "gzippedBytes": 2536
-      },
-      {
-        "file": "dist/cjs/operations.js",
-        "gzippedBytes": 2479
+        "file": "dist/cjs/stability.js",
+        "gzippedBytes": 3633
       }
     ]
   },
   "dependencies": [],
-  "totalGzippedBytes": 164284,
+  "totalGzippedBytes": 213786,
   "withinBudget": true
 }

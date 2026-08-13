@@ -212,23 +212,109 @@ describe('PF-537 · a scripted device flow resolves to a client whose .me() succ
   });
 });
 
-describe('L99 F50 / F27 · re-measured against a real router, not inherited', () => {
-  it('a PUBLIC client can START the device flow', async () => {
-    // RFC 8628 §3.1 requires identification only, and L05's endpoint follows it.
+describe('L99 F70 · public clients, from the SDK side', () => {
+  /**
+   * ⚑ THIS SECTION USED TO ASSERT THE OPPOSITE, AND THAT IS THE POINT.
+   *
+   * L18 branched from `31ee898`, where F27/F50 were open: `authenticateClient`
+   * required BOTH `client_id` and `client_secret` before every grant handler, so
+   * a public client — which is what a CLI is (RFC 6749 §2.1), and why L04 built
+   * PKCE for it — could START the device flow and never finish it. This file
+   * measured that against a real router and asserted the 401.
+   *
+   * L24's PF-734 fixed it while this lane was building: migration 074 added
+   * `oauth_apps.is_public`, and the guard now accepts `client_id` alone for an
+   * app registered public. Re-measured after merging the tip; the assertions
+   * below are the CORRECTED ones.
+   *
+   * Recorded rather than quietly rewritten because the near-miss is worth more
+   * than the fix: a lane that branches on Monday and reports on Wednesday can
+   * publish a finding about work someone else has already done, and the only
+   * defence is re-measuring against the tip before writing the report. See
+   * L99 ~~F92~~.
+   */
+
+  /** A separate app, registered PUBLIC — the shape a CLI actually needs. */
+  async function publicApp(): Promise<OAuthApp> {
+    return appsRepo.create({
+      clientId: generateClientId(),
+      ...secretMaterial(generateClientSecret()),
+      name: `L18 public CLI ${runId}`,
+      ownerUserId: userId,
+      workspaceId,
+      redirectUris: ['https://example.test/cb'],
+      requestedScopes: ['documents:read', 'issues:read'],
+      isPublic: true,
+    });
+  }
+
+  it('a public client can START the device flow with `client_id` alone', async () => {
+    // RFC 8628 §3.1 requires identification only, and L05's endpoint always
+    // followed it — this half was never the problem.
     const response = await fetch(`${baseUrl}/oauth/device/code`, {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ client_id: oauthApp.clientId, scope: 'documents:read' }),
+      body: new URLSearchParams({ client_id: (await publicApp()).clientId, scope: 'documents:read' }),
     });
     expect(response.status).toBe(200);
   });
 
-  it('…and STILL cannot redeem it — F50 reproduces, so `ship login` is blocked for L19', async () => {
-    // The finding, re-measured on this branch rather than taken on trust.
-    // `authenticateClient` runs before every grant handler and returns null
-    // without BOTH client_id and client_secret, so a public client — which is
-    // what a CLI is, and why L04 built PKCE for it — can start the flow and can
-    // never finish it.
+  it('…and can now REDEEM it with `client_id` alone — F27/F50 closed by L24 PF-734', async () => {
+    const app = await publicApp();
+
+    const started = (await (
+      await fetch(`${baseUrl}/oauth/device/code`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ client_id: app.clientId, scope: 'documents:read' }),
+      })
+    ).json()) as { device_code: string; user_code: string };
+
+    await approveOutOfBand(started.user_code);
+
+    const redeemed = await fetch(`${baseUrl}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
+        device_code: started.device_code,
+        client_id: app.clientId,
+        // No client_secret. This is the public-client case, and it works.
+      }),
+    });
+
+    expect(redeemed.status).toBe(200);
+    expect(((await redeemed.json()) as { access_token: string }).access_token).toMatch(/\S/);
+  });
+
+  it('`ship login` is UNBLOCKED — deviceLogin with no clientSecret anywhere', async () => {
+    // The whole point, through the published SDK: L19's CLI registers its app
+    // public and passes no secret, which is what RFC 6749 §2.1 says a CLI is.
+    const app = await publicApp();
+    let approval: Promise<void> = Promise.resolve();
+
+    const client = await ShipClient.deviceLogin({
+      baseUrl,
+      clientId: app.clientId,
+      // No `clientSecret`. That is the assertion.
+      scopes: ['documents:read'],
+      clock: approvalDrivenClock(() => approval),
+      onUserCode: (code) => {
+        approval = approveOutOfBand(code);
+      },
+    });
+
+    const me = await client.me();
+    expect(me.app.client_id).toBe(app.clientId);
+    expect(me.user?.id).toBe(userId);
+  });
+
+  it('a CONFIDENTIAL app is still refused without its secret — the fix did not widen', async () => {
+    // F70's assertion from the other side, and the one that matters most: making
+    // public clients work must not have made every client public. `oauthApp` is
+    // registered with `isPublic` omitted, which defaults to false.
+    expect(oauthApp.isPublic).toBe(false);
+
     const started = (await (
       await fetch(`${baseUrl}/oauth/device/code`, {
         method: 'POST',
@@ -246,15 +332,10 @@ describe('L99 F50 / F27 · re-measured against a real router, not inherited', ()
         grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
         device_code: started.device_code,
         client_id: oauthApp.clientId,
-        // No client_secret. This is the public-client case.
       }),
     });
 
-    expect(
-      redeemed.status,
-      'F50 has been FIXED — a public client can now redeem a device code. Update L99 F50 ' +
-        'and F27, and tell L19 that `ship login` no longer needs a client secret.',
-    ).toBe(401);
+    expect(redeemed.status).toBe(401);
     expect(((await redeemed.json()) as { error: string }).error).toBe('invalid_client');
 
     // And the SDK reports it as something a human can act on rather than as a
@@ -262,7 +343,6 @@ describe('L99 F50 / F27 · re-measured against a real router, not inherited', ()
     const error = (await ShipClient.deviceLogin({
       baseUrl,
       clientId: oauthApp.clientId,
-      // No clientSecret — the public-client path.
       clock: { now: () => Date.now(), random: () => 1, sleep: () => Promise.resolve() },
       onUserCode: (code) => {
         void approveOutOfBand(code);
