@@ -242,30 +242,50 @@ describe('PF-395 — the registry is open for extension', () => {
 });
 
 describe('PF-396 — sprint events resolve through L03\'s resource map, never a local copy', () => {
-  it('no file under platform/webhooks/ contains a `weeks` literal', () => {
-    // The trap: the public event is `sprint.started`, the `document_type` is
-    // already `'sprint'`, but the INTERNAL route is `/api/weeks`. That
-    // divergence is route-path-and-vocabulary only, and L03's resource-map.ts
-    // is the one sanctioned place to know it.
+  it('no file under platform/webhooks/ names the internal sprint route', () => {
+    // The trap: the public event is `sprint.started` and the `document_type` is
+    // already `'sprint'`, but Ship's INTERNAL mount for the same data is spelled
+    // differently. That divergence is route-path-and-vocabulary only, and L03's
+    // resource-map.ts is the one sanctioned place to know it.
+    //
+    // The needle is DERIVED from the map rather than written out, for two
+    // reasons. It keeps this file compliant with the very rule it is asserting
+    // — L03's PF-077 greps all of platform/** including here, and an earlier
+    // version of this test failed it by spelling the name in its own regex.
+    // And it stays correct if the internal mount is ever renamed, where a
+    // hardcoded needle would silently start matching nothing.
+    const internalPath = internalPathFor('sprints');
+    expect(internalPath, 'the resource map no longer maps sprints').toBeTruthy();
+    const internalName = internalPath!.split('/').filter(Boolean).pop()!;
+
     const offenders: string[] = [];
     for (const file of walk(join(API_SRC, 'platform', 'webhooks'))) {
       if (file.endsWith('events.test.ts')) continue;
       const source = readFileSync(file, 'utf8');
-      if (/['"`]weeks['"`]|\/api\/weeks/.test(source)) {
+      if (source.includes(internalPath!) || new RegExp(`\\b${internalName}\\b`).test(source)) {
         offenders.push(file.slice(API_SRC.length + 1));
       }
     }
     expect(
       offenders,
-      'platform/webhooks/** must not name Ship\'s internal `weeks` vocabulary. ' +
+      'platform/webhooks/** must not name Ship\'s internal sprint vocabulary. ' +
         'Resolve it through internalPathFor(\'sprints\') in platform/api/v1/resource-map.ts.',
     ).toEqual([]);
   });
 
-  it('the resource map is what knows sprints/weeks, and it still does', () => {
+  it('the resource map still carries a mapping for sprints', () => {
     // Guards the other direction: if the map stopped carrying the mapping, the
-    // grep above would pass vacuously.
-    expect(internalPathFor('sprints')).toBe('/api/weeks');
+    // grep above would pass vacuously — there would be no internal name left
+    // for anyone to copy.
+    //
+    // Asserted as "non-null and different from the public name" rather than
+    // against the literal path. L03's PF-077 forbids naming the internal route
+    // anywhere under platform/ except the map itself, and that rule binds this
+    // file too — writing the expected value here is precisely the copy the rule
+    // exists to stop. `resource-map.test.ts` owns the literal.
+    const internal = internalPathFor('sprints');
+    expect(internal).toBeTruthy();
+    expect(internal).not.toContain('sprints');
   });
 });
 
