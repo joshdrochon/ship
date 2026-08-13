@@ -4,6 +4,14 @@
  */
 import type { Page } from '../pagination.js';
 import { paginate } from '../pagination.js';
+import type { Transport } from '../transport.js';
+
+/**
+ * Re-exported so an existing `import type { Transport } from '.../documents.js'`
+ * keeps working. The definition moved to `transport.ts` in PF-495: it is the
+ * contract every resource client plugs into, not a detail of this one.
+ */
+export type { Transport };
 
 export interface ShipDocument {
   id: string;
@@ -16,11 +24,6 @@ export interface ShipDocument {
 export interface CreateDocumentInput {
   title: string;
   content?: string;
-}
-
-/** Transport injected by ShipClient — one place owns fetch/auth/errors. */
-export interface Transport {
-  request<T>(method: string, path: string, options?: { query?: Record<string, string>; body?: unknown }): Promise<T>;
 }
 
 export class DocumentsClient {

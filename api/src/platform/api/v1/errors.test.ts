@@ -172,16 +172,45 @@ describe('PF-189 — ApiErrorCode → SDK kind is 6→5, not 1:1 (finding F6)', 
     // dependency running the other way either. Reading the source keeps the two
     // honest without coupling the builds.
     const sdkSource = readFileSync(SDK_ERRORS_FILE, 'utf8');
-    const match = sdkSource.match(/export type ShipErrorKind\s*=\s*([^;]+);/);
-    const union = match?.[1];
-    expect(union, 'could not find ShipErrorKind in sdk/src/errors.ts').toBeDefined();
 
-    const declared = (union ?? '')
-      .split('|')
-      .map((s) => s.trim().replace(/^'|'$/g, ''))
-      .filter(Boolean)
-      .sort();
+    // Two shapes are accepted, because L17 changed which one the SDK uses and
+    // the ASSERTION is about the five members, not about how they are spelled:
+    //
+    //   (a) an inline union   export type ShipErrorKind = 'auth' | 'rate_limit' | …
+    //   (b) derived from an array, which is the pattern THIS module already uses
+    //       for API_ERROR_CODES:
+    //         export const SHIP_ERROR_KINDS = ['auth', …] as const;
+    //         export type ShipErrorKind = (typeof SHIP_ERROR_KINDS)[number];
+    //
+    // (b) is the better shape — one definition, a runtime array and a type
+    // derived from it — so the parser learned it rather than the SDK reverting.
+    const inlineUnion = /export type ShipErrorKind\s*=\s*((?:\s*'[^']+'\s*\|?)+)\s*;/.exec(sdkSource);
+    const derivedFrom = /export type ShipErrorKind\s*=\s*\(typeof (\w+)\)\[number\]\s*;/.exec(sdkSource);
 
-    expect(declared, 'SDK kind union drifted from SDK_KINDS').toEqual([...SDK_KINDS].sort());
+    let declared: string[];
+    if (inlineUnion?.[1]) {
+      declared = inlineUnion[1]
+        .split('|')
+        .map((s) => s.trim().replace(/^'|'$/g, ''))
+        .filter(Boolean);
+    } else if (derivedFrom?.[1]) {
+      const arrayName = derivedFrom[1];
+      const arrayLiteral = new RegExp(`export const ${arrayName}\\s*=\\s*\\[([^\\]]*)\\]`, 's').exec(
+        sdkSource,
+      );
+      expect(
+        arrayLiteral?.[1],
+        `ShipErrorKind derives from ${arrayName}, but ${arrayName} is not an inline array literal in sdk/src/errors.ts`,
+      ).toBeDefined();
+      declared = [...(arrayLiteral?.[1] ?? '').matchAll(/'([^']+)'/g)].map((m) => m[1] as string);
+    } else {
+      throw new Error(
+        'Could not find ShipErrorKind in sdk/src/errors.ts, in either the inline-union or ' +
+          'the derived-from-array form. Do NOT delete this assertion — it is the only thing ' +
+          'keeping the published SDK kind union and SDK_KINDS from drifting.',
+      );
+    }
+
+    expect(declared.sort(), 'SDK kind union drifted from SDK_KINDS').toEqual([...SDK_KINDS].sort());
   });
 });
