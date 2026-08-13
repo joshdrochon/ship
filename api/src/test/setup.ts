@@ -29,5 +29,26 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  // Close pool only at the very end - vitest handles this via globalTeardown
+  // PF-030. This used to be empty, with a comment saying vitest closed the pool
+  // "at the very end ... via globalTeardown". There is no globalTeardown in
+  // `api/vitest.config.ts` and there never was, so nothing closed anything.
+  //
+  // Vitest isolates modules per file, so each of the 145 test files builds its
+  // OWN `Pool` and left it open. Postgres keeps those backends alive for
+  // `idleTimeoutMillis` (30 s), and an idle backend can still hold locks. The
+  // TRUNCATE in `beforeAll` above needs ACCESS EXCLUSIVE on twenty tables, so it
+  // queues behind the previous files' leftovers — and when that queue outlasts
+  // vitest's 10 s default hook timeout, the hook fails and takes the whole FILE
+  // with it. Not one test: the file never runs.
+  //
+  // That is the failure that has been read as flake for days. It explains every
+  // part of the shape that made it confusing: it strikes a BATCH of files at
+  // once (23 in one observed run, 32 in another) because once the lock queue is
+  // deep every following file inherits it; it never reproduces on a single file
+  // because one file has no predecessor to queue behind; and it gets much worse
+  // under load because slower teardown means more overlapping live backends.
+  //
+  // Closing the pool at the file boundary makes the release deterministic rather
+  // than a race against a 30 s idle timer.
+  await pool.end()
 })
