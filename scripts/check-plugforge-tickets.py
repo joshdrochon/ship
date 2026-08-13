@@ -155,10 +155,23 @@ def parse_lane(path: pathlib.Path):
     # indices: the spine's ticket shape gained an `Advances` column between
     # `Acceptance criterion` and `PRD`, and lane files may be mid-migration. Reading
     # the header keeps both the 5- and 6-column shapes checkable.
+    # A `| PF-NNN |` row is only a TICKET row inside the ticket table. Lane files
+    # legitimately carry other tables keyed by ticket id — L15 ships a two-column
+    # `| Ticket | Proof |` evidence table, which this read as three malformed
+    # tickets. The rule is the header: once a table with a different header
+    # starts, rows belong to that table and are not this checker's business.
     header = None
+    seen_ticket_table = False
     for i, line in enumerate(text.split("\n"), 1):
-        if header is None and re.match(r"^\|\s*ID\s*\|", line):
+        if re.match(r"^\|\s*ID\s*\|", line):
             header = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
+            seen_ticket_table = True
+            continue
+        # Any other table header ends the ticket table.
+        if header is not None and line.startswith("|") and not re.match(
+            r"^\|\s*(PF-\d{3})\s*\||^\|\s*-+\s*\|", line
+        ):
+            header = None
             continue
         rm = re.match(r"^\|\s*(PF-\d{3})\s*\|", line)
         if not rm:
@@ -168,7 +181,11 @@ def parse_lane(path: pathlib.Path):
         # shifts every downstream column.
         cols = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
         if header is None:
-            err(f"{path.name}:{i} {rm.group(1)} appears before any ticket table header")
+            # Inside some other ticket-id-keyed table (L15's `| Ticket | Proof |`).
+            # Only an id row BEFORE any ticket table has ever appeared is a real
+            # error — after one, this is another table's row and not ours.
+            if not seen_ticket_table:
+                err(f"{path.name}:{i} {rm.group(1)} appears before any ticket table header")
             continue
         if len(cols) != len(header):
             err(

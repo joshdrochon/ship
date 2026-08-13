@@ -191,6 +191,7 @@ export interface AppDeps {
    * this value exists to make impossible.
    */
   publicBaseUrl: string;
+  /**
    * The `webhook_subscriptions` store (L15 PF-427), on migration 047.
    *
    * This is the `subsRepo(db)` argument the composition-root sketch p.12
