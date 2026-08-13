@@ -315,7 +315,7 @@ describe('/api/v1/documents — cursor pagination', () => {
       // visibility and the keyset predicate together — because a simplified
       // stand-in can ride an index the real query does not.
       const client = await pool.connect();
-      let plan = '';
+      let plan: string;
       try {
         await client.query('BEGIN');
         await client.query('SET LOCAL enable_seqscan = off');

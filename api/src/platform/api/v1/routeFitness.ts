@@ -60,7 +60,9 @@ export interface EnumeratedRoute {
 // Express's internals are untyped. Narrow shims rather than `any` everywhere.
 interface ExpressLayer {
   route?: {
-    path: string | string[];
+    // `RegExp` is in this union because Express really does store one for
+    // `app.get(/regex/, …)`. See `joinPaths`.
+    path: string | RegExp | (string | RegExp)[];
     stack: { method?: string; handle?: unknown }[];
   };
   name?: string;
@@ -103,10 +105,22 @@ function decodeMountPath(layer: ExpressLayer): string {
   return source;
 }
 
-/** Joins path segments without doubling or dropping slashes. */
-function joinPaths(prefix: string, suffix: string): string {
+/**
+ * Joins path segments without doubling or dropping slashes.
+ *
+ * `suffix` is coerced with `String()` because Express's `layer.route.path` is
+ * NOT always a string: `app.get(/regex/, …)` stores the RegExp itself, and the
+ * internal `/api` surface has such routes. Walking only the public router never
+ * met one, so this threw `suffix.startsWith is not a function` the first time
+ * the enumerator was pointed at a full `createApp()` — which is what PF-265
+ * does. Coerced rather than skipped: a RegExp route mounted under `/api/v1`
+ * would be a real problem, and it should appear in the enumeration looking
+ * strange rather than vanish from it.
+ */
+function joinPaths(prefix: string, suffix: string | RegExp): string {
+  const right0 = typeof suffix === 'string' ? suffix : String(suffix);
   const left = prefix.endsWith('/') ? prefix.slice(0, -1) : prefix;
-  const right = suffix.startsWith('/') || suffix === '' ? suffix : `/${suffix}`;
+  const right = right0.startsWith('/') || right0 === '' ? right0 : `/${right0}`;
   const joined = `${left}${right}`;
   return joined === '' ? '/' : joined;
 }
