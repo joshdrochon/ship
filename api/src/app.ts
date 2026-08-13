@@ -53,6 +53,7 @@ import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
 import { documentsResources } from './platform/api/v1/documents/routes.js';
 import { meResources } from './platform/api/v1/me/routes.js';
 import { webhooksResources } from './platform/api/v1/webhooks/routes.js';
+import { createWebhookPipeline, SignatureSigner } from './platform/index.js';
 import { mountAllResources } from './platform/api/v1/mountResources.js';
 import { generatePublicOpenAPIDocumentOrDie } from './platform/openapi/registry.js';
 import { mountOpenApiSpec } from './platform/openapi/route.js';
@@ -222,13 +223,33 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     },
   });
 
-  // `deps.bus`, `deps.deliverer`, `deps.limiter`, `deps.clock` and `deps.db` are
-  // not destructured yet because nothing below reads them — the routers that do
-  // are L02–L16's. Destructuring them into unused locals now would be five lint
-  // suppressions pretending to be wiring.
-  //
-  // `appsRepo` IS read: L02's `/api/apps` router takes it (PF-037/PF-039).
+  // `deps.limiter` and `deps.clock` are not destructured because nothing below
+  // reads them directly. `appsRepo` IS read: L02's `/api/apps` router takes it
+  // (PF-037/PF-039).
   const { corsOrigin, appsRepo } = deps;
+
+  // ── L15 PF-441 — the webhook pipeline subscribes to the bus ────────────────
+  //
+  // `'*'` rather than eight per-type subscriptions: the handler filters by
+  // looking the type up in the subscription table, which is where the closed set
+  // already lives. Eight registrations would be a second copy of `EVENT_TYPES`
+  // to keep in step, which is the drift PF-395 exists to prevent.
+  //
+  // Subscribed HERE, in the composition root, because that is the only file
+  // allowed to know which concrete queue and which concrete deliverer are in
+  // play. The handler itself takes both as arguments and knows neither.
+  //
+  // `ImmediateDeliveryQueue` is the FIRST ATTEMPT ONLY and L16 replaces it. It
+  // is wired now because a signer with nothing to hand a signed request to
+  // cannot be tested end-to-end.
+  deps.bus.subscribe(
+    '*',
+    createWebhookPipeline({
+      repo: deps.subsRepo,
+      signer: new SignatureSigner(deps.clock),
+      queue: deps.deliveryQueue,
+    }),
+  );
 
   const app = express();
 
