@@ -7,12 +7,29 @@ import type { EventEnvelope } from './events.js';
 
 export interface DeliveryRequest {
   targetUrl: string;
-  /** Exact bytes to POST — the same bytes that were signed. */
-  rawBody: string;
-  signatureHeader: string; // value for Ship-Signature
-  idempotencyKey: string;  // stable per event; carried unchanged on retry/replay
+  /**
+   * Exact bytes to POST — the same bytes that were signed.
+   *
+   * A `Buffer`, not a `string`, and that is PF-436 made structural. The bytes
+   * the HMAC consumed and the bytes that go on the wire are the SAME object, so
+   * there is no second serialization for key order, unicode escaping or float
+   * formatting to differ across. `JSON.stringify` is not canonical, and a
+   * re-serialized payload produces a different digest for a value nobody
+   * tampered with — a failure that looks exactly like an attack.
+   *
+   * **Note for L16:** POST this buffer directly. `JSON.stringify(JSON.parse(...))`
+   * anywhere on the delivery path re-introduces exactly the bug this type
+   * prevents. `rawBody.toString('utf8')` is correct for the delivery LOG.
+   */
+  rawBody: Buffer;
+  /** The `Ship-Signature` value, computed at send time per attempt (PF-442). */
+  signatureHeader: string;
+  /** Stable per event; carried unchanged on retry and replay (PF-394, TS-8). */
+  idempotencyKey: string;
   eventId: string;
   subscriptionId: string;
+  /** The unix second inside `signatureHeader`, so a log need not re-parse it. */
+  signedAtSeconds: number;
 }
 
 export interface DeliveryResult {
@@ -53,10 +70,19 @@ export class InMemoryDeliverer implements IWebhookDeliverer {
   }
 }
 
-// TODO(josh): HttpDeliverer — fetch POST with Ship-Signature + Idempotency-Key
+// TODO(L16): HttpDeliverer — fetch POST with Ship-Signature + Idempotency-Key
 // headers, 10s timeout via AbortController, excerpt = first 256 chars of body.
 // Target: P95 first-attempt latency < 2s (measured in the delivery log).
-export function envelopeToRawBody(event: EventEnvelope): string {
-  // Serialized ONCE here; these exact bytes are signed and POSTed.
-  return JSON.stringify(event);
+
+/**
+ * PF-436 — the ONE serialization site. An envelope becomes bytes here and
+ * nowhere else.
+ *
+ * Returns a `Buffer` rather than a string so the value that is MACed and the
+ * value that is POSTed cannot become two different things. If this returned a
+ * string, every caller between here and the wire would be free to re-encode it
+ * — and one of them eventually would.
+ */
+export function envelopeToRawBody(event: EventEnvelope): Buffer {
+  return Buffer.from(JSON.stringify(event), 'utf8');
 }

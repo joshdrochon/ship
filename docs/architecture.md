@@ -438,7 +438,63 @@ flowchart LR
     Q -->|portal replay ◆| B
 ```
 
-★ **Signature is computed at send time, per attempt**, with the subscription's secret (hashed at rest, shown once on creation) — the timestamp in the signed payload is what defeats replay; the SDK verifier rejects signatures older than 300 s by default. ◆ **Idempotency-Key originates at the event's first delivery** (derived from `event_id`), and is carried unchanged through every retry and portal replay — that key is the subscriber's dedupe contract.
+★ **Signature is computed at send time, per attempt**, with the subscription's **current** secret (**encrypted** at rest, shown once on creation) — the timestamp in the signed payload is what defeats replay; the SDK verifier rejects signatures older than 300 s by default. ◆ **Idempotency-Key originates at the event's first delivery** (derived from `event_id`), and is carried unchanged through every retry and portal replay — that key is the subscriber's dedupe contract.
+
+### What is signed, and why the secret is encrypted rather than hashed (L15)
+
+**The signed bytes are the timestamp, a literal `.`, then the raw body — `t` ‖ `.` ‖
+`rawBody`.** PRD p.16's Pre-Search 2.3 asks the question (*"the raw request body, the
+body plus the timestamp, the body plus a versioned scheme tag?"*) and does not answer it;
+p.3 and p.7 constrain only the header shape, which is compatible with all three. This is
+our choice and these are the two rejected alternatives.
+
+*Not the raw body alone.* The timestamp would then be unauthenticated header data. An
+attacker who captured one valid signed request could rewrite `t=` to the current second
+and replay it forever — the signature over the body is still perfectly valid — and every
+verifier on earth would accept it. The anti-replay property does not weaken, it
+disappears. Putting `t` inside the MAC is what makes the tolerance window mean anything.
+
+*Not a versioned scheme tag inside the signed bytes.* The tag lives in the header instead,
+as the `v1=` key. That makes a future `v2` an **additional** header field a verifier
+checks alongside `v1`: both can be emitted during a migration and each subscriber cuts
+over on its own schedule. Baking the tag into the signed bytes would make the same
+migration a breaking change to what is signed, so every subscriber would have to move at
+once. The parser is deliberately tolerant of unknown `key=value` pairs today so that
+adding one tomorrow breaks nothing already deployed — and deliberately strict about the
+pairs it does read: a duplicated key returns `null` rather than last-wins, because two
+answers to "what is the timestamp" is not a question a verifier may resolve by preference.
+
+**One serialization, never two.** The envelope becomes a `Buffer` once
+(`envelopeToRawBody`), and `DeliveryRequest.rawBody` is that same buffer — the bytes the
+HMAC consumed are the bytes that go on the wire. `JSON.stringify` is not canonical: key
+order, unicode escaping and float formatting may all differ between two serializations of
+one logical value, so a verifier that re-serializes what it parsed computes a different
+digest for a payload nobody touched. That failure presents exactly like an attack, which
+is the worst possible way for it to present.
+
+**The signing secret is AES-256-GCM encrypted at rest, not hashed — and that departs from
+p.3's literal word.** p.3 says *"hashed signing secret"*; p.12's Failure Modes row asks
+what happens when *"a subscriber's signing secret is rotated mid-flight"*, which presumes
+the server re-signs each attempt with the subscription's current secret. HMAC-SHA256 is
+symmetric and a cryptographic hash is one-way. The two requirements are not in tension —
+they are mutually impossible, and the contradiction is the PRD's (filed as C3). The
+tempting non-answer, storing `sha256(secret)` and signing with *that*, satisfies the word
+and is theater: whatever the server signs with **is** the key, so a database dump forges
+signatures either way, and it silently breaks p.7's printed
+`verifyWebhook(headers, rawBody, secret)` unless the SDK hashes internally.
+
+So the key lives in `WEBHOOK_SECRET_KEY` in the environment and never in the database;
+`secret_ciphertext` holds nonce ‖ ciphertext ‖ tag. What that buys is confidentiality
+against a **database dump** — a leaked backup, a snapshot in the wrong bucket — which is a
+different event with a very different frequency from a compromised application host. It
+buys nothing against an attacker who has the host, because the host has the key, and
+nothing here claims otherwise. Decryption **fails closed**: a missing or wrong key throws,
+the delivery aborts, and nothing is sent unsigned.
+
+`oauth_apps.client_secret_hash` correctly stays hashed, and the asymmetry is one sentence:
+a client secret is *presented back to us* and can be verified by comparing digests, so
+hashing costs nothing; a webhook secret is *used by us to produce a MAC* and is never
+presented, so hashing costs everything and buys nothing.
 
 ## SDK Surface
 
