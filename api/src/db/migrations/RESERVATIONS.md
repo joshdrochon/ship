@@ -110,6 +110,19 @@ L15's file runs. This is the ordering question raised as **B3** in
 `tickets/plugforge/lane-99-unassigned.md`; the answer is "L02's block is numerically
 first", and it holds without any lane having to coordinate at write time.
 
+**L15 took 047** (2026-08-13) — `047_webhook_subscriptions.sql`, from its own allocated
+block, leaving 048–050 free. Worth stating because the number looks wrong at a glance:
+the highest APPLIED migration is 067, so "the next free one" would have been 068, which
+is L10's. Block order is also apply order and it holds: the FK targets are `oauth_apps`
+(039, L02), `workspaces` and `users` (schema.sql), all numerically earlier. **This
+answers B3** in `lane-99-unassigned.md`, and it needed no coordination at write time.
+
+One column is NOT in PF-421's list: **`user_id`**. Decision D7 (L14) hands L15 the
+private-document gate and defines it as `data.created_by === subscription.user_id`, so
+the column is what makes the gate implementable at all — D7 names it as "the one piece
+of D7 this lane could not enforce itself". `ON DELETE SET NULL`, and a NULL fails the
+gate closed.
+
 **L10 took 068–070** (2026-08-12), and has written **no file yet**. The reservation is
 recorded ahead of the file deliberately — Rule 3 is about not reaching into the
 unallocated range silently, and a lane that knows it will write DDL should claim the
