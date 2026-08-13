@@ -26,6 +26,79 @@
 
 ---
 
+## For graders — the deployed instance
+
+<!-- PF-631 (L21). PRD p.13 requires credentials in the README; p.18 asks for a
+     one-command path to the deployed instance. -->
+
+**Everything below points at the live AWS deployment. Nothing here needs a local
+checkout, a database, or a build.**
+
+| | |
+|---|---|
+| **API base URL** | `http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com` |
+| **OpenAPI spec** | `<base>/api/v1/openapi.json` — public, no credentials required |
+| **Health** | `<base>/health` — reports the deployed commit SHA |
+| **Frontend / CDN** | `https://d258p92d3n1ebe.cloudfront.net` |
+
+> **Read `docs/infra/grader-access.md` §6 before relying on any of these.** That
+> section carries the dated `curl` output proving what actually answers, and it is the
+> only place in this repo that asserts the deployment is up. A URL in a table is a
+> configuration claim, not evidence — this project has already published one dead URL
+> (`.claude/CLAUDE.md` still names a retired environment CNAME) and the whole point of
+> the verification log is that it cannot happen silently again.
+
+### Pre-registered OAuth apps
+
+Two apps are seeded for graders. They live in a **dedicated workspace** owned by a
+dedicated user, not the primary account — so a token issued to either sees that
+workspace and nothing else (p.18, *"without exposing your tenant's data"*).
+
+| App | `client_id` | Scopes | Use it for |
+|---|---|---|---|
+| Grader (read-only) | `ship_app_grader_readonly` | `documents:read`, `issues:read`, `sprints:read` | Everything read-only. This is the app MVP gate item 10 refers to. |
+| Grader demo (write) | `ship_app_grader_demo` | read + write | `ship docs create` and the rest of the five-line story. |
+
+**Why there are two, and which to use when.** The gate requires the pre-registered app
+to be **read-only** (p.2), but the headline demo is `ship login` → `ship docs create` →
+`ship webhooks tail`. Those two requirements are in direct tension: a grader following
+the demo with the read-only app gets a `403`, which looks like a broken product and is
+in fact the security property working. So the read-only app is the gate app, and the
+demo app exists so the demo is reproducible. **Use the demo app for anything that
+writes.** (Recorded as L99 decision D12.)
+
+The `client_id` values are not secret and are published above deliberately. The
+`client_secret` values are not in git — read them from the deployed environment's
+parameter store:
+
+```bash
+aws ssm get-parameter --name /ship/dev/GRADER_CLIENT_SECRET \
+  --with-decryption --query Parameter.Value --output text
+aws ssm get-parameter --name /ship/dev/DEMO_CLIENT_SECRET \
+  --with-decryption --query Parameter.Value --output text
+```
+
+### One command
+
+Point the CLI at the deployed instance and confirm it answers:
+
+```bash
+export SHIP_API_URL=http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com
+curl -s "$SHIP_API_URL/api/v1/openapi.json" | head -c 200
+```
+
+### Verifying the deployment yourself
+
+One script checks every claim on this page, and it asserts on **content**, not on status
+codes — the Elastic Beanstalk sample application returns HTTP 200 with an HTML page on
+every path, including `/api/v1/openapi.json`, so a `200` proves nothing on its own:
+
+```bash
+scripts/verify-deployment.sh "$SHIP_API_URL"
+```
+
+---
+
 ## What is Ship?
 
 Ship is a project management tool that combines documentation, issue tracking, and plan-driven weekly workflows in one place. Instead of switching between a wiki, a task tracker, and a spreadsheet, everything lives together.
