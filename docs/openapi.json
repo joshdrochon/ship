@@ -2739,6 +2739,514 @@
         }
       }
     },
+    "/webhooks/deliveries": {
+      "get": {
+        "operationId": "getWebhooksDeliveries",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "List webhook delivery attempts for this app, newest first.",
+        "description": "One row per ATTEMPT, not per delivery: a delivery that failed six times has six rows sharing a `delivery_group_id` and one `idempotency_key`. `?status=dead_lettered` is the dead-letter queue. `key_usage` reports how many times we sent that idempotency key and how those attempts ended — it cannot report whether the subscriber deduped, which needs the subscriber's own signal.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "in_flight",
+                "delivered",
+                "failed",
+                "dead_lettered",
+                "cancelled"
+              ],
+              "description": "Filter by attempt status. `dead_lettered` is the dead-letter queue — the deliveries that exhausted the retry ladder, hit a permanent status, or were refused by the per-subscription circuit breaker."
+            },
+            "required": false,
+            "description": "Filter by attempt status. `dead_lettered` is the dead-letter queue — the deliveries that exhausted the retry ladder, hit a permanent status, or were refused by the per-subscription circuit breaker.",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Only attempts for this subscription. Must belong to the calling app."
+            },
+            "required": false,
+            "description": "Only attempts for this subscription. Must belong to the calling app.",
+            "name": "subscription_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "document.created",
+                "document.updated",
+                "document.deleted",
+                "issue.created",
+                "issue.assigned",
+                "issue.status_changed",
+                "sprint.started",
+                "sprint.completed"
+              ],
+              "description": "Only attempts carrying this event type."
+            },
+            "required": false,
+            "description": "Only attempts carrying this event type.",
+            "name": "event_type",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List webhook delivery attempts for this app, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "delivery_group_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "subscription_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "event_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "event_type": {
+                            "type": "string"
+                          },
+                          "attempt_number": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "in_flight",
+                              "delivered",
+                              "failed",
+                              "dead_lettered",
+                              "cancelled"
+                            ]
+                          },
+                          "response_status": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "response_excerpt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "latency_ms": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "idempotency_key": {
+                            "type": "string"
+                          },
+                          "dlq_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "max_attempts_exhausted",
+                              "permanent_status",
+                              "circuit_open"
+                            ]
+                          },
+                          "attempted_at": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "signature_header": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "replay_of_delivery_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "key_usage": {
+                            "type": "object",
+                            "properties": {
+                              "idempotency_key": {
+                                "type": "string"
+                              },
+                              "attempt_count": {
+                                "type": "integer"
+                              },
+                              "terminal_statuses": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "in_flight",
+                                    "delivered",
+                                    "failed",
+                                    "dead_lettered",
+                                    "cancelled"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "idempotency_key",
+                              "attempt_count",
+                              "terminal_statuses"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "delivery_group_id",
+                          "subscription_id",
+                          "event_id",
+                          "event_type",
+                          "attempt_number",
+                          "status",
+                          "response_status",
+                          "response_excerpt",
+                          "latency_ms",
+                          "idempotency_key",
+                          "dlq_reason",
+                          "attempted_at",
+                          "created_at",
+                          "signature_header",
+                          "replay_of_delivery_id",
+                          "key_usage"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/deliveries/{id}": {
+      "get": {
+        "operationId": "getWebhooksDeliveriesById",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Fetch one delivery attempt by id.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fetch one delivery attempt by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "delivery_group_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "subscription_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event_type": {
+                      "type": "string"
+                    },
+                    "attempt_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "in_flight",
+                        "delivered",
+                        "failed",
+                        "dead_lettered",
+                        "cancelled"
+                      ]
+                    },
+                    "response_status": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "response_excerpt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "latency_ms": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "idempotency_key": {
+                      "type": "string"
+                    },
+                    "dlq_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "max_attempts_exhausted",
+                        "permanent_status",
+                        "circuit_open"
+                      ]
+                    },
+                    "attempted_at": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "signature_header": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "replay_of_delivery_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "key_usage": {
+                      "type": "object",
+                      "properties": {
+                        "idempotency_key": {
+                          "type": "string"
+                        },
+                        "attempt_count": {
+                          "type": "integer"
+                        },
+                        "terminal_statuses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "in_flight",
+                              "delivered",
+                              "failed",
+                              "dead_lettered",
+                              "cancelled"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "idempotency_key",
+                        "attempt_count",
+                        "terminal_statuses"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "delivery_group_id",
+                    "subscription_id",
+                    "event_id",
+                    "event_type",
+                    "attempt_number",
+                    "status",
+                    "response_status",
+                    "response_excerpt",
+                    "latency_ms",
+                    "idempotency_key",
+                    "dlq_reason",
+                    "attempted_at",
+                    "created_at",
+                    "signature_header",
+                    "replay_of_delivery_id",
+                    "key_usage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhooks": {
       "post": {
         "operationId": "postWebhooks",

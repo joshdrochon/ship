@@ -71,7 +71,17 @@ describe('PF-265 · documents is the only resource mounted', () => {
       'GET /api/v1/sprints',
       'GET /api/v1/sprints/:id',
       'GET /api/v1/webhooks',
+      // NOTE: this list is `.sort()`ed, so `/webhooks/:id` precedes
+      // `/webhooks/deliveries` — ':' sorts before 'd'. That is the LEXICAL order
+      // and it is the opposite of the MOUNT order, which puts `/deliveries`
+      // first so Express does not match it as an id. Do not "fix" one to match
+      // the other; `deliveries.routes.test.ts` asserts the mount order directly.
       'GET /api/v1/webhooks/:id',
+      // EXTENDED BY L16 (PF-464): the delivery log's two reads. They are what
+      // makes p.4's "visible in the developer portal" checkable at the API layer
+      // before L22 renders anything.
+      'GET /api/v1/webhooks/deliveries',
+      'GET /api/v1/webhooks/deliveries/:id',
       'PATCH /api/v1/issues/:id',
       'PATCH /api/v1/sprints/:id',
       'PATCH /api/v1/webhooks/:id',
@@ -146,8 +156,27 @@ describe('PF-265 · documents is the only resource mounted', () => {
         // route must name the collection its cursors are BOUND to, and that
         // binding is what makes a `/documents` cursor a 422 on `/issues`
         // (PF-218) instead of a plausible wrong page.
+        //
+        // WIDENED AGAIN BY L16, and the reason matters (finding F61). The rule
+        // was `resource === path.split('/')[3]` — the third segment. That is
+        // ambiguous the moment a collection is NESTED: `/api/v1/webhooks` and
+        // `/api/v1/webhooks/deliveries` are two different collections sharing a
+        // third segment, and making both name `webhooks` would mean a
+        // subscriptions cursor is silently accepted on the deliveries list and
+        // returns a wrong-but-plausible page — exactly the failure PF-218
+        // exists to prevent, arriving through the assertion meant to stop it.
+        //
+        // The fix is a strict GENERALISATION, not a loosening: the resource is
+        // every static segment of the collection path after `/api/v1/`, joined
+        // by `_`. For every pre-existing route that is the same string it was
+        // (`documents`, `issues`, `sprints`, `webhooks`); for a nested
+        // collection it is unambiguous (`webhooks_deliveries`).
         expect(metadata!.resource, `${route.method} ${route.path}.resource`).toBe(
-          route.path.split('/')[3],
+          route.path
+            .replace(/^\/api\/v1\//, '')
+            .split('/')
+            .filter((segment) => !segment.startsWith(':'))
+            .join('_'),
         );
         // A cursor route must name the collection its cursors are BOUND to
         // (PF-218) — not necessarily `documents`. This read `toBe('documents')`
@@ -156,8 +185,12 @@ describe('PF-265 · documents is the only resource mounted', () => {
         // resource's name would have made this assertion a statement about how
         // many resources exist rather than about cursor binding.
         expect(metadata!.resource, `${route.method} ${route.path}.resource`).toBeTruthy();
+        // The resource name is the collection path with `/` replaced by `_`
+        // (see the widening above), so the round trip back to a path is what
+        // this checks — not a raw string prefix, which stopped holding when the
+        // first NESTED collection landed.
         expect(
-          route.path.startsWith(`/api/v1/${metadata!.resource}`),
+          route.path.startsWith(`/api/v1/${metadata!.resource.split('_').join('/')}`),
           `${route.method} ${route.path} binds cursors to "${metadata!.resource}"`,
         ).toBe(true);
       }

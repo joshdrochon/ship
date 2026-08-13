@@ -233,6 +233,14 @@ export interface IDeliveryLog {
   listByGroup(deliveryGroupId: string): Promise<DeliveryRecord[]>;
   /** PF-472 — attempts and terminal statuses per key, app-scoped. */
   keyUsage(appId: string, idempotencyKey: string): Promise<KeyUsage>;
+  /**
+   * The same answer for a whole page, in ONE query.
+   *
+   * PF-472 wants the usage on every row of PF-464's response so L22 renders it
+   * without a round trip per row. Calling `keyUsage` 25 times would be 25
+   * aggregate queries per page; this is one, keyed `= ANY($2)`.
+   */
+  keyUsageMany(appId: string, idempotencyKeys: string[]): Promise<Map<string, KeyUsage>>;
   /** PF-484 — ladders left `in_flight` by a crash. */
   findResumable(): Promise<ResumableDelivery[]>;
   /** PF-483 — delete rows older than the window, never an unreplayed DLQ row. */
@@ -273,10 +281,19 @@ export class InMemoryDeliveryLog implements IDeliveryLog {
   }
 
   beginAttempt(input: BeginAttemptInput): Promise<DeliveryRecord> {
+    // Both of migration 051's uniqueness rules, so the double is not more
+    // permissive than production. A double that accepts a row Postgres rejects
+    // is the exact divergence this pair's contract suite exists to catch.
     const clash = this.rows.find(
       (r) =>
-        r.delivery_group_id === input.delivery_group_id &&
-        r.attempt_number === input.attempt_number,
+        (r.delivery_group_id === input.delivery_group_id &&
+          r.attempt_number === input.attempt_number) ||
+        // PF-462's literal triple, scoped to originals — the partial unique index.
+        (input.replay_of_delivery_id === null &&
+          r.replay_of_delivery_id === null &&
+          r.subscription_id === input.subscription_id &&
+          r.event_id === input.event_id &&
+          r.attempt_number === input.attempt_number),
     );
     if (clash) {
       return Promise.reject(
@@ -372,6 +389,22 @@ export class InMemoryDeliveryLog implements IDeliveryLog {
       (r) => r.app_id === appId && r.idempotency_key === idempotencyKey,
     );
     return Promise.resolve(summariseKeyUsage(idempotencyKey, matching));
+  }
+
+  keyUsageMany(appId: string, idempotencyKeys: string[]): Promise<Map<string, KeyUsage>> {
+    const wanted = new Set(idempotencyKeys);
+    const byKey = new Map<string, { status: DeliveryStatus }[]>();
+    for (const row of this.rows) {
+      if (row.app_id !== appId || !wanted.has(row.idempotency_key)) continue;
+      const bucket = byKey.get(row.idempotency_key) ?? [];
+      bucket.push({ status: row.status });
+      byKey.set(row.idempotency_key, bucket);
+    }
+    return Promise.resolve(
+      new Map(
+        [...wanted].map((key) => [key, summariseKeyUsage(key, byKey.get(key) ?? [])]),
+      ),
+    );
   }
 
   findResumable(): Promise<ResumableDelivery[]> {

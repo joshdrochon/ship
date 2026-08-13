@@ -12,6 +12,7 @@ export * from './classify.js';
 export * from './retry.js';
 export * from './deliverer.js';
 export * from './deliveryLog.js';
+export * from './pgDeliveryLog.js';
 export * from './secretCipher.js';
 export * from './signingSecret.js';
 export * from './targetUrl.js';

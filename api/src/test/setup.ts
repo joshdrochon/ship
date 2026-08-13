@@ -24,7 +24,7 @@ beforeAll(async () => {
     oauth_authorization_codes, oauth_tokens, oauth_apps, client_secret_auth_log,
     users, workspaces,
     public_api_calls, public_api_call_daily,
-    webhook_subscriptions
+    webhook_subscriptions, webhook_deliveries
     CASCADE`)
 })
 
