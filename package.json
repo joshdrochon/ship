@@ -26,6 +26,8 @@
     "lint": "eslint .",
     "lint:boundary": "node scripts/check-boundary-lint.mjs",
     "baseline:measure": "pnpm --filter @ship/api exec tsx src/scripts/measure-baseline.ts",
+    "baseline:compare": "pnpm --filter @ship/api exec tsx src/scripts/compare-baseline.ts",
+    "baseline:evidence": "node api/src/scripts/seed-regression-evidence.mjs",
     "clean": "pnpm --recursive run clean && rm -rf node_modules",
     "test": "pnpm --workspace-concurrency=1 --filter @ship/shared --filter @ship/api --filter @ship/agent --filter @ship/sdk test",
     "test:e2e": "playwright test",

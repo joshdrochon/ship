@@ -1,0 +1,183 @@
+{
+  "budgetPercent": 10,
+  "baselineCapturedAt": "2026-08-12T20:31:10.713Z",
+  "baselineGitRef": "b639059217e96664ba843c1847bc450e21367d31",
+  "currentGitRef": "31ee898c28d74b53fe5b337109790295cc754513",
+  "comparedAt": "2026-08-13T20:07:41.696Z",
+  "env": {
+    "comparable": true,
+    "differences": [],
+    "baseline": {
+      "platform": "darwin-arm64",
+      "node": "v26.5.0",
+      "cpuCount": 10
+    },
+    "current": {
+      "platform": "darwin-arm64",
+      "node": "v26.5.0",
+      "cpuCount": 10
+    }
+  },
+  "load": {
+    "acceptable": false,
+    "loadAvg1": 18.8,
+    "loadRatio": 1.88,
+    "reason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+  },
+  "latencyEnforced": false,
+  "latencyForced": false,
+  "deltas": [
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /health",
+      "route": "GET /health",
+      "unit": "ms",
+      "baseline": 0.91,
+      "current": 1.78,
+      "percent": 95.6,
+      "unboundedRegression": false,
+      "status": "advisory",
+      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/documents",
+      "route": "GET /api/documents",
+      "unit": "ms",
+      "baseline": 3.63,
+      "current": 26.41,
+      "percent": 627.55,
+      "unboundedRegression": false,
+      "status": "advisory",
+      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/documents/:id",
+      "route": "GET /api/documents/:id",
+      "unit": "ms",
+      "baseline": 3.99,
+      "current": 29.79,
+      "percent": 646.62,
+      "unboundedRegression": false,
+      "status": "advisory",
+      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/issues",
+      "route": "GET /api/issues",
+      "unit": "ms",
+      "baseline": 3.69,
+      "current": 13.96,
+      "percent": 278.32,
+      "unboundedRegression": false,
+      "status": "advisory",
+      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/weeks",
+      "route": "GET /api/weeks",
+      "unit": "ms",
+      "baseline": 4.24,
+      "current": 17.28,
+      "percent": 307.55,
+      "unboundedRegression": false,
+      "status": "advisory",
+      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/dashboard/my-work",
+      "route": "GET /api/dashboard/my-work",
+      "unit": "ms",
+      "baseline": 6.93,
+      "current": 18.1,
+      "percent": 161.18,
+      "unboundedRegression": false,
+      "status": "advisory",
+      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+    },
+    {
+      "kind": "bundle",
+      "label": "Bundle size · total gzipped",
+      "route": null,
+      "unit": "bytes",
+      "baseline": 747644,
+      "current": 747612,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /health",
+      "route": "GET /health",
+      "unit": "queries",
+      "baseline": 0,
+      "current": 0,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/documents",
+      "route": "GET /api/documents",
+      "unit": "queries",
+      "baseline": 3,
+      "current": 3,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/documents/:id",
+      "route": "GET /api/documents/:id",
+      "unit": "queries",
+      "baseline": 4,
+      "current": 4,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/issues",
+      "route": "GET /api/issues",
+      "unit": "queries",
+      "baseline": 5,
+      "current": 5,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/weeks",
+      "route": "GET /api/weeks",
+      "unit": "queries",
+      "baseline": 5,
+      "current": 5,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/dashboard/my-work",
+      "route": "GET /api/dashboard/my-work",
+      "unit": "queries",
+      "baseline": 7,
+      "current": 7,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    }
+  ],
+  "failures": [],
+  "ok": true,
+  "databaseState": "purpose-built fixture (1 workspace, 1 user, 25 documents) created and destroyed by this run"
+}
