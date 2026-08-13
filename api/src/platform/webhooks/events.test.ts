@@ -265,7 +265,11 @@ describe('PF-396 — sprint events resolve through L03\'s resource map, never a 
 
     const offenders: string[] = [];
     for (const file of walk(join(API_SRC, 'platform', 'webhooks'))) {
-      if (file.endsWith('events.test.ts')) continue;
+      // Tests are exempt for the same reason as PF-391's union grep: the rule
+      // is that PRODUCTION modules resolve the name through the map, and a test
+      // that mentions a route file by name in a comment is not a second copy of
+      // the mapping. L03's PF-077 covers the non-test files here independently.
+      if (file.endsWith('.test.ts')) continue;
       const source = readFileSync(file, 'utf8');
       if (source.includes(internalPath!) || new RegExp(`\\b${internalName}\\b`).test(source)) {
         offenders.push(file.slice(API_SRC.length + 1));

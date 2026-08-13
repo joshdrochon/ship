@@ -116,12 +116,27 @@ const loginLimiter = rateLimit({
 // Benchmarks must raise it identically on both sides of a before/after pair; see
 // docs/audit/raw/cat3-lane3-*.md. It is deliberately opt-in: unset, behaviour is
 // byte-for-byte what it was.
+// L14: the TEST ceiling was 10000 and the suite had grown close enough to it to
+// go intermittently red. `apiLimiter` is a MODULE-LEVEL const, so its bucket is
+// shared by every `createApp()` in a worker process and accumulates across test
+// FILES for the whole 60s window — it is one budget for the run, not per app and
+// not per file. At ~1680 tests the suite was tipping over near the end, and the
+// symptom is a 429 surfacing as an unrelated assertion failing in a DIFFERENT
+// file on each run (observed in auth, files, openapi/route and
+// internal-limiter-scope). Measured, not inferred: the full suite failed one
+// random test on three consecutive runs at 10000 and passed 1682/1682 twice in a
+// row with the ceiling raised.
+//
+// Raising the test-only default is safe because the one test that needs a low
+// ceiling — `internal-limiter-scope.test.ts` (PF-214) — sets
+// `API_RATE_LIMIT_MAX=1` itself before importing `createApp`. Production and dev
+// are untouched.
 const rateLimitMaxOverride = Number.parseInt(process.env.API_RATE_LIMIT_MAX ?? '', 10);
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: Number.isFinite(rateLimitMaxOverride) && rateLimitMaxOverride > 0
     ? rateLimitMaxOverride
-    : isTestEnv ? 10000 : isDevEnv ? 1000 : 100, // High limit for tests/dev
+    : isTestEnv ? 1_000_000 : isDevEnv ? 1000 : 100, // High limit for tests/dev
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests. Please slow down.' },
