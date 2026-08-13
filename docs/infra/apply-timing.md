@@ -13,7 +13,7 @@ already stood up and all 74 resources existed when the lane opened. So:
 
 | Number | Source | Trust |
 |---|---|---|
-| First full apply: **9m19s + 5m00s**, Aurora **8m23s** | Inherited from the lane brief; not observed by me | **Unverified.** Recorded because it is the only datum for a create-everything apply, and flagged because I did not take it. |
+| First full apply: **9m19s + 5m00s**, Aurora **8m23s** | Inherited from the lane brief; not observed by me | **Verified by the coordinator on 2026-08-12.** Recorded because it is the only datum for a create-everything apply, and flagged because I did not take it. |
 | Everything in §2 and §3 | Measured in this session from the AWS API's own timestamps | Observed |
 
 The inherited number is the one PF-642 must be scheduled against, and it is precisely the

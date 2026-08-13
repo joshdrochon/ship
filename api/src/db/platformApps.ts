@@ -89,8 +89,23 @@ export const PLATFORM_APP_SEEDS: PlatformAppSeed[] = [
     // PF-054 — the agent as a platform citizen (Epic 7).
     clientId: AGENT_CLIENT_ID,
     name: 'FleetGraph Agent',
-    // Least privilege, not `*`: what the detectors and actions actually need.
-    requestedScopes: ['documents:read', 'issues:read', 'issues:write', 'sprints:read'],
+    // Least privilege, not `*` — and under decision D5b that means READ-ONLY.
+    //
+    // This carried `issues:write` until 2026-08-12, under this same comment,
+    // which is the failure mode the comment was written to prevent. The write
+    // scope was never usable: the agent's two Ship-facing actions are `comment`
+    // and `history_note` (`agent/src/actions/act.ts:74,77`), reaching Ship via
+    // `POST /api/documents/:id/comments` and `POST /api/issues/:id/history` —
+    // and the public API exposes neither, nor does p.3 register a scope that
+    // would cover them. So the grant bought nothing and quietly widened the
+    // blast radius of a leaked agent secret.
+    //
+    // D5b resolves that by making the agent read-only and turning those two
+    // actions into recommendations surfaced through `fleetgraph_notifications`,
+    // its own table. That is what makes Epic 7's claim literally true: every
+    // action the agent takes IS a public API call, so the audit trail has no
+    // holes. L23's PF-690 asserts exactly this list.
+    requestedScopes: ['documents:read', 'issues:read', 'sprints:read'],
     isFirstParty: true,
     secretEnvVar: 'AGENT_CLIENT_SECRET',
   },
