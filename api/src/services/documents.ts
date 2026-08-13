@@ -62,6 +62,7 @@
 import type { PoolClient } from 'pg';
 import type { Database } from '../db/client.js';
 import type { IEventBus } from '../platform/webhooks/bus.js';
+import { documentEventPayload } from '../platform/webhooks/payloads.js';
 
 /**
  * Everything the domain needs to know about who is asking. Plain values only.
@@ -439,10 +440,23 @@ export function createDocumentService(deps: DocumentServiceDeps = {}) {
 
       await client.query('COMMIT');
 
-      // PF-262 / L14's PF-404 lands HERE — after COMMIT, inside the service,
-      // with `deps.bus`. Not in a route handler: two surfaces creating documents
-      // means two publish sites, and the one nobody remembers is the one that
-      // stops firing. Deliberately not implemented by this lane; the seam is.
+      // ── L14 PF-404 — `document.created`, AFTER COMMIT, inside the service ──
+      //
+      // After `COMMIT` returns and not one line earlier. An event for a row that
+      // does not exist is unrecoverable at the subscriber: it would fire a
+      // webhook, the subscriber would `GET` the id, and get a 404 forever. The
+      // rollback test asserts zero events when an association insert fails.
+      //
+      // Here rather than in a route handler, because two surfaces create
+      // documents — internal `POST /api/documents` and public
+      // `POST /api/v1/documents` — and both land in this function. Publishing
+      // from the route means two publish sites and the one nobody remembers is
+      // the one that stops firing (PRD p.3: "domain layer publishes on writes,
+      // never the route layer").
+      //
+      // `publishDocumentEvent` is a no-op when the type is not on the public
+      // `documents` resource — see the gate note in platform/webhooks/payloads.ts.
+      await publishDocumentEvent(deps.bus, 'document.created', ctx, newDoc);
 
       return newDoc;
     } catch (err) {
@@ -453,7 +467,85 @@ export function createDocumentService(deps: DocumentServiceDeps = {}) {
     }
   }
 
-  return { list, get, create, bus: deps.bus };
+  /**
+   * Delete a document, and publish `document.deleted` (PF-403, PF-409).
+   *
+   * ## This is a HARD delete, and that is what makes the event's shape non-negotiable
+   *
+   * `DELETE FROM documents … RETURNING id` removes the row (finding F10). The
+   * `deleted_at` soft-delete column exists in the schema and this path has never
+   * used it; changing that is a Part 1 behaviour change and is not this lane's
+   * to make.
+   *
+   * The consequence for the event is total: once this statement returns, the
+   * only surviving record of the document is the envelope. A subscriber that
+   * received `{id}` and went to `GET` it would get a 404 for all time. So the
+   * row is READ BEFORE the delete and the payload is built from that read —
+   * the extra `SELECT` exists solely to make the event resolvable, and deleting
+   * it to save a query would silently break every `document.deleted` subscriber.
+   *
+   * This is also the fact that disproves any universal ids-only payload rule,
+   * which is why D7 landed where it did (see `platform/webhooks/events.ts`).
+   *
+   * Returns the deleted row, or `null` if there was nothing to delete — the
+   * route maps that to its 404 and keeps its own access checks.
+   */
+  async function remove(ctx: DomainContext, input: { id: string }): Promise<DocumentRow | null> {
+    // Captured BEFORE the delete. See the note above.
+    const before = await ctx.db.query<DocumentRow>(
+      `SELECT * FROM documents WHERE id = $1 AND workspace_id = $2`,
+      [input.id, ctx.workspaceId],
+    );
+    const doomed = before.rows[0];
+    if (!doomed) return null;
+
+    const result = await ctx.db.query<{ id: string }>(
+      'DELETE FROM documents WHERE id = $1 AND workspace_id = $2 RETURNING id',
+      [input.id, ctx.workspaceId],
+    );
+    if (result.rows.length === 0) return null;
+
+    // After the delete, for the same reason `create` publishes after COMMIT:
+    // an event whose subject the database has not actually finished with is an
+    // event the subscriber can act on too early.
+    await publishDocumentEvent(deps.bus, 'document.deleted', ctx, doomed, {
+      deleted_at: new Date().toISOString(),
+    });
+
+    return doomed;
+  }
+
+  return { list, get, create, delete: remove, bus: deps.bus };
+}
+
+/**
+ * The one place a document write turns into an event.
+ *
+ * A free function rather than a method so `update`/`delete` and any future write
+ * path share it verbatim — the gate below is the kind of rule that gets
+ * re-implemented slightly differently the second time it is written.
+ *
+ * Publishing is skipped entirely when the row is not on the public `documents`
+ * resource. That is not a silent swallow: `document.*` events describe the
+ * public `documents` resource, an `issue` has its own `issue.*` events, and a
+ * `program`/`project`/`person` has no public resource this week and therefore
+ * nothing a subscriber could resolve. See platform/webhooks/payloads.ts.
+ */
+async function publishDocumentEvent(
+  bus: IEventBus | undefined,
+  type: 'document.created' | 'document.updated' | 'document.deleted',
+  ctx: DomainContext,
+  row: DocumentRow,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
+  if (!bus) return;
+  const data = documentEventPayload(row);
+  if (!data) return;
+  await bus.publish({
+    type,
+    workspace_id: ctx.workspaceId,
+    data: { ...data, ...extra },
+  });
 }
 
 export type DocumentService = ReturnType<typeof createDocumentService>;

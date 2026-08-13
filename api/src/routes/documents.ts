@@ -496,6 +496,36 @@ router.patch('/:id/content', authMiddleware, async (req: Request, res: Response)
   }
 });
 
+/**
+ * L14 PF-405 — the document service THIS request should use.
+ *
+ * `docs/architecture.md` claims both surfaces call the same service and get one
+ * publish ("same service, same publish"). That was only half true: the public
+ * router is built with `createDocumentService({ bus: deps.bus })`, while this
+ * file used the module-level default, which has no bus — so a document created
+ * through the Ship UI, which is where documents are actually created, published
+ * nothing.
+ *
+ * `createApp` puts a bus-carrying instance on `app.locals`. Read from there
+ * rather than from a module-level mutable, because tests call `createApp()` many
+ * times in one process and a module-level service would mean the last app
+ * constructed silently owned every earlier app's events. `app.locals` is
+ * Express's own per-application store, so each app keeps its own.
+ *
+ * The fallback keeps the module default for any caller that mounts this router
+ * without going through the composition root — it publishes nothing, which is
+ * the correct behaviour for a router nobody wired a bus to, and is what keeps
+ * this change from silently depending on mount order.
+ *
+ * Note what this function does NOT do: it never names the bus, never imports the
+ * events module and never calls `.publish(`. PF-411's fitness test enforces all
+ * three for everything under `routes/`.
+ */
+function serviceFor(req: Request): typeof documentService {
+  const configured = req.app?.locals?.documentService as typeof documentService | undefined;
+  return configured ?? documentService;
+}
+
 // Create document
 //
 // PF-241/PF-243 — parse, call, respond. The `INSERT INTO documents … RETURNING *`
@@ -520,7 +550,7 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
     const { title, document_type, parent_id, program_id, sprint_id, properties, content, belongs_to, visibility } = parsed.data;
     const { userId, workspaceId } = requireAuth(req);
 
-    const newDoc = await documentService.create(
+    const newDoc = await serviceFor(req).create(
       { workspaceId, userId, db: pool },
       {
         title,
@@ -1077,12 +1107,13 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
       return;
     }
 
-    const result = await pool.query(
-      'DELETE FROM documents WHERE id = $1 AND workspace_id = $2 RETURNING id',
-      [id, workspaceId]
-    );
+    // PF-403/PF-409 — the DELETE moved into `documentService.delete`, which
+    // captures the row before removing it and publishes `document.deleted`.
+    // The access checks above stay here: they are this surface's session-auth
+    // policy, and the public surface has a different one.
+    const deleted = await serviceFor(req).delete({ workspaceId, userId, db: pool }, { id });
 
-    if (result.rows.length === 0) {
+    if (!deleted) {
       res.status(404).json({ error: 'Document not found' });
       return;
     }

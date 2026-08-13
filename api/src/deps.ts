@@ -25,6 +25,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { pool, type Database } from './db/client.js';
 import {
   InProcessEventBus,
+  RecordingEventBus,
   InMemoryDeliverer,
   InMemoryTokenBucket,
   SystemClock,
@@ -283,7 +284,15 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
  */
 export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
   return {
-    bus: new InProcessEventBus(),
+    // L14 PF-402/PF-016 — the recording double, not the production bus.
+    //
+    // `RecordingEventBus` EXTENDS `InProcessEventBus`, so every dispatch
+    // semantic a test observes is the production one; what it adds is an
+    // `events` array. That matters for PF-412 and for L15/L16's suites, which
+    // need to assert on the envelope a real write produced rather than on a log
+    // line — and it means the substitution is free, since the shared contract
+    // suite runs green against both (PF-401).
+    bus: new RecordingEventBus(),
     deliverer: new InMemoryDeliverer(),
     limiter: new InMemoryTokenBucket({
       capacity: PUBLIC_RATE_LIMIT_PER_MINUTE,

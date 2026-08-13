@@ -11,6 +11,16 @@ import {
 import { logDocumentChange, getLatestDocumentFieldHistory } from '../utils/document-crud.js';
 import { broadcastToUser, applyTitleToRoom } from '../collaboration/index.js';
 import { extractText } from '../utils/document-content.js';
+// L14 PF-407 — the sprint lifecycle transition and its events live in the
+// domain service, not here. PRD p.3: the domain layer publishes on writes,
+// never the route layer, and `publishFitness.test.ts` fails on a `.publish(`
+// anywhere under `routes/`.
+import {
+  sprintService,
+  statusOf,
+  InvalidSprintTransitionError,
+  type SprintStatus,
+} from '../services/sprints.js';
 
 type RouterType = ReturnType<typeof Router>;
 const router: RouterType = Router();
@@ -1123,10 +1133,23 @@ router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
       propsChanged = true;
     }
 
-    // Handle status update
-    if (data.status !== undefined) {
-      newProps.status = data.status;
-      propsChanged = true;
+    // L14 PF-407 — a status change is a TRANSITION, and it is the domain's.
+    //
+    // Previously this line wrote `newProps.status = data.status` with no guard
+    // at all, so `active → planning` and `completed → planning` both persisted
+    // and stranded the snapshot a start had taken. That is also why
+    // `sprint.completed` was recorded as unfirable: the value was reachable but
+    // nothing treated it as an event, and an unguarded write cannot be one —
+    // it would emit a fresh "completed" every time anyone re-PATCHed a finished
+    // week.
+    //
+    // The transition, the write of `status` and the publish now all happen in
+    // `sprintService.transition`. Everything else on this handler still goes
+    // through the UPDATE below; `status` is deliberately excluded from
+    // `newProps` so the two writers cannot disagree about it.
+    let statusTransition: SprintStatus | null = null;
+    if (data.status !== undefined && data.status !== statusOf(currentProps)) {
+      statusTransition = data.status;
     }
 
     if (propsChanged) {
@@ -1134,18 +1157,43 @@ router.patch('/:id', authMiddleware, async (req: Request, res: Response) => {
       values.push(JSON.stringify(newProps));
     }
 
-    if (updates.length === 0) {
+    // A status-only PATCH still has work to do, so it must not fall into the
+    // "nothing to update" 400 now that `status` is written by the service.
+    if (updates.length === 0 && !statusTransition) {
       res.status(400).json({ error: 'No fields to update' });
       return;
     }
 
-    updates.push(`updated_at = now()`);
+    if (updates.length > 0) {
+      updates.push(`updated_at = now()`);
 
-    await pool.query(
-      `UPDATE documents SET ${updates.join(', ')}
-       WHERE id = $${paramIndex} AND workspace_id = $${paramIndex + 1} AND document_type = 'sprint'`,
-      [...values, id, req.workspaceId]
-    );
+      await pool.query(
+        `UPDATE documents SET ${updates.join(', ')}
+         WHERE id = $${paramIndex} AND workspace_id = $${paramIndex + 1} AND document_type = 'sprint'`,
+        [...values, id, req.workspaceId]
+      );
+    }
+
+    // The transition runs after the other columns land, so the row the event
+    // describes is the finished one rather than a half-updated intermediate.
+    if (statusTransition) {
+      try {
+        const moved = await sprintService.transition(
+          { workspaceId: String(req.workspaceId), userId: String(req.userId), db: pool },
+          { id: String(id), to: statusTransition }
+        );
+        if (!moved) {
+          res.status(404).json({ error: 'Week not found' });
+          return;
+        }
+      } catch (err) {
+        if (err instanceof InvalidSprintTransitionError) {
+          res.status(400).json({ error: err.message });
+          return;
+        }
+        throw err;
+      }
+    }
 
     // The title is a Yjs shared type (api/src/collaboration/documentTitle.ts) and
     // the collaboration server writes it back from the CRDT on every persist, so a
@@ -1239,18 +1287,29 @@ router.post('/:id/start', authMiddleware, async (req: Request, res: Response) =>
     const plannedIssueIds = await takeSprintSnapshot(sprintId);
     const snapshotTakenAt = new Date().toISOString();
 
-    // Update sprint properties with snapshot and active status
-    const newProps = {
-      ...currentProps,
-      status: 'active',
-      planned_issue_ids: plannedIssueIds,
-      snapshot_taken_at: snapshotTakenAt,
-    };
-
-    await pool.query(
-      `UPDATE documents SET properties = $1, updated_at = now() WHERE id = $2`,
-      [JSON.stringify(newProps), id]
+    // L14 PF-407 — the status write moved into `sprintService.start`, which
+    // guards the transition and publishes `sprint.started` after the UPDATE.
+    // The snapshot above stays here: it is what the START action means on this
+    // surface, and the domain transition is what the EVENT means.
+    //
+    // The 400 above is kept rather than replaced by the service's
+    // InvalidSprintTransitionError, because its message is a Part 1 response
+    // body the frontend renders verbatim.
+    const started = await sprintService.start(
+      { workspaceId, userId, db: pool },
+      {
+        id: sprintId,
+        extraProperties: {
+          planned_issue_ids: plannedIssueIds,
+          snapshot_taken_at: snapshotTakenAt,
+        },
+      }
     );
+
+    if (!started) {
+      res.status(404).json({ error: 'Week not found' });
+      return;
+    }
 
     // Broadcast celebration when sprint is started
     broadcastToUser(userId, 'accountability:updated', { type: 'week_start', targetId: id as string });
