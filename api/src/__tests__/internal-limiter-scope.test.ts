@@ -15,7 +15,7 @@
  * `API_RATE_LIMIT_MAX` is set to 1 before `createApp` is imported, because
  * `apiLimiter` is constructed at module load.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import type { Express } from 'express';
 
@@ -108,8 +108,40 @@ describe('PF-215 — the public 1 MB ceiling binds; the internal 10 MB one is un
   /** 2 MB of JSON — over the public ceiling, under the internal one. */
   const twoMegabyteBody = JSON.stringify({ title: 'x'.repeat(2 * 1024 * 1024) });
 
+  // PF-030 — this block gets its OWN app, with the rate limiter effectively off.
+  //
+  // These assertions are about BODY SIZE and nothing else, but they were running
+  // against the module-level app above, whose limiter is deliberately built with
+  // `API_RATE_LIMIT_MAX=1` so PF-214 can prove throttling works. PF-214 spends
+  // that budget. By the time the 2 MB internal POST below runs, the bucket is
+  // empty, express answers 429 and short-circuits WITHOUT draining the request
+  // body — and the client, still writing two megabytes into a socket the server
+  // has stopped reading, dies with `write EPIPE`.
+  //
+  // It is intermittent because it is a race: whether the 429 and the socket
+  // teardown beat the client's write depends on scheduling, so it passes on an
+  // idle machine and fails under load. That is why it read as flake for days
+  // while passing in isolation — in isolation there is less to race against.
+  //
+  // The limiter's state is not part of what PF-215 asserts, so removing it from
+  // the picture is not weakening the test. `vi.resetModules()` is what makes the
+  // second `createApp` build a genuinely new limiter: `apiLimiter` is a
+  // module-level const read at import time, so without a module-registry reset
+  // the re-import returns the cached module and the old exhausted bucket.
+  let bodyLimitApp: Express;
+
+  beforeAll(async () => {
+    const previous = process.env.API_RATE_LIMIT_MAX;
+    process.env.API_RATE_LIMIT_MAX = '1000000';
+    vi.resetModules();
+    const { createApp } = await import('../app.js');
+    bodyLimitApp = createApp();
+    if (previous === undefined) delete process.env.API_RATE_LIMIT_MAX;
+    else process.env.API_RATE_LIMIT_MAX = previous;
+  });
+
   it('a 2 MB body on POST /api/v1/documents is rejected through the envelope', async () => {
-    const res = await request(app)
+    const res = await request(bodyLimitApp)
       .post('/api/v1/documents')
       .set('content-type', 'application/json')
       .send(twoMegabyteBody);
@@ -126,7 +158,7 @@ describe('PF-215 — the public 1 MB ceiling binds; the internal 10 MB one is un
     // The internal ceiling is still 10 MB. This request fails on auth (401) —
     // what matters is that it is NOT a 413/422 body-size rejection, which is what
     // it would be if the public 1 MB parser had leaked onto the internal surface.
-    const res = await request(app)
+    const res = await request(bodyLimitApp)
       .post('/api/documents')
       .set('content-type', 'application/json')
       .send(twoMegabyteBody);
@@ -138,7 +170,7 @@ describe('PF-215 — the public 1 MB ceiling binds; the internal 10 MB one is un
   });
 
   it('a small body on /api/v1 still parses — the ceiling is a ceiling, not a wall', async () => {
-    const res = await request(app)
+    const res = await request(bodyLimitApp)
       .post('/api/v1/documents')
       .set('content-type', 'application/json')
       .send({ title: 'small' });

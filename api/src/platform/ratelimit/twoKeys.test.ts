@@ -121,12 +121,20 @@ describe('PF-305 — a denied request must not spend the other bucket', () => {
     const perApp = bucket(1, 0.0001, clock);
     const perToken = bucket(100, 0.0001, clock);
     const app = appWith(perApp, perToken, authContext());
+    // PF-030 — one agent for the loop, not fifty-one fresh listeners.
+    //
+    // `request(app)` binds a NEW ephemeral server per call and closes it after.
+    // Fifty-one of those in a tight loop is fifty-one listen/close cycles, and
+    // under load one of them loses the race and the client reports
+    // `socket hang up`. The assertion is about bucket arithmetic and has nothing
+    // to say about sockets, so it should not be able to fail on one.
+    const agent = request.agent(app);
 
     await request(app).get('/thing').expect(200); // spends 1 from both
 
     const tokenRemainingBefore = perToken.peek(`${RATE_KEY_PREFIX.token}token_a`).remaining;
     for (let i = 0; i < 50; i++) {
-      await request(app).get('/thing').expect(429);
+      await agent.get('/thing').expect(429);
     }
     const tokenRemainingAfter = perToken.peek(`${RATE_KEY_PREFIX.token}token_a`).remaining;
 
@@ -142,11 +150,19 @@ describe('PF-305 — a denied request must not spend the other bucket', () => {
     const perApp = bucket(100, 0.0001, clock);
     const perToken = bucket(1, 0.0001, clock);
     const app = appWith(perApp, perToken, authContext());
+    // PF-030 — one agent for the loop, not fifty-one fresh listeners.
+    //
+    // `request(app)` binds a NEW ephemeral server per call and closes it after.
+    // Fifty-one of those in a tight loop is fifty-one listen/close cycles, and
+    // under load one of them loses the race and the client reports
+    // `socket hang up`. The assertion is about bucket arithmetic and has nothing
+    // to say about sockets, so it should not be able to fail on one.
+    const agent = request.agent(app);
 
     await request(app).get('/thing').expect(200);
     const appRemainingBefore = perApp.peek(`${RATE_KEY_PREFIX.app}app_1`).remaining;
     for (let i = 0; i < 50; i++) {
-      await request(app).get('/thing').expect(429);
+      await agent.get('/thing').expect(429);
     }
     expect(perApp.peek(`${RATE_KEY_PREFIX.app}app_1`).remaining).toBe(appRemainingBefore);
   });
