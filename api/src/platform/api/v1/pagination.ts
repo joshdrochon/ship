@@ -215,11 +215,20 @@ export interface KeysetRow {
  * `paramOffset` is the count of placeholders already used by the caller's own
  * WHERE clause, so this composes with a filtered query instead of owning `$1`.
  *
+ * `timestampColumn` defaults to `created_at`, which is what every
+ * document-backed resource uses. It is a parameter rather than a constant
+ * because L12's `public_api_calls` orders on `occurred_at` — a different name
+ * for the same idea — and the alternative was a second copy of the row
+ * comparison, which is precisely the thing PF-222's EXPLAIN assertion exists to
+ * protect. The column name is interpolated, so it must never come from a
+ * request; both call sites pass a literal.
+ *
  * Returns an empty clause for the first page — no cursor, no predicate.
  */
 export function keysetPredicate(
   payload: CursorPayload | null,
   paramOffset: number,
+  timestampColumn: string = KEYSET_COLUMNS[0],
 ): { sql: string; values: string[] } {
   if (!payload) return { sql: '', values: [] };
   const a = paramOffset + 1;
@@ -227,7 +236,7 @@ export function keysetPredicate(
   return {
     // Explicit casts: node-postgres sends both as text, and without them Postgres
     // compares `timestamptz` to `text`, which does not use the index.
-    sql: `(created_at, id) < ($${a}::timestamptz, $${b}::uuid)`,
+    sql: `(${timestampColumn}, id) < ($${a}::timestamptz, $${b}::uuid)`,
     values: [payload.timestamp, payload.id],
   };
 }

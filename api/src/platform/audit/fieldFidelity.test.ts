@@ -192,7 +192,12 @@ describe('PF-332 — latency_ms covers the whole stack, not just the handler', (
         router.get(
           '/slow',
           asyncRoute(async (_req, res) => {
-            const until = Date.now() + 50;
+            // 60, not 50, because `Date.now()` is millisecond-granular and
+            // truncates: `Date.now() + 50` can be reached after 49.x ms of real
+            // time, which made this assertion fail about one run in three. The
+            // ticket's number is the ASSERTION below; the spin just has to
+            // comfortably clear it.
+            const until = Date.now() + 60;
             // A busy wait rather than a timer: the assertion is about wall-clock
             // duration of the REQUEST, which is the one thing a FakeClock cannot
             // stand in for. `latencyMs` is measured with `process.hrtime`, not

@@ -44,6 +44,26 @@ the file yet.
 | 065–066 | **L04** | `oauth_authorization_codes` — the auth-code row and its PKCE challenge (PF-086) |
 | 067–069 | — | unallocated; ask before taking |
 
+**L12 took 057 and 058** (2026-08-12), from its own allocated block.
+
+- `057_public_api_calls.sql` — the audit table (PF-339). Deliberately **not**
+  `audit_logs`: `schema.sql` already has one, with a different contract
+  (workspace/actor/action/resource, AU-9 compliance triggers that forbid DELETE)
+  and sharing it would put public-API rows under an internal schema *and* apply
+  L12's 30-day retention to compliance rows that must never be pruned.
+- `058_public_api_call_daily.sql` — the per-day-per-app rollup that decision D10
+  requires (PF-341). Retained indefinitely, so Epic 7's "the agent went through
+  the front door" stays provable after the raw rows expire at 30 days.
+
+Neither file declares a foreign key, and that is deliberate rather than an
+omission: `client_id` → `oauth_apps` and `user_id` → `users` would make an audit
+trail unable to outlive the things it describes. `ON DELETE RESTRICT` would block
+deleting an app, `CASCADE` would erase the evidence, and `SET NULL` would rewrite
+history. **059 remains free** for this lane.
+
+Apply order holds without coordination: neither table references anything, so
+057–058 can land before or after any other block.
+
 **L04 had no block and took 065–066 under Rule 3** (2026-08-12). Same situation as L08
 below: the table allocated every lane that was known to write DDL, and L04's
 `oauth_authorization_codes` (PF-086) was not among them — the lane was scoped as
