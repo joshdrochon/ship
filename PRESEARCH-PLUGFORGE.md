@@ -2707,4 +2707,247 @@ pass byte-for-byte in both flag states: one assertion is forked and named (Q42).
 write** — under a comment reading "Least privilege, not `*`". **The seed predates D5b and
 contradicts it.** L23 PF-690's assertion would fail today. This is the single most consequential
 gap between this document and the tree.
+
+---
+
+# Coverage — all 58 bullets
+
+<!-- PF-772 -->
+
+**Mechanical check.** `grep -c '^### Q' PRESEARCH-PLUGFORGE.md` → **58**, matching the count
+derived in the header. No answer is `TBD`, `see above`, or a placeholder. The one occurrence of
+the string `TODO` in this document is a citation of a code comment (`retry.ts:31`), not an unmet
+answer.
+
+**Status vocabulary.** **Answered** — a decision is stated and defended. **Answered · open** —
+the question is answered by *stating the range, the lean and why it is not yet closed*, which is
+the only honest answer available and is what the PRD's "Defend the call" asks for when a call is
+genuinely live. **There are no unanswered bullets.**
+
+| Q | § | p. | Answer in one line | Status |
+|---|---|---|---|---|
+| 1 | 1.1 | 15 | ≤5 req/s sustained; fanout = 1 event × N subs × ≤6 attempts = 6N outbound | Answered |
+| 2 | 1.1 | 15 | 3 apps, 0 subscriptions; breakpoint N≈40 vs the 2 s target, **N=1** vs the +10% API budget | Answered |
+| 3 | 1.1 | 15 | 1–2 concurrent; 5 s interval, +5 s per `slow_down`, per-row so sessions are independent | Answered |
+| 4 | 1.1 | 15 | ~1 row/attempt; audit retention D10 (30 d + rollup), **delivery-log retention undecided** | Answered · open |
+| 5 | 1.2 | 15 | $75/wk vs Week 5's metered $67; expected token delta **zero**, verified by paired fixture runs | Answered |
+| 6 | 1.2 | 15 | 500 min/day ≈ 6 PRs; measured e2e 78.9/81.7/79.7 min, half of it one timeout constant | Answered |
+| 7 | 1.2 | 15 | <250 KB budget, **120,305 B measured**, 0 prod deps, blocking `size:check` | Answered |
+| 8 | 1.2 | 15 | Per-subscription circuit breaker, **not** the DLQ; 30,000 → ~1,440 req/day for a dead subscriber | Answered · open (values unchosen) |
+| 9 | 1.3 | 15 | E1–E4, E6, E7 must-ship; E5 should-ship; CLI over Slack on U6 | Answered |
+| 10 | 1.3 | 15 | 6–8 h/day of **coordination**; plan is dependency tiers, measured against 81 commits/day | Answered |
+| 11 | 1.3 | 15 | Dated trigger + the sharper upstream one: no delivery log ⇒ no portal floor | Answered |
+| 12 | 1.4 | 15 | SHA-256 unsalted (32-byte CSPRNG defeats precomputation); **no recovery, by design** (D1) | Answered |
+| 13 | 1.4 | 15 | 1 h / 30 d sliding, one-time-use; family revocation **yes**, incl. the live access token | Answered |
+| 14 | 1.4 | 15 | ids + `title`; **D7 open**, and F10's hard delete makes universal ids-only impossible | Answered · open |
+| 15 | 1.4 | 15 | **Four** channels, not three — the PRD's three plus F25's IndexedDB persistence | Answered |
+| 16 | 1.5 | 16 | Consumed, not implemented; RFC morning Tue 11 Aug, with what each RFC is for | Answered · author-attested |
+| 17 | 1.5 | 16 | Comfortable; F12 is the caveat; fallback is the committed `docs/openapi.json` | Answered · author-attested |
+| 18 | 1.5 | 16 | Consuming side dominates — five consumer-found defects in our own SDK, four silent | Answered · author-attested |
+| 19 | 2.1 | 16 | Day one; waiting costs five named surfaces vs zero | Answered |
+| 20 | 2.1 | 16 | Re-consent with union (D4); incremental rejected — it turns a grant into an accumulator | Answered |
+| 21 | 2.1 | 16 | Server-rendered endpoint; `frame-ancestors 'none'` + `X-Frame-Options: DENY`, negative control | Answered |
+| 22 | 2.1 | 16 | Both, form normative; completed URI still renders the code (RFC 8628 §5.4) | Answered |
+| 23 | 2.2 | 16 | Identical envelope; `details` fixed **per code**, not per route; one Zod schema | Answered |
+| 24 | 2.2 | 16 | Skipped **verifiably** — `?fields=` returns 422 | Answered |
+| 25 | 2.2 | 16 | Additive-only in v1, `/v2/` for breaks, no sunset headers; limit stated | Answered |
+| 26 | 2.2 | 16 | bounded-by-**code** vs bounded-by-**data**; `createApp()` throws on an undeclared route | Answered |
+| 27 | 2.3 | 16 | `HMAC-SHA256(secret, t + "." + rawBody)`; `v1=` in the header so a v2 migration is additive | Answered |
+| 28 | 2.3 | 16 | `[1,4,16,60,300,1800]` ±10%; **6 attempts, 5 waits, 386 s — the 1800 rung never fires** | Answered |
+| 29 | 2.3 | 16 | 408/425/429 transient, other 4xx permanent (D9) — resolves p.4 vs p.16 | Answered |
+| 30 | 2.3 | 16 | Derived at first delivery, stored, replay POSTs the **stored** key; contract published | Answered |
+| 31 | 2.4 | 16 | Hand-written + parity test, with the four mechanisms that buy back drift-freedom | Answered |
+| 32 | 2.4 | 16 | Discriminated union on `kind`, **five** members; Result-style rejected with reason | Answered |
+| 33 | 2.4 | 17 | Async-iterators-only; F21 is the argument, and the hidden-cursor cost is acknowledged | Answered |
+| 34 | 2.4 | 17 | Both tokens (D8); single-flight, process-scoped — **D14 open**, lean and reversal recorded | Answered · open |
+| 35 | 2.5 | 17 | Eats the public API; three escape hatches refused, three deviations named (B10, B11) | Answered |
+| 36 | 2.5 | 17 | Instant (D3); **what Stripe does and why**, and why the trade doesn't apply here | Answered |
+| 37 | 2.5 | 17 | Server-side cursor now; virtualization deferred *because* it is rebuild-cheap; buckets rejected | Answered |
+| 38 | 2.5 | 17 | Click-to-reveal, defended against Q15 mitigation by mitigation | Answered |
+| 39 | 2.6 | 17 | Client Credentials §4.4 (D5a) — the grant choice **is** the audit claim | Answered |
+| 40 | 2.6 | 17 | `db:migrate`, deliberately not a numbered migration; generated secrets refused | Answered |
+| 41 | 2.6 | 17 | Read-only, three scopes, per-scope defense (D5b); ⚠ **seed currently ships `issues:write`** | Answered · divergence |
+| 42 | 2.6 | 17 | Matrix + 2 anti-vacuity guards; **not** byte-for-byte — one assertion forked and named | Answered |
+| 43 | 3.1 | 17 | Deactivate (D2); recovery = reactivate + reassign, identity preserved | Answered |
+| 44 | 3.1 | 17 | At-least-once + key dedupe; in-flight window named; today's real mode is at-most-once | Answered · divergence |
+| 45 | 3.1 | 17 | Three alert conditions; **(b) successes from N distinct IPs** is the live-leak signal | Answered |
+| 46 | 3.1 | 17 | One injected `csrf-sync` synchroniser; consent route refuses bearer, F26 pinned by a test | Answered |
+| 47 | 3.2 | 17 | Real install, two modes; **symlink rejected** — it never executes the published artifact | Answered |
+| 48 | 3.2 | 17 | Premise checked: **Ship is the IdP**. Zero marginal CI minutes; PKCE p95 980 ms | Answered |
+| 49 | 3.2 | 17 | `FakeClock` via `testDeps()`; **zero `setTimeout`**, grep-enforced | Answered |
+| 50 | 3.3 | 18 | The PRD's "both?" is **four** fences, each with a negative fixture; static-import limit stated | Answered |
+| 51 | 3.3 | 18 | Fail the build; **additive gets no carve-out**, answered separately | Answered |
+| 52 | 3.3 | 18 | Automated comparison, 3 metrics, fails loudly on a missing denominator | Answered |
+| 53 | 3.4 | 18 | AWS (D6); grader isolation is the **Grader Sandbox workspace**, not read-only scopes | Answered |
+| 54 | 3.4 | 18 | Both copies, asserted byte-identical; no third-party doc host | Answered |
+| 55 | 3.4 | 18 | `### One command` under `## For graders`; ⚠ **currently a curl smoke test, not a CLI install** | Answered · divergence |
+| 56 | 3.5 | 18 | Nine fields, **none omitted**; portal + query; **no `/metrics`**, stated as a decision | Answered |
+| 57 | 3.5 | 18 | Fitness test (D11) — a grep cannot prove "every action", with the exact assertions | Answered |
+| 58 | 3.5 | 18 | Reuse = rows sharing one key; **no**, you cannot tell dedupe works, with what would change it | Answered |
+
+**Totals: 58 answered. 5 carry an open decision (Q4, Q8, Q14, Q34, Q41). 3 record an as-built
+divergence (Q41, Q44, Q55). 3 are author-attested rather than repo-derived (Q16–Q18). 0
+unanswered.**
+
+---
+
+# Consistency cross-check against `docs/architecture.md`
+
+<!-- PF-773 -->
+
+Every answer that restates an architecture decision was checked against `docs/architecture.md`
+on the load-bearing specifics. **Where the two disagree, the disagreement is resolved in one
+direction and both documents are edited** — never left to diverge.
+
+| Specific | `docs/architecture.md` | This document | Verdict |
+|---|---|---|---|
+| `client_secret` hash | SHA-256, unsalted, high-entropy | same | ✅ agree |
+| Access / refresh TTL | 1 h / 30 d sliding | same (and cites the shipped constants `3600` / `2592000`) | ✅ agree |
+| Retry ladder | `[1, 4, 16, 60, 300, 1800]` + jitter | same, **plus** the arithmetic that the 1800 rung never fires | ✅ agree, refined |
+| Signature construction | `HMAC-SHA256(secret, t + '.' + rawBody)`, `Ship-Signature: t=…,v1=…` | same | ✅ agree |
+| `ApiError` codes | six, closed, printed on p.7 | same | ✅ agree |
+| SDK `kind` union | five: `auth \| rate_limit \| not_found \| validation \| server` | same | ✅ agree |
+| Scope names | seven, `{documents,issues,sprints}×{read,write}` + `webhooks:manage` | same | ✅ agree |
+| SDK footprint budget | < 250 KB min+gzip, production deps only, CI-enforced | same, **plus** the measured 120,305 B and the two caveats | ✅ agree, refined |
+| Pagination | `limit`, 25 / 100, newest-first, `(created_at, id)`, reject-not-clamp | same | ✅ agree |
+| Deployment | AWS, EB + Aurora + NAT, `terraform/render/` retained as fallback | same | ✅ agree |
+| Consent screen | server-rendered, `frame-ancestors 'none'` + `X-Frame-Options: DENY` | same | ✅ agree |
+| Scope upgrades | re-consent with union | same | ✅ agree |
+| `ITokenStore` | both tokens, single-flight, process-scoped, D14 open | same | ✅ agree |
+| Rotation | instant, `ROTATION_POLICY` constant, Stripe departure documented | same | ✅ agree |
+| **Audit field list** | omits `request_id` (**G2**) | includes it — nine fields | ⚠ **architecture.md is wrong.** The *type* carries `requestId`; the doc's prose list does not. **The doc moves.** Owned by L12 PF-327, which also extends L01's PF-022 fitness test to compare the documented list against the type's keys so it cannot recur |
+| **Agent grant type** | never named (**G4**) | Client Credentials §4.4 (D5a) | ⚠ **architecture.md is silent.** The doc gains the grant. Owned by L26 PF-791 |
+| **Agent scopes** | *"the scopes its detectors and actions need"*, unnamed | three read scopes, enumerated (D5b) | ⚠ **architecture.md is vague and the seed contradicts both.** The doc gains the list; the seed narrows. Owned by L23 PF-712 |
+| **App seeding** | *"seeded by `db:migrate`"* | same — and this is now **true**, via `platformApps.ts` + migration 041 | ✅ agree. **G1 is closed**: it was filed when the repo still seeded via `seed.ts` |
+
+**Which document moved, recorded as PF-773 requires.** Three edits land in
+`docs/architecture.md`, not here: the audit-field list gains `request_id` (G2), the
+Agent-as-Citizen section gains the grant type (G4), and the scopes sentence at
+`architecture.md:178` is reconciled to read-only (B12). **This document is correct on all three
+and does not move.**
+
+**⚠ Sequencing hazard, already flagged as B13.** All three edits touch
+`docs/architecture.md:178` — the same paragraph, three owners (L26 PF-788, L26 PF-791, L23
+PF-712). **Sequence them or land all three in one PR**, or the last writer silently reverts the
+other two in a graded document.
+
+---
+
+# As-built reconciliation
+
+<!-- PF-774 -->
+
+Read at `pf/integration` @ `cd12779`. **The Pre-Search is the decision record the rest of the
+board cites, so a quietly-rewritten answer destroys exactly the traceability it exists to
+provide.** Divergences are recorded as dated amendments here, never as silent edits to the
+answers above.
+
+### Amendments — 2026-08-12
+
+**A-1 · Q41 / D-6 — the agent's seeded scopes contradict D5b.**
+`api/src/db/platformApps.ts:93` seeds `['documents:read', 'issues:read', 'issues:write',
+'sprints:read']` — four scopes including a **write** — under a comment reading "Least privilege,
+not `*`". D5b decided **read-only, exactly three**. The seed predates the decision. **The
+decision is correct and the code is stale**; L23 PF-690 would fail today. Closing action: narrow
+the seed. Until then, Q41's answer describes the decision, not the tree, and says so.
+
+**A-2 · Q44 — the deliverer's real failure mode today is at-most-once, not at-least-once.**
+The at-least-once contract depends on a durable delivery log, and `webhook_deliveries` does not
+exist. Only `InMemoryDeliverer` — a test double — is implemented; `RetryScheduler` (`retry.ts:31`)
+and `HttpDeliverer` (`deliverer.ts:57`) are `TODO`. **L16 is 0/34.** The answer states the
+designed contract and this amendment states the shipped one.
+
+**A-3 · Q55 — the README's "One command" is a `curl` smoke test, not a CLI install.**
+`README.md:85–88` exports `SHIP_API_URL` and curls the spec. It proves the instance is up; it
+does not install the CLI and does not authenticate. The owning tickets (L19 PF-580, L21 PF-631,
+L26 PF-814) require a single command from a **clean container** reaching an authenticated
+`ship docs ls`. Not yet satisfied.
+
+**A-4 · Q8 — the cost ceiling's mechanism is designed, not shipped, and its values are unchosen.**
+L16 PF-482 specifies one `CircuitBreaker` per `subscription_id` reusing
+`shared/src/circuitBreaker.ts`. **No webhook breaker exists**, and L16 chose no
+`failureThreshold` / `cooldownMs`. The `5 / 60_000` in Q8 is the in-repo precedent from
+`agent/src/actions/client.ts:126–127`, offered as a recommendation and labelled as one.
+
+**A-5 · Q52 — the +10% denominator exists; the division does not.**
+`docs/baseline-part1.json` is captured and committed (L01 PF-020, done). **The comparator is
+not built** — L26 PF-802–805 are open, and no comparator script or `baseline-part1` reference
+exists under `scripts/`, `.github/` or `.gitlab-ci.yml`.
+
+**A-6 · Q47 — the TTFE drill has never run.**
+Fully specified across L20's 24 tickets, all open. `test-results/` does not exist. **The measured
+TTFE figure is the most conspicuous missing number in this document.**
+
+**A-7 · Ticket-count discrepancy in the coordinator's brief.**
+The brief describes eleven merged lanes / 247 tickets. Measured on `pf/integration`: **ten** lane
+files carry `☑` rows, totalling **246**. L21 produced real artifacts (`docs/infra/apply-timing.md`,
+`topology.md`, `iam-least-privilege.md`, `grader-access.md`) with **zero ticked boxes** — so its
+work merged and its board state did not. Not a defect in the work; a defect in the record.
+
+### Claims from the lane brief that verification did not support
+
+Recorded because inherited numbers are suspect until re-measured, and four of these would have
+appeared in this document as facts:
+
+| Inherited claim | What the tree shows |
+|---|---|
+| NAT gateway ~$1/day | **no such figure is recorded anywhere.** `INFRASTRUCTURE_SUMMARY.md:205` has `$33` monthly (≈$1.10/day), which is what Q53 cites |
+| Terraform apply 9m19s + 5m00s, Aurora 8m23s | present, and `docs/infra/apply-timing.md` **labels it "Unverified… not observed by me"** |
+| 1568 api tests | **unverifiable** — the string appears nowhere. Static count under `api/src`: 1415 `it(`/`test(` call sites across 98 files. Not used as a claim in this document |
+| SDK 117.5 KB gzipped | correct (120,305 B) — but it is gzip of **unminified** files, an upper bound on min+gzip, and `size:check` runs on GitHub Actions **only**, not GitLab |
+| Six SDK error kinds | **five** |
+
+---
+
+# Open items — decided but unproven
+
+<!-- PF-775 -->
+
+Every answer resting on an assumption not yet verified. **An honest open-items list is stronger
+evidence of a real Pre-Search than 58 confident answers.**
+
+| # | Q | Item | State | What would close it |
+|---|---|---|---|---|
+| O-1 | Q2 | The 50 ms per-delivery latency behind the N≈40 breakpoint | **Unproven** — assumed, never measured | L20 PF-603's 20-run series, which records `documentCreatedAt → firstPostReceivedAt` in real ms |
+| O-2 | Q2 | The 2 s delivery P95 (p.6, **U5**) | **Unproven** — claimed by L20, not performed | the same series. One drill run is one sample and is not a P95 |
+| O-3 | Q4 | Delivery-log retention window | **Undecided** — D10 covers only the audit log; L16 PF-483 requires a window and does not choose one. Lean: 90 d raw, no rollup | a decision, plus a prune path that never deletes an unreplayed `dead_lettered` row |
+| O-4 | Q5 | Epic 7 before/after token delta | **Designed** — L23 PF-711 specifies the method; no figure taken | run the fixture prompt set flag-off and flag-on. A **non-zero** delta is a bug in the equivalence, not a cost finding |
+| O-5 | Q6 | Per-PR CI actuals for the drill and OpenAPI generation | **Unproven** — only `e2e` is measured | L20 PF-604, L26 PF-796 |
+| O-6 | Q8 | Circuit-breaker `failureThreshold` / `cooldownMs`, and the attempts/hour/subscription ceiling | **Undecided** — L16 chose no values. Lean: `5 / 60_000`, the in-repo precedent | L16 PF-482 picking values, or adopting the precedent explicitly |
+| O-7 | Q14 | **D7** — webhook payload contents | **Open**, being re-litigated by L14 | pick an end of the range, or write the middle as a rule that does not need PF-410's patch |
+| O-8 | Q34 | **D14** — cross-process refresh | **Open**; strict shipped, one line from flipping, both behaviours table-tested | a decision on the 10 s window, **plus** L19's lockfile beside `~/.ship/credentials.json`, which is the real fix either way |
+| O-9 | Q41 | **D13** — three detectors read tables with no public route | **Open**; lean (a)+(c) | L10 accepting the `issueSchema` flattening, or the exception list growing from one entry to three |
+| O-10 | Q41 | Agent seed ships `issues:write` | **Divergent** — decision correct, code stale | narrow `platformApps.ts:93` to the three read scopes |
+| O-11 | Q43 | Owner-deletion → app-deactivation cascade | **Designed** — D2 decided; no lane has wired the trigger | an owner lane, plus a test that a deleted owner's tokens stop validating |
+| O-12 | Q45 | The three alert conditions are queryable, **not paged** | **Verified as signals, unproven as alerts** | an alerting surface. Related: **F30**, no token-revocation endpoint exposes the *revoke* half of the playbook |
+| O-13 | Q47 | TTFE drill has never run | **Designed** — 0/24 | run it; commit `test-results/ttfe.json` |
+| O-14 | Q48 | PKCE p50/p95 live only in `docs/architecture.md` prose | **Verified once, not archived** | emit a committed artifact the way the TTFE drill does |
+| O-15 | Q52 | +10% comparator | **Designed** — baseline captured, comparator absent | L26 PF-802–805, including the three seeded-regression proofs |
+| O-16 | Q53 | Grader-tenant isolation | **Designed and partly verified** — the Grader Sandbox workspace exists and F43's cross-workspace minting bug is closed | a test that a grader token cannot read the primary workspace, asserted from outside |
+| O-17 | Q55 | **D12** — the grader cannot run `ship docs create` | **Open**; second write-scoped app shipped flagged. **The user's decision to close** | close D12, then satisfy PF-580's clean-container command |
+| O-18 | — | **U6** — nothing gives an externally-hosted webhook listener a public URL | **Open and unowned.** The largest execution risk in two lanes | L21 or L26 claiming it: local listener + tunnel, a relay, or long-poll against the delivery log |
+| O-19 | Q16–18 | The 1.5 answers are author-attested | **Unverifiable from the tree, by nature** | author confirmation before submission |
+
+---
+
+# Submission-requirement verification
+
+<!-- PF-776 -->
+
+PRD p.13 read literally, both halves:
+
+| Clause | Evidence |
+|---|---|
+| *"All three phases completed with **written answers**"* | 58 `### Q` headings, each with the bullet transcribed verbatim and an answer below it. `grep -c '^### Q'` → **58**. Zero placeholders. The coverage table maps every bullet to its heading |
+| *"saved AI conversation **attached as a reference artifact**"* | [`docs/presearch-conversation.md`](docs/presearch-conversation.md) — committed in-repo, linked from this document's header and back from its own header. The link resolves from a clean clone because both paths are repository-relative |
+
+**Also verified:**
+
+- Committed at the path the submission index names: `PRESEARCH-PLUGFORGE.md`, repository root,
+  matching the `TICKETS.md` → `TICKETS-PLUGFORGE.md` convention.
+- **Week 5's `PRESEARCH.md` is untouched.** Separate week, separate graded evidence.
+- All internal anchors (`#q14`, `#q24`, `#q31`, `#q38`, `#q39`, `#q41`,
+  `#defended-tradeoff-sweep`) resolve to headings present in this file.
+- Every PRD citation was resolved by `grep` against `.claude/prd/page-*.txt`, not from memory —
+  `full.txt` reflows and its line positions do not map to pages.
 </content>
