@@ -1,0 +1,40 @@
+{
+  "x-why": "PF-370's negative fixture, committed beside its test. A validator that accepts everything passes exactly as green as a correct one, so the acceptance criterion is that this file is REJECTED. Three distinct violations, each a plausible hand-edit: info.version is missing (required), a response object is a string instead of a Responses Object, and a parameter declares neither schema nor content (the meta-schema's oneOf). This key is `x-` prefixed so the rejection comes from those violations rather than from the annotation itself.",
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Deliberately malformed"
+  },
+  "paths": {
+    "/things": {
+      "get": {
+        "operationId": "getThings",
+        "responses": "should be an object keyed by status code"
+      }
+    },
+    "/things/{id}": {
+      "get": {
+        "operationId": "getThingsById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
