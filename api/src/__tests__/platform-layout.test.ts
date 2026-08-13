@@ -24,6 +24,10 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  PUBLIC_API_CALL_FIELDS,
+  type PublicApiCallField,
+} from '../platform/audit/audit.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PLATFORM_DIR = join(HERE, '..', 'platform');
@@ -102,6 +106,49 @@ describe('PF-022 · platform/ matches docs/architecture.md Module Layout', () =>
     expect(onDisk).toEqual(
       ['api/v1/', 'apps/', 'audit/', 'oauth/', 'openapi/', 'ratelimit/', 'scopes/', 'webhooks/'].sort(),
     );
+  });
+
+  /**
+   * PF-327 / finding G2 — the documented AUDIT FIELD LIST is compared against
+   * `PublicApiCallRecord`'s keys.
+   *
+   * The `audit/` line described the module's fields as timestamp, client_id,
+   * user_id, route, scope, status, latency — the p.4 list, missing the
+   * `request_id` that p.18's Pre-Search 3.5 names and that `ApiError` already
+   * carries. A doc that lists six of seven fields is how a field quietly never
+   * gets stored, and the doc is itself a graded deliverable (p.12).
+   *
+   * The mapping between the doc's prose names and the type's camelCase keys is
+   * written out rather than derived, because "timestamp" is `occurredAt` and
+   * "app client_id" is `clientId` — a heuristic that guessed those would also
+   * happily guess wrong.
+   */
+  it('documents every field PublicApiCallRecord carries (G2)', () => {
+    const auditLine = readFileSync(ARCHITECTURE_DOC, 'utf8')
+      .split('\n')
+      .find((l) => l.trimStart().startsWith('audit/'));
+    expect(auditLine, 'docs/architecture.md has no audit/ line in the Module Layout').toBeDefined();
+
+    const docNameByField: Record<PublicApiCallField, string> = {
+      occurredAt: 'timestamp',
+      clientId: 'client_id',
+      userId: 'user_id',
+      method: 'route',
+      route: 'route',
+      scopeUsed: 'scope',
+      status: 'status',
+      latencyMs: 'latency',
+      requestId: 'request_id',
+    };
+
+    const undocumented = PUBLIC_API_CALL_FIELDS.filter(
+      (field) => !auditLine!.includes(docNameByField[field]),
+    );
+    expect(
+      undocumented,
+      `docs/architecture.md's audit/ line omits: ${undocumented.join(', ')}. ` +
+        `PRD p.4 names seven fields and p.18 names request_id; the type is the contract.`,
+    ).toEqual([]);
   });
 
   it('gives every module a barrel index.ts', () => {

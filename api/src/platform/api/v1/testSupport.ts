@@ -13,7 +13,7 @@
  */
 import express, { type Express, type Router, type Request, type Response, type NextFunction } from 'express';
 import { createPublicRouter } from './router.js';
-import { InMemoryAuditSink } from '../../audit/audit.js';
+import { InMemoryAuditSink, type IAuditSink } from '../../audit/audit.js';
 import { InMemoryTokenBucket } from '../../ratelimit/limiter.js';
 import type { IRateLimiter } from '../../ratelimit/limiter.js';
 import { FakeClock } from '../../clock.js';
@@ -46,6 +46,15 @@ export interface TestPublicAppOptions {
    * request supertest makes.
    */
   anonLimiter?: IRateLimiter;
+  /**
+   * Override the audit sink — L12 PF-328 drives a throwing and a rejecting one
+   * through a real route.
+   *
+   * When this is set, the `auditSink` on the returned object is NOT the sink the
+   * router is using: it stays the `InMemoryAuditSink` and stays empty. A spec
+   * that overrides the sink is a spec asserting on the RESPONSE, not on records.
+   */
+  auditSink?: IAuditSink;
   /** Routes mounted ABOVE bearer auth (PF-216). Paths must be in V1_UNAUTHENTICATED_PATHS. */
   mountUnauthenticated?: (router: Router) => void;
   /**
@@ -114,7 +123,7 @@ export function createTestPublicApp(options: TestPublicAppOptions = {}): TestPub
       perAppLimiter: options.perAppLimiter ?? generousBucket(),
       perTokenLimiter: options.perTokenLimiter ?? generousBucket(),
       anonLimiter: options.anonLimiter ?? generousBucket(),
-      auditSink,
+      auditSink: options.auditSink ?? auditSink,
       ...(options.mountUnauthenticated
         ? { mountUnauthenticated: options.mountUnauthenticated }
         : {}),

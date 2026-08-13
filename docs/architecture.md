@@ -17,7 +17,7 @@ api/src/platform/            (new) everything public-facing; imports domain serv
                              resource-map.ts is the one place public `sprints` maps onto Ship's internal `weeks` route — the contract name, not the table name
                              (`document_type` has said `sprint` since Part 1, so the translation is route-path and vocabulary only)
   openapi/                   public OpenAPI 3.1 registry; generated from route metadata, served at /api/v1/openapi.json
-  audit/                     public API call log — timestamp, app client_id, user_id, route, scope, status, latency; queryable in the dev portal
+  audit/                     public API call log — timestamp, app client_id, user_id, route, scope, status, latency, request_id; queryable in the dev portal
   clock.ts                   Clock / SystemClock / FakeClock — a file, not a module; the retry scheduler, the token bucket and OAuth expiry all read it
 sdk/                         (new) @ship/sdk workspace package — see SDK Surface
 integrations/cli/            (new) must-ship reference integration (ship login / docs / webhooks tail); imports ONLY @ship/sdk (workspace dep rule)
