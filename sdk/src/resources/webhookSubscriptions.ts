@@ -29,7 +29,7 @@
  * both directions.
  */
 import type { Transport } from '../transport.js';
-import { ResourceClient } from './base.js';
+import { ResourceClient, resourceItemPath } from './base.js';
 
 /**
  * The eight event types a subscription may name.
@@ -132,7 +132,7 @@ export class WebhooksClient extends ResourceClient<WebhookSubscription> {
 
   /** Activate or deactivate. */
   update(id: string, input: UpdateWebhookInput): Promise<WebhookSubscription> {
-    return this.transport.request<WebhookSubscription>('PATCH', this.itemPath(id), { body: input });
+    return this.transport.request<WebhookSubscription>('PATCH', resourceItemPath(this.collectionPath, id), { body: input });
   }
 
   /**
@@ -140,7 +140,7 @@ export class WebhooksClient extends ResourceClient<WebhookSubscription> {
    * resolvable `subscription_id` after a subscriber walks away.
    */
   delete(id: string): Promise<WebhookSubscription> {
-    return this.transport.request<WebhookSubscription>('DELETE', this.itemPath(id));
+    return this.transport.request<WebhookSubscription>('DELETE', resourceItemPath(this.collectionPath, id));
   }
 
   /**
@@ -151,7 +151,7 @@ export class WebhooksClient extends ResourceClient<WebhookSubscription> {
   rotate(id: string): Promise<WebhookSubscriptionWithSecret> {
     return this.transport.request<WebhookSubscriptionWithSecret>(
       'POST',
-      `${this.itemPath(id)}/rotate`,
+      `${resourceItemPath(this.collectionPath, id)}/rotate`,
     );
   }
 }

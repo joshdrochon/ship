@@ -17,7 +17,7 @@
  */
 import type { Transport } from '../transport.js';
 import type { BelongsToRef } from './documents.js';
-import { ResourceClient } from './base.js';
+import { ResourceClient, resourceItemPath } from './base.js';
 
 export const ISSUE_STATES = [
   'triage',
@@ -108,6 +108,6 @@ export class IssuesClient extends ResourceClient<ShipIssue> {
   }
 
   update(id: string, input: UpdateIssueInput): Promise<ShipIssue> {
-    return this.transport.request<ShipIssue>('PATCH', this.itemPath(id), { body: input });
+    return this.transport.request<ShipIssue>('PATCH', resourceItemPath(this.collectionPath, id), { body: input });
   }
 }

@@ -321,6 +321,20 @@ jobs:
       # broken import rather than a missing build.
       - run: pnpm --filter @ship/sdk build
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
+      # L18 PF-532 — TESTING SCENARIO 5's second half, as its own BLOCKING step.
+      #
+      # p.4 requires spec↔SDK drift to fail CI; p.6 sets spec parity at 100%.
+      # The full api suite below already runs this file, so this step adds no
+      # coverage — it adds a NAME. A parity break inside a 1900-test run is one
+      # red line in a wall of output attributed to "api tests"; here it is a
+      # step called "spec ↔ SDK parity" that failed, which is the difference
+      # between a five-minute diagnosis and a fifty-minute one.
+      #
+      # It is also the step that cannot be lost to a `--filter` change: the
+      # walk's own §1 refuses to run against zero operations or an empty
+      # binding table, so this step cannot go green by checking nothing.
+      - name: Testing Scenario 5 — spec ↔ SDK surface parity (PF-528..532)
+        run: pnpm --filter @ship/api exec vitest run src/platform/openapi/sdkSurfaceParity.test.ts
       # Both suites. `pnpm test` alone is api-only and would leave 151 web tests
       # unexecuted, which does not satisfy Rule 2.
       - run: pnpm --filter @ship/api exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml

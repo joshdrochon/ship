@@ -20,7 +20,7 @@
  * search index.
  */
 import type { Transport } from '../transport.js';
-import { ResourceClient } from './base.js';
+import { ResourceClient, resourceItemPath } from './base.js';
 
 /** The three statuses a sprint transitions between. */
 export const SPRINT_STATUSES = ['planning', 'active', 'completed'] as const;
@@ -93,6 +93,6 @@ export class SprintsClient extends ResourceClient<ShipSprint> {
   }
 
   update(id: string, input: UpdateSprintInput): Promise<ShipSprint> {
-    return this.transport.request<ShipSprint>('PATCH', this.itemPath(id), { body: input });
+    return this.transport.request<ShipSprint>('PATCH', resourceItemPath(this.collectionPath, id), { body: input });
   }
 }
