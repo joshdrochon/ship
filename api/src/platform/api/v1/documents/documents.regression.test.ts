@@ -60,9 +60,13 @@ describe('PF-265 · documents is the only resource mounted', () => {
       'GET /api/v1/issues/:id',
       'GET /api/v1/me',
       'GET /api/v1/openapi.json',
+      'GET /api/v1/sprints',
+      'GET /api/v1/sprints/:id',
       'PATCH /api/v1/issues/:id',
+      'PATCH /api/v1/sprints/:id',
       'POST /api/v1/documents',
       'POST /api/v1/issues',
+      'POST /api/v1/sprints',
     ]);
   });
 
@@ -88,15 +92,29 @@ describe('PF-265 · documents is the only resource mounted', () => {
     expect(paths).toContain('/api/v1/issues/:id');
   });
 
-  it('/sprints is still absent — L10 slice S3 has not landed', () => {
-    // The half of the old assertion that is still TRUE, kept as its own case so
-    // it goes on failing until those routes ship rather than being flipped
-    // wholesale alongside `/issues`.
+  it('/sprints IS mounted now — L10 slice S3 landed it (PF-284–289, PF-291)', () => {
+    // The LAST half of the original latch, and with it the assertion PF-265 was
+    // written to hold has done its whole job: every route that entered
+    // `/api/v1` since L09 had to come to this file and be named.
+    //
+    // `/sprints` is the one that could not be a copy of the other two. There is
+    // no internal "list sprints" route to extract — the internal one returns
+    // only the CURRENT sprint — so this is new work, and its cursor is the one
+    // that had to abandon the internal ordering entirely (PF-288).
     const paths = enumerateV1Routes(app).map((r) => r.path);
-    expect(
-      paths.filter((p) => p.startsWith('/api/v1/sprints')),
-      '/api/v1/sprints is mounted',
-    ).toEqual([]);
+    expect(paths).toContain('/api/v1/sprints');
+    expect(paths).toContain('/api/v1/sprints/:id');
+  });
+
+  it('the public surface is now the four resources p.3’s scope registry names', () => {
+    // documents, issues, sprints — plus `me`, which declares `scope: null`
+    // because none of the seven registered scopes names the authenticated
+    // identity (PF-271). `webhooks` is L15's and is not this lane's to mount.
+    const paths = new Set(enumerateV1Routes(app).map((r) => r.path));
+    for (const resource of ['/api/v1/documents', '/api/v1/issues', '/api/v1/sprints']) {
+      expect(paths.has(resource), `${resource} is not mounted`).toBe(true);
+    }
+    expect(paths.has('/api/v1/me')).toBe(true);
   });
 
   it('every mounted route carries a complete metadata record', () => {

@@ -52,6 +52,7 @@ import { assertEveryRouteDeclaresScope } from './platform/api/v1/declareV1Route.
 import { enumerateV1Routes } from './platform/api/v1/routeFitness.js';
 import { documentsResources } from './platform/api/v1/documents/routes.js';
 import { issuesResources } from './platform/api/v1/issues/routes.js';
+import { sprintsResources } from './platform/api/v1/sprints/routes.js';
 import { meResources } from './platform/api/v1/me/routes.js';
 import { mountAllResources } from './platform/api/v1/mountResources.js';
 import { generatePublicOpenAPIDocumentOrDie } from './platform/openapi/registry.js';
@@ -371,6 +372,7 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     mountResources: mountAllResources([
       documentsResources({ db: deps.db, bus: deps.bus }),
       issuesResources({ db: deps.db, bus: deps.bus }),
+      sprintsResources({ db: deps.db, bus: deps.bus }),
       meResources({ db: deps.db, appsRepo }),
     ]),
   }));
