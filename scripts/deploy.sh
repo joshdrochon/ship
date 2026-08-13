@@ -262,7 +262,7 @@ zip -r "$BUNDLE" \
   sdk/package.json \
   integrations/cli/package.json \
   -x "*.git*" "*/node_modules/*" "*/dist/*" "*/.turbo/*" "*/coverage/*" \
-     "*/test-results/*" "*/playwright-report/*" "*.log"
+     "*/test-results/*" "*/playwright-report/*" "*.log" "*.tsbuildinfo"
 
 # Add .ebextensions and .platform at root level (EB expects them at root, not under api/)
 if [ -d "api/.ebextensions" ]; then
