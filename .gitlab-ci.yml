@@ -179,6 +179,27 @@ doc-links:
     - scripts/check-doc-links.sh
   allow_failure: false
 
+# L01 PF-028 — the ticket boards are a graded artifact, so a malformed one fails a PR.
+#
+# PRD p.12 grades the PR description against the acceptance criterion each slice
+# advances, and every criterion lives on a lane board. A board that does not parse
+# is a board nobody can check a PR against. This ran by hand for weeks and drifted:
+# one row carried an unescaped pipe, split into seven columns, and the validator had
+# been reporting that error to nobody.
+#
+# It also reports traceability — which MVP gate items, Testing Scenarios, Core
+# Technical Requirement rows, performance targets and submission deliverables have
+# no ticket claiming them (PF-027). Coverage gaps are printed, not failed: lanes land
+# in waves and an unclaimed row mid-build is expected. Structural errors fail.
+#
+# `needs: []` and no build — it is Python over markdown.
+ticket-boards:
+  stage: verify
+  needs: []
+  script:
+    - python3 scripts/check-plugforge-tickets.py
+  allow_failure: false
+
 # L13 PF-369 / PF-377 — the committed public spec cannot go stale, and drift FAILS.
 #
 # `docs/openapi.json` is a Submission Requirement (p.13) and is what a grader reads

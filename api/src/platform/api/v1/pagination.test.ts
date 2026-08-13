@@ -377,6 +377,44 @@ describe('PF-219/PF-220/PF-221 — the walk, against Postgres', () => {
 });
 
 describe('PF-222 — the keyset index contract', () => {
+  // PF-030 — this block asserts a QUERY PLAN, and a query plan is only meaningful
+  // against statistics. `setup.ts` TRUNCATEs at every file boundary and the block
+  // above deletes its own rows in `afterAll`, so without this the EXPLAIN below
+  // ran against an EMPTY table: `ANALYZE` then tells the planner `rows=0`, every
+  // candidate index costs the same rounding error, and which one wins is
+  // arbitrary. Three overlapping indexes exist on `documents` — `idx_documents_
+  // keyset` (063, timestamp-first), `idx_documents_workspace_keyset` (060,
+  // tenant-first) and, until migration 068, a third that duplicated 060's column
+  // list. On an empty table the planner picked among them by coin-flip; a
+  // tenant-first index chosen for a query with no tenant predicate has to Sort,
+  // and that is the failure this test kept reporting.
+  //
+  // It read as flake (F44) for exactly as long as the coin came up differently
+  // between runs, and turned into a hard failure the moment a third candidate
+  // shifted the odds. Both symptoms have one cause and it was never the schema.
+  //
+  // Fifty rows is enough — measured: at 50, 100, 300 and 1000 rows the plan is a
+  // clean `Index Only Scan using idx_documents_keyset` with no Sort node, and
+  // zero rows is the only input that fails. The margin here is for the planner's
+  // benefit, not the assertion's.
+  beforeAll(async () => {
+    await pool.query(
+      `INSERT INTO workspaces (id, name) VALUES ($1, 'PF-222 plan stats')
+       ON CONFLICT (id) DO NOTHING`,
+      [WORKSPACE],
+    );
+    await pool.query(
+      `INSERT INTO users (id, email, name) VALUES ($1, 'pf222@example.test', 'PF-222')
+       ON CONFLICT (id) DO NOTHING`,
+      [USER],
+    );
+    await seedDocuments(200);
+  });
+
+  afterAll(async () => {
+    await pool.query('DELETE FROM documents WHERE workspace_id = $1', [WORKSPACE]);
+  });
+
   it('the generated page query plans no Seq Scan and no Sort', async () => {
     const problems: string[] = [];
     for (const table of KEYSET_INDEXED_TABLES) {

@@ -22,6 +22,100 @@ PRD = REPO / ".claude" / "prd"
 REQUIRED_SECTIONS = ["## Tickets", "## Slices", "## Notes for the audit agent"]
 DASH = "[–—-]"  # en dash, em dash, hyphen
 
+# PF-027 — the requirement inventories, transcribed from the PRD page files.
+#
+# Before this existed the coverage report checked MVP and TS and nothing else,
+# so the other four families were stamped on 290 tickets and never counted. Six
+# Core Technical Requirement rows turned out to have zero tickets claiming them
+# — every one of them BUILT and merged, just untraceable from the board, which
+# is precisely the state a grader reading the board would call a miss.
+#
+# Each entry is (canonical label, page). The label is a distinctive substring of
+# the PRD's own row heading and must be greppable in that page file — the spine's
+# citation rule, applied to the checker itself. `verify_inventory_pages()` proves
+# it on every run, so a transcription slip fails here rather than becoming a
+# confident wrong citation on 26 boards.
+#
+# Matching is loose on purpose: a claim counts if the ticket's tag contains the
+# canonical label once both sides are lowercased and their whitespace collapsed.
+# The boards already carry `PERF:webhook delivery P95 < 2 s` and `… < 2s`, and
+# an inventory that treats those as two different requirements is worse than no
+# inventory at all.
+REQUIREMENTS: dict[str, list[tuple[str, int]]] = {
+    "CTR": [
+        ("OAuth App Model", 2), ("Authorization Code +", 2),
+        ("Device Authorization", 3), ("Scope Registry", 3),
+        ("Token Middleware", 3), ("Refresh Tokens", 3),
+        ("Public API Boundary", 3), ("Consistent Error Shape", 3),
+        ("Cursor Pagination", 3), ("OpenAPI 3.1 Spec", 3),
+        ("Event Registry", 3), ("Event Bus", 3),
+        ("Webhook Subscriptions", 3), ("HMAC-SHA256 Signing", 3),
+        ("Retry Schedule", 4), ("Dead-Letter Queue", 4),
+        ("Delivery Log", 4), ("Replay", 4),
+        ("Typed SDK Surface", 4), ("OAuth Helpers", 4),
+        ("Async-Iterator Pagination", 4), ("Webhook Verifier", 4),
+        ("Typed Error Union", 4), ("Rate Limit Enforcement", 4),
+        ("Public Audit Trail", 4), ("Developer Portal", 4),
+        ("IaC deployment topology", 5), ("IAM least-privilege exercise", 5),
+        ("Drift detection", 5), ("Architecture Defense", 5),
+    ],
+    # p.8's seven-option menu. The PRD requires five; the board may legitimately
+    # mark the other two cut, so this family reports rather than demands.
+    "INT": [
+        ("CLI", 8), ("Slack", 8), ("Browser SDK demo", 8),
+        ("GitHub integration", 8), ("Refresh-token rotation drill", 8),
+        ("Idempotency-Key", 8), ("plugin runtime", 8),
+    ],
+    # The PERF rows carry aliases because the boards tag them with the measured
+    # number rather than the PRD's row heading — `PERF:webhook delivery P95 < 2 s`
+    # for p.6's "Webhook delivery latency (P95, first attempt)". That is the more
+    # useful tag to read on a ticket, so the inventory bends to it rather than
+    # forcing 40 tickets to be retagged into prose nobody wants.
+    "PERF": [
+        ("Time-to-First-Event", 6, ["ttfe on a clean machine", "ttfe drill"]),
+        ("round-trip", 6),
+        ("spec parity", 6),
+        ("delivery latency", 6, ["webhook delivery p95"]),
+        ("retry success rate", 6, ["retry success"]),
+        ("rate-limit headers", 6),
+        ("regression vs Part 1 baseline", 6),
+        ("drill runtime in CI", 8),
+        ("clean machine", 8),
+        ("signature verification", 8),
+        ("flake rate", 9),
+        ("install size", 9),
+    ],
+    "SUB": [
+        ("GitHub Repository", 12), ("Demo Video", 12),
+        ("Pre-Search Document", 13), ("Architecture Document", 13),
+        ("OpenAPI Spec", 13), ("AI Cost Analysis", 13),
+        ("Per-Epic Write-up", 13), ("Three Discoveries", 13),
+        ("Deployed Application", 13), ("Social Post", 13),
+    ],
+}
+
+
+def norm(s: str) -> str:
+    """Lowercase, collapse whitespace, drop markdown/punctuation noise."""
+    return re.sub(r"\s+", " ", s.lower().replace("`", "").replace("*", "")).strip()
+
+
+def verify_inventory_pages() -> None:
+    """Every inventory label must be greppable in the page it cites.
+
+    The spine forbids deriving page numbers from `full.txt`, which reflows. This
+    holds the checker to its own rule: a label that has drifted from the PRD's
+    wording, or that cites the wrong page, fails here instead of silently
+    reporting a requirement as unclaimed forever because nothing can match it.
+    """
+    for family, rows in REQUIREMENTS.items():
+        for label, page, *_aliases in rows:
+            f = PRD / f"page-{page}.txt"
+            if not f.exists():
+                continue  # PRD not vendored in this checkout; pages check elsewhere
+            if norm(label) not in norm(f.read_text()):
+                err(f"inventory {family}:{label} is not present in page-{page}.txt")
+
 errors: list[str] = []
 warnings: list[str] = []
 
@@ -110,6 +204,7 @@ def main() -> int:
     all_ids: set[str] = set()
     per_lane: dict[str, int] = {}
     advances_by_lane: dict[str, set[str]] = {}
+    tagged_by_family: dict[str, set[str]] = {}
 
     parsed = []
     for f in files:
@@ -138,6 +233,13 @@ def main() -> int:
         advances_by_lane.setdefault(lane, set()).update(
             c for _, _, _, _, adv in rows for c in re.findall(r"(?:MVP-(?:\d+|TF)|TS-\d+)", adv)
         )
+
+        # PF-027 — the other four families are free text after the prefix, so the
+        # whole tag is kept and matched by substring later. Splitting on `,` here
+        # would cut `CTR:Drift detection & destroy-redeploy` in half.
+        for _, _, _, _, adv in rows:
+            for family, tag in re.findall(r"\b(CTR|INT|PERF|SUB):([^|]+)", adv):
+                tagged_by_family.setdefault(family, set()).add(norm(tag))
 
         for tid, prd_col, deps_col, ln, _adv in rows:
             n = int(tid.split("-")[1])
@@ -189,6 +291,25 @@ def main() -> int:
             print(f"  unclaimed MVP: {', '.join(missing_mvp)}")
         if missing_ts:
             print(f"  unclaimed TS : {', '.join(missing_ts)}")
+
+    # PF-027 — the other four families, same report-don't-fail posture.
+    #
+    # "Unclaimed" here means untraceable from the board, NOT unbuilt. Five of the
+    # six CTR rows this first caught were shipped and merged; what was missing was
+    # the tag. That distinction matters when reading the output: this tells you
+    # what a grader could not follow, not what is undone.
+    verify_inventory_pages()
+    for family in ("CTR", "INT", "PERF", "SUB"):
+        inventory = REQUIREMENTS[family]
+        tags = tagged_by_family.get(family, set())
+        unclaimed = []
+        for label, page, *rest in inventory:
+            terms = [norm(label)] + [norm(a) for a in (rest[0] if rest else [])]
+            if not any(term in tag for term in terms for tag in tags):
+                unclaimed.append(f"{label} (p.{page})")
+        print(f"coverage   : {family} {len(inventory) - len(unclaimed)}/{len(inventory)}")
+        if unclaimed:
+            print(f"  unclaimed {family:<4}: {'; '.join(unclaimed)}")
 
     if warnings:
         print(f"\n{len(warnings)} warning(s):")
