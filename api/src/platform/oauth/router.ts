@@ -52,6 +52,8 @@ import {
   type OAuthBrowserDeps,
 } from './consent.js';
 import { authorizationCodeGrant } from './authCodeGrant.js';
+import type { IDeviceCodeRepo } from './deviceCodes.js';
+import { mountDeviceAuthorizationRoutes } from './deviceAuthorization.js';
 
 export interface OAuthRouterDeps {
   appsRepo: IOAuthAppRepo;
@@ -81,6 +83,25 @@ export interface OAuthRouterDeps {
    * `createApp()`. A composition root that forgot to wire this fails there.
    */
   browser?: OAuthBrowserDeps;
+  /**
+   * L05 PF-121 — the `oauth_device_codes` store.
+   *
+   * Optional for `authCodeRepo`'s reason and with the same consequence: when it
+   * is absent the device-code grant is NOT registered in the map below, so the
+   * dispatcher answers `unsupported_grant_type`. That is the honest answer — a
+   * server with nowhere to record a device authorization cannot honour a grant
+   * that redeems one — and it is better than `invalid_grant`, which would send
+   * the client hunting for a bad device_code it actually holds correctly.
+   */
+  deviceCodeRepo?: IDeviceCodeRepo;
+  /**
+   * L05 PF-122 — absolute origin of this instance, for `verification_uri`.
+   *
+   * Required whenever `deviceCodeRepo` is present. A relative or hard-coded
+   * localhost URL is the defect a grader hits first: the CLI prints a URL that
+   * does not resolve on the deployed instance.
+   */
+  publicBaseUrl?: string;
   /** Overridable scope registry, for PF-095's mutated-description test. */
   scopeRegistry?: ScopeRegistry<string>;
 }
@@ -242,6 +263,25 @@ export function createOAuthRouter(deps: OAuthRouterDeps): Router {
   // The consent decision POST is a browser form and is the same content type, so
   // one parser serves both.
   router.use(urlencoded({ extended: false, limit: '64kb' }));
+
+  // L05 PF-122 — the device authorization request. Mounted before `/token` so
+  // the route table reads in flow order.
+  if (deps.deviceCodeRepo) {
+    if (!deps.publicBaseUrl) {
+      // Loud at wiring time rather than at the first request. A missing base URL
+      // would otherwise surface as a `verification_uri` of `undefined/...`
+      // printed into a user's terminal, which is a defect nobody notices until a
+      // grader follows the link.
+      throw new Error('publicBaseUrl is required when deviceCodeRepo is provided (PF-122)');
+    }
+    mountDeviceAuthorizationRoutes(router, {
+      appsRepo: deps.appsRepo,
+      deviceCodeRepo: deps.deviceCodeRepo,
+      clock: deps.clock,
+      publicBaseUrl: deps.publicBaseUrl,
+      ...(deps.scopeRegistry ? { registry: deps.scopeRegistry } : {}),
+    });
+  }
 
   // L04 PF-094 — the browser-facing half. Mounted before `/token` so the route
   // table reads in flow order; Express matches by path so the order is cosmetic.

@@ -44,7 +44,8 @@ the file yet.
 | 065–066 | **L04** | `oauth_authorization_codes` — the auth-code row and its PKCE challenge (PF-086) |
 | 067 | **L08/L09 follow-up** | tenant-first documents keyset index (taken) |
 | 068–070 | **L10** | per-`document_type` keyset indexes for the public `issues` and `sprints` lists (F18, PF-281/PF-288) |
-| 071–073 | — | unallocated; ask before taking |
+| 071–072 | **L05** | `oauth_device_codes` — the RFC 8628 device authorization row (PF-121) |
+| 073 | — | unallocated; ask before taking |
 
 **L12 took 057 and 058** (2026-08-12), from its own allocated block.
 
@@ -154,6 +155,24 @@ the same soft-delete predicate, so the incremental value of these two is the
 `document_type` selectivity and nothing else. Write them in the same commit as the
 routes, and extend the contract by teaching `assertKeysetIndexed` a partial-index /
 `document_type` variant rather than by naming tables that do not exist.
+
+**L05 had no block and took 071–072 under Rule 3** (2026-08-13). Same situation as L04
+and L08: the table allocated every lane known to write DDL, and L05's
+`oauth_device_codes` (PF-121) was not among them — the lane was scoped as "three
+endpoints and a polling loop" before it was clear the device authorization had to be a
+persisted row rather than a process-local map. Two numbers: `071_oauth_device_codes.sql`
+today, and one spare if PF-132's guess throttle needs its own table rather than the
+per-process counter it ships with.
+
+Apply order matters and it holds without coordination: the new table's FK targets are
+`oauth_apps` (039, L02), `users` and `workspaces` (schema.sql), all numerically earlier.
+It does **not** depend on L06's 043 or L04's 065.
+
+The same "a Map in module scope would fail on two instances" argument 065 gives applies
+here and more strongly: the device grant's whole shape is that the code is issued to one
+process, approved through a browser hitting possibly another, and polled by a third. It
+is the one flow in this build where a process-local store is guaranteed to break rather
+than merely likely to.
 
 ## Rules
 
