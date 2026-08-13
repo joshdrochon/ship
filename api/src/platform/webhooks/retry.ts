@@ -218,9 +218,31 @@ export class RetryScheduler {
    * bus handler runs on the request path (PF-441) and a subscriber's latency must
    * never be inside `POST /api/v1/documents`'s P95.
    */
-  enqueue(job: DeliveryJob, replay?: ReplayContext): void {
+  enqueue(job: DeliveryJob, replay?: ReplayContext): string {
     const groupId = this.newGroupId();
     this.track(this.runAttempt(job, groupId, 1, job.request, replay));
+    // The group id is returned SYNCHRONOUSLY — minted before any async work —
+    // so a caller that needs to correlate (the replay route, the boot re-drive)
+    // can do so without awaiting the wire, which PF-441 forbids.
+    return groupId;
+  }
+
+  /**
+   * Continue a ladder whose CURRENT attempt row already exists.
+   *
+   * Two callers, both of which need the row to exist before the HTTP call for
+   * different reasons. The replay route (PF-476) has to RETURN the new delivery
+   * record, and a record the scheduler creates asynchronously is not one a 200
+   * can carry. The boot re-drive (PF-484) is resuming a row a crash left
+   * `in_flight`, so creating a second one would violate PF-462's constraint and
+   * corrupt every count derived from the log.
+   *
+   * Fire-and-forget, like `enqueue`: the wire is never on the request path.
+   */
+  driveExisting(job: DeliveryJob, row: DeliveryRecord, replay?: ReplayContext): void {
+    this.track(
+      this.deliverForRow(job, row.delivery_group_id, row.attempt_number, job.request, replay, row),
+    );
   }
 
   /**
@@ -328,6 +350,24 @@ export class RetryScheduler {
       attempted_at: attemptedAt,
     });
 
+    await this.deliverForRow(job, groupId, attemptNumber, request, replay, row);
+  }
+
+  /**
+   * The half of an attempt that happens AFTER its row exists: deliver,
+   * classify, close the row, and either schedule the next rung or stop.
+   *
+   * Split out of `runAttempt` so `driveExisting` can enter here — see that
+   * method for the two callers that need the row created first.
+   */
+  private async deliverForRow(
+    job: DeliveryJob,
+    groupId: string,
+    attemptNumber: number,
+    request: DeliveryRequest,
+    replay: ReplayContext | undefined,
+    row: DeliveryRecord,
+  ): Promise<void> {
     const result = await this.deps.deliverer.deliver(request);
     this.deps.breaker?.record(job.subscriptionId, result.ok);
 

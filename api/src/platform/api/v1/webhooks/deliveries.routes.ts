@@ -31,6 +31,12 @@ import { sliceToPage } from '../pagination.js';
 import { declareV1Route } from '../declareV1Route.js';
 import { getPlatformAuth } from '../../../scopes/require-scope.js';
 import {
+  DeliveryNotFoundError,
+  DeliveryNotTerminalError,
+  SubscriptionGoneError,
+  type ReplayService,
+} from '../../../webhooks/replay.js';
+import {
   DELIVERY_STATUSES,
   type DeliveryRecord,
   type DeliveryStatus,
@@ -50,6 +56,16 @@ import {
 
 export interface DeliveriesRouteDeps {
   log: IDeliveryLog;
+  /**
+   * PF-476. Optional so a test that only exercises the reads need not build a
+   * scheduler, a signer and a subscription repository to do it — and so the
+   * route stays mountable before the composition root wires replay.
+   *
+   * When absent the endpoint answers `server_error` naming the missing wiring
+   * rather than 404ing, because a replay button that silently does not exist is
+   * the failure Testing Scenario 8 is least able to see.
+   */
+  replay?: Pick<ReplayService, 'replay'>;
 }
 
 /**
@@ -80,6 +96,26 @@ const listGuard = declareV1Route({
     'report whether the subscriber deduped, which needs the subscriber\'s own signal.',
 });
 
+const replayGuard = declareV1Route({
+  method: 'post',
+  // The exact path p.4 names: "/api/v1/webhooks/deliveries/:id/replay".
+  path: '/webhooks/deliveries/:id/replay',
+  scope: WEBHOOKS_SCOPE,
+  list: false,
+  response: deliveryListItemSchema,
+  status: 201,
+  summary: 'Replay a logged delivery, carrying the ORIGINAL idempotency key.',
+  description:
+    'Re-emits the exact bytes that were signed for the original delivery — not a ' +
+    'freshly derived payload, so a replay after the underlying document changed still ' +
+    'delivers what the event said. The signature is recomputed with a fresh timestamp ' +
+    'and the subscription\'s current secret, so the replay verifies rather than reading ' +
+    'as expired. The new delivery enters the same retry ladder: a replay against a ' +
+    'still-broken subscriber retries and re-dead-letters. The original record is left ' +
+    'untouched. Replaying twice is safe by construction — both carry one key, which is ' +
+    'the subscriber dedupe contract working.',
+});
+
 const getGuard = declareV1Route({
   method: 'get',
   path: '/webhooks/deliveries/:id',
@@ -92,6 +128,7 @@ const getGuard = declareV1Route({
 /** Every declared method, as data — the fitness test iterates this, not a copy. */
 export const DELIVERY_ROUTES = [
   { method: 'get', path: '/webhooks/deliveries' },
+  { method: 'post', path: '/webhooks/deliveries/:id/replay' },
   { method: 'get', path: '/webhooks/deliveries/:id' },
 ] as const;
 
@@ -251,6 +288,48 @@ export function mountDeliveries(router: Router, deps: DeliveriesRouteDeps): void
         // Present and NULL on the last page, never absent (PF-224).
         next_cursor: sliced.next_cursor,
       });
+    }),
+  );
+
+  // ── POST /api/v1/webhooks/deliveries/:id/replay ──────────────────────────
+  //
+  // The exact path p.4 names. Mounted before the single-delivery GET purely for
+  // readability — Express would not confuse them, because `/deliveries/:id` has
+  // one path segment after `deliveries` and this has two.
+  router.post(
+    '/webhooks/deliveries/:id/replay',
+    replayGuard,
+    handler(async (req, res) => {
+      const appId = callerAppId(res);
+      const id = deliveryId(req);
+
+      if (!deps.replay) {
+        throw new ApiError(
+          'server_error',
+          'Replay is not wired on this instance. The route is mounted but no ' +
+            'ReplayService was supplied to the composition root.',
+        );
+      }
+
+      let record;
+      try {
+        record = await deps.replay.replay(appId, id);
+      } catch (err) {
+        // PF-478 — an id belonging to another app is `not_found`, byte-identical
+        // to a nonexistent one. The scope check already ran, so a caller without
+        // `webhooks:manage` got 403 for its OWN deliveries.
+        if (err instanceof DeliveryNotFoundError) throw notFound();
+        if (err instanceof DeliveryNotTerminalError) {
+          throw validationFailed([{ field: 'id', message: err.message }]);
+        }
+        if (err instanceof SubscriptionGoneError) {
+          throw validationFailed([{ field: 'id', message: err.message }]);
+        }
+        throw err;
+      }
+
+      const usage = await log.keyUsage(appId, record.idempotency_key);
+      res.status(201).location(`/api/v1/webhooks/deliveries/${record.id}`).json(toBody(record, usage));
     }),
   );
 

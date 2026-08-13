@@ -21,6 +21,7 @@
  * directory (which `api/tsconfig.json` excludes) would mean the shape of the
  * production and test wiring could drift without tsc noticing.
  */
+import { randomUUID } from 'node:crypto';
 import type { Request, Response, NextFunction } from 'express';
 import { pool, type Database } from './db/client.js';
 import {
@@ -41,6 +42,11 @@ import {
   PgWebhookSubscriptionRepo,
   InMemoryWebhookSubscriptionRepo,
   PgDeliveryLog,
+  InMemoryDeliveryLog,
+  RetryScheduler,
+  ReplayService,
+  HttpDeliverer,
+  SignatureSigner,
   AesGcmSecretCipher,
   envSecretCipher,
   ImmediateDeliveryQueue,
@@ -227,6 +233,20 @@ export interface AppDeps {
    * untestable outside HTTP.
    */
   deliveryLog: IDeliveryLog;
+  /**
+   * L16 PF-476 — the replay service behind
+   * `POST /api/v1/webhooks/deliveries/:id/replay`.
+   *
+   * On `AppDeps` rather than constructed in `createApp` because it needs the
+   * SAME `RetryScheduler` instance that `deliveryQueue` is: a replay enters the
+   * same ladder as an original delivery, and two scheduler instances would mean
+   * two sets of pending timers and a `stop()` that drains only half of them.
+   * This file is the only one allowed to know they are one object.
+   *
+   * Optional so a test wiring that never replays need not build a signer and a
+   * scheduler to mount the routes.
+   */
+  replay?: Pick<ReplayService, 'replay'>;
   /**
    * L04 PF-094 / PF-098 — resolves the browser's `session_id` cookie to the
    * human sitting at the consent screen, or `null` for an anonymous visitor.
@@ -451,12 +471,10 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
   return {
     bus: new InProcessEventBus(),
 
-    // TODO(L16): replace with the HTTP deliverer. `InMemoryDeliverer` is a test
-    // double and does not belong in a production factory — it is here only
-    // because L16 owns the concrete and nothing in `createApp` subscribes the
-    // webhook pipeline yet, so today this object is constructed and never
-    // called. Do not read this as "webhooks are in-memory in production".
-    deliverer: new InMemoryDeliverer(),
+    // L16 — the HTTP courier. This used to be `new InMemoryDeliverer()` with a
+    // TODO saying a test double does not belong in a production factory; the
+    // real one now exists (PF-466) and this is it.
+    deliverer: new HttpDeliverer({ clock }),
 
     // PF-304 / PF-309 — three separately-configured buckets, all reading the
     // one hoisted clock.
@@ -508,9 +526,36 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
     // the same rule as the four repositories above.
     deliveryLog: new PgDeliveryLog(pool),
 
-    // L15 PF-441 — the first-attempt queue. See `deliveryQueue` above; L16
-    // swaps this for the real one and nothing outside this file moves.
-    deliveryQueue: new ImmediateDeliveryQueue(overrides.deliverer ?? new InMemoryDeliverer()),
+    // L16 PF-456 — **the real queue-backed deliverer**, replacing L15's
+    // first-attempt-only `ImmediateDeliveryQueue`. This is the swap L15's seam
+    // was built for, and it is an edit to THIS FILE and nothing else: the
+    // pipeline still calls `queue.enqueue(job)` and knows nothing about ladders,
+    // logs or dead letters.
+    //
+    // `ImmediateDeliveryQueue` is deliberately still exported and still tested —
+    // it is the Liskov sibling that makes "swapping a concrete is a
+    // composition-root edit" a checkable claim rather than a slogan.
+    ...(() => {
+      const scheduler = new RetryScheduler({
+        clock,
+        // The HTTP courier, not the in-memory double. `InMemoryDeliverer` in a
+        // production factory was a TODO(L16) and this is L16 closing it.
+        deliverer: overrides.deliverer ?? new HttpDeliverer({ clock }),
+        log: overrides.deliveryLog ?? new PgDeliveryLog(pool),
+      });
+      return {
+        deliveryQueue: scheduler,
+        replay: new ReplayService({
+          log: overrides.deliveryLog ?? new PgDeliveryLog(pool),
+          repo: overrides.subsRepo ?? new PgWebhookSubscriptionRepo(pool, envSecretCipher()),
+          signer: new SignatureSigner(clock),
+          // The SAME instance. See `replay` on `AppDeps`.
+          scheduler,
+          clock,
+          newGroupId: () => randomUUID(),
+        }),
+      };
+    })(),
 
     // L04 PF-098. Two queries on a page that renders once per authorization:
     // the shared session validator (which owns the timeout rules and the

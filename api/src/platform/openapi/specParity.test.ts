@@ -247,6 +247,10 @@ describe('PF-373/375 — the real app: every mounted route is documented and vic
       'POST /issues',
       'POST /sprints',
       'POST /webhooks',
+      // ADDED BY L16 (PF-476), by the same rule: landing a public route means
+      // coming here and naming it. It sorts BEFORE `/webhooks/{id}/rotate`
+      // because 'd' precedes '{' — lexical order, not mount order.
+      'POST /webhooks/deliveries/{id}/replay',
       'POST /webhooks/{id}/rotate',
     ]);
   });

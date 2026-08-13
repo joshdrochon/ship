@@ -90,6 +90,9 @@ describe('PF-265 · documents is the only resource mounted', () => {
       'POST /api/v1/sprints',
       'POST /api/v1/webhooks',
       'POST /api/v1/webhooks/:id/rotate',
+      // ADDED BY L16 (PF-476): the exact path p.4 names for replay. It is the
+      // operator's re-entry into the ladder and the thing the demo clicks.
+      'POST /api/v1/webhooks/deliveries/:id/replay',
     ]);
   });
 

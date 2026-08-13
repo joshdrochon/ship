@@ -456,7 +456,7 @@ flowchart LR
     Q -->|portal replay ◆| B
 ```
 
-★ **Signature is computed at send time, per attempt**, with the subscription's **current** secret (**encrypted** at rest, shown once on creation) — the timestamp in the signed payload is what defeats replay; the SDK verifier rejects signatures older than 300 s by default. ◆ **Idempotency-Key originates at the event's first delivery** (derived from `event_id`), and is carried unchanged through every retry and portal replay — that key is the subscriber's dedupe contract.
+★ **Signature is computed at send time, per attempt**, with the subscription's **current** secret (**encrypted** at rest, shown once on creation) — the timestamp in the signed payload is what defeats replay; the SDK verifier rejects signatures older than 300 s by default. ◆ **Idempotency-Key originates at the event's first delivery** (derived from `event_id` **and** `subscription_id` — one event legitimately produces N deliveries, and keying on the event alone would hand two unrelated apps that happen to share a target URL the same key, so a subscriber doing its job would dedupe one of them away). It is **persisted on the attempt-1 row and read back thereafter, never recomputed**, and is carried unchanged through every retry and portal replay — that key is the subscriber's dedupe contract, and the persistence is what makes it survive any future change to the derivation.
 
 ### The timestamp: what it defends, the window, and clock drift (L15 PF-447)
 

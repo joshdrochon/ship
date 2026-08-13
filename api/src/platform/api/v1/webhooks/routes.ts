@@ -53,6 +53,7 @@ import {
   type WebhookSubscription,
 } from '../../../webhooks/subscriptions.js';
 import type { IDeliveryLog } from '../../../webhooks/deliveryLog.js';
+import type { ReplayService } from '../../../webhooks/replay.js';
 import { mountDeliveries } from './deliveries.routes.js';
 import {
   WEBHOOKS_RESOURCE,
@@ -452,9 +453,14 @@ export function mountWebhooks(router: Router, deps: WebhooksRouteDeps): void {
 export function webhooksResources(deps: {
   repo: IWebhookSubscriptionRepo;
   log: IDeliveryLog;
+  /** L16 PF-476. Optional; see `DeliveriesRouteDeps.replay`. */
+  replay?: Pick<ReplayService, 'replay'>;
 }): (router: Router) => void {
   return (router: Router) => {
-    mountDeliveries(router, { log: deps.log });
+    mountDeliveries(router, {
+      log: deps.log,
+      ...(deps.replay ? { replay: deps.replay } : {}),
+    });
     mountWebhooks(router, { repo: deps.repo });
   };
 }

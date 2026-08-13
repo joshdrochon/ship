@@ -3044,6 +3044,210 @@
         }
       }
     },
+    "/webhooks/deliveries/{id}/replay": {
+      "post": {
+        "operationId": "postWebhooksDeliveriesByIdReplay",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Replay a logged delivery, carrying the ORIGINAL idempotency key.",
+        "description": "Re-emits the exact bytes that were signed for the original delivery — not a freshly derived payload, so a replay after the underlying document changed still delivers what the event said. The signature is recomputed with a fresh timestamp and the subscription's current secret, so the replay verifies rather than reading as expired. The new delivery enters the same retry ladder: a replay against a still-broken subscriber retries and re-dead-letters. The original record is left untouched. Replaying twice is safe by construction — both carry one key, which is the subscriber dedupe contract working.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Replay a logged delivery, carrying the ORIGINAL idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "delivery_group_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "subscription_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event_type": {
+                      "type": "string"
+                    },
+                    "attempt_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "in_flight",
+                        "delivered",
+                        "failed",
+                        "dead_lettered",
+                        "cancelled"
+                      ]
+                    },
+                    "response_status": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "response_excerpt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "latency_ms": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "idempotency_key": {
+                      "type": "string"
+                    },
+                    "dlq_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "max_attempts_exhausted",
+                        "permanent_status",
+                        "circuit_open"
+                      ]
+                    },
+                    "attempted_at": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "signature_header": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "replay_of_delivery_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "key_usage": {
+                      "type": "object",
+                      "properties": {
+                        "idempotency_key": {
+                          "type": "string"
+                        },
+                        "attempt_count": {
+                          "type": "integer"
+                        },
+                        "terminal_statuses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "in_flight",
+                              "delivered",
+                              "failed",
+                              "dead_lettered",
+                              "cancelled"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "idempotency_key",
+                        "attempt_count",
+                        "terminal_statuses"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "delivery_group_id",
+                    "subscription_id",
+                    "event_id",
+                    "event_type",
+                    "attempt_number",
+                    "status",
+                    "response_status",
+                    "response_excerpt",
+                    "latency_ms",
+                    "idempotency_key",
+                    "dlq_reason",
+                    "attempted_at",
+                    "created_at",
+                    "signature_header",
+                    "replay_of_delivery_id",
+                    "key_usage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/webhooks/deliveries/{id}": {
       "get": {
         "operationId": "getWebhooksDeliveriesById",

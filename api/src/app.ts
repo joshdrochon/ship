@@ -400,7 +400,15 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
       // repository, not `deps.db`: the repository is where the signing secret
       // is encrypted and decrypted, and handing the route layer a db handle
       // would make a second place that could read one.
-      webhooksResources({ repo: deps.subsRepo, log: deps.deliveryLog }),
+      webhooksResources({
+        repo: deps.subsRepo,
+        log: deps.deliveryLog,
+        // L16 PF-476. Constructed in `deps.ts`, not here: the replay service
+        // needs the SAME `RetryScheduler` instance that `deliveryQueue` is, and
+        // the composition root is the only file allowed to know that they are
+        // one object. `createApp` just passes it through.
+        ...(deps.replay ? { replay: deps.replay } : {}),
+      }),
     ]),
   }));
 

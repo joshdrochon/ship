@@ -25,6 +25,10 @@ import {
   type BeginAttemptInput,
   type CompleteAttemptInput,
 } from '../../../webhooks/deliveryLog.js';
+import {
+  DeliveryNotFoundError,
+  DeliveryNotTerminalError,
+} from '../../../webhooks/replay.js';
 import { webhooksResources, WEBHOOKS_SCOPE } from './routes.js';
 import { deliverySchema, keyUsageSchema, DELIVERIES_RESOURCE } from './deliveries.schema.js';
 import { pageSchema, assertLastPageShape } from '../page.js';
@@ -67,7 +71,27 @@ async function harness(): Promise<Harness> {
   const owners = new Map<string, string>();
   const log = new InMemoryDeliveryLog((subscriptionId) => owners.get(subscriptionId) ?? 'unknown');
 
-  const mount = (r: Router): void => webhooksResources({ repo, log })(r);
+  // A replay double rather than the real service: `dlqAndReplay.test.ts` and
+  // `testingScenario7and8.test.ts` already prove ReplayService end to end
+  // against Postgres. What is only observable HERE is the HTTP contract — which
+  // domain error becomes which status, and that the replay path is scope-gated
+  // and app-scoped like everything else.
+  const replay = {
+    replay: async (appId: string, deliveryId: string) => {
+      const record = await log.getById(appId, deliveryId);
+      if (!record) throw new DeliveryNotFoundError(deliveryId);
+      if (record.status === 'in_flight') throw new DeliveryNotTerminalError(record.status);
+      return log.beginAttempt(
+        attempt({
+          subscription_id: record.subscription_id,
+          event_id: record.event_id,
+          idempotency_key: record.idempotency_key,
+          replay_of_delivery_id: record.id,
+        }),
+      );
+    },
+  };
+  const mount = (r: Router): void => webhooksResources({ repo, log, replay })(r);
   const bearer = await createBearerTestApp({ mountResources: mount, workspaceId: 'ws-1' });
 
   const appsRepo = bearer.appsRepo as InMemoryOAuthAppRepo;
@@ -410,5 +434,101 @@ describe('PF-464 — the response body carries no event payload', () => {
     expect(serialised).not.toContain('raw_body');
     expect(serialised).not.toContain('app_id');
     expect(res.body.data[0]).toHaveProperty('signature_header');
+  });
+});
+
+describe('PF-476 — POST /webhooks/deliveries/:id/replay, the path p.4 names', () => {
+  it('201 with the NEW delivery record, carrying the original idempotency key', async () => {
+    const original = await record({}, { status: 'dead_lettered', response_status: 500, dlq_reason: 'max_attempts_exhausted' });
+    const before = await h.log.getById(h.appAId, original);
+
+    const res = await request(h.bearer.app)
+      .post(url(`/${original}/replay`))
+      .set('Authorization', `Bearer ${h.tokenA}`);
+
+    expect(res.status).toBe(201);
+    expect(res.headers.location).toBe(`/api/v1/webhooks/deliveries/${res.body.id}`);
+    expect(res.body.id).not.toBe(original);
+    expect(res.body.replay_of_delivery_id).toBe(original);
+    expect(res.body.idempotency_key).toBe(before!.idempotency_key);
+    expect(res.body.attempt_number).toBe(1);
+  });
+
+  it('the ORIGINAL record is left untouched — the DLQ keeps its history', async () => {
+    const original = await record({}, { status: 'dead_lettered', response_status: 500, dlq_reason: 'max_attempts_exhausted' });
+    await request(h.bearer.app)
+      .post(url(`/${original}/replay`))
+      .set('Authorization', `Bearer ${h.tokenA}`);
+
+    const after = await request(h.bearer.app)
+      .get(url(`/${original}`))
+      .set('Authorization', `Bearer ${h.tokenA}`);
+    expect(after.body.status).toBe('dead_lettered');
+    expect(after.body.dlq_reason).toBe('max_attempts_exhausted');
+  });
+
+  it('unknown id 404 · other app 404 · byte-identical · no scope 403', async () => {
+    const mine = await record({ subscription_id: SUB_A });
+
+    const missing = await request(h.bearer.app)
+      .post(url('/44444444-4444-4444-8444-444444444444/replay'))
+      .set('Authorization', `Bearer ${h.tokenA}`);
+    const foreign = await request(h.bearer.app)
+      .post(url(`/${mine}/replay`))
+      .set('Authorization', `Bearer ${h.tokenB}`);
+    const noScope = await request(h.bearer.app)
+      .post(url(`/${mine}/replay`))
+      .set('Authorization', `Bearer ${h.tokenNoScope}`);
+
+    expect(missing.status).toBe(404);
+    expect(foreign.status).toBe(404);
+    // The scope check runs FIRST, so a caller without `webhooks:manage` gets 403
+    // for its own delivery. 403 and 404 are not interchangeable here.
+    expect(noScope.status).toBe(403);
+    expect(JSON.stringify(noScope.body)).toContain(WEBHOOKS_SCOPE);
+
+    const { request_id: _a, ...foreignBody } = foreign.body;
+    const { request_id: _b, ...missingBody } = missing.body;
+    expect(foreignBody).toEqual(missingBody);
+  });
+
+  it('an in_flight delivery is validation_failed NAMING the status, not 404', async () => {
+    // "Not found" would be a lie — the row exists — and would send an operator
+    // looking for a deleted delivery instead of waiting for a live one.
+    const row = await h.log.beginAttempt(attempt());
+    const res = await request(h.bearer.app)
+      .post(url(`/${row.id}/replay`))
+      .set('Authorization', `Bearer ${h.tokenA}`);
+
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe('validation_failed');
+    expect(res.body.details.fields[0].message).toContain('in_flight');
+  });
+
+  it('PF-479 — replaying twice is allowed, and both carry ONE key', async () => {
+    // The demo does exactly this in front of a grader (p.12). Rejecting the
+    // second click would break the legitimate case of replaying after fixing a
+    // subscriber twice.
+    const original = await record({}, { status: 'dead_lettered', response_status: 500, dlq_reason: 'max_attempts_exhausted' });
+
+    const first = await request(h.bearer.app)
+      .post(url(`/${original}/replay`))
+      .set('Authorization', `Bearer ${h.tokenA}`);
+    const second = await request(h.bearer.app)
+      .post(url(`/${original}/replay`))
+      .set('Authorization', `Bearer ${h.tokenA}`);
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(first.body.id).not.toBe(second.body.id);
+    expect(first.body.idempotency_key).toBe(second.body.idempotency_key);
+  });
+
+  it('a malformed id is 422 naming `id`', async () => {
+    const res = await request(h.bearer.app)
+      .post(url('/not-a-uuid/replay'))
+      .set('Authorization', `Bearer ${h.tokenA}`);
+    expect(res.status).toBe(422);
+    expect(res.body.details.fields[0].field).toBe('id');
   });
 });
