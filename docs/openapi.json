@@ -1837,6 +1837,785 @@
         }
       }
     },
+    "/sprints": {
+      "get": {
+        "operationId": "getSprints",
+        "tags": [
+          "sprints"
+        ],
+        "summary": "List sprints, newest first.",
+        "description": "Ordered by `(created_at, id)` descending — creation order, NOT sprint-number order. `sprint_number` is a mutable value inside an unindexed JSONB field, so a cursor over it could not be stable across reordering (PRD p.3). `sprint_number` is on every item, so a consumer that wants sprint order can sort a page itself.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "sprints:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List sprints, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "document_type": {
+                            "type": "string",
+                            "enum": [
+                              "sprint"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "sprint_number": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "planning",
+                              "active",
+                              "completed"
+                            ]
+                          },
+                          "start_date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "end_date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "owner_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "program_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "created_by": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "document_type",
+                          "title",
+                          "sprint_number",
+                          "status",
+                          "start_date",
+                          "end_date",
+                          "owner_id",
+                          "program_id",
+                          "created_at",
+                          "updated_at",
+                          "created_by"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `sprints:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postSprints",
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Create a sprint.",
+        "description": "`start_date`, `end_date` and `status` are derived and are rejected if sent — the server stores only `sprint_number` and the owner, and computes the rest.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "sprints:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sprint_number": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "owner_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  },
+                  "program_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "sprint_number"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Create a sprint.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "sprint"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "sprint_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "planning",
+                        "active",
+                        "completed"
+                      ]
+                    },
+                    "start_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "end_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "owner_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "program_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "sprint_number",
+                    "status",
+                    "start_date",
+                    "end_date",
+                    "owner_id",
+                    "program_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `sprints:write`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sprints/{id}": {
+      "get": {
+        "operationId": "getSprintsById",
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Fetch one sprint by id.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "sprints:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fetch one sprint by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "sprint"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "sprint_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "planning",
+                        "active",
+                        "completed"
+                      ]
+                    },
+                    "start_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "end_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "owner_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "program_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "sprint_number",
+                    "status",
+                    "start_date",
+                    "end_date",
+                    "owner_id",
+                    "program_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `sprints:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchSprintsById",
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Move a sprint through its lifecycle.",
+        "description": "The only public writer of sprint status, and therefore the only way a platform consumer can cause `sprint.started` or `sprint.completed`. Legal moves are planning → active, planning → completed and active → completed; anything else is a 422. Re-asserting the current status is a 200 that publishes nothing.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "sprints:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "planning",
+                      "active",
+                      "completed"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Move a sprint through its lifecycle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "sprint"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "sprint_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "planning",
+                        "active",
+                        "completed"
+                      ]
+                    },
+                    "start_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "end_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "owner_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "program_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "sprint_number",
+                    "status",
+                    "start_date",
+                    "end_date",
+                    "owner_id",
+                    "program_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `sprints:write`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/me": {
       "get": {
         "operationId": "getMe",

@@ -13,6 +13,7 @@
  */
 import '../platform/api/v1/documents/routes.js';
 import '../platform/api/v1/issues/routes.js';
+import '../platform/api/v1/sprints/routes.js';
 import '../platform/api/v1/me/routes.js';
 import '../platform/openapi/route.js';
 import { writePublicSpec } from '../platform/openapi/staticCopy.js';

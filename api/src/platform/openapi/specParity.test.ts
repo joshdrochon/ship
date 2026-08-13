@@ -217,9 +217,13 @@ describe('PF-373/375 — the real app: every mounted route is documented and vic
       'GET /issues/{id}',
       'GET /me',
       'GET /openapi.json',
+      'GET /sprints',
+      'GET /sprints/{id}',
       'PATCH /issues/{id}',
+      'PATCH /sprints/{id}',
       'POST /documents',
       'POST /issues',
+      'POST /sprints',
     ]);
   });
 });
