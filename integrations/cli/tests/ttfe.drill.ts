@@ -144,6 +144,16 @@ describe('TS-9 — the Time-to-First-Event drill', () => {
         const store = new sdk.FileTokenStore({ path: credentialsPath });
         let displayed: { code: string; verifyUrl: string } | null = null;
 
+        // If the approval subprocess fails, the device code is never approved and
+        // `runDeviceLogin` polls until the code EXPIRES — minutes later, with a
+        // message about an expired grant that says nothing about the real cause.
+        // So the approval's failure is raced against the flow: whichever goes
+        // wrong first is the one that names the stage (PF-593).
+        let approvalFailed: (error: Error) => void = () => undefined;
+        const approvalGuard = new Promise<never>((_, reject) => {
+          approvalFailed = reject;
+        });
+
         const flow = sdk.runDeviceLogin({
           baseUrl: instance.info.baseUrl,
           clientId: instance.info.clientId,
@@ -153,11 +163,25 @@ describe('TS-9 — the Time-to-First-Event drill', () => {
             // The out-of-band approval is the ONE step a scripted drill cannot
             // perform the way a human does. It is a subprocess with its own
             // DATABASE_URL, never a privileged path available to this file.
-            void approveDeviceGrant(code, instance.info.databaseUrl, instance.info.baseUrl);
+            void approveDeviceGrant(code, instance.info.databaseUrl, instance.info.baseUrl).then(
+              (approved) => {
+                if (approved.code !== 0) {
+                  approvalFailed(
+                    new Error(
+                      'the device grant was never approved: scripts/l19-device-approve.ts exited ' +
+                        `${approved.code}\n${approved.output}`,
+                    ),
+                  );
+                }
+                // Approved: the guard simply never settles, and `flow` decides.
+              },
+              (error: unknown) =>
+                approvalFailed(error instanceof Error ? error : new Error(String(error))),
+            );
           },
         });
 
-        const result = await flow;
+        const result = await Promise.race([flow, approvalGuard]);
 
         // (a) BOTH values, before the first poll — a device flow that never
         // displays the code is unusable however fast it completes.
