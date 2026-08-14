@@ -167,6 +167,8 @@ jobs:
             minimum: 21
           - package: '@ship/browser-demo'
             minimum: 5
+          - package: '@ship/slack'
+            minimum: 17
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -178,8 +180,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       # F47 — nothing under integrations/ resolves until the SDK is built, and
-      # every lane has hit this independently.
-      - run: pnpm build:shared && pnpm --filter @ship/sdk build
+      # every lane has hit this independently. The testkit joins it because it is
+      # consumed through its `exports` map (dist), and a stale-but-present dist
+      # is worse than a missing one: the consumer runs old code while the source
+      # looks right.
+      - run: pnpm build:shared && pnpm --filter @ship/sdk build && pnpm --filter @ship/integration-testkit build
       - name: ${{ matrix.package }} — suite, behind the zero-tests-ran guard
         run: scripts/assert-tests-ran.sh ${{ matrix.minimum }} -- pnpm --filter ${{ matrix.package }} test
 
@@ -280,6 +285,48 @@ jobs:
       - run: pnpm db:migrate
       - name: PF-728..732 — dedupe, replay-key equality, and the real retry ladder
         run: scripts/assert-tests-ran.sh 14 -- pnpm drill:idempotency
+
+  # PF-743 — the whole path, UI to Slack channel, as one executable test.
+  #
+  # The first hop is Ship's INTERNAL route with a session cookie, not /api/v1, so
+  # this doubles as the cross-surface proof for L14's one-publish-both-surfaces
+  # rule from the far side: if publish() were wired into the public router
+  # instead of into the domain service, this job would go red while every
+  # /api/v1 test in the repo stayed green.
+  slack-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_slack_live
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_slack_live
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared && pnpm --filter @ship/agent build && pnpm --filter @ship/sdk build
+      - run: pnpm db:migrate
+      - name: PF-743 — internal UI create → bus → matcher → signer → deliverer → Slack
+        run: scripts/assert-tests-ran.sh 5 -- pnpm slack:live
 
   type-check:
     runs-on: ubuntu-latest

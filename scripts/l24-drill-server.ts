@@ -44,6 +44,8 @@ interface Args {
   packageName: string;
   expiredInstance: boolean;
   allowLoopbackWebhooks: boolean;
+  /** Runs the package's `tests/live/**` suite instead of its default one. */
+  slackLive: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -68,6 +70,7 @@ function parseArgs(argv: string[]): Args {
     packageName,
     expiredInstance: out['expired-instance'] === true,
     allowLoopbackWebhooks: out['allow-loopback-webhooks'] === true,
+    slackLive: out['slack-live'] === true,
   };
 }
 
@@ -197,11 +200,20 @@ async function main(): Promise<void> {
       env.SHIP_DRILL_EXPIRED_BASE_URL = expired.url;
     }
 
-    const suite = spawn('pnpm', ['--filter', args.packageName, 'test'], {
-      cwd: REPO_ROOT,
-      env,
-      stdio: 'inherit',
-    });
+    const suite = spawn(
+      'pnpm',
+      // `test:live` rather than `test --dir tests/live`: the package's default
+      // config EXCLUDES tests/live so it stays laptop-runnable, and a CLI flag
+      // does not override an exclude — measured, it reports "No test files
+      // found", which reads as a broken filter rather than as the exclude
+      // working.
+      ['--filter', args.packageName, args.slackLive ? 'test:live' : 'test'],
+      {
+        cwd: REPO_ROOT,
+        env,
+        stdio: 'inherit',
+      },
+    );
 
     const code = await new Promise<number>((resolve) => {
       suite.on('close', (status) => resolve(status ?? 1));

@@ -10,11 +10,12 @@
     "start": "node dist/index.js",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "type-check": "tsc -b",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
     "@ship/sdk": "workspace:*",
-    "@slack/bolt": "5.0.0",
+    "@slack/web-api": "8.0.0",
     "express": "5.2.1"
   },
   "devDependencies": {
