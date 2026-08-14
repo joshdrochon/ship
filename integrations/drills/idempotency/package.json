@@ -1,0 +1,22 @@
+{
+  "name": "@ship/drill-idempotency",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PRD p.8 option 6 — the Idempotency-Key drill. A real subscriber that dedupes, asserted from the SUBSCRIBER's side. Imports ONLY @ship/sdk.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "type-check": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ship/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@ship/integration-testkit": "workspace:*",
+    "@types/node": "22.19.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

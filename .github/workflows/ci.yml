@@ -239,6 +239,48 @@ jobs:
           name: refresh-failure-shapes
           path: integrations/drills/refresh-rotation/test-results/
 
+  # PF-728..732 — the Idempotency-Key drill, asserted at the SUBSCRIBER.
+  #
+  # Its own job for the same reason as the one above, plus one more: it boots
+  # Ship with SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS=true so a subscription can
+  # target 127.0.0.1 (PF-575's named opt-in, L99 B8). That variable must never
+  # be set on a deployed instance, and a job of its own is where that stays
+  # visible.
+  drill-idempotency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_drill_idem
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_drill_idem
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared && pnpm --filter @ship/agent build && pnpm --filter @ship/sdk build
+      - run: pnpm db:migrate
+      - name: PF-728..732 — dedupe, replay-key equality, and the real retry ladder
+        run: scripts/assert-tests-ran.sh 14 -- pnpm drill:idempotency
+
   type-check:
     runs-on: ubuntu-latest
     needs: build
