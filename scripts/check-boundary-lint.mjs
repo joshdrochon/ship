@@ -31,9 +31,17 @@
  * Exit 0 = every fence fires and the controls hold. Exit 1 = at least one does not.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+// PF-717 — one definition of the workspace dependency rule, shared with
+// `pnpm check:integration-deps`. This file used to hold its own copy, which was
+// correct on the day it was written and would have had to be edited a second
+// time the day `integrations/drills/*` arrived two directories deep.
+import {
+  ALLOWED_INTEGRATION_DEPS,
+  checkIntegrationsTree,
+} from './lib/integration-packages.mjs';
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -76,6 +84,37 @@ const FENCES = [
     fixture: 'eslint-fixtures/integrations/cli/imports-shared-package.ts',
     marker: 'BOUNDARY (integrations → server)',
   },
+  // PF-718 — ONE FIXTURE PER PACKAGE, not one shared fixture.
+  //
+  // PF-012's single `eslint-fixtures/integrations/imports-api-source.ts` proves
+  // the RULE fires. It cannot prove the rule REACHES a given package, and the
+  // rule is keyed on a glob: a file the glob does not match escapes in silence,
+  // which is the one failure mode a green lint run cannot distinguish from
+  // compliance. Each fixture below is a different way out of the glob.
+  {
+    ticket: 'PF-718',
+    name: 'integrations/slack (.mts)',
+    fixture: 'eslint-fixtures/integrations/slack/imports-api-source.mts',
+    marker: 'BOUNDARY (integrations → server)',
+  },
+  {
+    ticket: 'PF-718',
+    name: 'integrations/browser-demo',
+    fixture: 'eslint-fixtures/integrations/browser-demo/imports-shared-package.ts',
+    marker: 'BOUNDARY (integrations → server)',
+  },
+  {
+    ticket: 'PF-718',
+    name: 'drills/refresh-rotation (nested)',
+    fixture: 'eslint-fixtures/integrations/drills/refresh-rotation/imports-api-source.ts',
+    marker: 'BOUNDARY (integrations → server)',
+  },
+  {
+    ticket: 'PF-718',
+    name: 'drills/idempotency (.cts, dist)',
+    fixture: 'eslint-fixtures/integrations/drills/idempotency/imports-api-dist.cts',
+    marker: 'BOUNDARY (integrations → server)',
+  },
   {
     ticket: 'F24',
     name: 'sdk → workspace',
@@ -86,9 +125,6 @@ const FENCES = [
 
 /** A real file that must stay clean — the positive control. */
 const POSITIVE_CONTROL = 'api/src/platform/webhooks/bus.ts';
-
-/** The only runtime dependency an integration may declare. */
-const ALLOWED_INTEGRATION_DEPS = new Set(['@ship/sdk']);
 
 const failures = [];
 const notes = [];
@@ -176,36 +212,21 @@ for (const fence of FENCES) {
 }
 
 // --- 3. workspace dependency rule (PF-011, second mechanism) -----------------
+//
+// PF-717 moved the predicate into `lib/integration-packages.mjs` and gave it a
+// job of its own that runs BEFORE lint, with negative fixtures proving it
+// rejects something. It is still run here so `pnpm lint:boundary` remains a
+// single answer to "are the boundaries intact".
 {
-  const integrationsDir = join(REPO, 'integrations');
-  if (!existsSync(integrationsDir)) {
-    failures.push('workspace dependency rule: integrations/ does not exist');
-  } else {
-    const pkgs = readdirSync(integrationsDir, { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => d.name);
-    if (pkgs.length === 0) failures.push('workspace dependency rule: no packages under integrations/');
-
-    for (const pkg of pkgs) {
-      const manifest = join(integrationsDir, pkg, 'package.json');
-      if (!existsSync(manifest)) {
-        failures.push(`workspace dependency rule: integrations/${pkg} has no package.json`);
-        continue;
-      }
-      const json = JSON.parse(readFileSync(manifest, 'utf8'));
-      const deps = Object.keys(json.dependencies ?? {});
-      const disallowed = deps.filter((d) => !ALLOWED_INTEGRATION_DEPS.has(d));
-      if (disallowed.length > 0) {
-        failures.push(
-          `workspace dependency rule: integrations/${pkg} declares ${disallowed.join(', ')}. ` +
-            `An integration may depend on @ship/sdk and nothing else in this workspace — that is the ` +
-            `whole claim being made about the front door (PRD p.11).`,
-        );
-      } else {
-        notes.push(`  ok  PF-011  workspace deps           integrations/${pkg} → ${deps.join(', ') || '(none)'}`);
-      }
-    }
+  const { violations, checked } = checkIntegrationsTree(REPO);
+  failures.push(...violations.map((v) => `workspace dependency rule: ${v}`));
+  for (const pkg of checked) {
+    notes.push(`  ok  PF-011  workspace deps           integrations/${pkg.name}`);
   }
+  notes.push(
+    `      (runtime allowlist: ${[...ALLOWED_INTEGRATION_DEPS].join(', ')} — see ` +
+      `scripts/check-integration-deps.mjs for the fixtures that prove it fires)`,
+  );
 }
 
 // --- report -------------------------------------------------------------------

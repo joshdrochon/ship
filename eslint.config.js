@@ -186,8 +186,18 @@ export default tseslint.config(
   // that is an SDK gap — fix it there, never by importing server code. This is
   // what makes "the agent is a platform citizen" true rather than aspirational
   // when the Epic 7 rewire lands.
+  //
+  // PF-718 — the glob is `{ts,tsx,mts,cts}`, not `.ts`, and that is a fix rather
+  // than tidiness. `.mts` and `.cts` are files TypeScript compiles and Node
+  // executes; under the old `integrations/**/*.ts` a listener written as
+  // `handler.mts` could import `@ship/api` and `pnpm lint` stayed green. The
+  // fixtures under `eslint-fixtures/integrations/{slack,drills/idempotency}`
+  // are those two extensions, so the narrowing cannot come back unnoticed.
   {
-    files: ['integrations/**/*.ts', 'eslint-fixtures/integrations/**/*.ts'],
+    files: [
+      'integrations/**/*.{ts,tsx,mts,cts}',
+      'eslint-fixtures/integrations/**/*.{ts,tsx,mts,cts}',
+    ],
     rules: {
       'no-restricted-imports': [
         'error',
