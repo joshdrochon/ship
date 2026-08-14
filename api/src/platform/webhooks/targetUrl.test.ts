@@ -6,11 +6,33 @@
  * were considered.
  */
 import { describe, it, expect } from 'vitest';
-import { checkTargetUrl, isPrivateHost, localTargetsPermitted } from './targetUrl.js';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  checkTargetUrl,
+  isPrivateHost,
+  localTargetsPermitted,
+  LOCAL_WEBHOOK_TARGETS_ENV_VAR,
+} from './targetUrl.js';
 
 /** Not under test — an explicit non-test env, so the exception is off. */
 const PROD = { NODE_ENV: 'production' } as NodeJS.ProcessEnv;
 const TEST = { NODE_ENV: 'test' } as NodeJS.ProcessEnv;
+
+/**
+ * PF-575's two configurations, spelled as data.
+ *
+ * `DEPLOYED` is what Elastic Beanstalk actually runs: production, and no mention
+ * of the opt-in anywhere. `LOCAL_OPTED_IN` is what a developer recording the
+ * demo runs — `pnpm dev`'s `NODE_ENV`, plus the flag typed on purpose.
+ */
+const DEPLOYED = { NODE_ENV: 'production' } as NodeJS.ProcessEnv;
+const LOCAL_DEFAULT = { NODE_ENV: 'development' } as NodeJS.ProcessEnv;
+const LOCAL_OPTED_IN = {
+  NODE_ENV: 'development',
+  [LOCAL_WEBHOOK_TARGETS_ENV_VAR]: 'true',
+} as NodeJS.ProcessEnv;
 
 describe('PF-425 — accepted targets', () => {
   it.each([
@@ -86,6 +108,85 @@ describe('PF-425 — the one named exception', () => {
     // plaintext in general. A test that could POST a signed payload to
     // `http://evil.example.com` would be a hole wearing an exemption.
     expect(checkTargetUrl('http://example.com/hooks', TEST)?.reason).toBe('scheme');
+  });
+});
+
+/**
+ * PF-575 — the opt-in, and the two configurations that matter.
+ *
+ * The defect this closes: `ship webhooks tail --listen` can only ever produce
+ * `http://127.0.0.1:<port>/…`, and outside the test runner that was rejected
+ * `validation_failed`. Nobody recording the demo video runs `NODE_ENV=test`.
+ */
+describe('PF-575 — the loopback opt-in', () => {
+  it('the DEPLOYED configuration rejects a loopback target', () => {
+    // Production, and the variable is not mentioned at all — which is exactly
+    // what Elastic Beanstalk's environment looks like. Both doors shut.
+    expect(localTargetsPermitted(DEPLOYED)).toBe(false);
+    expect(checkTargetUrl('http://127.0.0.1:9099/hooks', DEPLOYED)?.reason).toBe('scheme');
+    expect(checkTargetUrl('https://127.0.0.1:9099/hooks', DEPLOYED)?.reason).toBe('private-host');
+  });
+
+  it('a local instance rejects it too, until someone opts in', () => {
+    // `pnpm dev` on its own is NOT enough. The flag has to be typed.
+    expect(localTargetsPermitted(LOCAL_DEFAULT)).toBe(false);
+    expect(checkTargetUrl('http://127.0.0.1:9099/hooks', LOCAL_DEFAULT)?.reason).toBe('scheme');
+  });
+
+  it('the OPTED-IN local configuration accepts a loopback target', () => {
+    expect(localTargetsPermitted(LOCAL_OPTED_IN)).toBe(true);
+    expect(checkTargetUrl('http://127.0.0.1:9099/ship-cli-tail', LOCAL_OPTED_IN)).toBeNull();
+    expect(checkTargetUrl('http://localhost:9099/ship-cli-tail', LOCAL_OPTED_IN)).toBeNull();
+  });
+
+  it('opts in on the exact string "true" and nothing else', () => {
+    // Off by absence AND off by anything-but-true: `SHIP_ALLOW_...=false`,
+    // `=0` and `=1` are all the operator saying no, or saying something the
+    // next reader would have to guess at.
+    for (const value of ['', 'false', '0', '1', 'yes', 'TRUE']) {
+      expect(
+        localTargetsPermitted({
+          NODE_ENV: 'development',
+          [LOCAL_WEBHOOK_TARGETS_ENV_VAR]: value,
+        } as NodeJS.ProcessEnv),
+      ).toBe(false);
+    }
+  });
+
+  it('is spelled in exactly ONE place in the shipped source', () => {
+    // PF-575: *"the flag's name appears in exactly one place."* The one place is
+    // the `LOCAL_WEBHOOK_TARGETS_ENV_VAR` declaration; every other reader goes
+    // through the constant. A second literal is how an operator ends up setting
+    // a variable that half the code reads.
+    const root = fileURLToPath(new URL('../../', import.meta.url));
+    const hits: string[] = [];
+
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!entry.name.endsWith('.ts') || entry.name.endsWith('.test.ts')) continue;
+        const source = readFileSync(full, 'utf8');
+        // Count occurrences of the raw name, not of the constant's identifier.
+        const count = source.split(LOCAL_WEBHOOK_TARGETS_ENV_VAR).length - 1;
+        for (let i = 0; i < count; i++) hits.push(full);
+      }
+    };
+    walk(root);
+
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatch(/targetUrl\.ts$/);
+  });
+
+  it('does not widen anything else — a public plaintext target stays refused', () => {
+    // The opt-in is for the loopback. It is not a global "allow http".
+    expect(checkTargetUrl('http://example.com/hooks', LOCAL_OPTED_IN)?.reason).toBe('scheme');
+    expect(checkTargetUrl('https://user:pw@example.com/h', LOCAL_OPTED_IN)?.reason).toBe(
+      'credentials',
+    );
   });
 });
 

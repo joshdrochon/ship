@@ -104,6 +104,24 @@ export async function withCredentialLock<T>(
   let acquired = false;
   let brokeStaleLock = false;
 
+  // F120 — `~/.ship/` may not exist yet, and on the FIRST EVER `ship login` it
+  // does not. `mkdirSync(path, { recursive: false })` then fails ENOENT rather
+  // than EEXIST, the catch below reads that as "someone holds the lock", and the
+  // command burns its entire 10 s acquire budget waiting for a directory that
+  // can never appear. Creating the parent first is the whole fix, and it is the
+  // same directory `FileTokenStore` creates a moment later for the credential.
+  //
+  // `recursive: false` on the LOCK itself stays: that EEXIST is the atomic
+  // test-and-set this whole module is built on, and `recursive: true` there
+  // would succeed unconditionally and quietly delete the mutual exclusion.
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+  } catch {
+    // Unwritable home, read-only filesystem, a file where the directory should
+    // be. The lock cannot be taken; `fn()` still runs unlocked, which is this
+    // module's documented posture when the lock is unavailable.
+  }
+
   for (;;) {
     try {
       mkdirSync(path, { recursive: false });

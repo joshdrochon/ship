@@ -197,6 +197,28 @@ describe('PF-057 — D12: the demo app the five-line story needs', () => {
     expect(grader!.requestedScopes).not.toContain('documents:write');
   });
 
+  it('F122 — carries every scope p.6\'s five-line story needs, including line FOUR', () => {
+    // The story is three commands, and this app was previously scoped for two.
+    // `ship webhooks tail` exited 3 with "Missing scope: webhooks:manage" —
+    // measured against a booted Ship, not inferred. Asserting the whole story
+    // rather than one scope is the point: the test above already NAMED
+    // `webhooks tail` in its comment while checking only `documents:write`, so
+    // a prose mention is demonstrably not enough to keep this honest.
+    const demo = PLATFORM_APP_SEEDS.find((s) => s.clientId === DEMO_CLIENT_ID);
+    expect(demo).toBeDefined();
+    for (const scope of ['documents:read', 'documents:write', 'webhooks:manage']) {
+      expect(demo!.requestedScopes).toContain(scope);
+    }
+  });
+
+  it('F122 — the widening did NOT reach the read-only grader app', () => {
+    // p.2's MVP gate item 10 says read-only, and that checkbox is the one place
+    // a grader looks. Whatever the demo app is allowed to do, this stays true.
+    const grader = PLATFORM_APP_SEEDS.find((s) => s.clientId === GRADER_CLIENT_ID);
+    expect(grader!.requestedScopes).not.toContain('webhooks:manage');
+    expect(grader!.requestedScopes.some((s) => s.endsWith(':write'))).toBe(false);
+  });
+
   it('is not first-party and shares the grader workspace', async () => {
     await seedPlatformApps(pool, FULL_ENV);
     const demo = await repo().findByClientId(DEMO_CLIENT_ID);

@@ -28,6 +28,21 @@
  */
 
 /**
+ * PF-575 — the opt-in that lets a LOCAL instance accept a loopback target.
+ *
+ * Spelled once, here. `checkTargetUrl` is the only reader and it reads it
+ * through `localTargetsPermitted`, so grepping this string finds the whole
+ * feature. Nothing else in the repository may spell it — an operator who has to
+ * set it in two places will set it in one.
+ *
+ * Default OFF, and off by *absence*: only the exact string `'true'` enables it.
+ * A deployed environment that never mentions the variable therefore rejects
+ * loopback targets no matter what `NODE_ENV` says, which is the property the
+ * deployed-configuration test asserts.
+ */
+export const LOCAL_WEBHOOK_TARGETS_ENV_VAR = 'SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS';
+
+/**
  * The one named exception. `http://localhost` and `http://127.0.0.1` are
  * permitted only when this is true.
  *
@@ -35,14 +50,27 @@
  * check, because there are two of them below and a future third would be the
  * one that drifts.
  *
- * ⚠ Known consequence, filed as B8 in `lane-99-unassigned.md`: the person
- * recording the demo video is not running under `NODE_ENV=test`, so they get
- * `validation_failed`. L19's PF-575 proposes one named, default-off opt-in flag
- * rather than weakening this check. That is the right shape and it is not this
- * lane's to add — a second env var here with no consumer would be scope creep.
+ * TWO ways in, and they are deliberately different in kind:
+ *
+ *   `NODE_ENV === 'test'`     the test runner and CI, which must not have to
+ *                             configure anything to run the suite that already
+ *                             exists.
+ *   the env var above         PF-575's ask, and the only one available to a
+ *                             human. It was B8 in `lane-99-unassigned.md`: the
+ *                             person recording the demo video and the developer
+ *                             running `pnpm dev` are on `NODE_ENV=development`,
+ *                             so `ship webhooks tail --listen` failed at
+ *                             subscription creation with `validation_failed`.
+ *                             L19 is the consumer, so L19 added it.
+ *
+ * What this does NOT do is widen anything for a deployed instance. Elastic
+ * Beanstalk runs `NODE_ENV=production` and does not set the variable, so both
+ * doors are shut; and a deployment that *did* set it would still only be able to
+ * POST to its own loopback, which is the SSRF surface the module header
+ * describes rather than a new one. It is an opt-in an operator has to type.
  */
 export function localTargetsPermitted(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.NODE_ENV === 'test';
+  return env.NODE_ENV === 'test' || env[LOCAL_WEBHOOK_TARGETS_ENV_VAR] === 'true';
 }
 
 export type TargetUrlRejection =

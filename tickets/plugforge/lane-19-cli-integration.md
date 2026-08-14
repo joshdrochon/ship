@@ -168,3 +168,61 @@ confirm or refute rather than rediscover:
   and its CI wiring (L20), the developer portal (L22), and the other four of p.8's five integrations
   (L24). If any of those is unowned at audit time it goes to `lane-99-unassigned.md`, not into this
   file.
+
+---
+
+## S6 — `pf/L19-live-story`: the story, executed
+
+The previous slice's own honest note: *"I have not run any command against a booted Ship except raw
+curl probes — `docs ls/get/create` and `webhooks tail` have never executed against a real
+instance."* This slice closes that. Everything below ran against Ship booted on `http://localhost:3919`
+with PostgreSQL `ship_l19b` (60 migrations, 3 platform apps seeded). Verbatim transcript:
+`docs/l19-five-line-story.md`.
+
+**What running it found.** Three defects, none of which the 16 argv-level tests could see:
+
+| Finding | Effect |
+| --- | --- |
+| F120 | `withCredentialLock` throws ENOENT (not EEXIST) on a first-ever login, because `~/.ship` does not exist yet. |
+| F121 | `realClock.sleep` unref'd its timer, so `ship login` **exited 0 in 64 ms having made zero HTTP requests**. |
+| F122 | No seeded app carried `webhooks:manage`, so p.11's "demo moment" was unreachable — `ship webhooks tail` exited 3. |
+
+F121 is the one that matters most: exit 0 on work never done is worse than a crash, and the existing
+tests were structurally incapable of catching it because every one of them injects a fake clock — the
+code path that was fine.
+
+**Proven live** (`pnpm --filter @ship/cli test:server`, 11 tests, ~11 s, each spawning the real
+`dist/index.js`):
+
+- **PF-562** ☑ `ship login` exits 0 against a booted Ship, and a *separate later invocation* with no
+  flags and no environment succeeds.
+- **PF-563** ☑ user code verbatim on stderr, grouping hyphen intact, plus the parseable line.
+- **PF-565** ☑ a denied grant exits `EXIT_CODES.auth`, says so, and leaves no credential file.
+- **PF-566** ☑ `~/.ship/credentials.json` at 0600, carrying a refresh token; a new process authenticates from it.
+- **PF-568** ☑ p.6's literal `ship docs create --title "hello"` creates and prints an id; missing `--title` exits 2.
+- **PF-570** ☑ `docs get` prints the document and no `content`; an unknown id renders `not_found` with the id echoed and no stack trace.
+- **PF-571** ☑ `docs ls --json` parses whole off stdout, with no cursor in any mode.
+- **PF-572** ☑ the tokens actually on disk appear nowhere in the concatenated output of a real session.
+- **PF-573** ☑ decision, both modes and the reachability constraint written into `integrations/cli/README.md`.
+- **PF-574** ☑ `--listen` binds loopback, subscribes, receives a **verified** signed delivery, and deletes its own subscription on SIGINT; `--cleanup` then finds nothing.
+- **PF-575** ☑ **UNBLOCKED.** `SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS` — one name, one place, default-off, off-by-absence. Tests assert the deployed configuration rejects a loopback target and the opted-in local one accepts it. L15's ask is answered by its consumer, as L15 asked.
+- **PF-577** ☑ the delivery block rendered live; every line ≤ 80 columns; last line is p.6's fifth line character for character. Observed latency **24 ms** against p.6's < 2 s budget.
+
+**Still NOT proven, and not claimed:**
+
+- **PF-564** — the `slow_down` timing half of Testing Scenario 3. The grant is driven end to end and
+  the token works, but no test yet asserts the poll interval is honoured from recorded timestamps.
+- **PF-567** — refresh-on-expiry and the dead-family path. Never executed.
+- **PF-576** — `--poll` has never run against a real delivery log. Source only.
+- **PF-578** — tampered / stale / missing-`v1` blocks and `--exit-on-invalid`. Renderer only.
+- **PF-579** — "first block readable before the second event exists" is not asserted.
+- **PF-580** — the README command is written and its parts were executed by hand; it has NOT been run
+  verbatim from a clean checkout in a container, and not against the deployed instance.
+
+**The harness.** `scripts/l19-device-approve.ts` is the human-with-a-browser: it opens a Ship session
+(a `sessions` INSERT — there is no public endpoint for that) and drives the two consent POSTs. It
+lives outside `integrations/` and runs as a **subprocess**. The ESLint fence is import-scoped, so it
+could have sat next to the tests without tripping — a separate process makes "the CLI has no
+privileged path" true by construction rather than by an import list nobody re-reads. It deliberately
+does not touch `oauth_device_codes`: flipping the row would make the suite green while proving
+nothing about `/oauth/device/verify`, which is what TS-3 is actually about.
