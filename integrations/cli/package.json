@@ -21,8 +21,7 @@
     "dev": "tsc -b --watch",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "type-check": "tsc -b",
-    "test": "vitest run",
-    "test:server": "vitest run --config vitest.server.config.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "@ship/sdk": "workspace:*"
