@@ -1,9 +1,9 @@
 {
   "budgetPercent": 10,
-  "baselineCapturedAt": "2026-08-12T20:31:10.713Z",
-  "baselineGitRef": "b639059217e96664ba843c1847bc450e21367d31",
-  "currentGitRef": "31ee898c28d74b53fe5b337109790295cc754513",
-  "comparedAt": "2026-08-13T20:07:41.696Z",
+  "baselineCapturedAt": "2026-08-14T01:57:08.826Z",
+  "baselineGitRef": "41393f6d64be7df53daa47f67468e9228a40193c",
+  "currentGitRef": "932fe0581a2afd15a1f171487c1c72cce3a68517",
+  "comparedAt": "2026-08-14T01:57:32.302Z",
   "env": {
     "comparable": true,
     "differences": [],
@@ -19,12 +19,11 @@
     }
   },
   "load": {
-    "acceptable": false,
-    "loadAvg1": 18.8,
-    "loadRatio": 1.88,
-    "reason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+    "acceptable": true,
+    "loadAvg1": 7.27,
+    "loadRatio": 0.73
   },
-  "latencyEnforced": false,
+  "latencyEnforced": true,
   "latencyForced": false,
   "deltas": [
     {
@@ -32,72 +31,66 @@
       "label": "P95 latency · GET /health",
       "route": "GET /health",
       "unit": "ms",
-      "baseline": 0.91,
-      "current": 1.78,
-      "percent": 95.6,
+      "baseline": 0.93,
+      "current": 0.77,
+      "percent": -17.2,
       "unboundedRegression": false,
-      "status": "advisory",
-      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+      "status": "pass"
     },
     {
       "kind": "p95",
       "label": "P95 latency · GET /api/documents",
       "route": "GET /api/documents",
       "unit": "ms",
-      "baseline": 3.63,
-      "current": 26.41,
-      "percent": 627.55,
+      "baseline": 4.56,
+      "current": 4.75,
+      "percent": 4.17,
       "unboundedRegression": false,
-      "status": "advisory",
-      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+      "status": "pass"
     },
     {
       "kind": "p95",
       "label": "P95 latency · GET /api/documents/:id",
       "route": "GET /api/documents/:id",
       "unit": "ms",
-      "baseline": 3.99,
-      "current": 29.79,
-      "percent": 646.62,
+      "baseline": 6.44,
+      "current": 5.47,
+      "percent": -15.06,
       "unboundedRegression": false,
-      "status": "advisory",
-      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+      "status": "pass"
     },
     {
       "kind": "p95",
       "label": "P95 latency · GET /api/issues",
       "route": "GET /api/issues",
       "unit": "ms",
-      "baseline": 3.69,
-      "current": 13.96,
-      "percent": 278.32,
+      "baseline": 6.16,
+      "current": 6.07,
+      "percent": -1.46,
       "unboundedRegression": false,
-      "status": "advisory",
-      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+      "status": "pass"
     },
     {
       "kind": "p95",
       "label": "P95 latency · GET /api/weeks",
       "route": "GET /api/weeks",
       "unit": "ms",
-      "baseline": 4.24,
-      "current": 17.28,
-      "percent": 307.55,
+      "baseline": 6.63,
+      "current": 7.16,
+      "percent": 7.99,
       "unboundedRegression": false,
-      "status": "advisory",
-      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+      "status": "pass"
     },
     {
       "kind": "p95",
       "label": "P95 latency · GET /api/dashboard/my-work",
       "route": "GET /api/dashboard/my-work",
       "unit": "ms",
-      "baseline": 6.93,
-      "current": 18.1,
-      "percent": 161.18,
+      "baseline": 8.98,
+      "current": 8.94,
+      "percent": -0.45,
       "unboundedRegression": false,
-      "status": "advisory",
-      "advisoryReason": "machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention"
+      "status": "pass"
     },
     {
       "kind": "bundle",

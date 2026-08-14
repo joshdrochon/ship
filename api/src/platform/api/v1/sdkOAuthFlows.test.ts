@@ -182,6 +182,14 @@ describe('PF-537 · a scripted device flow resolves to a client whose .me() succ
     expect(me.app.client_id).toBe(oauthApp.clientId);
     expect(me.user?.id).toBe(userId);
     expect(me.scopes).toEqual(['documents:read']);
+
+    // PF-492's second half: the call site must be TYPED, not just correct at
+    // runtime. `me.app.client_id` above compiles; this proves the other
+    // direction, which is the half a runtime assertion cannot reach. If `Me`
+    // ever loosens to `any` or gains an index signature, the suite fails here
+    // rather than silently accepting a client that types nothing.
+    // @ts-expect-error `nonexistent` is not on the Me type
+    void me.app.nonexistent;
   });
 
   it('a device code that is never approved ends with a typed error, not a hang', async () => {

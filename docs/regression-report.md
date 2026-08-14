@@ -9,36 +9,25 @@ PRD p.2 gate item 9: *"Existing Playwright regression suite passes on main; P95 
 
 | | |
 |---|---|
-| Baseline captured | 2026-08-12T20:31:10.713Z |
-| Baseline git ref | `b639059217e96664ba843c1847bc450e21367d31` |
-| Compared at | 2026-08-13T20:07:41.696Z |
-| Current git ref | `31ee898c28d74b53fe5b337109790295cc754513` |
+| Baseline captured | 2026-08-14T01:57:08.826Z |
+| Baseline git ref | `41393f6d64be7df53daa47f67468e9228a40193c` |
+| Compared at | 2026-08-14T01:57:32.302Z |
+| Current git ref | `932fe0581a2afd15a1f171487c1c72cce3a68517` |
 | Database state | purpose-built fixture (1 workspace, 1 user, 25 documents) created and destroyed by this run |
 | Environment | baseline darwin-arm64, node v26.5.0, 10 cpu · current darwin-arm64, node v26.5.0, 10 cpu |
-| Machine load during run | 18.8 over 10 cores (ratio 1.88, limit 0.8) |
-| Latency budget | advisory only |
-
-> **Latency deltas below are advisory on this run**, for the reason(s) below. Bundle size and
-> query counts are deterministic — same tree, same numbers, any machine — and stay enforced.
->
-> *Machine too busy to time on:* machine under load: 1-minute load average 18.8 across 10 cores (ratio 1.88, limit 0.8). In-process latency measured on a contended machine describes the contention.
->
-> A fingerprint match says "same box"; it does not say "the box was idle enough to time
-> anything on". Measured 2026-08-13: at load ratio 1.33, three consecutive runs of one
-> commit produced per-route P95 spreads up to 6x while query counts stayed bit-identical.
->
-> Re-run on an idle machine matching the baseline to get an enforceable latency verdict.
+| Machine load during run | 7.27 over 10 cores (ratio 0.73, limit 0.8) |
+| Latency budget | **enforced** |
 
 ## P95 latency, per route
 
 | Route | Baseline (ms) | Current (ms) | Delta | Status |
 |---|---:|---:|---:|---|
-| GET /health | 0.91 | 1.78 | +95.60% | advisory |
-| GET /api/documents | 3.63 | 26.41 | +627.55% | advisory |
-| GET /api/documents/:id | 3.99 | 29.79 | +646.62% | advisory |
-| GET /api/issues | 3.69 | 13.96 | +278.32% | advisory |
-| GET /api/weeks | 4.24 | 17.28 | +307.55% | advisory |
-| GET /api/dashboard/my-work | 6.93 | 18.1 | +161.18% | advisory |
+| GET /health | 0.93 | 0.77 | -17.20% | pass |
+| GET /api/documents | 4.56 | 4.75 | +4.17% | pass |
+| GET /api/documents/:id | 6.44 | 5.47 | -15.06% | pass |
+| GET /api/issues | 6.16 | 6.07 | -1.46% | pass |
+| GET /api/weeks | 6.63 | 7.16 | +7.99% | pass |
+| GET /api/dashboard/my-work | 8.98 | 8.94 | -0.45% | pass |
 
 ## Bundle size
 
