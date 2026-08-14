@@ -66,6 +66,19 @@ RUN pnpm build:api
 # preferred: the session cookie is sameSite:'strict', so a frontend on another
 # domain could never send it. VITE_API_URL stays empty so the client uses
 # relative URLs and hits whatever host is serving it.
+# The web app imports `@ship/sdk` for real since L22's developer portal — p.10
+# requires the portal to consume the public API "like any other client", so it
+# goes through the SDK rather than reaching for internal routes. That makes the
+# SDK a BUILD-TIME dependency of the frontend, not just a published artifact.
+#
+# Without these two lines `tsc` fails with TS2307 on every portal file, and then
+# cascades into a wall of TS18046 `'e' is of type 'unknown'` — because the error
+# type guard those catch blocks use is itself an SDK export. The unknown errors
+# look like sloppy error handling and are nothing of the kind; fix the import and
+# they all disappear.
+COPY sdk/ ./sdk/
+RUN pnpm --filter @ship/sdk build
+
 COPY web/ ./web/
 RUN pnpm --filter @ship/web build
 RUN test -f web/dist/index.html || (echo "web build produced no index.html" && exit 1)
