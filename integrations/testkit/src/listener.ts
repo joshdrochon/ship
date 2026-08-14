@@ -148,7 +148,16 @@ export async function createTestListener(
 
       // Wake the waiters only AFTER the response is written, so a predicate that
       // sees N requests also knows N responses have gone back.
-      while (waiters.length > 0) waiters.pop()?.();
+      //
+      // DRAINED FIRST, then called. The obvious `while (waiters.length > 0)
+      // waiters.pop()()` spins forever: a waiter whose predicate is still false
+      // re-registers itself, the loop sees a non-empty array again, and the
+      // process pegs a core. Measured, not theorised — it hung the idempotency
+      // drill for twelve minutes at 98% CPU before this line changed, and it
+      // could not show up in the testkit's own suite because every predicate
+      // there is satisfied on the first request.
+      const woken = waiters.splice(0, waiters.length);
+      for (const wake of woken) wake();
     })();
   });
 
