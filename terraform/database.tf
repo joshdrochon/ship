@@ -55,9 +55,21 @@ resource "aws_rds_cluster" "aurora" {
   # flipping the skip alone would fail apply rather than protect anything.
   # `ignore_changes` below absorbs the `timestamp()` churn so this does not show
   # up as perpetual drift.
-  skip_final_snapshot             = false
-  final_snapshot_identifier       = "${var.project_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
-  backup_retention_period         = var.environment == "prod" ? 7 : 1
+  skip_final_snapshot       = false
+  final_snapshot_identifier = "${var.project_name}-final-snapshot-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+  # 7 days everywhere, for the same reason as `skip_final_snapshot` above: the
+  # environment holding the graded data is called "dev", so every conditional
+  # keyed on that name was quietly configuring the real database as if it were
+  # scratch. One day of retention means a Friday mistake found on Monday has
+  # nothing to restore from.
+  backup_retention_period = 7
+  # Provider default is TRUE — deleting the cluster also deletes its automated
+  # backups, which is what made the old non-prod branch unrecoverable rather
+  # than merely inconvenient. The final snapshot alone does not cover this:
+  # a snapshot is one point in time, while these are the point-in-time recovery
+  # window, and they are what you need when the problem is data corruption
+  # noticed days later rather than an accidental teardown.
+  delete_automated_backups        = false
   preferred_backup_window         = "03:00-04:00"
   preferred_maintenance_window    = "sun:04:00-sun:05:00"
   enabled_cloudwatch_logs_exports = ["postgresql"]
