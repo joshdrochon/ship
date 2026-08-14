@@ -35,7 +35,9 @@ import {
 import { getCheckpointer } from '../graph/checkpointer.js';
 import { makeJudge, makeAnswer, describeProvider } from '../llm/index.js';
 import { makeShipAct, makeRecommendAct } from '../actions/index.js';
-import { agentViaSdk } from '../composition.js';
+import { agentViaSdk, AGENT_VIA_SDK_ENV_VAR } from '../composition.js';
+import { createCitizenReader } from '../data/citizenReader.js';
+import { authenticateAsAgent, resolveAgentCredentials } from '../data/citizenClient.js';
 import { ensureSynchronousCallbacks, logTracingStatus } from '../observability/tracing.js';
 
 /** Backstop for a hang, not a performance target. See the header. */
@@ -62,6 +64,38 @@ const refuseToAct = async (action: ProposedAction) => ({
  * single capability instead of killing the process before any detection
  * happens. Detection is the valuable half; commenting is the garnish.
  */
+/**
+ * L23 PF-693 — the read seam.
+ *
+ * Flag-off returns the pooled client untouched. Flag-on authenticates as the
+ * agent's own OAuth app and wraps it, so Ship data comes from `@ship/sdk` and
+ * the agent's own tables still come from Postgres.
+ *
+ * It THROWS when the flag is on and the credential is absent, rather than
+ * degrading to SQL. A silent degrade would be the worst possible outcome for
+ * this lane: the run would succeed, every finding would be delivered, and the
+ * audit trail Epic 7 is graded on would be empty — with nothing anywhere saying
+ * why. Failing here names the missing variable.
+ */
+async function resolveReader(client: GraphDeps['db']): Promise<GraphDeps['db']> {
+  if (!agentViaSdk()) return client;
+
+  const credentials = resolveAgentCredentials();
+  if (!credentials) {
+    throw new Error(
+      `[fleetgraph] ${AGENT_VIA_SDK_ENV_VAR} is on but AGENT_CLIENT_SECRET is not set. ` +
+        'The rewired agent authenticates as its own first-party OAuth app (Client ' +
+        'Credentials, RFC 6749 §4.4) and has no other way in. Set AGENT_CLIENT_SECRET — ' +
+        'the same variable db:migrate seeds the app from — or turn the flag off.',
+    );
+  }
+
+  return createCitizenReader({
+    client: await authenticateAsAgent(credentials),
+    ownState: client,
+  });
+}
+
 function resolveAct(db: GraphDeps['db']) {
   // ── L23 PF-704 — the ONE read of the flag, at the composition root ────────
   //
@@ -141,9 +175,28 @@ export async function scanWorkspace(
 
     try {
       const checkpointer = await getCheckpointer();
+
+      // ── L23 PF-693 — the read seam, resolved once ────────────────────────
+      //
+      // Flag-off: the pooled client, exactly as Part 2 shipped it.
+      // Flag-on:  a `CitizenReader` over the SAME `Queryable` interface, which
+      //           serves Ship data from `@ship/sdk` and passes the agent's own
+      //           tables through to that same client.
+      //
+      // The detectors and fetch nodes take `db: Queryable` either way and never
+      // learn which they got. That is the entire reason the seam is here and
+      // not inside each detector.
+      //
+      // A flag-on run with no credential FAILS rather than falling back. A
+      // silent fallback is how "the agent went through the front door" becomes
+      // a claim nobody can check — the whole run would read from SQL and every
+      // audit assertion would pass vacuously, because there would be no rows to
+      // contradict.
+      const db = deps.db ?? (await resolveReader(client));
+
       const graph = compileGraph(
         {
-          db: client,
+          db,
           judge: deps.judge ?? makeJudge(),
           answer: deps.answer ?? makeAnswer(),
           act: deps.act ?? resolveAct(client),

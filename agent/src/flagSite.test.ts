@@ -78,18 +78,38 @@ describe('PF-704 — the flag', () => {
   });
 
   /**
-   * THE grep. Exactly one non-test module names the variable.
+   * THE grep. Exactly one non-test module READS the variable.
    *
-   * `composition.ts` names it twice by construction — once as the exported
-   * constant, once in the lookup — so the assertion is over FILES, not over
-   * occurrences.
+   * "Reads" and not "mentions", and the difference is deliberate.
+   * `data/citizenReader.ts` names `SHIP_AGENT_VIA_SDK` inside a thrown error —
+   * *"under SHIP_AGENT_VIA_SDK the agent reads Ship data through @ship/sdk"* —
+   * which is the message an operator needs when the flag-on path refuses to
+   * start. Punishing that is L99 F113 exactly: the "fix" a hurried author
+   * reaches for is deleting the sentence that told them what went wrong.
+   *
+   * What must be unique is the LOOKUP. Two lookups are two places to be
+   * inconsistent, and PF-706's matrix would then be exercising a state no
+   * deployment ever has.
    */
-  it('is read in exactly one non-test module', () => {
+  const LOOKUP = /process\.env\.SHIP_AGENT_VIA_SDK|env\s*\[\s*AGENT_VIA_SDK_ENV_VAR\s*\]/;
+
+  it('is read from the environment in exactly one non-test module', () => {
     const readers = sources
       .filter((f) => !f.name.endsWith('.test.ts'))
-      .filter((f) => f.code.includes('SHIP_AGENT_VIA_SDK'))
+      .filter((f) => LOOKUP.test(f.code))
       .map((f) => f.name);
     expect(readers).toEqual(['composition.ts']);
+  });
+
+  it('and `agentViaSdk()` is the only thing anyone else calls to ask', () => {
+    const callers = sources
+      .filter((f) => !f.name.endsWith('.test.ts') && f.name !== 'composition.ts')
+      .filter((f) => f.code.includes('agentViaSdk'))
+      .map((f) => f.name);
+    // One consumer today, the composition root in `entrypoints/cron.ts`. If
+    // this list ever grows past a handful, the flag has stopped being a
+    // composition decision and become a runtime branch.
+    expect(callers).toEqual(['entrypoints/cron.ts']);
   });
 
   /**

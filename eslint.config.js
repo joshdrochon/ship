@@ -218,6 +218,56 @@ export default tseslint.config(
     },
   },
 
+  // Fence 5 (L23 PF-692) — agent/ may not import api/src/.
+  //
+  // p.11 is categorical about what makes citizenship real: "External integrations
+  // live in integrations/ and import only @ship/sdk — never api/src/. Enforced by
+  // a workspace dependency rule. This is what makes 'the agent is a platform
+  // citizen' true rather than aspirational."
+  //
+  // Fence 3 fences `integrations/**` and NOT `agent/**` — the agent predates that
+  // rule and does not live in that directory. Moving the package late in the week
+  // would drag the whole build graph (shared → agent → api) and the cron
+  // entrypoint's deployment with it, so the rule is extended where the package
+  // stands instead.
+  //
+  // ── Narrower than fence 3, deliberately ─────────────────────────────────────
+  // `@ship/shared` stays ALLOWED. The agent's business-day arithmetic and its
+  // circuit breaker live there and always have; `circuitBreaker.ts` was moved into
+  // `@ship/shared` precisely so the agent would stop reaching into `api/dist`.
+  // Banning it here would be a rewrite wearing a lint rule.
+  //
+  // What is banned is the direction the rewire removes: `api/src/**`, `api/dist/**`
+  // and `@ship/api`. The REVERSE direction stays and is correct —
+  // `api/src/routes/fleetgraph/agentBridge.ts` imports `@ship/agent` to trigger a
+  // chat turn, which is Ship invoking its own app, not the agent reaching around
+  // the front door. `docs/architecture.md`'s before-diagram is relabelled to say so.
+  {
+    files: ['agent/**/*.ts', 'eslint-fixtures/agent/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@ship/api',
+                '@ship/api/*',
+                '@ship/web',
+                '@ship/web/*',
+                '**/api/src/**',
+                '**/api/dist/**',
+                '**/web/src/**',
+              ],
+              message:
+                "BOUNDARY (agent → server): the agent is a platform citizen — it reaches Ship through @ship/sdk, the same front door as any external developer, never through api/src/. p.11 makes this the rule that decides whether 'the agent is a platform citizen' is true or aspirational. @ship/shared and @ship/sdk are fine; api/ is not.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
   // Fence 4 (F24) — sdk/ may import nothing from this repository.
   //
   // @ship/sdk is the one package a stranger actually installs, and it was the
