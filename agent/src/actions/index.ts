@@ -29,5 +29,15 @@ export type {
   HttpResponse,
 } from './client.js';
 
-export { makeShipAct } from './act.js';
+export { makeShipAct, commentBody, auditLine } from './act.js';
 export type { ActResult } from './act.js';
+
+/**
+ * L23 D5b — the read-only sibling. `makeShipAct`'s replacement under the flag.
+ *
+ * Exported beside it rather than instead of it: PF-708 requires the flag-off
+ * path to be byte-for-byte the Part 2 agent, so this is an ADDITION and a
+ * selector, never an edit.
+ */
+export { makeRecommendAct } from './recommend.js';
+export type { RecommendActDeps } from './recommend.js';

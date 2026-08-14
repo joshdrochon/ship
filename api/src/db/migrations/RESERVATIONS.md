@@ -267,4 +267,27 @@ because `authenticateClient` now reads the field.
 Apply order holds without coordination: it alters `oauth_apps` (039, L02), which is
 numerically earlier, and nothing else references the column.
 
-**075 is now the first unallocated number; ask before taking it.**
+**L23 had no block and took 075 under Rule 3** (2026-08-14) —
+`075_fleetgraph_notification_kind.sql`, one column: `fleetgraph_notifications.kind`.
+
+Same situation as L04, L05, L08 and L24: the table above allocated every lane that
+was known to write DDL, and L23 was scoped as "an OAuth client and a feature flag"
+before decision D5b landed. D5b makes the agent READ-ONLY, which turns its `comment`
+and `history_note` actions into recommendations delivered through
+`fleetgraph_notifications` — and that table had no field separating a recommendation
+from a finding, so PF-699's assertion had nothing to count and a recipient would see
+two different kinds of message rendered identically.
+
+`NOT NULL DEFAULT 'finding'` plus a CHECK, so every existing row keeps its meaning
+without a backfill pass and a third kind fails at the database rather than becoming a
+class of notification no reader knows how to render. The reasoning for a column
+rather than a `fleetgraph_recommendations` table is in the migration header and comes
+from Ship's own standing rule against new content tables.
+
+Apply order holds without coordination: it alters `fleetgraph_notifications` (038),
+which is numerically earlier, and nothing else references the column.
+
+`fleetgraph_notifications` is already in `api/src/test/setup.ts`'s TRUNCATE list, so
+F54's rule needed no action here.
+
+**076 is now the first unallocated number; ask before taking it.**

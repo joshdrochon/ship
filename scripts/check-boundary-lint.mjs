@@ -68,6 +68,18 @@ const FENCES = [
     marker: 'BOUNDARY (integrations → server)',
   },
   {
+    // L23 PF-692 — the same species of fence, pointed at `agent/`.
+    //
+    // Fence 3 covers `integrations/**` and NOT `agent/**`; the agent predates
+    // that rule and lives elsewhere. Epic 7's whole claim is that the agent is
+    // no longer a privileged insider, and a claim with no rule behind it is a
+    // sentence in a document.
+    ticket: 'PF-692',
+    name: 'agent → api/src',
+    fixture: 'eslint-fixtures/agent/imports-api-source.ts',
+    marker: 'BOUNDARY (agent → server)',
+  },
+  {
     // The workspace-package spelling of the same violation. `@ship/shared`
     // looks like a types-only package and feels harmless; it is the version
     // someone reaches for honestly.
