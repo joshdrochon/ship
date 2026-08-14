@@ -310,6 +310,21 @@ export const test = base.extend<
           // Rule 3: pin the only outbound third-party call to the in-process fake.
           // Set last so it also wins over anything api/.env.local might carry.
           BEDROCK_ENDPOINT: bedrockMock.url,
+          // L99 F165. `/oauth` is throttled at `RATE_LIMIT_DEFAULTS.oauthPerMinute`
+          // = 30/min, keyed by IP — which for this harness is ONE key shared by
+          // every request every spec makes. That default is a correct production
+          // policy for a credential endpoint and is deliberately left alone; it is
+          // simply not a policy a single-IP test harness can live under. The
+          // in-memory double in `api/src/deps.ts` already reasons its way to the
+          // same conclusion and sets capacity 1e6 for exactly this reason — the
+          // real-server E2E path never inherited that reasoning, so it does now.
+          //
+          // What it unblocks, concretely: `oauth-pkce.spec.ts`'s P95 measurement
+          // (PF-110, PRD p.6) drives 20 iterations × 2 `/oauth/*` requests = 40,
+          // and 40 > 30, so it 429s around iteration 15 EVERY run. Deterministic
+          // arithmetic, not flake. The alternative fix — lowering `RUNS` — would
+          // shrink a graded sample to fit a harness artifact, so it is not taken.
+          OAUTH_RATE_LIMIT_PER_MINUTE: '100000',
         }),
         stdio: ['pipe', 'pipe', 'pipe'],
       });

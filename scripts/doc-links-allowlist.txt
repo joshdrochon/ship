@@ -14,3 +14,18 @@
 # that used to be there. Rewriting them would falsify the audit trail.
 CHANGES/lane-8.md::https://shipshape-70uo.onrender.com
 docs/audit/lane-8-annotated-plan.md::https://shipshape-70uo.onrender.com
+
+# shipshape-7buc was the Terraform-created Render service that replaced 70uo, and
+# it went away with the Week 6 move to AWS (L99 D6). `docs/infra/topology.md` §4 is
+# the record of that: it names the host as the one resource carried in
+# `terraform/render/terraform.tfstate.backup`, states "Not live" in the same table,
+# and pastes the proof inline —
+#
+#     $ curl -sI https://shipshape-7buc.onrender.com/health
+#     HTTP/2 404
+#     x-render-routing: no-server
+#
+# The URL is quoted there as the thing that is gone, which is the exact case this
+# file's header describes. Scoped to topology.md: the same host presented as live
+# anywhere else still fails, which is the regression worth preventing.
+docs/infra/topology.md::https://shipshape-7buc.onrender.com
