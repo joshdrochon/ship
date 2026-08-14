@@ -97,8 +97,21 @@ export const realClock: CliClock = {
       // The one timer in the package, and it is in the REAL clock — which no
       // test uses. Every test injects a fake, so `fitness.test.ts` can assert
       // zero timers in the test files themselves (p.11).
-      const timer = setTimeout(resolve, ms);
-      // Do not hold the event loop open on a pending sleep during shutdown.
-      if (typeof timer.unref === 'function') timer.unref();
+      //
+      // ── F121: this timer is REFERENCED, and that is load-bearing ───────────
+      // It used to call `timer.unref()`, under the comment "do not hold the
+      // event loop open on a pending sleep during shutdown". That is not what
+      // `unref` does. An unreferenced timer is the ONLY pending handle during a
+      // device-flow poll wait, so the loop drained, `main()`'s promise was
+      // abandoned mid-await, `process.exitCode` was never assigned, and `ship
+      // login` exited **0** in 64 ms having made zero HTTP requests and written
+      // no credential. A silent false success, on the first line of p.6's story.
+      //
+      // The shutdown concern the comment was reaching for is real but belongs to
+      // the CALLER: `runPoll` races this sleep against its stop signal, so
+      // Ctrl-C does not wait out a poll interval. Killing the process from
+      // inside the clock is not a shutdown mechanism, it is a way to lose the
+      // program.
+      setTimeout(resolve, ms);
     }),
 };

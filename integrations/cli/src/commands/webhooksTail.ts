@@ -353,7 +353,16 @@ async function runPoll(
 
       first = false;
       if (stopped || delivered >= max) break;
-      await context.clock.sleep(POLL_INTERVAL_MS);
+      // F121 — the stop signal RACES the sleep. `realClock.sleep` holds the
+      // event loop open (it must; an unreferenced one silently kills the
+      // process mid-command), so without this race Ctrl-C would sit through a
+      // whole poll interval before the loop noticed `stopped`. Whichever
+      // settles first wins, and both are already-live promises.
+      await Promise.race(
+        options.stopSignal !== undefined
+          ? [context.clock.sleep(POLL_INTERVAL_MS), options.stopSignal]
+          : [context.clock.sleep(POLL_INTERVAL_MS)],
+      );
     }
     return EXIT_CODES.success;
   } catch (error) {

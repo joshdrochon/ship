@@ -163,7 +163,25 @@ export const PLATFORM_APP_SEEDS: PlatformAppSeed[] = [
     // user; this is not the lane's call to close.
     clientId: DEMO_CLIENT_ID,
     name: 'Grader demo (write)',
-    requestedScopes: ['documents:read', 'documents:write'],
+    // F122 — `webhooks:manage` was missing, and its absence broke the fourth
+    // line of the story this app exists to make reproducible.
+    //
+    // The comment above enumerates that story as `ship login` → `ship docs
+    // create` → `ship webhooks tail`, and `platformApps.test.ts` repeats it
+    // verbatim — but the scope list stopped after line three, so
+    // `ship webhooks tail` exited 3 with *"Missing scope: webhooks:manage"*
+    // against the only app a grader can log in as. That is p.11's "demo moment"
+    // and p.13's Social Post screenshot, both unreachable.
+    //
+    // The widening is bounded three ways and none of them is an accident:
+    //   · the READ-ONLY grader app is untouched, so p.2's gate checkbox — the
+    //     one place a grader actually looks — stays literally true;
+    //   · this app lives in the grader sandbox workspace, so a subscription it
+    //     creates can only ever receive that workspace's events;
+    //   · `checkTargetUrl` still governs where a delivery may be POSTed, and
+    //     PF-575's opt-in is default-off, so a loopback target is refused on the
+    //     deployed instance no matter what scope this app holds.
+    requestedScopes: ['documents:read', 'documents:write', 'webhooks:manage'],
     isFirstParty: false,
     // F100. This is the app `ship docs create` runs as — the headline command
     // of p.6's five-line story. Public for the same reason as the grader app.
