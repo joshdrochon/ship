@@ -271,7 +271,23 @@ regression-budget:
       alias: postgres
   script:
     - pnpm --filter @ship/api exec tsx src/db/migrate.ts
-    - pnpm baseline:compare
+    # PF-807 — the instrument is judged before the tree is.
+    #
+    # A/A first: measure the same tree twice in separate processes and compare
+    # it to itself. If the runner's own noise is larger than the +10% budget,
+    # the comparison below cannot tell a regression from a scheduler hiccup and
+    # this job stops here rather than reporting a verdict it did not earn.
+    #
+    # This is the check whose absence cost the MVP. The evidence that failed
+    # review reported GET /health -- no query, no database -- as +32%, and once
+    # as +108%. A route that does nothing cannot regress, and one A/A run says
+    # so. See docs/measurement-rules.md.
+    #
+    # Both sides pin the rate limiter: Part 1 caps its test ceiling at 10_000/min
+    # and this tree at 1_000_000, and above a certain sample count the Part 1
+    # side answers 429 and the harness measures the error path as route latency.
+    - API_RATE_LIMIT_MAX=100000000 PERF_TRIALS=25 node scripts/perf-self-check.mjs --budget 10
+    - API_RATE_LIMIT_MAX=100000000 PERF_TRIALS=25 pnpm baseline:compare
   artifacts:
     when: always
     expire_in: 1 week
@@ -287,6 +303,13 @@ test:
     - name: postgres:16
       alias: postgres
   script:
+    # PF-294's fitness test diffs the current tree against `pf/integration` to prove
+    # adding a resource needed no generator edit. GitLab clones shallow and fetches
+    # only the ref the pipeline runs on, so that branch is absent here and the test
+    # died with `fatal: bad revision` — an infrastructure detail surfacing as a
+    # fitness violation. `|| true` because on `pf/integration` itself the ref is
+    # already checked out and this fetch is a no-op that must not fail the job.
+    - git fetch --no-tags --depth=1 origin +refs/heads/pf/integration:refs/remotes/origin/pf/integration || true
     # `pnpm test` is api-only. Both suites run here, because Rule 2 ("tests must still
     # pass") is not satisfied by a green api run while 151 web tests sit unexecuted.
     - pnpm --filter @ship/api exec tsx src/db/migrate.ts
