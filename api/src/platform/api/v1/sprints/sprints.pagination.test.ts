@@ -198,7 +198,7 @@ describe('/api/v1/sprints — keyset pagination', () => {
     // is `idx_documents_keyset_sprint` and the assertion must explain the real
     // predicate.
     const client = await pool.connect();
-    let plan = '';
+    let plan: string;
     try {
       await client.query('BEGIN');
       await client.query('SET LOCAL enable_seqscan = off');
@@ -251,7 +251,7 @@ describe('/api/v1/sprints — keyset pagination', () => {
     // worth revisiting — which is exactly when it should be.
     return (async () => {
       const client = await pool.connect();
-      let plan = '';
+      let plan: string;
       try {
         await client.query('BEGIN');
         await client.query('ANALYZE documents');

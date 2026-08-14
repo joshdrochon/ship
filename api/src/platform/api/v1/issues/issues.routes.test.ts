@@ -118,8 +118,13 @@ describe('/api/v1/issues', () => {
         // real, registered scope for a DIFFERENT resource reaching this one,
         // because in a single-table data model that is the mistake that silently
         // works if the guard is missing.
-        const res = await request(harness.app)
-          [c.method](c.path)
+        // The property access is on the same line as the call deliberately:
+        // split across lines it reads as `request(...)` followed by an array
+        // literal, which is the ASI hazard `no-unexpected-multiline` exists to
+        // catch. It happens to parse correctly here; it is still the shape that
+        // stops parsing correctly the moment a line above it loses a semicolon.
+        const agent = request(harness.app)[c.method](c.path);
+        const res = await agent
           .set('Authorization', await auth(['documents:read']))
           .send({ title: 'nope' });
 

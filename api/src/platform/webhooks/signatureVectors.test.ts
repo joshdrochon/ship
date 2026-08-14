@@ -65,6 +65,10 @@ describe('PF-446 — the committed vectors reproduce byte-for-byte', () => {
     const bodies = fixture.vectors.map((v) => v.rawBody);
     // A non-ASCII body — a verifier hashing over a JS string rather than bytes
     // diverges here and nowhere else.
+    // The control range is the point: this asserts a vector exists OUTSIDE
+    // 0x00-0x7F, which is exactly where a verifier that hashes a JS string
+    // instead of bytes diverges.
+    // eslint-disable-next-line no-control-regex
     expect(bodies.some((b) => /[^\x00-\x7F]/.test(b))).toBe(true);
     // An EMPTY body — zero length is not an error case.
     expect(bodies).toContain('');

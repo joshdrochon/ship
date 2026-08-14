@@ -258,7 +258,7 @@ describe('/api/v1/issues — keyset pagination', () => {
     // artifact is a PARTIAL index and the assertion has to explain the real
     // predicate.
     const client = await pool.connect();
-    let plan = '';
+    let plan: string;
     try {
       await client.query('BEGIN');
       await client.query('SET LOCAL enable_seqscan = off');
