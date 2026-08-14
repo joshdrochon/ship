@@ -46,6 +46,27 @@ COPY shared/ ./shared/
 COPY api/ ./api/
 COPY agent/ ./agent/
 
+# The SDK is built HERE, before `pnpm build:api`, and the order is load-bearing.
+#
+# The agent became an SDK consumer when it was rewired as a platform citizen:
+# `agent/src/data/citizenClient.ts` and `citizenReader.ts` both import
+# `@ship/sdk`. `pnpm build:api` expands to shared -> agent -> api, so the agent
+# compiles inside that chain — and it cannot compile against an SDK that has no
+# `dist/` yet.
+#
+# This built fine locally and ONLY in Docker, which is the whole trap: a local
+# tree has `sdk/dist/` sitting there from an earlier build, so `tsc` resolves
+# `@ship/sdk` and nobody notices the Dockerfile never built it. `.dockerignore`
+# excludes `dist/`, so the container starts from nothing and fails with TS2307
+# on both files, plus a TS2739 on `ShipClientOptions` that reads like a bad call
+# signature and is really the same missing module.
+#
+# The SDK copy/build used to sit further down, just above the web build, where
+# it was added for the developer portal. That was correct for web and silently
+# too late for the agent.
+COPY sdk/ ./sdk/
+RUN pnpm --filter @ship/sdk build
+
 # One script, not three filters spelled out, because spelling them out is how this
 # broke. The chain used to be shared -> api -> agent: the agent imported the circuit
 # breaker from api/dist, so api had to be built first. FG-280 moved the breaker to
@@ -76,9 +97,9 @@ RUN pnpm build:api
 # type guard those catch blocks use is itself an SDK export. The unknown errors
 # look like sloppy error handling and are nothing of the kind; fix the import and
 # they all disappear.
-COPY sdk/ ./sdk/
-RUN pnpm --filter @ship/sdk build
-
+#
+# The SDK itself is copied and built ABOVE, before `pnpm build:api` — the agent
+# needs it too, and needs it earlier. Nothing to do here but rely on it.
 COPY web/ ./web/
 RUN pnpm --filter @ship/web build
 RUN test -f web/dist/index.html || (echo "web build produced no index.html" && exit 1)
