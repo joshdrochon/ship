@@ -437,6 +437,70 @@ jobs:
           name: junit-results-agent
           path: agent/junit.xml
 
+  # PF-608 — the Time-to-First-Event drill, mirrored beside the existing checks.
+  #
+  # p.6: "Drill runs in CI on every PR." .gitlab-ci.yml is the gate that actually blocks a
+  # merge (its header says so); this is the same job on the platform Rule 4 names. If the
+  # two ever disagree, that file wins.
+  #
+  # No `continue-on-error`, and no retry: p.9's target is 0% flake over 20 consecutive
+  # runs, and a retry is precisely the mechanism that converts a flake into a pass
+  # (PF-605). `scripts/assert-tests-ran.sh 3 --` so a drill that runs zero stages exits 2
+  # rather than reading as a pass.
+  ttfe:
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 30
+    env:
+      # The harness provisions and DROPS its own database and refuses to adopt an
+      # inherited URL (PF-587). Cleared so that refusal is never what fails this job.
+      DATABASE_URL: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: ship-dist-${{ github.sha }}
+
+      # tsconfig.json excludes `tests/`, and vitest strips types without checking them —
+      # so without this step the drill is the one file in the lane no compiler reads.
+      - name: Type-check the drill
+        run: pnpm --filter @ship/cli exec tsc -p tsconfig.drill.json
+
+      # PF-605 / PF-609 — no sleeps, retry: 0, not a Playwright spec, one thresholds file.
+      - name: Drill fitness
+        run: node scripts/ttfe/check-fitness.mjs
+
+      # Pre-pull so a slow registry does not eat the container start timeout inside the
+      # harness and report as a stage failure that names the wrong thing.
+      - run: docker pull postgres:16
+
+      - name: TTFE drill
+        run: scripts/assert-tests-ran.sh 3 -- pnpm drill ttfe
+
+      # PF-600 / PF-603 — the P95 gates no single run can produce.
+      - name: TTFE series
+        run: node scripts/ttfe/check-series.mjs
+
+      - name: TTFE negative controls
+        run: scripts/assert-tests-ran.sh 4 -- pnpm drill ttfe --controls
+
+      # PF-592 / PF-610 — Epic 6's proof artifact travels with the run.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ttfe-${{ github.sha }}
+          path: |
+            test-results/ttfe.json
+            test-results/ttfe-series.jsonl
+
   coverage:
     runs-on: ubuntu-latest
     needs: build

@@ -1,0 +1,37 @@
+{
+  "_": "PF-609 — every TTFE threshold lives HERE and nowhere else. p.6: 'Any regression past the configured threshold fails the build.' A budget that can be relaxed inside a test body is not a budget; raising one of these numbers is a reviewable diff with the number visible in it. scripts/ttfe/check-thresholds.mjs greps the lane's own files for a second literal.",
+
+  "totalMs": 60000,
+  "_totalMs": "p.8's Signature Challenge: the whole loop under 60 s in CI. Asserted per run (PF-600) and as a P95 over p95WindowRuns (PF-600, second gate).",
+
+  "stageMs": {
+    "install": 45000,
+    "login": 20000,
+    "register_subscription": 5000,
+    "create_document": 5000,
+    "receive_webhook": 5000,
+    "verify_signature": 2000
+  },
+  "_stageMs": "Per-stage ceilings (PF-591/PF-593). These deliberately sum ABOVE totalMs: a stage budget is a diagnostic that names WHICH stage went wrong, the total is the graded gate. install carries the largest share because it is a real pnpm install of a packed tarball (PF-589), not a symlink.",
+
+  "p95WindowRuns": 20,
+  "_p95WindowRuns": "p.9 measures flake 'over 20 consecutive CI runs'. The PRD never states a window for the < 60 s P95, so the two share one series — a convenience, not a citation (recorded in the lane file).",
+
+  "p95TotalMs": 60000,
+  "_p95TotalMs": "The SECOND gate on p.8's < 60 s, and deliberately the same number as totalMs. The per-run assertion catches a regression on the PR that caused it; the P95 over the window catches a slow drift that never trips any individual run. Reporting one and calling it the other is the easiest way to claim this target without meeting it.",
+
+  "p95EventToPostMs": 2000,
+  "_p95EventToPostMs": "p.6: 'webhook delivery latency (P95, first attempt) < 2s'. L99's U5 — no lane measured this end to end on the wire before the drill (PF-603).",
+
+  "verifyLatencyMs": 1,
+  "_verifyLatencyMs": "p.8: 'Signature verification < 1 ms'. Gated on L18's recorded benchmark over >= 1000 iterations from the SAME packed build the drill installed (PF-602). The drill's own single verify call is recorded for the trend and is explicitly NOT the gate.",
+
+  "reconcileToleranceMs": 1,
+  "_reconcileToleranceMs": "PF-591: stage times plus measured inter-stage gaps must reconcile with the total to within this. Without it, five stages summing to 8 s inside a 55 s run reads as a pass.",
+
+  "loadRatioVeto": 0.8,
+  "_loadRatioVeto": "L99 F80: three runs on one commit spread 6.0x under load ratio 1.33-1.88 on this hardware. Every timing this drill records carries loadAvg1/loadRatio; above this ratio the numbers are reported but not treated as certified.",
+
+  "cleanModeMinutes": 30,
+  "_cleanModeMinutes": "p.8: '<= 30 min real elapsed' on a clean machine. Belongs to --clean mode (PF-590) and to the human-timed run (PF-601) — never to the fast mode, which is why the two figures carry a `mode` field in ttfe.json."
+}
