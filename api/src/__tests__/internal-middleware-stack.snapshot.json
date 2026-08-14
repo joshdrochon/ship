@@ -1,7 +1,7 @@
 {
   "_comment": "GENERATED — see api/src/__tests__/internal-middleware-stack.test.ts. Do not hand-edit.",
   "authMiddlewareSha256": "4fc2bd143b926434a95ea9b897df725fba0ec18d42e2999ef35ea3955318c474",
-  "layerCount": 78,
+  "layerCount": 79,
   "layers": [
     {
       "name": "query",
@@ -270,6 +270,11 @@
     },
     {
       "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/apps\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
       "path": null,
       "mount": "/^\\/api\\/apps\\/?(?=\\/|$)/i"
     },

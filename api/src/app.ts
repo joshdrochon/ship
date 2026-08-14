@@ -29,6 +29,7 @@ import { filesRouter } from './routes/files.js';
 import caiaAuthRoutes from './routes/caia-auth.js';
 import apiTokensRoutes from './routes/api-tokens.js';
 import { createAppsRouter } from './routes/apps.js';
+import { createPortalRouter } from './routes/portal.js';
 import adminCredentialsRoutes from './routes/admin-credentials.js';
 import claudeRoutes from './routes/claude.js';
 import activityRoutes from './routes/activity.js';
@@ -612,7 +613,28 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
   // The router is constructed from `deps.appsRepo` rather than importing a
   // module-level singleton, which is what keeps `createApp(testDeps())` able to
   // drive it with the in-memory double.
-  app.use('/api/apps', conditionalCsrf, createAppsRouter(appsRepo));
+  // L22 PF-652 — the portal's token mint rides the SAME mount as `/api/apps`
+  // rather than taking a second `app.use`, so PF-018's internal middleware
+  // snapshot moves by one layer instead of two and the two routers provably
+  // share one path, one session auth and one CSRF chain.
+  //
+  // `createPortalRouter` is a separate MODULE on purpose: PF-652's claim is that
+  // the portal has exactly ONE privileged internal route, and that is a property
+  // a fitness test can grep for in a file — not a property of a comment buried
+  // inside somebody else's router. Everything the portal does besides obtaining
+  // this token goes over `/api/v1` through `@ship/sdk`; see
+  // `api/src/routes/portal.ts` for why the mint itself cannot (bootstrap, no
+  // scope in p.3's registry, different principal).
+  app.use(
+    '/api/apps',
+    conditionalCsrf,
+    createAppsRouter(appsRepo),
+    createPortalRouter({
+      appsRepo,
+      tokenRepo: deps.tokenRepo,
+      clock: deps.clock,
+    })
+  );
 
   // Claude context routes - read-only GET endpoints for Claude skills
   app.use('/api/claude', claudeRoutes);
