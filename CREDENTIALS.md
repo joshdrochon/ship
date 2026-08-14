@@ -1,4 +1,11 @@
-# Deployed resources
+# Deployed resources — Render (Week 5)
+
+> **This file maps the Week 5 *Render* environment only.** Week 6 (PlugForge) deploys to
+> AWS — Elastic Beanstalk behind CloudFront — and none of the identifiers below apply to
+> it. For the Week 6 URLs and the pre-registered grader apps, see
+> [`SUBMISSION-PLUGFORGE.md`](SUBMISSION-PLUGFORGE.md) §9 and the grader section of
+> [`README.md`](README.md). The Render service named here is still live; it is a different
+> application, not a stale URL.
 
 > **No secrets are in this file, and none should ever be added to it.** Everything
 > below is an identifier or a public URL — the kind of thing you would read off the

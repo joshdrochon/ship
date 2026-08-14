@@ -221,16 +221,19 @@ test.describe('MVP gate 2 · Authorization Code + PKCE', () => {
     // An assertion on the token STRING does not satisfy p.2. The token has to
     // reach the public API and be recognised there.
     //
-    // ⚑ WHAT THIS CAN AND CANNOT PROVE TODAY, STATED RATHER THAN FUDGED:
-    // no `/api/v1` RESOURCE route exists yet — L09's PF-245 owns
-    // `GET /api/v1/documents` and has not landed, so `mountResources` is not
-    // passed in `createApp`. What is therefore asserted is everything up to the
-    // resource itself: the token authenticates (the response is NOT 401, and an
-    // anonymous request to the same path IS), and it is metered by the public
-    // rate limiter (`X-RateLimit-*` present, which p.4 requires on public
-    // responses). The moment L09 mounts the route, the `not_found` below
-    // becomes a 200 and the two `expect`s marked ⚑ are the only lines that
-    // change.
+    // ⚑ RESOLVED 2026-08-14 (L26, MVP gate item 9). L09's PF-245 has landed and
+    // `GET /api/v1/documents` is mounted, so the two `expect`s marked ⚑ moved
+    // from `404 / not_found` to `200` plus the `{ data, next_cursor }` envelope,
+    // exactly as this comment predicted. Everything around them is unchanged.
+    //
+    // The assertion is now the strong form of "usable": the token does not just
+    // get past authentication, it reads the resource. The weaker evidence the
+    // original version relied on is kept below rather than deleted — the token
+    // authenticates (NOT 401, while an anonymous request to the same path IS),
+    // and the response is metered by the public rate limiter (`X-RateLimit-*`
+    // present, which p.4 requires on public responses). Those still hold and
+    // they are what would localise a future failure to auth rather than to the
+    // resource.
     const withToken = await page.request.get('/api/v1/documents', {
       headers: { Authorization: `Bearer ${token.access_token}` },
       failOnStatusCode: false,
@@ -247,9 +250,14 @@ test.describe('MVP gate 2 · Authorization Code + PKCE', () => {
     // With the token, authentication and scope resolution both passed.
     expect(withToken.status(), await withToken.text()).not.toBe(401);
     expect(withToken.status(), await withToken.text()).not.toBe(403);
-    // ⚑ becomes 200 when L09's PF-245 lands.
-    expect(withToken.status()).toBe(404);
-    expect((await withToken.json()).code).toBe('not_found');
+    // ⚑ was 404 / not_found before L09's PF-245 mounted the resource route.
+    expect(withToken.status(), await withToken.text()).toBe(200);
+    // ⚑ the cursor-paginated list envelope (p.3), read the way a consumer reads it.
+    const listed = (await withToken.json()) as { data: unknown[]; next_cursor: unknown };
+    expect(Array.isArray(listed.data), 'p.3: a list endpoint answers { data, next_cursor }').toBe(
+      true,
+    );
+    expect(listed).toHaveProperty('next_cursor');
 
     // p.4 — public responses carry the rate-limit headers. A 401 short-circuits
     // above the limiter, so seeing these IS evidence the token got past auth.

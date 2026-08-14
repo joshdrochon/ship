@@ -83,10 +83,48 @@ Full write-up with every number and exit code: **`docs/mvp-gate-item-9.md`**.
 | PF-802 ☑ | Schema documented once in `docs/baseline-schema.md`, cited by producer, consumer and both CI jobs. Comparator throws `BaselineError` and exits 1 on missing / empty / non-JSON / non-object / each missing top-level key / absent budget / zero bundle figure / zero routes / route missing `latencyMs` or `queriesPerRequest` / non-positive P95 / negative query count / a baselined route absent from the run. Observed live: missing → exit 1, empty → exit 1. Anti-vacuity: the real committed baseline loads and is enforceable, and the control run exits 0. |
 | PF-803 ☑ | `pnpm baseline:compare` emits current, baseline and % delta for all three metrics; query counts **per route**, never aggregated (a test seeds the hiding case: documents 3→9, my-work 7→1, total unchanged at 10 — the per-route failure still fires). Committed artifacts `docs/regression-report.md` + `.json`, uploaded by CI every run. |
 | PF-804 ☑ | Job `regression-budget` in `.gitlab-ci.yml` (authoritative) and `.github/workflows/ci.yml`. Four real CLI runs: control **exit 0**; P95 `GET /api/documents` +11.01% **exit 1**; bundle +11.00% **exit 1**; queries `GET /api/dashboard/my-work` 7→8 +16.67% **exit 1**. Each message names metric, route where applicable, and both numbers. Re-runnable: `pnpm baseline:evidence`. |
-| PF-805 ◐ | **Bundle −0.00% and query counts 0.00% on all six routes — both PASS, recorded.** Two halves outstanding: (a) **P95 not certified** — the machine was at load ratio 1.33–1.88 and three runs of one commit spread up to 6.0×, ~60× the budget (F80); needs one run of `pnpm baseline:compare -- --strict-latency` on an idle box. (b) The Playwright suite passed on the **L01 tree** 2026-08-12 (commit `41393f6`), not on the current integration tree; p.2 says *"on main"*, so it must be re-run via `/e2e-test-runner` before submission. |
+| PF-805 ◐ | **Bundle −0.00% and query counts 0.00% on all six routes — both PASS, recorded.** (b) **CLOSED 2026-08-14 by L26:** the Playwright suite now passes on the **integration** tree — **881 passed, 1 flaky, 0 failed, exit 0** at commit `c728c40`, 4 workers, 10.5 m. Getting there took two fixes, neither in the platform: a stale `404 / not_found` assertion in `oauth-pkce.spec.ts` that its own comment had predicted would become 200 once L09's PF-245 landed, and — revealed only once that stopped skipping four tests under `mode: 'serial'` — the PKCE P95 measurement 429ing because 20 iterations × 2 `/oauth/*` requests exceeds the 30/min IP-keyed throttle (L99 F165). Full run table in `SUBMISSION-PLUGFORGE.md` §11. (a) **P95 still not certified** — the machine was at load ratio 1.33–1.88 and three runs of one commit spread up to 6.0×, ~60× the budget (F80); needs one run of `pnpm baseline:compare -- --strict-latency` on an idle box, and this session's four back-to-back suite runs make now the worst possible time to take it. |
 
 Fitness test for the slice: `api/src/scripts/lib/perf-compare.test.ts` — **36 tests, passing**. Full
 api suite after the change: **146 files, 2507 tests, passing**.
+
+## S1a — landed 2026-08-14 (`pf/L26-submission-truth`)
+
+The submission index and the deployment-URL correction. Not all of S1: PF-784 and PF-785
+(the PR-body sweep and the slice↔PR bijection) are untouched and stay open.
+
+| Ticket | State | Evidence |
+|---|---|---|
+| PF-781 ☑ | done | `SUBMISSION-PLUGFORGE.md` — ten rows named verbatim from p.12–p.13, each with owning lane, resolving path/URL, and Ready / Not-ready. Counted honestly: **1 Ready, 1 Ready-with-caveat, 8 open.** Every Not-ready row carries the specific condition that would close it. |
+| PF-782 ◐ | **open, and deliberately** | The contradiction (p.1 `11:59 AM CT` vs p.12 `Deadline: Sunday 11:59 PM CT`) is recorded in the index with an empty asked/channel/answer block, and the board plans against the **earlier** time until a grader answers. Closing this by picking a page is the assumption the ticket exists to prevent. |
+| PF-783 ◐ | half measured, and it fails | (a) Public: `github.com/joshdrochon/ship` → **200** logged-out ✅; `labs.gauntletai.com/joshrochon/ship` → **302** to sign-in (L99 F164). (b) Branches preserved: **119 local `pf/*`, 11 on GitLab, 5 on GitHub — 108 never pushed** (L99 F161). The criterion asks for a count match against declared slices; it fails long before that comparison. |
+| PF-786 ◐ | measured, and it fails on length | All **nine** required headings present and correctly named in `docs/architecture.md`. The p.13 / p.11 cap is *1–2 pages*; the file is **744 source lines** with five mermaid diagrams and thirteen subsections beyond the nine. Measured as source lines because no rendered artifact exists to page-count — either way 744 lines is not two pages. The fix is a cut, not an addition. |
+| PF-812 ☑ | done | `PRESEARCH-PLUGFORGE.md` — all three phases with written answers, no placeholder text (the sole `TODO` occurrences are citations of code comments, which the document itself calls out); reference artifact `docs/presearch-conversation.md` present and linked both ways with repository-relative paths. |
+| PF-813 ◐ | live half proven, criterion needs correcting | Live spec **200 uncredentialed** from outside the repo on both hosts; **14 paths, set-equal** to `docs/openapi.json`; **semantically identical**; `3.1.0`. **Not byte-identical** (63,436 served vs 147,852 committed — the server compacts, the repo copy is pretty-printed). See L99 F163. |
+| PF-814 ◐ | **fails, and the reason is new** | Public URL loads, `/portal` reachable, spec resolvable, README carries both grader `client_id`s and their scopes. But `/oauth/*` is not routed through CloudFront, so `ship login` cannot complete on the Week 6 URL and the API's own `verification_uri` points into the same hole — **L99 F160**. Separately: the README gives `client_secret` via an `aws ssm get-parameter` command rather than a value, and p.13 says *"credentials in the README"* — flagged, not silently counted as satisfied. |
+
+**PF-794 has not been started, and the file that looks like it is last week's.**
+`docs/ai-cost-analysis.md` exists and opens by citing the **Week 5** brief. It contains none
+of p.13's three halves — no tracked dev spend for Epic 7, no production projections table, no
+fanout / active-rate / retention assumptions. This is precisely the failure mode this lane's
+own header warns about: a file with the right name in the right directory is not a
+deliverable. PF-794–801 remain fully open.
+
+**Documentation corrected in this slice.** `README.md` now leads graders at
+`https://d258p92d3n1ebe.cloudfront.net/` for everything, states plainly why the EB origin
+white-screens in a browser, and carries the `/oauth/*` warning with the one command that
+needs the EB host. `SUBMISSION.md` and `CREDENTIALS.md` get a Week-5 banner pointing at
+`SUBMISSION-PLUGFORGE.md` — **their Render URLs are not corrected**, because they describe
+Week 5's application, which is still live, and rewriting them would falsify a record the
+repo's own `scripts/check-doc-links.sh` exists to protect.
+
+**Two files deliberately left alone.** `docs/infra/topology.md` and
+`docs/infra/grader-access.md` were reported as pointing at the wrong deployment; re-measured,
+neither does. topology.md §4 names the **retired** `shipshape-7buc` as a documented dead
+fallback with the `x-render-routing: no-server` 404 pasted in, and grader-access.md §6
+already records that `eba-xsaqsg9h` is dead and that `eba-nvpntpge` answers. Both are correct
+as written. `.claude/CLAUDE.md` **does** still name the dead `eba-xsaqsg9h` CNAME and was not
+edited here — it is project configuration, and the README now says so explicitly.
 
 ## Slices
 
