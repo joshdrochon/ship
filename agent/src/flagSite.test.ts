@@ -101,10 +101,15 @@ describe('PF-704 — the flag', () => {
     expect(readers).toEqual(['composition.ts']);
   });
 
+  /**
+   * CALLS, not mentions — `index.ts` re-exports `agentViaSdk` so the fitness
+   * test in `api/` can reach it, and a re-export is not a decision site.
+   * `agentViaSdk(` with the paren is the call.
+   */
   it('and `agentViaSdk()` is the only thing anyone else calls to ask', () => {
     const callers = sources
       .filter((f) => !f.name.endsWith('.test.ts') && f.name !== 'composition.ts')
-      .filter((f) => f.code.includes('agentViaSdk'))
+      .filter((f) => /agentViaSdk\s*\(/.test(f.code))
       .map((f) => f.name);
     // One consumer today, the composition root in `entrypoints/cron.ts`. If
     // this list ever grows past a handful, the flag has stopped being a
