@@ -46,6 +46,7 @@ checkout, a database, or a build.**
 | **OpenAPI spec** | `<base>/api/v1/openapi.json` — public, no credentials required |
 | **Health** | `<base>/health` — reports the deployed commit SHA |
 | **Dev portal** | `<base>/portal` |
+| **Regression budget (p.2 item 9)** | [`docs/regression-paired-runs.md`](docs/regression-paired-runs.md) — P95 vs Part 1, largest +4.3% against a +10% budget |
 | **API origin (no TLS, `curl` only)** | `http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com` |
 
 **Use the CloudFront URL.** It serves the frontend from S3 and proxies `/api/**` and

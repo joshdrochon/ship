@@ -62,9 +62,18 @@ Log in. It is a working app, not a shell around an API — documents, issues, sp
 
 ### 2. The developer portal — `/portal` (60s)
 
-Register an app in the UI. The `client_secret` is displayed **once**, with the warning
-that it is not recoverable. Reload the page and it is gone: the server stored only a
-hash. `/portal/:appId` is the per-app delivery log.
+**There is no register-app form in the UI yet** (L22, still open). The portal renders the
+app list, the per-app delivery log at `/portal/:appId`, and the shown-once secret reveal.
+Apps are registered through `POST /api/apps`, which is what `scripts/demo-live.py` does.
+
+So demo it in that order: run the script first, then open `/portal` and show the app it
+just created. Click into it for `client_id`, scopes, and the delivery log. The reveal
+panel is the beat worth pausing on — the secret is displayed once and the server kept
+only a hash.
+
+Pick an app holding `webhooks:manage` before opening the delivery log. The portal mints a
+token scoped to that app's own scopes, so an app without it renders a scope error rather
+than a log.
 
 ### 3. The contract — `/api/v1/openapi.json` (30s)
 

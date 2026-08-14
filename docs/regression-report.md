@@ -9,31 +9,31 @@ PRD p.2 gate item 9: *"Existing Playwright regression suite passes on main; P95 
 
 | | |
 |---|---|
-| Baseline captured | 2026-08-14T01:57:08.826Z |
-| Baseline git ref | `41393f6d64be7df53daa47f67468e9228a40193c` |
-| Compared at | 2026-08-14T01:57:32.302Z |
-| Current git ref | `932fe0581a2afd15a1f171487c1c72cce3a68517` |
+| Baseline captured | 2026-08-14T19:39:12.340Z |
+| Baseline git ref | `5455f4ef0e971cc083468fb209ab890ed505239b` |
+| Compared at | 2026-08-14T19:40:54.324Z |
+| Current git ref | `273c05c0ed94d50124ba5e15194d25e724f53a54` |
 | Database state | purpose-built fixture (1 workspace, 1 user, 25 documents) created and destroyed by this run |
 | Environment | baseline darwin-arm64, node v26.5.0, 10 cpu · current darwin-arm64, node v26.5.0, 10 cpu |
-| Machine load during run | 7.27 over 10 cores (ratio 0.73, limit 0.8) |
+| Machine load during run | 6.17 over 10 cores (ratio 0.62, limit 0.8) |
 | Latency budget | **enforced** |
 
 ## P95 latency, per route
 
 | Route | Baseline (ms) | Current (ms) | Delta | Status |
 |---|---:|---:|---:|---|
-| GET /health | 0.93 | 0.77 | -17.20% | pass |
-| GET /api/documents | 4.56 | 4.75 | +4.17% | pass |
-| GET /api/documents/:id | 6.44 | 5.47 | -15.06% | pass |
-| GET /api/issues | 6.16 | 6.07 | -1.46% | pass |
-| GET /api/weeks | 6.63 | 7.16 | +7.99% | pass |
-| GET /api/dashboard/my-work | 8.98 | 8.94 | -0.45% | pass |
+| GET /health | 0.21 | 0.19 | -9.52% | pass |
+| GET /api/documents | 2.69 | 2.87 | +6.69% | pass |
+| GET /api/documents/:id | 3.89 | 3.91 | +0.51% | pass |
+| GET /api/issues | 4.9 | 5.22 | +6.53% | pass |
+| GET /api/weeks | 5.72 | 6.1 | +6.64% | pass |
+| GET /api/dashboard/my-work | 7.84 | 7.67 | -2.17% | pass |
 
 ## Bundle size
 
 | Route | Baseline (bytes) | Current (bytes) | Delta | Status |
 |---|---:|---:|---:|---|
-| total (gzipped) | 747644 | 747612 | 0.00% | pass |
+| total (gzipped) | 747644 | 760294 | +1.69% | pass |
 
 ## Queries per request, per route
 
