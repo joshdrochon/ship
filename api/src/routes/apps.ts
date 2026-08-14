@@ -46,6 +46,8 @@ import type { Router as RouterType } from 'express';
 import { ERROR_CODES, HTTP_STATUS } from '@ship/shared';
 import { authMiddleware, requireAuth } from '../middleware/auth.js';
 import { logAuditEvent } from '../services/audit.js';
+import { pool } from '../db/client.js';
+import { listCalls } from '../platform/audit/pgAuditSink.js';
 import {
   createAppRequestSchema,
   reactivateRequestSchema,
@@ -155,6 +157,10 @@ async function findOwnedApp(
  * construction of `PgOAuthAppRepo` in the composition root where PF-037 says
  * it belongs.
  */
+/** Page-size bounds for the audit trail. Mirrors the public list limits. */
+const CALLS_DEFAULT_LIMIT = 25;
+const CALLS_MAX_LIMIT = 100;
+
 export function createAppsRouter(repo: IOAuthAppRepo): RouterType {
   const router: RouterType = Router();
 
@@ -264,6 +270,86 @@ export function createAppsRouter(repo: IOAuthAppRepo): RouterType {
     // No `client_secret` key at all — not an empty string, not null. The
     // projection has no slot for one.
     res.json({ success: true, data: toPublicApp(app) });
+  });
+
+  /**
+   * F111 — the audit trail, over HTTP at last.
+   *
+   * PRD p.4 requires every public API call recorded "with timestamp, app
+   * client_id, user_id, route, scope used, status, latency" and **queryable in
+   * the developer portal**. L12 shipped the recording and `listCalls(...)` — a
+   * repository function. React cannot call a repository function, so the
+   * requirement had no HTTP surface at all and L22's audit slice was blocked on
+   * a route neither lane owned.
+   *
+   * ## Why this sits on the SESSION surface and not `/api/v1`
+   *
+   * Same reason app registration does, and L22 already argued it for the app
+   * list: none of p.3's seven scopes can gate this. There is no `audit:read`,
+   * and inventing one would put a scope in the registry the PRD never asked
+   * for. Worse, the natural OAuth framing is circular — an app reading its own
+   * call log through a token issued to that same app means every read appends a
+   * row about the read.
+   *
+   * A developer signed into the portal is a different principal from an app
+   * holding a token, and that is exactly the principal p.4's "in the developer
+   * portal" describes.
+   *
+   * ## Ownership, not client_id, is the gate
+   *
+   * The `:id` is the app's UUID and is resolved through `findOwnedApp`, so a
+   * developer sees the trail for apps they own and nothing else. The
+   * `client_id` used to scope the query is read off the RESOLVED row rather
+   * than taken from the caller — passing a `client_id` straight through would
+   * let anyone read any app's trail by guessing an identifier that is published
+   * in a README.
+   */
+  router.get('/:id/calls', authMiddleware, async (req: Request, res: Response): Promise<void> => {
+    const auth = requireAuth(req);
+    const app = await findOwnedApp(repo, String(req.params.id), auth.userId);
+    if (!app) {
+      // Byte-identical to the other not-found bodies here: a foreign app and an
+      // absent one must be indistinguishable, or this route becomes an oracle
+      // for which app ids exist.
+      notFound(res);
+      return;
+    }
+
+    const rawLimit = Number.parseInt(String(req.query.limit ?? ''), 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(Math.max(rawLimit, 1), CALLS_MAX_LIMIT)
+      : CALLS_DEFAULT_LIMIT;
+
+    const status = Number.parseInt(String(req.query.status ?? ''), 10);
+    const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+    const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+
+    // An unparseable date is a client mistake, not an empty page: silently
+    // dropping the filter would answer a question nobody asked.
+    for (const [name, value] of [['from', from], ['to', to]] as const) {
+      if (value !== undefined && Number.isNaN(value.getTime())) {
+        res.status(HTTP_STATUS.BAD_REQUEST).json({
+          success: false,
+          error: {
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: `\`${name}\` must be an ISO 8601 timestamp`,
+          },
+        });
+        return;
+      }
+    }
+
+    const page = await listCalls(pool, {
+      clientId: app.clientId,
+      limit,
+      cursor: req.query.cursor ? String(req.query.cursor) : null,
+      ...(Number.isFinite(status) ? { status } : {}),
+      ...(req.query.route ? { route: String(req.query.route) } : {}),
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+    });
+
+    res.json({ success: true, data: page.data, next_cursor: page.next_cursor });
   });
 
   /**

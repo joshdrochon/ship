@@ -599,3 +599,88 @@ describe('PF-045 — MVP GATE ITEM 1, asserted end to end as ONE test', () => {
     expect((await verifyClientSecret(repo(), clientId, rawSecret + 'x')).ok).toBe(false);
   });
 });
+
+describe('F111 — GET /api/apps/:id/calls, the audit trail over HTTP', () => {
+  /** The file imports `crypto` dynamically per use; matching that convention. */
+  async function rid(): Promise<string> {
+    const { randomBytes } = await import('crypto');
+    return randomBytes(8).toString('hex');
+  }
+
+  async function callsFor(id: string, cookie: string, query = '') {
+    return request(app).get(`/api/apps/${id}/calls${query}`).set('Cookie', cookie);
+  }
+
+  it('returns a page for an app the caller owns', async () => {
+    const created = await register();
+    const id = created.body.data.id;
+    const clientId = created.body.data.client_id;
+
+    // Two rows for this app and one for a different client, so an unscoped
+    // query would be visibly wrong rather than accidentally right.
+    for (const status of [200, 429]) {
+      await pool.query(
+        `INSERT INTO public_api_calls
+           (request_id, client_id, user_id, method, route, scope_used, status, latency_ms, occurred_at)
+         VALUES ($1, $2, NULL, 'GET', '/api/v1/documents', 'documents:read', $3, 5, now())`,
+        [await rid(), clientId, status]
+      );
+    }
+    await pool.query(
+      `INSERT INTO public_api_calls
+         (request_id, client_id, user_id, method, route, scope_used, status, latency_ms, occurred_at)
+       VALUES ($1, 'some_other_app', NULL, 'GET', '/api/v1/documents', 'documents:read', 200, 5, now())`,
+      [await rid()]
+    );
+
+    const res = await callsFor(id, ownerCookie);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.length).toBe(2);
+    // Scoped by the RESOLVED row's client_id, never by anything the caller sent.
+    for (const row of res.body.data) expect(row.client_id).toBe(clientId);
+    expect(res.body).toHaveProperty('next_cursor');
+  });
+
+  it('carries every field p.4 names', async () => {
+    const created = await register();
+    const clientId = created.body.data.client_id;
+    await pool.query(
+      `INSERT INTO public_api_calls
+         (request_id, client_id, user_id, method, route, scope_used, status, latency_ms, occurred_at)
+       VALUES ($1, $2, NULL, 'GET', '/api/v1/documents', 'documents:read', 200, 12, now())`,
+      [await rid(), clientId]
+    );
+    const row = (await callsFor(created.body.data.id, ownerCookie)).body.data[0];
+    // p.4: "timestamp, app client_id, user_id, route, scope used, status, latency".
+    for (const field of ['occurred_at', 'client_id', 'user_id', 'route', 'scope_used', 'status', 'latency_ms']) {
+      expect(row, `p.4 requires ${field}`).toHaveProperty(field);
+    }
+  });
+
+  it("a foreign app's trail is not readable, and looks exactly like an absent one", async () => {
+    const created = await register();
+    const stranger = await makeSessionUser(`stranger-${await rid()}@ship.local`);
+
+    const foreign = await callsFor(created.body.data.id, stranger.cookie);
+    const absent = await callsFor('00000000-0000-4000-8000-000000000000', stranger.cookie);
+
+    expect(foreign.status).toBe(404);
+    // Byte-identical, or the route is an oracle for which app ids exist.
+    expect(foreign.body).toEqual(absent.body);
+  });
+
+  it('rejects an unparseable date rather than silently dropping the filter', async () => {
+    const created = await register();
+    const res = await callsFor(created.body.data.id, ownerCookie, '?from=not-a-date');
+    expect(res.status).toBe(400);
+    expect(res.body.error.message).toMatch(/from/);
+  });
+
+  it('clamps limit rather than trusting it', async () => {
+    const created = await register();
+    const res = await callsFor(created.body.data.id, ownerCookie, '?limit=99999');
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeLessThanOrEqual(100);
+  });
+});
