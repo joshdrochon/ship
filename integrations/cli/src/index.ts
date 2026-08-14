@@ -1,47 +1,55 @@
 #!/usr/bin/env node
 /**
  * ship — the reference integration and the proof the platform works.
- * May import ONLY @ship/sdk (enforced by the workspace dependency rule +
- * ESLint boundary rule). If a command needs something the SDK cannot do,
- * that is an SDK gap — fix it there, never by importing server code.
  *
- * The demo story (and the TTFE drill):
- *   ship login                 device flow → tokens in ~/.ship/credentials.json
- *   ship docs create --title   create through the SDK
- *   ship webhooks tail         stream verified signed deliveries to stdout
+ * May import ONLY @ship/sdk (PRD p.11's Critical Guidance, enforced by ESLint
+ * fence 3 and by the workspace-dependency check in
+ * `scripts/check-boundary-lint.mjs`). If a command needs something the SDK
+ * cannot do, that is an SDK gap — it gets fixed in L18, never by importing
+ * server code. The CLI is the only consumer in this repository with no
+ * privileged path available to it, and that is precisely what makes it proof.
+ *
+ * p.6's five-line developer story is this binary:
+ *
+ *     $ pnpm install @ship/sdk
+ *     $ ship login                             # Device flow
+ *     $ ship docs create --title "hello"       # Uses the SDK under the hood
+ *     $ ship webhooks tail                     # Streams signed deliveries to stdout
+ *     → document.created event arrives, signature verified ✓
+ *
+ * ── This file is argv and process wiring, and nothing else ──────────────────
+ * PF-581: every command is an importable function with an injectable sink and
+ * clock, so L20's TTFE drill instruments the real command paths. The dispatch
+ * table is `run.ts`; the commands are `commands/`. Nothing here decides
+ * anything.
  */
+import { run } from './run.js';
+import { processSink } from './io.js';
+import { EXIT_CODES } from './exitCodes.js';
 
-const USAGE = `ship — Ship platform CLI
-
-Commands:
-  ship login                     Authenticate via device flow
-  ship docs ls                   List documents
-  ship docs get <id>             Show one document
-  ship docs create --title <t>   Create a document
-  ship webhooks tail             Stream signed webhook deliveries (verified)
-
-TODO(josh) E6: wire commands to @ship/sdk (deviceLogin, documents.*, verifyWebhook).
-Consider commander/oclif; plain argv parsing is acceptable for the week.
-`;
-
-const [, , command, ...rest] = process.argv;
-
-async function main(): Promise<void> {
-  switch (command) {
-    case 'login':
-    case 'docs':
-    case 'webhooks':
-      console.error(`ship ${command} ${rest.join(' ')}`.trim());
-      console.error('not implemented yet — see TODO(josh) E6 in integrations/cli/src/index.ts');
-      process.exitCode = 1;
-      break;
-    default:
-      console.log(USAGE);
-      process.exitCode = command ? 1 : 0;
-  }
+/** Ctrl-C and SIGTERM resolve this; `webhooks tail` unsubscribes and returns. */
+function stopSignal(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const stop = (): void => resolve();
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+  });
 }
 
-main().catch((err: unknown) => {
-  console.error(err instanceof Error ? err.message : String(err));
-  process.exitCode = 1;
+async function main(): Promise<void> {
+  // `process.exitCode` rather than `process.exit`: the latter truncates a
+  // pending stdout write on a pipe, which is exactly the case
+  // `ship webhooks tail | head -20` is (PF-579).
+  process.exitCode = await run(process.argv.slice(2), {
+    sink: processSink,
+    stopSignal: stopSignal(),
+  });
+}
+
+main().catch((error: unknown) => {
+  // The last resort. A stack trace never reaches the terminal (PF-560).
+  process.stderr.write(
+    `ship: ${error instanceof Error ? error.message : String(error)}\n`,
+  );
+  process.exitCode = EXIT_CODES.unexpected;
 });
