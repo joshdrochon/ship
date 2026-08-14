@@ -66,7 +66,7 @@ Full evidence, every number and exit code: [`docs/mvp-gate-item-9.md`](docs/mvp-
 | Bundle size vs Part 1 baseline | **−0.00%** — within +10% ✅ |
 | Per-route query counts (six routes, reported per route, never aggregated) | **0.00%** on all six ✅ |
 | P95 latency | enforced and within budget; **not certified on an idle machine** — see L99 F80 |
-| Playwright regression suite passes | **re-run in progress on the integration tree** — see §11 |
+| Playwright regression suite passes | **881 passed, 0 failed, exit 0** on the integration tree at `c728c40`, 2026-08-14 ✅ — see §11 |
 
 ---
 
@@ -251,12 +251,42 @@ than quietly counted as satisfied.
 
 ---
 
-## §11 · Playwright regression suite (MVP-9, second half)
+## §11 · Playwright regression suite (MVP-9, second half) — **green**
 
-p.2 requires the existing Playwright regression suite to pass **on main**. The last recorded
-green run was on the **L01 tree** (`41393f6`, 2026-08-12) — not the integration tree that
-carries every lane's work. A re-run on the current tree is in progress; the result belongs in
-this section with its date and commit before this row can be called satisfied.
+p.2 requires the existing Playwright regression suite to pass. The prior recorded green run
+was on the **L01 tree** (`41393f6`, 2026-08-12) — not the integration tree that carries every
+lane's work. Re-run on the integration tree, 2026-08-14, commit **`c728c40`**, 4 workers:
+
+| Run | Tree | Result |
+|---|---|---|
+| 1 | `pf/integration` as inherited | **877 passed · 1 failed · 4 did not run** — exit 1 |
+| 2 | `oauth-pkce.spec.ts` alone, stale assertion fixed | 3 passed · 1 failed · 1 did not run — exit 1 |
+| 3 | full, assertion fixed, fixture not yet | 832 passed · 2 failed · 48 did not run — exit 1 |
+| **4** | **full, both fixes in — `c728c40`** | **881 passed · 1 flaky · 0 failed — exit 0 (10.5m)** |
+
+**Run 4 is the certifying run.** Two defects were fixed to get there, and neither was in the
+platform:
+
+1. **A stale assertion was hiding four tests.** `oauth-pkce.spec.ts` asserted
+   `404 / not_found` on `GET /api/v1/documents` and received **200**. Its own comment said
+   *"⚑ becomes 200 when L09's PF-245 lands"* and named the lines that would change; PF-245 had
+   landed. Because the file is `retries: 0, mode: 'serial'` — correct, since a retry forfeits
+   p.9's 0%-flake target — the failure skipped the remaining four tests in the block,
+   including the graded PKCE P95 measurement. One out-of-date line was hiding a graded test
+   while the suite read as a single known failure.
+2. **The P95 measurement could not pass against the shipped throttle.** With (1) fixed it ran
+   and 429'd: it drives 20 iterations × 2 `/oauth/*` requests = **40**, and `/oauth` is
+   throttled at **30/min keyed by IP** — one key for the whole harness. Arithmetic, not
+   flake. Fixed in `e2e/fixtures/isolated-env.ts` via `OAUTH_RATE_LIMIT_PER_MINUTE`, the
+   override that exists for this. **Production behaviour is unchanged**, and the alternative
+   — lowering the sample count — was rejected because it shrinks a graded measurement to fit
+   a harness artifact.
+
+Recorded honestly: run 4 reported **1 flaky** — `session-timeout.spec.ts:689 › Stay Logged In
+calls extend session endpoint`, which failed once and passed on retry. Run 3's extra failure
+(`program-mode-week-ux.spec.ts:380`) did not reproduce in run 4 and correlates with machine
+load — these four runs were taken back to back on a box that was also running the container
+fleet. Both belong to L99 F80's warning about timing anything on this hardware.
 
 ---
 
