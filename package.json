@@ -33,6 +33,8 @@
     "baseline:measure": "pnpm --filter @ship/api exec tsx src/scripts/measure-baseline.ts",
     "baseline:compare": "pnpm --filter @ship/api exec tsx src/scripts/compare-baseline.ts",
     "baseline:evidence": "node api/src/scripts/seed-regression-evidence.mjs",
+    "check:pr-body": "node scripts/check-pr-body.mjs",
+    "check:branch-preservation": "node scripts/check-branch-preservation.mjs",
     "clean": "pnpm --recursive run clean && rm -rf node_modules",
     "test": "pnpm --workspace-concurrency=1 --filter @ship/shared --filter @ship/api --filter @ship/agent --filter @ship/sdk test",
     "drill": "node scripts/ttfe/drill.mjs",
