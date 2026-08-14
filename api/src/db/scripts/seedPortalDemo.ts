@@ -23,15 +23,13 @@
  */
 import { randomUUID } from 'node:crypto';
 import { pool } from '../client.js';
+import { productionDeps } from '../../deps.js';
 import {
-  PgOAuthAppRepo,
   generateClientId,
   generateClientSecret,
   hashClientSecret,
   secretPrefix,
 } from '../../platform/apps/index.js';
-import { PgWebhookSubscriptionRepo } from '../../platform/webhooks/pgSubscriptionRepo.js';
-import { envSecretCipher } from '../../platform/webhooks/secretCipher.js';
 import { PgDeliveryLog } from '../../platform/webhooks/pgDeliveryLog.js';
 import type { Scope } from '../../platform/scopes/scopes.js';
 
@@ -56,7 +54,16 @@ async function main(): Promise<void> {
   );
   const workspaceId = owner.rows[0]!.last_workspace_id ?? ws.rows[0]!.id;
 
-  const appsRepo = new PgOAuthAppRepo(pool);
+  // PF-037 / PF-427 — the composition root, not a fourth construction site.
+  //
+  // This script used `new PgOAuthAppRepo(pool)` and `new PgWebhookSubscriptionRepo(...)`
+  // directly, which is exactly what those two fitness tests forbid: the point of
+  // the rule is that ONE place decides how a repository is wired, so a change to
+  // that wiring cannot miss a caller. A seed script is a caller like any other,
+  // and widening the allowlist to admit it would retire the check to keep a
+  // convenience.
+  const deps = productionDeps();
+  const appsRepo = deps.appsRepo;
 
   const existing = await pool.query<{ id: string; client_id: string }>(
     `SELECT id, client_id FROM oauth_apps WHERE name = $1 AND owner_user_id = $2 LIMIT 1`,
@@ -90,7 +97,7 @@ async function main(): Promise<void> {
     console.log(`✅ Registered demo app ${clientId}`);
   }
 
-  const subsRepo = new PgWebhookSubscriptionRepo(pool, envSecretCipher());
+  const subsRepo = deps.subsRepo;
 
   const existingSubs = await pool.query<{ id: string }>(
     `SELECT id FROM webhook_subscriptions WHERE app_id = $1 LIMIT 1`,
