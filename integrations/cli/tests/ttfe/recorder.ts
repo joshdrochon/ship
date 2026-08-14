@@ -76,11 +76,16 @@ export class StageRecorder {
     const startedAt = performance.now();
     try {
       const result = await body();
-      this.records.push({ id, startedAt, endedAt: performance.now(), elapsedMs: performance.now() - startedAt });
+      // ONE reading of the clock, used for both fields. Two calls would make
+      // `elapsedMs` a few microseconds longer than `endedAt - startedAt` and put
+      // a systematic bias into the reconciliation the tolerance exists to catch.
+      const endedAt = performance.now();
+      this.records.push({ id, startedAt, endedAt, elapsedMs: endedAt - startedAt });
       return result;
     } catch (error) {
-      const elapsedMs = performance.now() - startedAt;
-      this.records.push({ id, startedAt, endedAt: performance.now(), elapsedMs });
+      const endedAt = performance.now();
+      const elapsedMs = endedAt - startedAt;
+      this.records.push({ id, startedAt, endedAt, elapsedMs });
       throw new StageFailure(id, elapsedMs, error);
     }
   }

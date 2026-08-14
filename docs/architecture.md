@@ -610,6 +610,85 @@ Pre-Search 2.4 (p.17) asks three questions about this interface. The answers are
 
 The package root used to re-export `verifyWebhook`, whose module imports `node:crypto` at top level, so any bundler resolving `@ship/sdk` for the browser pulled a Node built-in — failing to resolve, or silently polyfilling crypto into every consumer's bundle against a 250 KB budget. The `exports` map is now conditional: the `browser` condition resolves to `dist/browser.js` (client, errors, retry, `InMemoryTokenStore`, `LocalStorageTokenStore` — no `node:` specifier anywhere in its import graph), every other condition resolves to `dist/index.js`, which adds `verifyWebhook` and `FileTokenStore`. Node consumers are unaffected; `@ship/sdk/browser` and `@ship/sdk/node` exist for a consumer who wants to be explicit.
 
+## Time-to-First-Event Drill
+
+p.6's signature technical challenge, and p.14's *"The TTFE drill is the rubric."* One command —
+`pnpm drill ttfe` — packs `@ship/sdk`, installs the tarball into an empty directory outside the
+workspace, logs in through the device flow, subscribes, creates a document, receives the signed POST
+on a real socket and verifies it. Six named stages (p.6's own list, in p.6's order), each recording
+elapsed milliseconds into `test-results/ttfe.json`. Full operator detail in `docs/ttfe-drill.md`.
+
+**The drill is a vitest run, not a Playwright spec, and that is a decision rather than a preference.**
+`playwright.config.ts:60` is `retries: process.env.CI ? 2 : 1`. p.9's target is *"0% (any flake = bug
+in the drill or the platform)"*, and a retry is precisely the mechanism that converts a flake into a
+pass — so a drill written into the Playwright suite would forfeit its own headline target on a line
+of config it never reads. `vitest.drill.config.ts` sets `retry: 0`, and
+`scripts/ttfe/check-fitness.mjs` fails the build if that changes, if a fixed-duration sleep appears
+in the drill or its harness, or if `@playwright/test` is ever imported by either.
+
+**The boundary is kept structurally, not waived.** p.11 says `integrations/**` imports only
+`@ship/sdk`; PF-587 needs a booted Ship, which needs server code. Those collide, and the resolution
+is a process boundary: `scripts/ttfe/harness.ts` — which holds `pg`, `DATABASE_URL` and the
+`api/src` entrypoint — lives outside `integrations/` and is spawned as a child process, spoken to
+over HTTP. The drill file itself imports `@ship/sdk` (as types; the runtime namespace comes from the
+real install), node builtins, vitest, and its own package's test support. The tempting alternative —
+one `eslint-disable` on a `createApp` import — would make the drill the single place in the
+repository where the boundary claim it exists to demonstrate is false. Same split, same reason, as
+`scripts/l19-device-approve.ts`.
+
+### Decision: a real install of the packed artifact, two cadences, symlink rejected (PF-589)
+
+Pre-Search 3.2 (p.17) asks it outright — full `pnpm install` in a fresh container, or a workspace
+symlink with the install step mocked? Which proves more, and which is fast enough for CI? **Answer:
+a real install in both modes**, because those two are only a trade if there is one mode.
+
+A workspace symlink resolves `sdk/src` through tsconfig `paths` and therefore never executes the
+published artifact. The `exports` map, the `files` allowlist, the built `dist/` and peer-dependency
+resolution all go untested, and each is a live way `pnpm install @ship/sdk` fails for a stranger
+while CI is green. L99's F14 — `verifyWebhook` top-level-importing `node:crypto`, found
+independently by two lanes — is exactly that class of bug. p.8's install row asks for *"Workspace
+package resolves"*, *"types load in editor"* and *"no peer-dependency errors"*, and a symlink checks
+none of the three honestly.
+
+Cost, measured rather than estimated: **1.4–2.3 s** for `pnpm pack` plus `pnpm add <tarball>` into a
+fresh temp directory with a warm store, against a 60 s budget for the whole loop. The seconds are
+not the trade they look like.
+
+**Two residual honesty gaps, stated rather than hidden.** First, the fast mode installs from a
+**local tarball**, so registry resolution and network variance are exercised only by `--clean`; a
+local Verdaccio would close that and buys coverage of npm's availability rather than of ours.
+Second — and this one was a real defect, not a caveat — importing
+`node_modules/@ship/sdk/dist/index.js` **by path** bypasses the `exports` map completely, which is
+most of what the decision above is buying. The drill therefore writes a one-line
+`export * from '@ship/sdk'` shim inside the install directory and imports **that**, so Node resolves
+the bare specifier through the manifest the way a stranger's `import` does. The first version did
+not, and the negative control for a wrong `exports` map stayed green through it (L99 F131).
+
+### Where each target lives, and why two of them cannot collide
+
+| Target | PRD | Where it is asserted |
+|---|---|---|
+| TTFE loop < 60 s in CI | p.8 | Per run in the drill; P95 over the last 20 runs in `check-series.mjs` |
+| TTFE ≤ 30 min on a clean machine | p.6, p.8 | `--clean` mode and one human-timed run — **never** the fast mode |
+| Webhook delivery P95 (first attempt) < 2 s | p.6 | `metrics.eventToPostMs`, P95 over the same series (L99 U5's owner) |
+| `verifyWebhook` < 1 ms | p.8 | L18's recorded benchmark, asserted to belong to the build the drill installed |
+| Drill flake rate 0% over 20 CI runs | p.9 | `scripts/ttfe/soak.sh` + `check-series.mjs --soak` |
+
+The 60 s and 30 min figures pull in opposite directions, and the resolution is to give each its own
+mode rather than to pick one. Both land in the same artifact carrying a `mode` field, so the two can
+never be reported as each other.
+
+**Every threshold above lives in `ttfe.thresholds.json` and nowhere else** (PF-609). Raising one is
+then a reviewable diff with the number visible in it, which is the point: p.8's budget is graded, and
+a budget that can be relaxed inside a test body is not a budget. A fitness check fails the build on a
+second `60_000` literal anywhere in the lane's files.
+
+**Timings carry the load they were taken under.** L99's F80 measured 6.0× P95 spread on one commit
+on this hardware while query counts stayed bit-identical, under load ratios of 1.33–1.88 — and the
+machine fingerprint matched exactly on every run, because it says *"same box"* and not *"the box was
+idle enough to time on"*. So `ttfe.json` records `loadAvg1`, `loadRatio` and `loadCertified` beside
+every number, and a figure taken above the veto is reported but not treated as certified.
+
 ## Agent-as-Citizen (Epic 7)
 
 Today FleetGraph is a privileged insider by construction — two separate back doors:
