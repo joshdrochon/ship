@@ -1,0 +1,14 @@
+{
+  "name": "@ship/fixture-ok-third-party-runtime-deps",
+  "private": true,
+  "description": "PF-717 POSITIVE control, and the reason the rule is not 'one dependency only'. An integration is a stranger and strangers install npm packages — PF-716 says so in as many words ('Third-party runtime deps are fine (@slack/bolt, express)'). A checker that rejected this would be over-broad, and every future integration would route around it. MUST be accepted.",
+  "dependencies": {
+    "@ship/sdk": "workspace:*",
+    "@slack/bolt": "4.4.0",
+    "express": "4.22.1"
+  },
+  "devDependencies": {
+    "@ship/integration-testkit": "workspace:*",
+    "vitest": "4.1.10"
+  }
+}

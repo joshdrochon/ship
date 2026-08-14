@@ -1,0 +1,12 @@
+{
+  "name": "@ship/fixture-shared-as-devdep",
+  "private": true,
+  "description": "PF-717 negative fixture. @ship/shared looks like a types-only package and feels harmless, and hiding it in devDependencies feels harmless twice. It is still a door into this repository that is not the SDK. MUST be rejected.",
+  "dependencies": {
+    "@ship/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@ship/shared": "workspace:*",
+    "typescript": "5.9.3"
+  }
+}

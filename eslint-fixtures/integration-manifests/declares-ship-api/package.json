@@ -1,0 +1,9 @@
+{
+  "name": "@ship/fixture-declares-ship-api",
+  "private": true,
+  "description": "PF-717 negative fixture. Declares the server package as a runtime dependency. ESLint cannot see this until somebody writes an import; the manifest check sees it on the commit that adds the line. MUST be rejected.",
+  "dependencies": {
+    "@ship/sdk": "workspace:*",
+    "@ship/api": "workspace:*"
+  }
+}

@@ -108,6 +108,81 @@ jobs:
       - name: Boundary fences fire on their negative fixtures
         run: pnpm lint:boundary
 
+  # PF-717 — the WORKSPACE DEPENDENCY RULE, and it is deliberately its own job
+  # that runs BEFORE lint rather than a step inside it.
+  #
+  # PRD p.11 names a workspace dependency rule; p.18 names the lint rule. They
+  # catch different things and neither subsumes the other: ESLint sees import
+  # specifiers, so it cannot see a dependency that has been declared, installed
+  # and hoisted before anybody writes an `import` — or one reached through
+  # `require()` or a computed dynamic import. Ordering matters for the reader as
+  # much as for the machine: a red job named "workspace dependency rule" says
+  # what went wrong; a lint failure twenty steps into a matrix does not.
+  #
+  # PF-722 rides along because it is the runtime twin of the same claim — the
+  # import fence stops compile-time cheating, the credential scan stops the
+  # runtime kind.
+  integration-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: PF-716/717 — integrations declare @ship/sdk and nothing else of ours
+        run: pnpm check:integration-deps
+      - name: PF-722 — no integration holds a privileged credential
+        run: pnpm check:integration-credentials
+
+  # PF-720 — one blocking job per integration package, each behind the
+  # zero-tests-ran guard.
+  #
+  # The guard is the point. Deleting every test from a package makes vitest exit
+  # 0 with "no test files found", which reads as a pass in a job list; the
+  # minimum count turns that into exit 2, which `assert-tests-ran.sh` documents
+  # as VOID rather than as a failure. This repo already applies it to the agent
+  # and E2E suites for exactly that reason.
+  #
+  # Only the suites that need NO booted Ship run here. The server-backed drills
+  # (`pnpm drill:refresh`, `pnpm drill:idempotency`) and the Slack listener's
+  # end-to-end suite have their own jobs further down, because they need a
+  # database service and a built api/dist.
+  integration-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `minimum` comes from a known-good local run, per assert-tests-ran's
+          # own guidance. Raise it when a package grows tests; never lower it to
+          # make a red job green.
+          - package: '@ship/integration-testkit'
+            minimum: 11
+          - package: '@ship/cli'
+            minimum: 21
+          - package: '@ship/browser-demo'
+            minimum: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # F47 — nothing under integrations/ resolves until the SDK is built, and
+      # every lane has hit this independently.
+      - run: pnpm build:shared && pnpm --filter @ship/sdk build
+      - name: ${{ matrix.package }} — suite, behind the zero-tests-ran guard
+        run: scripts/assert-tests-ran.sh ${{ matrix.minimum }} -- pnpm --filter ${{ matrix.package }} test
+
   type-check:
     runs-on: ubuntu-latest
     needs: build

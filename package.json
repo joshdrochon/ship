@@ -25,6 +25,8 @@
     "type-check": "pnpm --recursive run type-check",
     "lint": "eslint .",
     "lint:boundary": "node scripts/check-boundary-lint.mjs",
+    "check:integration-deps": "node scripts/check-integration-deps.mjs",
+    "check:integration-credentials": "node scripts/check-integration-credentials.mjs",
     "baseline:measure": "pnpm --filter @ship/api exec tsx src/scripts/measure-baseline.ts",
     "baseline:compare": "pnpm --filter @ship/api exec tsx src/scripts/compare-baseline.ts",
     "baseline:evidence": "node api/src/scripts/seed-regression-evidence.mjs",

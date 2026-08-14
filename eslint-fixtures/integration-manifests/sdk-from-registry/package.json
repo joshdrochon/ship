@@ -1,0 +1,8 @@
+{
+  "name": "@ship/fixture-sdk-from-registry",
+  "private": true,
+  "description": "PF-717 negative fixture. Depends on a PUBLISHED @ship/sdk rather than the one in this tree, so the package would compile against a copy nobody in this repo is changing and the boundary would prove nothing about this commit. MUST be rejected.",
+  "dependencies": {
+    "@ship/sdk": "^0.1.0"
+  }
+}
