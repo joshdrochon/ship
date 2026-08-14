@@ -1,0 +1,22 @@
+{
+  "name": "@ship/drill-refresh-rotation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PRD p.8 option 5 — the refresh-token rotation drill. Proves one-time use and family revocation from OUTSIDE the server, over HTTP, through @ship/sdk. Imports ONLY @ship/sdk.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "type-check": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ship/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@ship/integration-testkit": "workspace:*",
+    "@types/node": "22.19.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

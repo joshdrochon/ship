@@ -25,6 +25,7 @@
     "type-check": "pnpm --recursive run type-check",
     "lint": "eslint .",
     "lint:boundary": "node scripts/check-boundary-lint.mjs",
+    "drill:refresh": "tsx scripts/l24-drill-server.ts --package @ship/drill-refresh-rotation --expired-instance",
     "check:integration-deps": "node scripts/check-integration-deps.mjs",
     "check:integration-credentials": "node scripts/check-integration-credentials.mjs",
     "baseline:measure": "pnpm --filter @ship/api exec tsx src/scripts/measure-baseline.ts",
