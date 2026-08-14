@@ -74,7 +74,14 @@ RULES = [
      "p.5, p.2; L21 PF-640). Confirm which environment you are pointed at first."),
     # A regex on `terraform destroy` alone is trivially bypassed by the wrapper
     # script that calls it.
-    (r"destroy-redeploy(?:\.sh)?\b",
+    # Match the script being INVOKED, not the string appearing anywhere in the
+    # command. The bare substring blocked three things it should not have:
+    # PF-642's mandated `.destroy-redeploy/` run directory — the drill's own
+    # evidence, so the guard blocked the artifact it exists to protect — a
+    # `grep` for this pattern while reading this file, and the edit that fixes
+    # it. An invocation has a path-ish prefix or a command boundary in front of
+    # it; a directory path does not.
+    (r"(?:^|[\s;&|(])(?:\./|bash\s+|sh\s+)?(?:scripts/)?destroy-redeploy\.sh\b",
      "destroy-redeploy wrapper",
      "scripts/destroy-redeploy.sh runs `terraform destroy` internally. NOTE: that "
      "script is Render-specific end to end (it lifts prevent_destroy off "

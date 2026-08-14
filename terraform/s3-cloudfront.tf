@@ -159,6 +159,43 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
+  # OAuth endpoints - forward to EB (F160)
+  #
+  # `/api/*` and `/health` were routed to the API and `/oauth/*` was not, so every
+  # OAuth path fell through to the S3 default and was answered with the SPA shell.
+  # Two consequences, and the second is the one that hides the first:
+  #
+  #   GET  /oauth/device/verify  returned index.html instead of the server-rendered
+  #                              consent page — and the SPA has no `oauth` route, so
+  #                              a user saw a blank app rather than an error.
+  #   POST /oauth/device/code    hit S3, which does not answer POSTs.
+  #
+  # So `ship login` could not complete against the deployment, which is p.6's first
+  # line and MVP gate item 2. It looked healthy from curl because GET returned 200 —
+  # the status was S3's, for the wrong document.
+  #
+  # Routing around it via the EB origin does not work either: the device-code
+  # response builds `verification_uri` from APP_BASE_URL, which correctly points at
+  # CloudFront. The fix belongs here.
+  dynamic "ordered_cache_behavior" {
+    for_each = var.eb_environment_cname != "" ? [1] : []
+    content {
+      path_pattern           = "/oauth/*"
+      target_origin_id       = "EB-API"
+      viewer_protocol_policy = "redirect-to-https"
+      # POST carries the token exchange and the device-code request; OPTIONS is
+      # the browser preflight the SPA demo needs.
+      allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+      cached_methods         = ["GET", "HEAD"]
+      compress               = true
+
+      # Never cache: an authorization code or a device code answered from cache
+      # would be a security defect, not a performance win.
+      cache_policy_id          = aws_cloudfront_cache_policy.api_no_cache.id
+      origin_request_policy_id = aws_cloudfront_origin_request_policy.api.id
+    }
+  }
+
   # Health check endpoint (only when EB is configured)
   dynamic "ordered_cache_behavior" {
     for_each = var.eb_environment_cname != "" ? [1] : []
