@@ -1,0 +1,43 @@
+PF-622 - Terraform provider-pin audit
+Run date : 2026-08-12T23:51:00Z
+Scope    : terraform/** (root, bootstrap, environments/*, modules/*, render, local-config)
+Rule     : PRD p.5 - no unpinned versions permitted
+
+=================== 1. required_providers version pins ===================
+
+  ok    terraform/bootstrap/main.tf:18  aws  5.100.0
+  ok    terraform/environments/dev/versions.tf:15  aws  5.100.0
+  ok    terraform/environments/dev/versions.tf:19  random  3.7.2
+  ok    terraform/environments/prod/versions.tf:15  aws  5.100.0
+  ok    terraform/environments/prod/versions.tf:19  random  3.7.2
+  ok    terraform/environments/shadow/versions.tf:21  aws  5.100.0
+  ok    terraform/environments/shadow/versions.tf:25  random  3.7.2
+  ok    terraform/local-config/versions.tf:16  local  2.9.0
+  ok    terraform/local-config/versions.tf:20  random  3.9.0
+  ok    terraform/modules/aurora/versions.tf:22  aws  5.100.0
+  ok    terraform/modules/aurora/versions.tf:26  random  3.7.2
+  ok    terraform/modules/cloudfront-s3/versions.tf:22  aws  5.100.0
+  ok    terraform/modules/elastic-beanstalk/versions.tf:22  aws  5.100.0
+  ok    terraform/modules/security-groups/versions.tf:22  aws  5.100.0
+  ok    terraform/modules/ssm/versions.tf:22  aws  5.100.0
+  ok    terraform/modules/ssm/versions.tf:26  random  3.7.2
+  ok    terraform/modules/vpc/versions.tf:22  aws  5.100.0
+  ok    terraform/render/versions.tf:60  render  1.9.1
+  ok    terraform/versions.tf:15  aws  5.100.0
+  ok    terraform/versions.tf:19  random  3.7.2
+
+=================== 2. tracked .terraform.lock.hcl per root ===================
+
+A root is a directory where you would actually run 'init'. Modules are NOT
+roots: they are consumed by a root and are never locked themselves.
+
+  ok    terraform/.terraform.lock.hcl  (present=yes, tracked=yes)
+  ok    terraform/bootstrap/.terraform.lock.hcl  (present=yes, tracked=yes)
+  ok    terraform/environments/dev/.terraform.lock.hcl  (present=yes, tracked=yes)
+  ok    terraform/environments/prod/.terraform.lock.hcl  (present=yes, tracked=yes)
+  ok    terraform/environments/shadow/.terraform.lock.hcl  (present=yes, tracked=yes)
+  ok    terraform/render/.terraform.lock.hcl  (present=yes, tracked=yes)
+  ok    terraform/local-config/.terraform.lock.hcl  (present=yes, tracked=yes)
+
+=================== verdict ===================
+PASS - every provider is pinned to an exact version and every root has a tracked lock file.

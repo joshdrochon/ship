@@ -1,0 +1,402 @@
+{
+  "_comment": "GENERATED — see api/src/__tests__/internal-middleware-stack.test.ts. Do not hand-edit.",
+  "authMiddlewareSha256": "4fc2bd143b926434a95ea9b897df725fba0ec18d42e2999ef35ea3955318c474",
+  "layerCount": 79,
+  "layers": [
+    {
+      "name": "query",
+      "path": null,
+      "mount": "/^\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "expressInit",
+      "path": null,
+      "mount": "/^\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "helmetMiddleware",
+      "path": null,
+      "mount": "/^\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "<anonymous>",
+      "path": null,
+      "mount": "/^\\/api\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "corsMiddleware",
+      "path": null,
+      "mount": "/^\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "jsonParser",
+      "path": null,
+      "mount": "/^\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "urlencodedParser",
+      "path": null,
+      "mount": "/^\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "cookieParser",
+      "path": null,
+      "mount": "/^\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "session",
+      "path": null,
+      "mount": "/^\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "bound dispatch",
+      "path": "/api/csrf-token",
+      "mount": "/^\\/api\\/csrf-token\\/?$/i"
+    },
+    {
+      "name": "bound dispatch",
+      "path": "/health",
+      "mount": "/^\\/health\\/?$/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "swaggerInitFn",
+      "path": null,
+      "mount": "/^\\/api\\/docs\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "serveStatic",
+      "path": null,
+      "mount": "/^\\/api\\/docs\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "<anonymous>",
+      "path": null,
+      "mount": "/^\\/api\\/docs\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "bound dispatch",
+      "path": "/api/openapi.json",
+      "mount": "/^\\/api\\/openapi\\.json\\/?$/i"
+    },
+    {
+      "name": "bound dispatch",
+      "path": "/api/openapi.yaml",
+      "mount": "/^\\/api\\/openapi\\.yaml\\/?$/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/setup\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/setup\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/feedback\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "<anonymous>",
+      "path": null,
+      "mount": "/^\\/api\\/auth\\/login\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/auth\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/auth\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/documents\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/documents\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/documents\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/documents\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/documents\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/documents\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/issues\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/issues\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/feedback\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/feedback\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/programs\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/programs\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/projects\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/projects\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/weeks\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/weeks\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/weeks\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/weeks\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/standups\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/standups\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/team\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/team\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/workspaces\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/workspaces\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/admin\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/admin\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/invites\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/invites\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/api-tokens\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/api-tokens\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/apps\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/apps\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/apps\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/claude\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/search\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/activity\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/dashboard\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/accountability\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/ai\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/ai\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/weekly-plans\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/weekly-plans\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/weekly-retros\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/weekly-retros\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/auth\\/caia\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/auth\\/piv\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/admin\\/credentials\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/admin\\/credentials\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/files\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/files\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/fleetgraph\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/fleetgraph\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/documents\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/documents\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "conditionalCsrf",
+      "path": null,
+      "mount": "/^\\/api\\/comments\\/?(?=\\/|$)/i"
+    },
+    {
+      "name": "router",
+      "path": null,
+      "mount": "/^\\/api\\/comments\\/?(?=\\/|$)/i"
+    }
+  ]
+}

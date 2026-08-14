@@ -1,0 +1,176 @@
+{
+  "budgetPercent": 10,
+  "baselineCapturedAt": "2026-08-14T01:57:08.826Z",
+  "baselineGitRef": "41393f6d64be7df53daa47f67468e9228a40193c",
+  "currentGitRef": "932fe0581a2afd15a1f171487c1c72cce3a68517",
+  "comparedAt": "2026-08-14T01:57:32.302Z",
+  "env": {
+    "comparable": true,
+    "differences": [],
+    "baseline": {
+      "platform": "darwin-arm64",
+      "node": "v26.5.0",
+      "cpuCount": 10
+    },
+    "current": {
+      "platform": "darwin-arm64",
+      "node": "v26.5.0",
+      "cpuCount": 10
+    }
+  },
+  "load": {
+    "acceptable": true,
+    "loadAvg1": 7.27,
+    "loadRatio": 0.73
+  },
+  "latencyEnforced": true,
+  "latencyForced": false,
+  "deltas": [
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /health",
+      "route": "GET /health",
+      "unit": "ms",
+      "baseline": 0.93,
+      "current": 0.77,
+      "percent": -17.2,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/documents",
+      "route": "GET /api/documents",
+      "unit": "ms",
+      "baseline": 4.56,
+      "current": 4.75,
+      "percent": 4.17,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/documents/:id",
+      "route": "GET /api/documents/:id",
+      "unit": "ms",
+      "baseline": 6.44,
+      "current": 5.47,
+      "percent": -15.06,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/issues",
+      "route": "GET /api/issues",
+      "unit": "ms",
+      "baseline": 6.16,
+      "current": 6.07,
+      "percent": -1.46,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/weeks",
+      "route": "GET /api/weeks",
+      "unit": "ms",
+      "baseline": 6.63,
+      "current": 7.16,
+      "percent": 7.99,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "p95",
+      "label": "P95 latency · GET /api/dashboard/my-work",
+      "route": "GET /api/dashboard/my-work",
+      "unit": "ms",
+      "baseline": 8.98,
+      "current": 8.94,
+      "percent": -0.45,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "bundle",
+      "label": "Bundle size · total gzipped",
+      "route": null,
+      "unit": "bytes",
+      "baseline": 747644,
+      "current": 747612,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /health",
+      "route": "GET /health",
+      "unit": "queries",
+      "baseline": 0,
+      "current": 0,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/documents",
+      "route": "GET /api/documents",
+      "unit": "queries",
+      "baseline": 3,
+      "current": 3,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/documents/:id",
+      "route": "GET /api/documents/:id",
+      "unit": "queries",
+      "baseline": 4,
+      "current": 4,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/issues",
+      "route": "GET /api/issues",
+      "unit": "queries",
+      "baseline": 5,
+      "current": 5,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/weeks",
+      "route": "GET /api/weeks",
+      "unit": "queries",
+      "baseline": 5,
+      "current": 5,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    },
+    {
+      "kind": "queries",
+      "label": "Queries per request · GET /api/dashboard/my-work",
+      "route": "GET /api/dashboard/my-work",
+      "unit": "queries",
+      "baseline": 7,
+      "current": 7,
+      "percent": 0,
+      "unboundedRegression": false,
+      "status": "pass"
+    }
+  ],
+  "failures": [],
+  "ok": true,
+  "databaseState": "purpose-built fixture (1 workspace, 1 user, 25 documents) created and destroyed by this run"
+}

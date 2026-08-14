@@ -1,0 +1,195 @@
+# L21 · Terraform, IAM Least-Privilege & Drift
+
+| | |
+|---|---|
+| **Agent** | `infra-terraform` |
+| **Tier** | 0 — no dependencies; runs the whole week |
+| **Block** | PF-616–650 (32 written, PF-648–650 reserved for audit) |
+| **Blocks on** | — |
+| **Unblocks** | — (L26 consumes this lane's artifacts) |
+| **MVP gate** | Item 10 (deployed + public spec URL + pre-registered grader app) **and** the Terraform item — both p.2 |
+
+**Why this lane is tier 0 and why it never stops.** D6 moved the graded deployment to AWS. That
+changes what this lane builds without changing why it starts first. Three of the things it owns
+are graded on artifacts that take real elapsed time to produce, not on code: a `terraform plan`
+annotated against live infrastructure, a destroy-then-apply proving the config is the source of
+truth (p.5), and an IAM lockdown whose denial has to be proven against a real credential. The
+fourth is worse — p.2 makes inability to read a modified `terraform plan` without AI assistance an
+**auto-fail condition** at the Architecture Defense. Auto-fail is not a scoring band; it is a floor
+under the whole week, and reading a plan somebody else mutated, cold, is a rehearsal task that
+cannot be compressed into Saturday.
+
+Two things make the AWS path a different shape of work from the Render path it replaces. First, it
+is not greenfield: `terraform/elastic-beanstalk.tf`, `database.tf`, `vpc.tf`, `security-groups.tf`,
+`ssm.tf`, `s3-cloudfront.tf`, `cloudfront-logging.tf`, six modules, three environment roots and
+**15 `aws_iam_*` resources** are already written, with an S3 backend declared in
+`terraform/versions.tf`. This is `init` / `plan` / `apply` against existing code. Second, none of it
+has ever run from here: there is no `aws` CLI on this machine, no `~/.aws`, and zero `AWS_*`
+variables in the environment. Account creation and credential provisioning are the first real
+tickets and every other ticket in the lane sits behind them. That is the schedule risk D6 accepted
+knowingly, and it is why S1 is a Day-1 slice rather than a formality.
+
+The configuration is applied **as designed**. Aurora Serverless v2 and the NAT gateway stay, though
+neither is free-tier eligible, because the cheaper shape — `db.t4g.micro` in public subnets — saves
+roughly $20 and costs the blast-radius answer, which is an auto-fail topic. The cost response in
+this lane is a budget alarm (PF-619), not a resize. `terraform/render/` is retained as a working
+fallback with its own state and a live service; nothing here destroys it.
+
+## Tickets
+
+| ID | Title | Acceptance criterion | Advances | PRD | Deps |
+|---|---|---|---|---|---|
+| PF-616 | ☑ Inventory the AWS configuration and name the one graded root | `docs/infra/topology.md` records, each claim carrying the command that proved it: the AWS root `terraform/*.tf` (EB, Aurora Serverless v2, VPC + NAT, security groups, SSM, S3/CloudFront, 15 `aws_iam_*`) and `terraform/environments/{dev,prod,shadow}` are **two configurations of the same resources** — the module copies name resources identically (`${var.project_name}-eb-instance-role` and friends), and IAM role names are account-global, so applying both collides rather than coexisting. One root is named the graded root; the others carry an explicit "not applied" note. `terraform/render/` is recorded as the retained fallback (real `terraform.tfstate`, live service) — retained, not destroyed | CTR:IaC deployment topology | p.2, p.5 | — |
+| PF-617 | ☑ Record D6 as a dated ADR, including why the config was not downgraded for cost | Dated ADR in `docs/infra/topology.md`: the graded deployment moves to AWS because p.2 puts *"IAM task role and execution role"* inside a hard-gate item and p.5 adds VPC/subnets, security groups and the `AdministratorAccess` lockdown drill — none of which exist on Render. p.10 permits Render by name, but p.10 is a suggestion table and p.2 is a gate. The ADR states in its own paragraph that Aurora Serverless v2 and the NAT gateway were **kept**, that a `db.t4g.micro` + public-subnet downgrade saving ~$20 was considered and rejected because it weakens the blast-radius answer at an auto-fail topic, and that Render is retained as a fallback rather than deleted | — | p.2, p.5, p.10 | PF-616 |
+| PF-618 | ☑ AWS account and a Terraform operator identity that exists on this machine | `aws --version` resolves and `aws sts get-caller-identity` returns an account id under a named profile. The operator identity (IAM user or assumed role), the policy it carries and its MFA state are recorded in `docs/infra/aws-account.md`, with the account id handled the way this config already handles it — kept out of git, read from SSM. No long-lived access key in a tracked file. Nothing else in this lane can start until that command returns | — | p.5, p.2 | PF-617 |
+| PF-619 | ☑ Cost guardrail in place before the first apply | An AWS Budget with a stated monthly USD ceiling and 50/80/100% notifications to a real address, created on day 1 and codified as an `aws_budgets_budget` in the graded root so it appears in the plan; CLI output proving it exists lands in `docs/infra/aws-account.md`. The ceiling reflects D6's ~$15–25 for the week against existing credits. It is a tripwire on the architecture as designed, not a licence to shrink it — a breach is investigated, never answered by downgrading Aurora or dropping the NAT gateway. L26 owns the cost write-up (p.9, p.13); this ticket supplies the alarm and the number | — | p.9, p.13 | PF-618 |
+| PF-620 | ☑ Bootstrap the S3 state backend and the SSM pointer to it | `terraform/bootstrap` applied: a versioned, encrypted, public-access-blocked state bucket plus the `/ship/terraform-state-bucket` parameter. The graded root then initializes with `terraform init -backend-config="bucket=$(aws ssm get-parameter --name /ship/terraform-state-bucket …)"` and `terraform state list` reads from S3. The chicken-and-egg — the root reads a bucket name from a parameter only the bootstrap creates — is written down in `terraform/README.md` along with where the bootstrap's own state lives | — | p.5 | PF-618 |
+| PF-621 | ☑ Decide and add state locking, then prove it holds | Measured starting position: `terraform/versions.tf` and all three environment roots declare `backend "s3"` with `key`, `region` and `encrypt` and **no `dynamodb_table` and no `use_lockfile`** — there is no locking of any kind today, and no `aws_dynamodb_table` exists anywhere under `terraform/`. Either a Terraform-managed lock table or S3 native locking is added to every root that can `init`, and the proof is two concurrent applies where the second reports a lock error instead of both writing state | — | p.5 | PF-620 |
+| PF-622 | ☑ Provider-pin audit and lock files across every Terraform root and module | A check asserts no `~>`, `>=`, or absent `version` on any `required_providers` entry under `terraform/**` — root, `bootstrap`, three environments, six modules — and that a tracked `.terraform.lock.hcl` exists for every root that can `init`; `terraform init -lockfile=readonly` succeeds without rewriting. Output committed to `docs/infra/pin-audit.txt`. p.5: *"no unpinned versions permitted"* | MVP-TF | p.5, p.2 | PF-620 |
+| PF-623 | ☑ `terraform plan` runs clean against real credentials | `terraform plan` on the graded root, with the PF-618 identity, exits 0 with no errors, and the full output is saved verbatim to `docs/infra/plan-baseline-w6.txt` under a header naming run date, provider version and account alias. This is the first time this configuration has been planned against a real account, so anything that only fails once credentials exist — an unavailable AZ, an empty `app_domain_name`/`route53_zone_id` pair feeding a conditional, a missing tfvar — is found and fixed here rather than at apply. p.5 requires that `terraform plan` run cleanly | MVP-TF | p.5, p.2 | PF-622 |
+| PF-624 | ☑ Pin audit and plan run as a blocking CI job | A CI job runs the pin audit and `terraform plan` (read-only, never apply) on every pipeline touching `terraform/**`; an unpinned version or a plan error fails the check. The job authenticates with its own credential scoped to read-only plan permissions, named in the job definition — not the operator's admin identity. `.gitlab-ci.yml` sets `merge_request_event → never` in `workflow.rules`, so this must ride the **branch** pipeline; an MR-only rule never fires | MVP-TF | p.5, p.2 | PF-622, PF-623 |
+| PF-625 | ☐ PlugForge configuration delta on the AWS root, and a secrets check that guards the root that ships | Two halves of one deliverable. (a) Every new platform value — public base URL / OAuth issuer, webhook signing key, token TTLs, rate-limit ceilings — declared as an SSM parameter with a description and wired into the EB environment's option settings, no value typed into a tracked file; new parameters land under `/${project_name}/${environment}/*` so the instance role's existing path-scoped `ssm:GetParameter*` already covers them, and any parameter needing a path outside that prefix is called out here as a policy change rather than discovered in PF-636. (b) `scripts/check-tf-secrets.sh` reads `terraform/render/variables.tf` against `.github/workflows/deploy.yml`; after D6 that guards a root that no longer ships, so it passes while checking nothing. Retargeted at the graded root's `sensitive = true` variables and the deploy path that actually runs — a deliberately omitted new secret exits non-zero and names the variable | — | p.5, p.3 | PF-623 |
+| PF-626 | ☑ Annotated plan for the first AWS apply | The plan from PF-625 saved and annotated in `terraform/PLAN-ANNOTATED.md` under a Week 6 section: every resource, whether it is create / in-place / replace / no-op, and why. This is a create-everything plan — VPC, subnets, NAT gateway and EIP, security groups, Aurora cluster and instance, EB application and environment, instance profile and both roles, SSM parameters — and it is annotated in full, not summarized to a count. p.2 requires the annotated output as a submission artifact | MVP-TF | p.2, p.5 | PF-625 |
+| PF-627 | ☑ First `terraform apply`, with the clock running | Apply completes and `terraform output` is captured. Wall-clock duration per resource class recorded in `docs/infra/apply-timing.md`, with the Aurora cluster and instance measured separately — they are the long pole at roughly 10–20 minutes, and that measured number is what sizes PF-642 honestly. A post-apply `terraform plan` reads `No changes.`, which is the real proof the config describes what now exists | MVP-TF | p.2, p.5 | PF-626, PF-621 |
+| PF-628 | ☑ Deploy the PlugForge build to the EB environment | The application version at the intended commit is deployed; `curl <env-url>/health` returns that same commit SHA and EB environment health reads `Ok`. MVP item 10: *"Deployed and publicly accessible"* **Verified 2026-08-13:** Redeployed 2026-08-13 and verified against the LIVE url: env Ready/Green on version 932fe05, /health 200 five times. | MVP-10 | p.2 | PF-627 |
+| PF-629 | ☑ Published OpenAPI spec URL resolves on the deployed instance | `GET <public-url>/api/v1/openapi.json` returns 200 and valid JSON from the public internet, not localhost; URL recorded in `docs/infra/grader-access.md` and in the README. p.13 also requires a static copy at `docs/openapi.json` — this ticket verifies only the live URL **Verified 2026-08-13:** Verified live: GET /api/v1/openapi.json 200 with 14 paths, set-equal to the committed docs/openapi.json (no path only-live, none only-committed). | MVP-10 | p.2, p.13 | PF-628 |
+| PF-630 | ☑ Grader OAuth app exists in the **deployed** database, read-only, and reaches no other tenant's data | Named app present in the deployed environment with read-only scopes only; a grader using the published `client_id` can read and a write attempt returns 403; `docs/infra/grader-access.md` records exactly what that app can reach and confirms it is a dedicated seeded owner, not the primary account (p.18: *"without exposing your tenant's data"*). Seeding mechanism (boot / migration / manual) named explicitly — p.17 asks what guarantees the app exists in deployed environments | MVP-10 | p.2, p.13, p.17, p.18 | PF-628 |
+| PF-631 | ☑ Grader credentials and one-command setup in the README | README section: public URL, spec URL, dev-portal URL, grader `client_id` with its read-only scopes, and the single command that points the CLI at the deployed instance. p.13 requires *"credentials in the README"*; p.18 asks for exactly this one-command path | MVP-10 | p.13, p.18 | PF-630 |
+| PF-632 | ☑ Decide the stable public URL and record what depends on it | Recorded decision in `docs/infra/grader-access.md` between the EB environment CNAME (stable for the life of the environment, set by `cname_prefix`) and a custom domain fronted by the CloudFront distribution and ACM certificate this config already declares (`var.app_domain_name`, `var.route53_zone_id`, both empty today, plus `var.eb_environment_cname` which gates the CloudFront API origin). The entry lists every published link that depends on the choice — spec URL, README, submission doc, Social Post screenshot — and states what happens to each if the environment is ever recreated. p.18 asks for the spec *"at a stable URL"* | MVP-10 | p.18, p.2 | PF-628 |
+| PF-633 | ☐ Establish the over-privileged starting position and capture it | `AdministratorAccess` attached to the EB instance role **through Terraform** — a committed diff, not a console click — applied, and the resulting effective permission set captured verbatim as the before artifact: `aws iam list-attached-role-policies` output plus every policy document in full. p.5: *"Start with an AdministratorAccess task role"*. The before state is a captured policy, never a description of one | CTR:IAM least-privilege exercise | p.5 | PF-627, PF-646 |
+| PF-634 | ☑ Enumerate the permissions the platform actually needs | One row per permission the running service and its deploy path genuinely exercise, each with the code path or command that needs it: `ssm:GetParameter*` scoped to `/${project}/${environment}/*`, `kms:Decrypt` under the SSM service condition, `secretsmanager:GetSecretValue` under the project prefix, `bedrock:InvokeModel` on the anthropic model ARNs, CloudWatch log writes, S3 application-version reads, EB health reporting. Every inline policy already in `ssm.tf` is cross-referenced, and anything `AdministratorAccess` covered that no code path uses gets a row saying so. This table is the rationale column p.5 demands for every permission granted | CTR:IAM least-privilege exercise | p.5 | PF-633 |
+| PF-635 | ☐ Apply the locked-down policy | `AdministratorAccess` detached; the role carries only PF-634's rows. The three AWS managed policies currently attached — `AWSElasticBeanstalkWebTier`, `AWSElasticBeanstalkWorkerTier`, `AWSElasticBeanstalkMulticontainerDocker` — are each decided individually (keep, replace with a scoped inline policy, or drop) with the decision recorded, because a managed policy is not least privilege merely because AWS wrote it. Applied via Terraform and committed as the after artifact | CTR:IAM least-privilege exercise | p.5, p.2 | PF-634 |
+| PF-636 | ☐ Verify the service still works under the reduced policy | Post-lockdown smoke: `/health` green, a document create round-trips through `/api/v1`, a webhook delivers, and EB health returns to `Ok` after **one instance replacement** — a fresh instance has to pull the application version, read its parameters and write logs under the reduced role, and an instance that never restarted proves none of that. Logs attached. p.5: *"Verify the service still works"* — an unverified lockdown is indistinguishable from an outage | CTR:IAM least-privilege exercise | p.5 | PF-635 |
+| PF-637 | ☐ Prove a denial — an action outside the policy is refused | A transcript recorded from the EB instance using the instance-profile credentials only, containing one in-policy call succeeding (so the credential is demonstrably live) and at least two out-of-policy calls refused with their verbatim `AccessDenied` responses: a parameter read outside the role's path prefix, and a call to a service the role has no statement for at all. Transcript lands in `docs/infra/iam-least-privilege.md`. p.5: *"verify an action outside the policy is denied"*. No substitution is used and none is claimed — this is the ticket L99 recorded as U1 | CTR:IAM least-privilege exercise | p.5 | PF-635 |
+| PF-638 | ☐ Submit before/after policy with per-permission rationale | `docs/infra/iam-least-privilege.md` contains: before policy verbatim, after policy verbatim, a rationale row for every permission kept, a list of everything dropped and why, PF-646's role-name mapping, and the PF-636 and PF-637 evidence. p.5 names *"before/after IAM policy"* with rationale as the deliverable | CTR:IAM least-privilege exercise | p.5 | PF-636, PF-637, PF-646 |
+| PF-639 | ☑ Plant drift outside Terraform, detect it, reconcile it | A single attribute changed through the console or CLI and never through the config — an inbound rule added to a security group, or a changed Aurora backup retention — then `terraform plan` output showing it as a detected diff, annotated line by line in `docs/infra/drift-demo.md`, then reconciled back to `No changes.` with that run captured too. The drift target is chosen so the reconcile is in-place: a drifted attribute that forces replacement on the Aurora cluster is not a demo, it is an outage | CTR:Drift detection & destroy-redeploy | p.5 | PF-627 |
+| PF-640 | ☑ Stand up a throwaway environment for the destroy cycle | A separate state key **and** a distinct `project_name`/`environment` prefix, so `terraform destroy` cannot reach the grader-facing environment and so the throwaway's IAM roles do not collide with it — role names are account-global, which makes a name-clashing copy fail apply rather than quietly share. **The drill runs here, never against the graded environment.** Precondition documented at the top of the drill artifact Throwaway stood up with its own state key (ship-drill/terraform.tfstate) and project_name `shipdrill`. Isolation proven BEFORE creating anything: own empty state, 82 resources all `shipdrill-*`, `0 to destroy` on first plan. | CTR:Drift detection & destroy-redeploy | p.5, p.2 | PF-627 |
+| PF-641 | ☑ Retarget the destroy guard at the AWS blast radius | `.claude/hooks/guard-graded-branches.py` already matches both `terraform destroy` and the `destroy-redeploy` wrapper, but every rationale string describes Render reassigning a service slug, and its page citations are wrong — branch preservation is attributed to p.15 when it is p.12, the destroy drill to p.8 when it is p.5 and p.2. Strings rewritten to the real AWS consequence: destroying the graded environment deletes the Aurora cluster (`skip_final_snapshot` is true whenever `environment != "prod"`) and releases the environment CNAME every published link points at. Citations corrected. A test invocation of both the bare command and the wrapper is still blocked without `ALLOW_GRADED_BRANCH_OPS=1`. `scripts/destroy-redeploy.sh` is Render-specific end to end — this ticket states which it is: an AWS sibling script, or the drill run by hand with the existing script relabelled Render-only | — | p.5, p.12, p.2 | PF-640 |
+| PF-642 | ◐ Run destroy-then-apply on the throwaway environment and prove identical recovery | Full cycle logs land in a run directory (the `.destroy-redeploy/` pattern): destroy log, apply log, outputs-before, outputs-after, a post-apply `terraform plan` reading `No changes.`, and elapsed time for each half. Scheduled against PF-627's measurement rather than optimism — Aurora is roughly 10–20 minutes in each direction, so this is one block of about an hour with nothing else planned inside it. Recovery evidence is a diff of before/after outputs; the outputs that legitimately differ (RDS endpoint host, environment CNAME if the name is not pinned) are named individually with their consequence stated. p.5 accepts *"screenshots or log output"*; logs are the stronger artifact **Cycle run 2026-08-14** — `docs/infra/destroy-redeploy-drill.md` + `.destroy-redeploy/20260814T0630Z/` (8 artifacts). destroy 82 resources/11m18s, rebuild, teardown 13m17s, outputs before/after diffed 15 identical / 15 AWS-assigned-or-secret. **Left ◐ deliberately: two of the ticket's own criteria are NOT met.** The rebuild FAILED first time on an orphaned `/aws/vpc/shipdrill` log group recreated by in-flight flow-log delivery during the destroy, so the config needs a manual step to rebuild; and the post-apply plan reads `0 to add, 4 to change` rather than `No changes.` Both are recorded as findings rather than smoothed over — they are what the drill is for. | MVP-TF | p.5, p.2 | PF-640, PF-641 |
+| PF-643 | ☑ Author the plan-reading primer and blast-radius crib | `docs/infra/plan-reading.md`: what each plan symbol means (`+ - ~ -/+ <=`), how to spot `# forces replacement`, how to read the summary line — plus a one-page crib naming every resource in the applied AWS config, what depends on it, and what breaks if it is replaced. Aurora cluster replacement is total data loss; an EB environment replacement changes the CNAME and invalidates every published grader link; a NAT gateway or EIP replacement changes the egress IP any allow-list depends on; renaming an IAM role forces replacement and detaches the instance profile from a running environment. Written by hand and answerable from memory — this is study material for an auto-fail defense, and a generated one teaches nothing | MVP-TF, CTR:Architecture Defense | p.2, p.5 | PF-626 |
+| PF-644 | ☑ Build a mutated-plan exercise set | At least five mutated plan outputs derived from the real applied config — a deleted attribute, a changed region or AZ, a provider version bump, a replace-forcing change on the Aurora cluster, and an unrelated no-op dressed up to look risky — each stored with a sealed answer key naming every changed resource and its blast radius | MVP-TF | p.2, p.5 | PF-643 |
+| PF-645 | ☐ Rehearse cold and unaided until two consecutive clean runs | Each exercise answered against a timer with **no AI assistance and no editor search**, logged in `docs/infra/plan-reading-rehearsal.md` with date, exercise, and misses; the log shows two consecutive sessions with zero missed resource changes and zero missed replacements. One clean run is a coin flip, and a wrong answer that goes unrecorded is worse than no rehearsal | MVP-TF | p.2 | PF-644 |
+| PF-646 | ☑ Map EB's two roles onto the PRD's task/execution vocabulary, honestly | A table in `docs/infra/iam-least-privilege.md` and `docs/infra/topology.md`: `aws_iam_role.eb_instance` behind `aws_iam_instance_profile.eb` is the role **the application assumes** — what ECS calls the *task role*; `aws_iam_role.eb_service`, assumed by `elasticbeanstalk.amazonaws.com` under an `sts:ExternalId` condition, is the role **the platform assumes on your behalf** — what ECS calls the *execution role*. The write-up says plainly that Elastic Beanstalk does not use p.2's words, that the two-role shape is nonetheless the same, and it never claims a resource named `task_role` or `execution_role` exists. p.2 requires the topology to describe *"IAM task role and execution role"*; the honest mapping is what satisfies it, and pretending the words match is what fails a defense question | MVP-TF | p.2, p.5 | PF-616 |
+| PF-647 | ☑ Rewrite `docs/architecture.md`'s Deployment Topology for AWS | That section describes a Render deployment and, per L99's G3, misdescribes even that (it claims the delta is "env-group entries only"; no `render_env_group` resource exists). D6 supersedes the whole passage: the delta is no longer env-vars-on-an-existing-service, it is an environment created from scratch, so the "zero new infrastructure resources" claim that sat beside it is now false and comes out with it. Rewritten to the applied AWS topology — EB environment, Aurora Serverless v2 in private subnets, NAT gateway, security groups, the two IAM roles under PF-646's naming — with Render named as the retained fallback. Closes when a reviewer diffing the section against the graded root finds no discrepancy. `docs/architecture.md` is a graded Final deliverable (p.13), so this is not housekeeping | SUB:Architecture Document | p.13, p.5, p.2 | PF-627, PF-646 |
+| PF-648 | ☑ **found from audit** — the deployed build is stale, so gate item 10 passes vacuously; PF-628 reopens | Measured against the live environment 2026-08-13: `GET /api/v1/openapi.json` returns **200 with `paths: {}`** — zero — while the committed `docs/openapi.json` carries four; `POST /oauth/token` returns **404**; `GET /api/v1/me` correctly 401s. The running build predates L04, L09 and L13. So a grader can reach the deployment, read a spec that advertises nothing, and exercise no flow — which is the letter of p.2's *"deployed Ship + published OpenAPI spec URL"* and none of its intent. PF-629's criterion said *resolves*, and it does resolve; that is why it went green over an empty document. Acceptance: redeploy `pf/integration`, then a check that runs **against the live URL** and asserts the deployed spec's `paths` set equals the committed `docs/openapi.json`'s, that `POST /oauth/token` answers a protocol error rather than 404, and that `/health` reports the deployed SHA. PF-628 and PF-629 stay ☐ until it passes. Second finding, recorded so it stops costing time: the CNAME in `CLAUDE.md` (`eba-xsaqsg9h`) does not resolve — the live environment is `eba-nvpntpge`, per `aws elasticbeanstalk describe-environments` **Verified 2026-08-13:** CLOSED: live spec paths == committed paths (14 == 14, sets identical); POST /oauth/token answers 400 invalid_client, not 404; /api/v1/me 401. The stale-build condition is gone. | MVP-10 | p.2, p.13 | PF-628, PF-629 |
+
+## Slices
+
+One branch and one PR per slice, per PRD p.12. Branch name is `pf/L21-<slug>`; the PR body names
+the acceptance criterion each slice advances and confirms its fitness test passed.
+
+| Slice | Branch | Tickets | Advances | Fitness test / artifact |
+|---|---|---|---|---|
+| S1 | `pf/L21-aws-account` | PF-616–621, PF-647 | D6 recorded; an AWS account and credentials that exist; remote state real and locked; the architecture doc matches the decision | `aws sts get-caller-identity` returns an account; `terraform init` reads state from S3; two concurrent applies and the second is refused by the lock; `docs/architecture.md` Deployment Topology diffs clean against the graded root |
+| S2 | `pf/L21-pins-plan-clean` | PF-622–624 | Every provider pinned; plan runs clean against real credentials; both enforced in CI | `docs/infra/pin-audit.txt`; `docs/infra/plan-baseline-w6.txt`; CI fails on an unpinned version or a plan error |
+| S3 | `pf/L21-deployed-public` | PF-625–632, PF-648 | MVP gate item 10 — deployed, public spec URL, pre-registered grader app — on a URL that is stable by decision | Live `/health` reports the applied SHA; public `GET /api/v1/openapi.json` = 200; grader `client_id` reads and a write returns 403; Week 6 section of `terraform/PLAN-ANNOTATED.md`; `docs/infra/apply-timing.md` |
+| S4 | `pf/L21-least-privilege` | PF-633–638, PF-646 | IAM least-privilege exercise complete, with proof in both directions and an honest role-name mapping | `docs/infra/iam-least-privilege.md` — role-name mapping, before + after policy, per-permission rationale, works-after-instance-replacement log, recorded `AccessDenied` transcript |
+| S5 | `pf/L21-drift-destroy` | PF-639–642 | Drift detected and reconciled; IaC proven to be the source of truth | `docs/infra/drift-demo.md` (planted diff → `No changes.`); destroy/apply run directory with matching before/after outputs and per-half elapsed time |
+| S6 | `pf/L21-plan-reading` | PF-643–645 | Auto-fail defense — reading a modified plan unaided | `docs/infra/plan-reading-rehearsal.md` showing two consecutive clean unaided runs across five mutated plans |
+
+## Notes for the audit agent
+
+Read the full PRD, not just the pages cited above. Known thin spots, stated so you can confirm or
+refute rather than rediscover:
+
+- **The Render-vs-AWS hole is closed and this file was rewritten to the decision.** D6 (2026-08-12)
+  moved the graded deployment to AWS. Both halves of the old contradiction are still grep-verified
+  and still worth carrying into the defense: p.10 permits *"Fly.io, Railway, Render, or AWS"*, while
+  p.2 puts *"IAM task role and execution role"* inside a gate item and p.5 adds VPC/subnets, security
+  groups and the `AdministratorAccess` drill. A gate outranks a suggestion table.
+  - **Removed** (they describe a provider that is no longer graded): the Render env-var delta, the
+    null-vs-empty `optional_env` semantics ticket, the `render_env_group` doc correction, the
+    zero-new-resources verification, the no-replacement pre-apply check, and the free-plan
+    sleep / 30-day-deletion reachability decision.
+  - **Added**: account bring-up and operator identity, budget alarm, S3 backend bootstrap, state
+    locking, a plan against real credentials, the first apply timed, the honest role-name mapping,
+    the proven denial, the stable-URL decision, and the architecture-doc rewrite.
+  - **Kept** (always provider-agnostic): pin audit, CI plan job, annotated plan artifact, drift
+    demo, throwaway workspace, destroy-redeploy, blast-radius crib, mutated-plan set, rehearsal.
+
+- **Ticket IDs 616–645 were deliberately kept in their old positions.** Four other lanes already
+  cite this lane's IDs — L02's PF-032/PF-056/PF-057 point at PF-630 and PF-631, L26's PF-813/PF-814
+  point at PF-628/PF-629/PF-630/PF-631, L99's U1 points at PF-637 — and renumbering would have
+  silently repointed all of them at unrelated work. So the two genuinely new tickets that had no
+  slot in the old sequence, PF-646 (role-name mapping) and PF-647 (architecture-doc rewrite), are
+  appended at the end of the block and assigned to S4 and S1 respectively. Out-of-sequence, on
+  purpose.
+  - **Two cross-lane references did drift and I could not fix them from here.** L26's PF-790 cites
+    "L21 PF-622" as the owner of G3's fix; that work is now PF-647 (and G3 is superseded — the
+    paragraph does not need its env-group wording corrected, it needs rewriting to AWS). L11's notes
+    cite "L21 PF-623" for rate-limit ceilings as Terraform env vars; that is now PF-625. Both need a
+    one-word repoint in their own files.
+
+- **L99 U1 can be closed.** U1 recorded that *"verify an action outside the policy is denied"* (p.5)
+  needed a credential-scoping surface, that Render's was unverified, and that PF-637 therefore
+  carried a Postgres-role fallback and was the lane's weakest ticket. On AWS the surface is exactly
+  the one the requirement was written for: PF-637 now records an `AccessDenied` from the EB instance
+  profile with an in-policy call succeeding in the same transcript, so the credential is provably
+  live. No substitution, nothing to gloss. **U1 is resolvable and should be struck at the next L99
+  pass.**
+
+- **F29 is not mine and I am not adopting it.** L99's F29 (`/oauth/*` has no rate limit) is filed as
+  infra-adjacent, but nothing in it is infrastructure work: the fix is an `express-rate-limit`
+  instance mounted on the OAuth router, in application code, and the requirement it serves is a
+  rate-limiting requirement. `terraform/waf.tf` exists, and reaching for a WAF rule instead of four
+  lines of Express would be a worse answer that this lane would then own forever. It belongs to L11
+  with L04/L05's agreement and stays unowned in L99 until L11 claims it.
+
+- **The deployed-URL stability problem changes shape; it does not disappear.** On Render a recreated
+  service got a new random slug, and that already broke a submitted URL — `.gitlab-ci.yml` carries a
+  `doc-links` job specifically because `SUBMISSION.md` linked a Render service deleted during a
+  teardown while every other check stayed green. On AWS an EB environment CNAME is stable for the
+  life of the environment and can be pinned with `cname_prefix`, and a custom domain in front of the
+  existing CloudFront distribution is stable across environment replacement entirely. So the risk
+  **moves**: it stops being "any recreate silently renames the service" and becomes "recreating the
+  *environment* changes the CNAME unless the name is pinned, and the RDS endpoint host changes
+  regardless." Only the custom-domain option closes it outright; the CNAME option narrows it to one
+  operation, which PF-640 keeps off the graded environment and the guard hook already blocks. PF-632
+  forces the choice. Keep the `doc-links` job either way — it is the only check in CI that leaves the
+  runner.
+
+- **There is no state locking at all right now.** Measured, not inferred: `terraform/versions.tf` and
+  all three environment roots declare `backend "s3"` with `key`, `region` and `encrypt` only — no
+  `dynamodb_table`, no `use_lockfile` — and there is no `aws_dynamodb_table` anywhere under
+  `terraform/`. The brief for this revision asked for a lock table "if the config expects one"; it
+  expects none, which is the finding. PF-621 fixes it.
+
+- **Two roots describe the same infrastructure.** `terraform/*.tf` and
+  `terraform/environments/{dev,prod,shadow}` both stand up EB, Aurora, VPC and security groups from
+  the same module code under the same `${var.project_name}-*` names. IAM role names are
+  account-global, so applying two of them into one account fails on `EntityAlreadyExists` rather than
+  producing two environments. PF-616 names one graded root; if audit disagrees with the choice that
+  is a one-line change there plus a re-run of PF-623, not a redesign.
+
+- **Nothing downstream of PF-623 is proven until PF-623 runs.** The whole lane assumes the existing
+  config plans cleanly once credentials are attached, and it has never been tried. The conditionals
+  keyed on `var.app_domain_name` and `var.route53_zone_id` (both empty), the ACM certificate
+  validation records, and the CloudFront EB origin that only materializes when
+  `var.eb_environment_cname` is non-empty are where I would expect a first real plan to fail. That
+  risk is priced into S2 being its own slice.
+
+- **`scripts/destroy-redeploy.sh` does not survive the migration.** It is Render-specific from its
+  header comment down: it lifts `prevent_destroy` off `render_postgres`, checks a GHCR image tag
+  before destroying anything, and rewrites tracked references because the slug changes. PF-641 forces
+  the call between writing an AWS sibling and running the drill by hand. Do not let it be quietly
+  retargeted — what is worth keeping is the preflight discipline and the EXIT trap, not the steps.
+
+- **Cost is a tripwire here, not an optimization.** PF-619 is the only cost ticket in the lane and it
+  is deliberately an alarm rather than a resize. D6 rejected the `db.t4g.micro` + public-subnet
+  downgrade on the merits: ~$20 saved against a weaker answer to the blast-radius question, which is
+  an auto-fail topic. If audit wants to reopen it, reopen it as an architecture argument and not as a
+  budget line. The AI Cost Analysis deliverable itself (p.9, p.13) belongs to L26.
+
+- **Timing dependency worth flagging to the spine.** PF-643–645 defend an auto-fail condition at the
+  Architecture Defense, which the spine records as already passed (Mon 11 Aug). If the plan-reading
+  challenge can recur at Final or in the interview, S6 stays live and first-priority; if the defense
+  is genuinely closed its urgency drops and S6 can be reordered behind S4. Confirm which — it changes
+  this lane's sequencing for the whole week. The migration sharpens it rather than softening it: the
+  plans to rehearse against are now VPC / NAT / Aurora / EB plans, and they do not exist until PF-626.
+
+- **U6 is still open and still partly mine.** L99's U6 needs a public URL for an externally-hosted
+  webhook listener (L24's Slack integration, L19's `ship webhooks tail`). AWS makes it easier than
+  Render did — the EB environment is public and the CloudFront distribution is already declared — but
+  no ticket in this lane claims it and I am not claiming it silently. L21 or L26 has to.
+
+- Cross-lane findings go to `lane-99-unassigned.md`, not into this file.

@@ -4,6 +4,7 @@ import { pool } from '../db/client.js';
 import { authMiddleware, superAdminMiddleware, requireAuth } from '../middleware/auth.js';
 import { ERROR_CODES, HTTP_STATUS } from '@ship/shared';
 import { logAuditEvent } from '../services/audit.js';
+import { deactivateAppsForDeletedOwner } from '../platform/apps/owner-lifecycle.js';
 
 const router: RouterType = Router();
 
@@ -1769,6 +1770,21 @@ router.delete('/debug/users/:id', async (req: Request, res: Response): Promise<v
       return;
     }
 
+    // L02 PF-051 / D2 — deactivate this user's OAuth apps BEFORE deleting them.
+    //
+    // Not optional and not merely tidy: `oauth_apps.owner_user_id` is
+    // ON DELETE RESTRICT (migration 039), so without this step the DELETE below
+    // fails on the foreign key. That hard failure is deliberate — it is what
+    // makes forgetting this step loud instead of silent — and this call is what
+    // turns it into the intended outcome.
+    //
+    // The apps SURVIVE, deactivated (`active = false`, reason 'owner_deleted').
+    // p.17 offered deactivate / transfer / orphan-with-a-flag; deactivation is
+    // the only one where a deleted user's access cannot outlive them while the
+    // row that every historical audit entry's client_id resolves against stays
+    // present. Recovery is `POST /api/apps/:id/reactivate` (PF-053).
+    const deactivatedApps = await deactivateAppsForDeletedOwner(pool, id, new Date());
+
     // Delete in order: sessions, workspace_memberships, user
     await pool.query('DELETE FROM sessions WHERE user_id = $1', [id]);
     await pool.query('DELETE FROM workspace_memberships WHERE user_id = $1', [id]);
@@ -1779,7 +1795,13 @@ router.delete('/debug/users/:id', async (req: Request, res: Response): Promise<v
       action: 'user.delete',
       resourceType: 'user',
       resourceId: id,
-      details: { email: targetUser.email, name: targetUser.name },
+      details: {
+        email: targetUser.email,
+        name: targetUser.name,
+        // Recorded because it is the fact an operator needs when a developer
+        // reports that their integration stopped working.
+        oauth_apps_deactivated: deactivatedApps,
+      },
       req,
     });
 

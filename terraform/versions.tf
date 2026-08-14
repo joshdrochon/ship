@@ -22,10 +22,26 @@ terraform {
 
   # Backend bucket name is not committed to git (compliance requirement)
   # Initialize with: terraform init -backend-config="bucket=$(aws ssm get-parameter --name /ship/terraform-state-bucket --query Parameter.Value --output text)"
+  # PF-621 / L99 finding F32. Measured starting position: this block declared
+  # `key`, `region` and `encrypt` and nothing else -- no `dynamodb_table`, no
+  # `use_lockfile` -- and there was no `aws_dynamodb_table` anywhere under
+  # terraform/. There was no locking of any kind, in the one lane whose whole
+  # claim is that the IaC is the source of truth. Two concurrent applies would
+  # both write state and the loser's resources become orphans.
+  #
+  # `use_lockfile = true` is S3-native conditional-write locking: Terraform puts
+  # a `<key>.tflock` object beside the state and relies on S3's compare-and-swap
+  # to make acquisition atomic. Chosen over a DynamoDB lock table because it
+  # adds ZERO resources (no table to create, pay for, or forget to create in a
+  # second account), and because HashiCorp deprecated `dynamodb_table` in
+  # Terraform 1.11 -- adding it now would be adopting a documented dead end.
+  # Requires Terraform >= 1.10; `required_version` above is >= 1.6.0 and the
+  # pinned toolchain in .terraform-version is what actually holds the floor.
   backend "s3" {
-    key     = "ship/terraform.tfstate"
-    region  = "us-east-1"
-    encrypt = true
+    key          = "ship/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
   }
 }
 

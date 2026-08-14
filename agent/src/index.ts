@@ -43,3 +43,34 @@ export { makeJudge, makeAnswer, JudgementUnavailableError } from './llm/index.js
 export { makeShipAct } from './actions/index.js';
 export { runDetectors } from './detectors/index.js';
 export type { Signal, SignalType } from './detectors/types.js';
+
+/**
+ * L23 Epic 7 — the flag-on read path and the flag itself.
+ *
+ * Exported for ONE consumer beyond the agent: `agentCitizenFitness.test.ts`,
+ * the fitness test D11 chose as Epic 7's graded proof (PF-709). That test has
+ * to boot a real server, mint a real client-credentials token, and run a real
+ * detector through the real reader — so it needs the reader, and importing it
+ * by deep path would be reaching into another package's internals to prove a
+ * point about boundaries.
+ *
+ * The individual detectors come with it because the proof is only worth
+ * anything if the code under it is the code that ships.
+ */
+export {
+  createCitizenReader,
+  AGENT_OWN_TABLES,
+  SQL_EXCEPTIONS,
+  tablesIn,
+} from './data/citizenReader.js';
+export type { CitizenReader, RecordedStatement, SqlException } from './data/citizenReader.js';
+export { agentViaSdk, AGENT_VIA_SDK_ENV_VAR } from './composition.js';
+export {
+  DEFAULT_AGENT_CLIENT_ID,
+  AGENT_SCOPES,
+  resolveAgentCredentials,
+  authenticateAsAgent,
+} from './data/citizenClient.js';
+export { detectStalledWork } from './detectors/stalledWork.js';
+export { detectReviewBottleneck } from './detectors/reviewBottleneck.js';
+export type { Queryable } from './data/queryable.js';

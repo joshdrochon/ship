@@ -26,6 +26,16 @@ COPY api/package.json ./api/
 COPY web/package.json ./web/
 COPY shared/package.json ./shared/
 COPY agent/package.json ./agent/
+# `sdk` and `integrations/*` are workspace members in pnpm-workspace.yaml and
+# have importer entries in pnpm-lock.yaml. Their manifests must be present even
+# though nothing in the runtime image uses them, because `--frozen-lockfile`
+# compares the lockfile's importers against the projects the workspace globs
+# actually resolve to. With these two missing, pnpm finds four projects where
+# the lockfile records six and refuses to install at all -- the build dies at the
+# install layer, long before any TypeScript is compiled, with a lockfile error
+# that reads like a dependency problem rather than a missing COPY.
+COPY sdk/package.json ./sdk/
+COPY integrations/cli/package.json ./integrations/cli/
 
 # Full install — devDependencies are needed to compile TypeScript
 RUN pnpm install --frozen-lockfile --ignore-scripts
@@ -35,6 +45,27 @@ COPY tsconfig.json ./
 COPY shared/ ./shared/
 COPY api/ ./api/
 COPY agent/ ./agent/
+
+# The SDK is built HERE, before `pnpm build:api`, and the order is load-bearing.
+#
+# The agent became an SDK consumer when it was rewired as a platform citizen:
+# `agent/src/data/citizenClient.ts` and `citizenReader.ts` both import
+# `@ship/sdk`. `pnpm build:api` expands to shared -> agent -> api, so the agent
+# compiles inside that chain — and it cannot compile against an SDK that has no
+# `dist/` yet.
+#
+# This built fine locally and ONLY in Docker, which is the whole trap: a local
+# tree has `sdk/dist/` sitting there from an earlier build, so `tsc` resolves
+# `@ship/sdk` and nobody notices the Dockerfile never built it. `.dockerignore`
+# excludes `dist/`, so the container starts from nothing and fails with TS2307
+# on both files, plus a TS2739 on `ShipClientOptions` that reads like a bad call
+# signature and is really the same missing module.
+#
+# The SDK copy/build used to sit further down, just above the web build, where
+# it was added for the developer portal. That was correct for web and silently
+# too late for the agent.
+COPY sdk/ ./sdk/
+RUN pnpm --filter @ship/sdk build
 
 # One script, not three filters spelled out, because spelling them out is how this
 # broke. The chain used to be shared -> api -> agent: the agent imported the circuit
@@ -56,6 +87,19 @@ RUN pnpm build:api
 # preferred: the session cookie is sameSite:'strict', so a frontend on another
 # domain could never send it. VITE_API_URL stays empty so the client uses
 # relative URLs and hits whatever host is serving it.
+# The web app imports `@ship/sdk` for real since L22's developer portal — p.10
+# requires the portal to consume the public API "like any other client", so it
+# goes through the SDK rather than reaching for internal routes. That makes the
+# SDK a BUILD-TIME dependency of the frontend, not just a published artifact.
+#
+# Without these two lines `tsc` fails with TS2307 on every portal file, and then
+# cascades into a wall of TS18046 `'e' is of type 'unknown'` — because the error
+# type guard those catch blocks use is itself an SDK export. The unknown errors
+# look like sloppy error handling and are nothing of the kind; fix the import and
+# they all disappear.
+#
+# The SDK itself is copied and built ABOVE, before `pnpm build:api` — the agent
+# needs it too, and needs it earlier. Nothing to do here but rely on it.
 COPY web/ ./web/
 RUN pnpm --filter @ship/web build
 RUN test -f web/dist/index.html || (echo "web build produced no index.html" && exit 1)
@@ -102,6 +146,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY api/package.json ./api/
 COPY shared/package.json ./shared/
 COPY agent/package.json ./agent/
+# Same reason as the builder stage: --frozen-lockfile validates the whole
+# workspace, not just the packages this stage happens to need. web/ is absent
+# here on purpose (its build output is copied in, not rebuilt) and that is
+# already tolerated, but sdk and integrations/cli have lockfile importers and
+# their absence is what makes the install refuse.
+COPY sdk/package.json ./sdk/
+COPY integrations/cli/package.json ./integrations/cli/
 
 RUN pnpm install --frozen-lockfile --prod --ignore-scripts && pnpm store prune
 

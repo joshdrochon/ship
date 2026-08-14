@@ -1,0 +1,31 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+
+    // Restated, not inherited — same reasoning as sdk/tsconfig.json. The CLI is
+    // the must-ship reference integration; if it compiles under looser rules
+    // than a real consumer would use, it stops being a reference. PF-007.
+    "strict": true,
+    "declaration": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "skipLibCheck": false
+  },
+
+  // A TypeScript project reference, deliberately NOT a `paths` entry pointing at
+  // ../../sdk/dist.
+  //
+  // A relative path would compile the CLI against whatever happens to be on disk
+  // in a sibling directory, which is not how anyone installing @ship/sdk from a
+  // registry experiences it — and it would keep compiling after the dependency
+  // was removed from package.json. The reference resolves `@ship/sdk` through
+  // the workspace symlink in node_modules (the `workspace:*` dependency), so the
+  // CLI sees exactly the published `exports`/`types` surface, and tsc still knows
+  // how to rebuild the SDK when its sources change.
+  "references": [{ "path": "../../sdk" }],
+
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
+}

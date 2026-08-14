@@ -25,7 +25,7 @@
  *   node scripts/progress-report.mjs --json
  */
 
-import { readFileSync, appendFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, appendFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -33,42 +33,109 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const JSON_OUT = process.argv.includes('--json');
 
 /**
- * Deadlines, from the brief (p.1). Absolute, so a stale run cannot silently
- * report against the wrong week.
+ * PROJECTS — newest first.
+ *
+ * This script was written for one board and hardcoded to it: `TICKETS.md`,
+ * `FG-\d{3}` ids, `- [ ] **FG-001**` checkboxes, `§M/§E/§F` buckets, and one
+ * week's dates. That is fine until the next project, at which point it reports
+ * 99% against work nobody is doing and stays silent about the deadline that is
+ * actually live.
+ *
+ * So a project is now a descriptor: how to find its board, how to read a ticket
+ * out of it, and which deadline each ticket answers to. `pick()` takes the first
+ * whose board exists on disk, so a new week is a new entry rather than an edit
+ * to the parser. `--project <id>` overrides.
+ *
+ * Deadlines are absolute, so a stale run cannot silently report against the
+ * wrong week.
  */
-const DEADLINES = [
-  { bucket: 'M', label: 'MVP', at: '2026-08-05T23:59:00-05:00' },
-  { bucket: 'E', label: 'Early Submission', at: '2026-08-07T23:59:00-05:00' },
-  { bucket: 'F', label: 'Final', at: '2026-08-09T12:00:00-05:00' },
+const PROJECTS = [
+  {
+    id: 'plugforge',
+    title: 'PLUGFORGE',
+    board: 'tickets/plugforge',
+    deadlines: [
+      { bucket: 'M', label: 'MVP', at: '2026-08-14T11:59:00-05:00' },
+      { bucket: 'E', label: 'Early Submission', at: '2026-08-13T23:59:00-05:00' },
+      { bucket: 'F', label: 'Final', at: '2026-08-16T11:59:00-05:00' },
+    ],
+    /**
+     * The eleven lanes the MVP gate depends on, from the spine's gate matrix.
+     * Everything else answers to Final — the gate cuts across tiers 0–4 only,
+     * so webhooks, SDK surface, CLI, drill, portal and the rewire are not due
+     * Friday even though they are due Sunday.
+     */
+    parse() {
+      const MVP = new Set(['L01','L02','L03','L04','L06','L07','L08','L09','L13','L17','L21']);
+      const dir = join(REPO, 'tickets', 'plugforge');
+      const tickets = [];
+      for (const f of readdirSync(dir).filter((n) => /^lane-\d+.*\.md$/.test(n)).sort()) {
+        const lane = 'L' + f.match(/^lane-(\d+)/)[1];
+        if (lane === 'L99') continue; // findings register, not a ticket board
+        const name = f.replace(/^lane-\d+-/, '').replace(/\.md$/, '');
+        for (const line of readFileSync(join(dir, f), 'utf8').split('\n')) {
+          const m = line.match(/^\|\s*(PF-\d{3})\s*\|\s*(☑|☐|✂|⚑|◐)/);
+          if (!m) continue;
+          tickets.push({
+            done: m[2] === '☑',
+            id: m[1],
+            bucket: MVP.has(lane) ? 'M' : 'F',
+            section: `${lane} · ${name}`,
+            code: lane,
+          });
+        }
+      }
+      return tickets;
+    },
+  },
+  {
+    id: 'fleetgraph',
+    title: 'FLEETGRAPH',
+    board: 'TICKETS.md',
+    deadlines: [
+      { bucket: 'M', label: 'MVP', at: '2026-08-05T23:59:00-05:00' },
+      { bucket: 'E', label: 'Early Submission', at: '2026-08-07T23:59:00-05:00' },
+      { bucket: 'F', label: 'Final', at: '2026-08-09T12:00:00-05:00' },
+    ],
+    parse() {
+      const text = readFileSync(join(REPO, 'TICKETS.md'), 'utf8');
+      const tickets = [];
+      let bucket = null, section = null;
+      for (const line of text.split('\n')) {
+        const b = line.match(/^#\s+§([MEF])\s+·\s+(.+)$/);
+        if (b) { bucket = b[1]; section = null; continue; }
+        const s = line.match(/^##\s+(.+)$/);
+        if (s && bucket) { section = s[1].trim(); continue; }
+        const m = line.match(/^- \[( |x)\] \*\*(FG-\d{3})\*\*\s+(.+)$/);
+        if (m && bucket) {
+          const code = (section ?? bucket).match(/^([MEF]\d*)\b/)?.[1] ?? bucket;
+          tickets.push({ done: m[1] === 'x', id: m[2], bucket, section: section ?? bucket, code });
+        }
+      }
+      return tickets;
+    },
+  },
 ];
+
+function pickProject() {
+  const flag = process.argv.indexOf('--project');
+  if (flag !== -1 && process.argv[flag + 1]) {
+    const p = PROJECTS.find((x) => x.id === process.argv[flag + 1]);
+    if (!p) { console.error(`unknown --project (have: ${PROJECTS.map((x) => x.id).join(', ')})`); process.exit(2); }
+    return p;
+  }
+  const found = PROJECTS.find((p) => existsSync(join(REPO, p.board)));
+  if (!found) { console.error('no known ticket board found'); process.exit(2); }
+  return found;
+}
+
+const PROJECT = pickProject();
+const DEADLINES = PROJECT.deadlines;
 
 // ---------------------------------------------------------------- tickets
 
 function parseTickets() {
-  const text = readFileSync(join(REPO, 'TICKETS.md'), 'utf8');
-  const tickets = [];
-  let bucket = null;
-  let section = null;
-
-  for (const line of text.split('\n')) {
-    const b = line.match(/^#\s+§([MEF])\s+·\s+(.+)$/);
-    if (b) {
-      bucket = b[1];
-      section = null;
-      continue;
-    }
-    const s = line.match(/^##\s+(.+)$/);
-    if (s && bucket) {
-      section = s[1].trim();
-      continue;
-    }
-    const t = line.match(/^- \[( |x)\] \*\*(FG-\d{3})\*\*\s+(.+)$/);
-    if (t && bucket) {
-      const code = (section ?? bucket).match(/^([MEF]\d*)\b/)?.[1] ?? bucket;
-      tickets.push({ done: t[1] === 'x', id: t[2], bucket, section: section ?? bucket, code });
-    }
-  }
-  return tickets;
+  return PROJECT.parse();
 }
 
 // ---------------------------------------------------------------- velocity
@@ -119,6 +186,11 @@ function readLog() {
       .split('\n')
       .filter(Boolean)
       .map((l) => JSON.parse(l))
+      // Entries predate the project field; they are all fleetgraph. Without this
+      // filter a PlugForge run sits next to a 282/285 FleetGraph reading and the
+      // delta is NEGATIVE — a rate computed across two different boards is not a
+      // slow rate, it is a meaningless one.
+      .filter((e) => (e.project ?? 'fleetgraph') === PROJECT.id)
       .map((e) => ({ ...e, at: new Date(e.at) }));
   } catch {
     return [];
@@ -241,7 +313,7 @@ if (JSON_OUT) {
   process.exit(0);
 }
 
-console.log('\n\x1b[1mFLEETGRAPH — PROGRESS\x1b[0m');
+console.log(`\n\x1b[1m${PROJECT.title} — PROGRESS\x1b[0m`);
 console.log(`${bar(done.length, tickets.length, 40)}  ${pct(done.length, tickets.length)}%`);
 console.log(`${done.length} done · ${left.length} remaining · ${tickets.length} total\n`);
 
@@ -318,6 +390,7 @@ console.log('any single total, and every projection as a floor rather than a for
 
 appendLog({
   at: new Date().toISOString(),
+  project: PROJECT.id,
   done: done.length,
   total: tickets.length,
   // Absent rather than false on ordinary runs — every line already written

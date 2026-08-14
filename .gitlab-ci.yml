@@ -95,6 +95,7 @@ build:
       - agent/dist/
       - api/dist/
       - web/dist/
+      - sdk/dist/
       - dist-sha.txt
 
 # ---------------------------------------------------------------------------
@@ -118,6 +119,28 @@ lint:
     expire_in: 1 week
     paths:
       - eslint-report.txt
+  allow_failure: false
+
+# PF-013 — the public/internal boundary, enforced by the pipeline rather than by
+# review. PRD Build Strategy §2 (p.10) asks for the rule "before you have any
+# cross-imports to lint"; this is the job that makes the rule mean something.
+#
+# Blocking (allow_failure: false, the default here, stated anyway because it is the
+# whole point of the ticket) and `needs: []` so it starts immediately and reports in
+# under a minute. A boundary violation is a design error and the cheapest moment to
+# see it is before the 150-minute e2e job has begun.
+#
+# Two commands, two different claims:
+#   pnpm lint            — the tree has no violations today (also run by `lint`)
+#   pnpm lint:boundary   — the rules that would catch one are still wired up
+# The second exists because a mis-globbed `files` entry or a later config object
+# overriding no-restricted-imports leaves the first green. See
+# scripts/check-boundary-lint.mjs.
+boundary-lint:
+  stage: verify
+  needs: []
+  script:
+    - pnpm lint:boundary
   allow_failure: false
 
 type-check:
@@ -156,6 +179,107 @@ doc-links:
     - scripts/check-doc-links.sh
   allow_failure: false
 
+# L01 PF-028 — the ticket boards are a graded artifact, so a malformed one fails a PR.
+#
+# PRD p.12 grades the PR description against the acceptance criterion each slice
+# advances, and every criterion lives on a lane board. A board that does not parse
+# is a board nobody can check a PR against. This ran by hand for weeks and drifted:
+# one row carried an unescaped pipe, split into seven columns, and the validator had
+# been reporting that error to nobody.
+#
+# It also reports traceability — which MVP gate items, Testing Scenarios, Core
+# Technical Requirement rows, performance targets and submission deliverables have
+# no ticket claiming them (PF-027). Coverage gaps are printed, not failed: lanes land
+# in waves and an unclaimed row mid-build is expected. Structural errors fail.
+#
+# `needs: []` and no build — it is Python over markdown.
+ticket-boards:
+  stage: verify
+  needs: []
+  script:
+    - python3 scripts/check-plugforge-tickets.py
+  allow_failure: false
+
+# L13 PF-369 / PF-377 — the committed public spec cannot go stale, and drift FAILS.
+#
+# `docs/openapi.json` is a Submission Requirement (p.13) and is what a grader reads
+# when the deployment is not reachable. It is generated, so it can silently fall
+# behind the routes: add an endpoint, forget to regenerate, and the artifact ships
+# describing an API that no longer exists. This job regenerates and diffs.
+#
+# **Decision (PF-377): fail, not warn, and no additive carve-out.** Pre-Search 3.3
+# (p.18) asks whether additive changes should be exempt. They are not: a new route
+# with no spec entry fails like any other drift, because "it's only additive" is how
+# every drift starts, and an additive-only policy would let a resource land before
+# its spec entry and keep CI green for exactly one commit. p.4 already requires drift
+# to fail CI for the SDK-side test; this is the same posture one lane earlier.
+#
+# The spec↔route PARITY half is not here — it runs inside the `test` job as
+# `platform/openapi/specParity.test.ts`, so it gates every PR through the same
+# required check as everything else rather than through a job someone can retry.
+#
+# `needs: []` so it starts immediately: it runs tsx over source and needs no build.
+openapi-freshness:
+  stage: verify
+  needs: []
+  script:
+    - pnpm openapi:public
+    - |
+      git diff --exit-code docs/openapi.json || {
+        echo ''
+        echo 'docs/openapi.json is STALE — the committed public spec does not match the'
+        echo 'routes on this branch. Fix it with:'
+        echo ''
+        echo '    pnpm openapi:public && git add docs/openapi.json'
+        echo ''
+        echo 'Do not hand-edit the file: it is generated from the declareV1Route() calls'
+        echo 'beside the handlers (PRD p.11), and a hand-edit is undone by the next run.'
+        exit 1
+      }
+  allow_failure: false
+
+# L26 PF-804 — MVP gate item 9's enforcement half.
+#
+# PRD p.2 item 9: "Existing Playwright regression suite passes on main; P95 latency,
+# bundle size, and per-route query counts within +10% of the Part 1 baseline." p.6
+# restates the budget. p.18's Pre-Search question asks how it will be enforced —
+# "manual benchmark, automated baseline comparison, perf job that fails the PR?" —
+# and this job is the third answer. `compare-baseline.ts` exits non-zero over budget,
+# so there is no output to parse and no way to be over budget and green.
+#
+# `needs: ['build']` for web/dist: the bundle figure is measured off the built
+# assets, and PF-802 rejects a comparison with no bundle number rather than skipping
+# that third of the gate.
+#
+# ── Why latency is advisory here and enforced elsewhere ────────────────────────
+# Bundle bytes and query counts are deterministic: same tree, same numbers, any
+# machine. An in-process P95 is not. The baseline was captured on darwin-arm64 /
+# node v26 / 10 cores; this runner is linux-x64 / node 22 / whatever the shared
+# fleet gives it. Comparing those measures the runner, in BOTH directions — it can
+# hide a real regression behind a faster box as easily as invent one on a slower
+# box, and a perf job that goes red for reasons unrelated to the diff gets disabled
+# within a week. So the comparator reads the baseline's environment fingerprint,
+# marks latency advisory when it does not match, and keeps the two deterministic
+# metrics enforced. The latency half is enforced on a machine matching the baseline
+# and recorded in docs/mvp-gate-item-9.md. This is a deliberate split, not a gap:
+# the report names it in the artifact every run.
+regression-budget:
+  stage: verify
+  needs: ['build']
+  services:
+    - name: postgres:16
+      alias: postgres
+  script:
+    - pnpm --filter @ship/api exec tsx src/db/migrate.ts
+    - pnpm baseline:compare
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - docs/regression-report.md
+      - docs/regression-report.json
+  allow_failure: false
+
 test:
   stage: verify
   needs: ['build']
@@ -168,6 +292,11 @@ test:
     - pnpm --filter @ship/api exec tsx src/db/migrate.ts
     - pnpm --filter @ship/api exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
     - pnpm --filter @ship/web exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
+    # F24 — @ship/sdk had no CI step of any kind, which made it the one package a
+    # stranger installs and the only one nothing verified. --passWithNoTests because
+    # the SDK's own suites arrive with L17/L18; the step exists now so they cannot
+    # land unrun.
+    - pnpm --filter @ship/sdk test
   artifacts:
     when: always
     expire_in: 1 week
@@ -259,6 +388,80 @@ agent-test:
     reports:
       junit:
         - agent/junit.xml
+  allow_failure: false
+
+# PF-608 — the Time-to-First-Event drill, blocking, on every branch pipeline.
+#
+# p.6: "Drill runs in CI on every PR." p.11: "Time-to-first-event drill in CI from Day 5
+# onward." p.13 makes a green run of THIS job Epic 6's proof artifact, so a local pass is
+# not the deliverable — this is.
+#
+# Three repo-specific constraints, each of which has already broken a job in this file:
+#
+#  (a) `workflow.rules` above sets `merge_request_event -> when: never`. "Every PR" is
+#      therefore served by the BRANCH pipeline for the same SHA, deliberately (see the
+#      block at the top). Giving this job MR-only rules would mean it never executes.
+#
+#  (b) Testcontainers, not dind — copied from `agent-test` for the reason recorded there:
+#      the `docker:27-dind` service never attached to this runner's job network and killed
+#      10 of 20 spec files in `beforeAll`. The runner mounts the host socket, so containers
+#      this job starts are SIBLINGS and publish on the Docker host.
+#
+#  (c) `scripts/assert-tests-ran.sh 3 --` so a drill that executes zero stages exits 2 —
+#      VOID RUN — rather than reading as a pass. Three is the whole drill file: the loop,
+#      PF-602's benchmark link, and PF-611's CLI path.
+#
+# `pnpm drill ttfe` is the invocation p.6 names literally, and it is what runs here. No
+# retry wrapper, ever: p.9's target is 0% flake and a retry is the mechanism that converts
+# a flake into a pass (PF-605).
+ttfe:
+  stage: verify
+  needs: ['build']
+  variables:
+    TESTCONTAINERS_HOST_OVERRIDE: 'host.docker.internal'
+    TESTCONTAINERS_RYUK_DISABLED: 'true'
+    # The harness provisions and DROPS a database. The pipeline-wide DATABASE_URL points
+    # at the shared `postgres` service, and the harness refuses to adopt any inherited
+    # URL by design (PF-587) — cleared here so the refusal is never the thing that fails
+    # this job.
+    DATABASE_URL: ''
+  script:
+    # The drill's own sources are checked by no other job: tsconfig.json excludes
+    # `tests/`, and vitest strips types without checking them.
+    - pnpm --filter @ship/cli exec tsc -p tsconfig.drill.json
+    # PF-605 / PF-609: no sleeps, `retry: 0`, not a Playwright spec, one thresholds file.
+    - node scripts/ttfe/check-fitness.mjs
+    - docker pull postgres:16
+    - scripts/assert-tests-ran.sh 3 -- pnpm drill ttfe
+    # PF-600 / PF-603: the two gates no single run can produce. Reads the same
+    # test-results/ttfe-series.jsonl the soak does.
+    - node scripts/ttfe/check-series.mjs
+  artifacts:
+    when: always
+    expire_in: 1 month
+    paths:
+      # PF-592 / PF-610: the machine-readable artifact, next to junit.xml and
+      # playwright-report/. Four consumers read this one file.
+      - test-results/ttfe.json
+      - test-results/ttfe-series.jsonl
+  allow_failure: false
+
+# PF-587 / PF-607 — the drill's negative controls, as their own job.
+#
+# Separate from `ttfe` because they boot two extra Ship instances and run the SDK suite:
+# folding them into the same process would inflate the number p.8 grades. Blocking all the
+# same — p.11 claims the drill "will catch contract regressions faster than any unit test",
+# and until it has been seen failing for the right reason that claim has no evidence.
+ttfe-controls:
+  stage: verify
+  needs: ['build']
+  variables:
+    TESTCONTAINERS_HOST_OVERRIDE: 'host.docker.internal'
+    TESTCONTAINERS_RYUK_DISABLED: 'true'
+    DATABASE_URL: ''
+  script:
+    - docker pull postgres:16
+    - scripts/assert-tests-ran.sh 4 -- pnpm drill ttfe --controls
   allow_failure: false
 
 coverage:
@@ -419,6 +622,64 @@ e2e:
 # ---------------------------------------------------------------------------
 # stage: audit
 # ---------------------------------------------------------------------------
+
+# PF-624 — the Terraform gate. PRD p.5: "no unpinned versions permitted", and
+# `terraform plan` must run cleanly.
+#
+# READ-ONLY BY CONSTRUCTION. This job runs `plan`, never `apply` and never
+# `destroy`. Three things enforce that rather than one comment asking nicely:
+#
+#   1. `-lock=false` on the plan. A read-only job has no business taking the
+#      state lock -- if it did, a CI run and an operator applying a hotfix would
+#      contend, and the human would lose to a robot doing nothing.
+#   2. The credential. `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` here MUST be
+#      the `ship-ci-terraform-plan` identity carrying ReadOnlyAccess plus
+#      s3:GetObject on the state object -- NOT the `ship-terraform` operator
+#      identity, which holds AdministratorAccess. Named here on purpose so a
+#      reviewer can check it against the account (docs/infra/aws-account.md).
+#      A plan job holding admin is a plan job that can be edited into an apply job
+#      in one line.
+#   3. The pin audit runs FIRST and independently of credentials, so an unpinned
+#      provider fails the pipeline even in a fork with no AWS access at all.
+#
+# `workflow.rules` sets `merge_request_event -> never` (finding F28), so this
+# rides the BRANCH pipeline. An `if: $CI_MERGE_REQUEST_IID` rule would never fire.
+#
+# `allow_failure: false` on both halves: an unpinned version or a plan error
+# fails the check, which is the whole point of the ticket.
+terraform-verify:
+  stage: verify
+  needs: []
+  image:
+    name: hashicorp/terraform:1.15.8
+    entrypoint: [""]
+  before_script:
+    - apk add --no-cache bash git aws-cli
+  script:
+    # (1) Pin audit. No credentials needed -- pure source inspection.
+    - bash scripts/check-tf-pins.sh pin-audit.txt
+    # (2) Plan. Skipped with a LOUD message rather than silently passing when the
+    #     read-only credential is absent, so "no AWS configured" can never be
+    #     mistaken for "the plan is clean".
+    - |
+      if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+        echo "=============================================================="
+        echo "SKIPPING terraform plan: no AWS_ACCESS_KEY_ID in this pipeline."
+        echo "The pin audit above still ran and still gates."
+        echo "Set the ship-ci-terraform-plan credential to enable the plan half."
+        echo "=============================================================="
+        exit 0
+      fi
+      BUCKET=$(aws ssm get-parameter --name /ship/terraform-state-bucket --query Parameter.Value --output text)
+      cd terraform
+      terraform init -input=false -lockfile=readonly -backend-config="bucket=$BUCKET"
+      terraform plan -input=false -no-color -lock=false
+  artifacts:
+    when: always
+    expire_in: 1 month
+    paths:
+      - pin-audit.txt
+  allow_failure: false
 
 dependency-audit:
   stage: audit

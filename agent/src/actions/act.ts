@@ -165,7 +165,7 @@ async function logNote(
  * argument, and one that says "no movement in 14 business days, threshold is 5"
  * does not. The measurement is also the part a human can check.
  */
-function commentBody(action: ProposedAction): string {
+export function commentBody(action: ProposedAction): string {
   const phrasing = str(action.payload.phrasing) ?? action.describe;
   const measurement = num(action.payload.measurement);
   const threshold = num(action.payload.threshold);
@@ -178,8 +178,16 @@ function commentBody(action: ProposedAction): string {
   return `${phrasing}${evidence}\n\n— FleetGraph`;
 }
 
-/** One line, for a history list. */
-function auditLine(action: ProposedAction): string {
+/**
+ * One line, for a history list.
+ *
+ * Exported for L23's read-only path (PF-700), which carries this exact string
+ * into the recommendation row instead of into `document_history`. Exported
+ * rather than copied so the two can never say different things about the same
+ * measurement — a hand-written literal on the recommendation side is what
+ * PF-699's "compared against the flag-off run's own output" exists to forbid.
+ */
+export function auditLine(action: ProposedAction): string {
   const type = str(action.payload.signalType) ?? action.kind;
   const measurement = num(action.payload.measurement);
   const threshold = num(action.payload.threshold);

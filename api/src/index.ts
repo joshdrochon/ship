@@ -26,7 +26,10 @@ async function main() {
   const PORT = process.env.PORT || 3000;
   const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
-  const app = createApp(CORS_ORIGIN);
+  // PF-014: createApp takes the dependency bundle, not a bare CORS origin. Same
+  // value, chosen in the one factory that chooses production concretes.
+  const { productionDeps } = await import('./deps.js');
+  const app = createApp(productionDeps({ corsOrigin: CORS_ORIGIN }));
   const server = createServer(app);
 
   // DDoS protection: Set server-wide timeouts to prevent slow-read attacks (Slowloris)

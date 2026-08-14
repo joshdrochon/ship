@@ -55,6 +55,7 @@ jobs:
             agent/dist/
             api/dist/
             web/dist/
+            sdk/dist/
             dist-sha.txt
 
   lint:
@@ -79,6 +80,253 @@ jobs:
         with:
           name: eslint-report
           path: eslint-report.txt
+
+  # PF-013 — the public/internal boundary, enforced by the pipeline rather than by
+  # review. Blocking, and deliberately placed with the other text-only checks so it
+  # reports in under a minute: a boundary violation is a design error, and the
+  # cheapest moment to see it is before the 80-minute e2e job has started.
+  #
+  # No `needs: build`. This reads source text through ESLint; it does not want a
+  # compiled tree, and coupling it to the build would delay the fastest signal in
+  # the pipeline behind the slowest job in it.
+  #
+  # `pnpm lint` proves the tree has no violations today. `pnpm lint:boundary`
+  # proves the rules that would catch one are still wired up — see
+  # scripts/check-boundary-lint.mjs for why those are different claims.
+  boundary-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Boundary fences fire on their negative fixtures
+        run: pnpm lint:boundary
+
+  # PF-717 — the WORKSPACE DEPENDENCY RULE, and it is deliberately its own job
+  # that runs BEFORE lint rather than a step inside it.
+  #
+  # PRD p.11 names a workspace dependency rule; p.18 names the lint rule. They
+  # catch different things and neither subsumes the other: ESLint sees import
+  # specifiers, so it cannot see a dependency that has been declared, installed
+  # and hoisted before anybody writes an `import` — or one reached through
+  # `require()` or a computed dynamic import. Ordering matters for the reader as
+  # much as for the machine: a red job named "workspace dependency rule" says
+  # what went wrong; a lint failure twenty steps into a matrix does not.
+  #
+  # PF-722 rides along because it is the runtime twin of the same claim — the
+  # import fence stops compile-time cheating, the credential scan stops the
+  # runtime kind.
+  integration-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: PF-716/717 — integrations declare @ship/sdk and nothing else of ours
+        run: pnpm check:integration-deps
+      - name: PF-722 — no integration holds a privileged credential
+        run: pnpm check:integration-credentials
+
+  # PF-720 — one blocking job per integration package, each behind the
+  # zero-tests-ran guard.
+  #
+  # The guard is the point. Deleting every test from a package makes vitest exit
+  # 0 with "no test files found", which reads as a pass in a job list; the
+  # minimum count turns that into exit 2, which `assert-tests-ran.sh` documents
+  # as VOID rather than as a failure. This repo already applies it to the agent
+  # and E2E suites for exactly that reason.
+  #
+  # Only the suites that need NO booted Ship run here. The server-backed drills
+  # (`pnpm drill:refresh`, `pnpm drill:idempotency`) and the Slack listener's
+  # end-to-end suite have their own jobs further down, because they need a
+  # database service and a built api/dist.
+  integration-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # `minimum` comes from a known-good local run, per assert-tests-ran's
+          # own guidance. Raise it when a package grows tests; never lower it to
+          # make a red job green.
+          - package: '@ship/integration-testkit'
+            minimum: 19
+          - package: '@ship/cli'
+            minimum: 21
+          - package: '@ship/browser-demo'
+            minimum: 5
+          - package: '@ship/slack'
+            minimum: 17
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # F47 — nothing under integrations/ resolves until the SDK is built, and
+      # every lane has hit this independently. The testkit joins it because it is
+      # consumed through its `exports` map (dist), and a stale-but-present dist
+      # is worse than a missing one: the consumer runs old code while the source
+      # looks right.
+      - run: pnpm build:shared && pnpm --filter @ship/sdk build && pnpm --filter @ship/integration-testkit build
+      - name: ${{ matrix.package }} — suite, behind the zero-tests-ran guard
+        run: scripts/assert-tests-ran.sh ${{ matrix.minimum }} -- pnpm --filter ${{ matrix.package }} test
+
+  # PF-727 — `pnpm drill:refresh` runs headless as a BLOCKING job.
+  #
+  # Server-backed, so it gets its own job rather than a row in the matrix above:
+  # it needs a database service and it boots two Ship instances of its own, one
+  # of them with a zero-second refresh TTL so PF-726's expired case is produced
+  # by configuration rather than by waiting.
+  #
+  # `retry: 0` is set in the package's vitest config, not here. p.9 targets zero
+  # flake over twenty consecutive runs and a retry is precisely what converts a
+  # flake into a pass (L99 F27, about playwright.config.ts).
+  drill-refresh-rotation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_drill
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_drill
+      # F91 — the key is resolved lazily, so a deployment missing it boots green
+      # and 500s on the first webhook create. Set explicitly so the drill can
+      # never meet that failure and mistake it for its own.
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      # The three first-party apps are seeded by `db:migrate`, and it seeds
+      # nothing at all when their secrets are absent — a silent no-op that reads
+      # as "the app does not exist" three layers later.
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared && pnpm --filter @ship/agent build && pnpm --filter @ship/sdk build
+      - run: pnpm db:migrate
+      - name: PF-723..727 — the refresh rotation drill, against two booted Ships
+        run: scripts/assert-tests-ran.sh 21 -- pnpm drill:refresh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: refresh-failure-shapes
+          path: integrations/drills/refresh-rotation/test-results/
+
+  # PF-728..732 — the Idempotency-Key drill, asserted at the SUBSCRIBER.
+  #
+  # Its own job for the same reason as the one above, plus one more: it boots
+  # Ship with SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS=true so a subscription can
+  # target 127.0.0.1 (PF-575's named opt-in, L99 B8). That variable must never
+  # be set on a deployed instance, and a job of its own is where that stays
+  # visible.
+  drill-idempotency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_drill_idem
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_drill_idem
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared && pnpm --filter @ship/agent build && pnpm --filter @ship/sdk build
+      - run: pnpm db:migrate
+      - name: PF-728..732 — dedupe, replay-key equality, and the real retry ladder
+        run: scripts/assert-tests-ran.sh 14 -- pnpm drill:idempotency
+
+  # PF-743 — the whole path, UI to Slack channel, as one executable test.
+  #
+  # The first hop is Ship's INTERNAL route with a session cookie, not /api/v1, so
+  # this doubles as the cross-surface proof for L14's one-publish-both-surfaces
+  # rule from the far side: if publish() were wired into the public router
+  # instead of into the domain service, this job would go red while every
+  # /api/v1 test in the repo stayed green.
+  slack-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_slack_live
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_slack_live
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared && pnpm --filter @ship/agent build && pnpm --filter @ship/sdk build
+      - run: pnpm db:migrate
+      - name: PF-743 — internal UI create → bus → matcher → signer → deliverer → Slack
+        run: scripts/assert-tests-ran.sh 5 -- pnpm slack:live
 
   type-check:
     runs-on: ubuntu-latest
@@ -112,6 +360,44 @@ jobs:
           name: ship-dist-${{ github.sha }}
       - run: pnpm type-check
 
+  # L13 PF-369 / PF-377 — the committed public spec cannot go stale, and drift FAILS.
+  #
+  # Mirrors the `openapi-freshness` job in .gitlab-ci.yml, which is authoritative.
+  # `docs/openapi.json` is a Submission Requirement (p.13) and is generated, so it can
+  # silently fall behind: add an endpoint, forget to regenerate, and the artifact ships
+  # describing an API that no longer exists.
+  #
+  # Decision (PF-377): fail, not warn, and no additive carve-out. "It's only additive"
+  # is how every drift starts. The spec↔route parity half runs inside the `test` job
+  # as platform/openapi/specParity.test.ts, so it gates the same required check as
+  # everything else.
+  openapi-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm openapi:public
+      - name: docs/openapi.json is up to date
+        run: |
+          git diff --exit-code docs/openapi.json || {
+            echo ''
+            echo 'docs/openapi.json is STALE — the committed public spec does not match'
+            echo 'the routes on this branch. Fix it with:'
+            echo ''
+            echo '    pnpm openapi:public && git add docs/openapi.json'
+            echo ''
+            echo 'Do not hand-edit the file: it is generated from the declareV1Route()'
+            echo 'calls beside the handlers (PRD p.11).'
+            exit 1
+          }
+
   # `pnpm type-check` proves the code compiles. It does not observe how much of that
   # compilation was bought with `any`, `as` and `!` — which is what Category 1 is measured
   # on, and which has already regressed here unnoticed while every other check was green.
@@ -142,6 +428,76 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: scripts/check-doc-links.sh
+
+  # L26 PF-804 — MVP gate item 9's enforcement half. Mirrors `regression-budget` in
+  # .gitlab-ci.yml, which is the authoritative pipeline.
+  #
+  # PRD p.2 item 9: "Existing Playwright regression suite passes on main; P95 latency,
+  # bundle size, and per-route query counts within +10% of the Part 1 baseline." p.6
+  # restates the budget. p.18's Pre-Search question asks how it will be enforced —
+  # "manual benchmark, automated baseline comparison, perf job that fails the PR?" —
+  # and this job is the third answer. `compare-baseline.ts` exits non-zero over budget,
+  # so there is no output to parse and no way to be over budget and green.
+  #
+  # ── Why latency is advisory here and enforced elsewhere ────────────────────────
+  # Bundle bytes and query counts are deterministic: same tree, same numbers, any
+  # machine. An in-process P95 is not. The baseline was captured on darwin-arm64 /
+  # node v26 / 10 cores; this runner is linux-x64 / node 22 / 2-4 shared cores.
+  # Comparing those measures the runner, in BOTH directions — it can hide a real
+  # regression behind a faster box as easily as invent one on a slower box, and a perf
+  # job that goes red for reasons unrelated to the diff gets disabled within a week.
+  # So the comparator reads the baseline's environment fingerprint, marks latency
+  # advisory when it does not match, and keeps the two deterministic metrics enforced.
+  # The latency half is enforced on a machine matching the baseline and recorded in
+  # docs/mvp-gate-item-9.md. A deliberate split, not a gap: the report names it in the
+  # artifact every run.
+  regression-budget:
+    runs-on: ubuntu-latest
+    needs: build
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ship_test
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_test_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_test_password@localhost:5432/ship_test
+      SESSION_SECRET: ci-only-not-a-real-secret
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # F47 — a clean checkout does not resolve @ship/shared or @ship/agent until these
+      # have run, and `createApp()` (which the comparator drives) imports both.
+      - run: pnpm build:agent
+      # The bundle figure is measured off web/dist. PF-802 rejects a comparison with no
+      # bundle number rather than skipping that third of the gate, so this is required,
+      # not an optimisation.
+      - run: pnpm build:web
+      - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
+      - run: pnpm baseline:compare
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regression-report-${{ github.sha }}
+          retention-days: 7
+          path: |
+            docs/regression-report.md
+            docs/regression-report.json
 
   test:
     runs-on: ubuntu-latest
@@ -177,11 +533,64 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:agent   # shared -> agent; api imports @ship/agent
+      # L17 PF-492 — the MVP gate item 8 test lives in @ship/api (ESLint fence 4
+      # forbids sdk/ importing anything in this repo, so the SDK cannot boot the
+      # server) and it imports `@ship/sdk` through the package's `exports` map.
+      # That resolves to `dist`, so the SDK must be BUILT before the api suite
+      # runs — otherwise the gate test fails on a missing module and looks like a
+      # broken import rather than a missing build.
+      - run: pnpm --filter @ship/sdk build
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
+      # L18 PF-532 — TESTING SCENARIO 5's second half, as its own BLOCKING step.
+      #
+      # p.4 requires spec↔SDK drift to fail CI; p.6 sets spec parity at 100%.
+      # The full api suite below already runs this file, so this step adds no
+      # coverage — it adds a NAME. A parity break inside a 1900-test run is one
+      # red line in a wall of output attributed to "api tests"; here it is a
+      # step called "spec ↔ SDK parity" that failed, which is the difference
+      # between a five-minute diagnosis and a fifty-minute one.
+      #
+      # It is also the step that cannot be lost to a `--filter` change: the
+      # walk's own §1 refuses to run against zero operations or an empty
+      # binding table, so this step cannot go green by checking nothing.
+      - name: Testing Scenario 5 — spec ↔ SDK surface parity (PF-528..532)
+        run: pnpm --filter @ship/api exec vitest run src/platform/openapi/sdkSurfaceParity.test.ts
       # Both suites. `pnpm test` alone is api-only and would leave 151 web tests
       # unexecuted, which does not satisfy Rule 2.
       - run: pnpm --filter @ship/api exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
       - run: pnpm --filter @ship/web exec vitest run --reporter=default --reporter=junit --outputFile.junit=junit.xml
+      # F24 — @ship/sdk had no CI step of any kind, which made it the one package a
+      # stranger installs and the only one nothing verified. L17 filled it with a
+      # real suite, so `--passWithNoTests` is now belt-and-braces rather than the
+      # reason the step passes.
+      - run: pnpm --filter @ship/sdk test
+      # L17 PF-514/PF-515 — the p.9 install budget, ENFORCED.
+      #
+      # Pre-Search 1.2 (p.15) asks "how will you enforce it (bundle analyzer, CI
+      # size check)". This is the size-check answer, chosen because an analyzer
+      # REPORTS and a check REFUSES — and only a refusal stops a 400 KB
+      # dependency landing on a Friday. `--check` exits non-zero over budget or
+      # when a declared dependency cannot be measured.
+      #
+      # Runs after the build above, because it measures `dist` plus the
+      # production dependency closure, not the source.
+      - run: pnpm --filter @ship/sdk size:check
+      # L18 PF-547 — p.8's Signature Challenge target, MEASURED.
+      #
+      # Same shape and the same reason as `size:check`: the ticket is satisfied
+      # by a recorded figure, and a figure over budget is a failure with a name
+      # rather than a rounding conversation. `--check` exits non-zero over the
+      # 1 ms p95 target and refuses outright if `dist` was never built.
+      - run: pnpm --filter @ship/sdk perf:check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          # Both SDK budget numbers under ONE artifact, so the submission has one
+          # place to look (PF-547).
+          name: sdk-budget-reports
+          path: |
+            sdk/size-report.json
+            sdk/perf-report.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -248,6 +657,70 @@ jobs:
           name: junit-results-agent
           path: agent/junit.xml
 
+  # PF-608 — the Time-to-First-Event drill, mirrored beside the existing checks.
+  #
+  # p.6: "Drill runs in CI on every PR." .gitlab-ci.yml is the gate that actually blocks a
+  # merge (its header says so); this is the same job on the platform Rule 4 names. If the
+  # two ever disagree, that file wins.
+  #
+  # No `continue-on-error`, and no retry: p.9's target is 0% flake over 20 consecutive
+  # runs, and a retry is precisely the mechanism that converts a flake into a pass
+  # (PF-605). `scripts/assert-tests-ran.sh 3 --` so a drill that runs zero stages exits 2
+  # rather than reading as a pass.
+  ttfe:
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 30
+    env:
+      # The harness provisions and DROPS its own database and refuses to adopt an
+      # inherited URL (PF-587). Cleared so that refusal is never what fails this job.
+      DATABASE_URL: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: ship-dist-${{ github.sha }}
+
+      # tsconfig.json excludes `tests/`, and vitest strips types without checking them —
+      # so without this step the drill is the one file in the lane no compiler reads.
+      - name: Type-check the drill
+        run: pnpm --filter @ship/cli exec tsc -p tsconfig.drill.json
+
+      # PF-605 / PF-609 — no sleeps, retry: 0, not a Playwright spec, one thresholds file.
+      - name: Drill fitness
+        run: node scripts/ttfe/check-fitness.mjs
+
+      # Pre-pull so a slow registry does not eat the container start timeout inside the
+      # harness and report as a stage failure that names the wrong thing.
+      - run: docker pull postgres:16
+
+      - name: TTFE drill
+        run: scripts/assert-tests-ran.sh 3 -- pnpm drill ttfe
+
+      # PF-600 / PF-603 — the P95 gates no single run can produce.
+      - name: TTFE series
+        run: node scripts/ttfe/check-series.mjs
+
+      - name: TTFE negative controls
+        run: scripts/assert-tests-ran.sh 4 -- pnpm drill ttfe --controls
+
+      # PF-592 / PF-610 — Epic 6's proof artifact travels with the run.
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ttfe-${{ github.sha }}
+          path: |
+            test-results/ttfe.json
+            test-results/ttfe-series.jsonl
+
   coverage:
     runs-on: ubuntu-latest
     needs: build
@@ -279,6 +752,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:agent   # shared -> agent; api imports @ship/agent
+      # Same reason as the `test` job: `sdkGate.test.ts` imports @ship/sdk
+      # through its exports map, which resolves to dist (L17 PF-492).
+      - run: pnpm --filter @ship/sdk build
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
       - run: pnpm --filter @ship/api test:coverage
       # web needs --coverage.reportOnFailure explicitly; vitest defaults it to false,

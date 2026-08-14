@@ -6,6 +6,10 @@ import { isWorkspaceAdmin } from '../middleware/visibility.js';
 import { handleVisibilityChange, handleDocumentConversion, invalidateDocumentCache, broadcastToUser } from '../collaboration/index.js';
 import { extractHypothesisFromContent, extractSuccessCriteriaFromContent, extractVisionFromContent, extractGoalsFromContent, checkDocumentCompleteness } from '../utils/extractHypothesis.js';
 import { loadContentFromYjsState } from '../utils/yjsConverter.js';
+// PF-241 — the shared domain service. `docs/architecture.md`'s Public/Internal
+// Boundary diagram says both surfaces call this; before this import that was a
+// drawing rather than a fact (finding F8).
+import { documentService } from '../services/documents.js';
 
 type RouterType = ReturnType<typeof Router>;
 const router: RouterType = Router();
@@ -90,84 +94,44 @@ const updateDocumentSchema = z.object({
   plan: z.string().optional(), // Alias for hypothesis (frontend sends 'plan', stored as 'plan' in properties)
 });
 
-// --- GET /api/documents query plan cache -------------------------------------
-//
-// The list query has exactly six shapes (type filter on/off x parent filter
-// none/null/value). Building the text per request meant PostgreSQL re-parsed and
-// re-planned it on every call: EXPLAIN reported `Planning Time: 0.658 ms` against
-// `Execution Time: 0.733 ms` at 600 documents, i.e. planning was ~47% of the
-// server-side cost of the hottest endpoint in the app. Naming each shape lets
-// node-postgres use the extended protocol's named-statement path, so each pooled
-// connection parses and plans once and then only binds/executes.
-//
-// The admin check is folded in as an uncorrelated scalar subquery instead of being
-// fetched by a separate `isWorkspaceAdmin()` round trip. PostgreSQL evaluates it
-// once as an InitPlan, so it costs one index probe inside a query we were already
-// issuing, rather than a second pool checkout + round trip on the request's
-// critical path.
-const DOCUMENTS_LIST_SELECT = `
-      SELECT id, workspace_id, document_type, title, parent_id, position,
-             ticket_number, properties,
-             created_at, updated_at, created_by, visibility
-      FROM documents
-      WHERE workspace_id = $1
-        AND archived_at IS NULL
-        AND deleted_at IS NULL
-        AND (visibility = 'workspace' OR created_by = $2
-             OR (SELECT wm.role FROM workspace_memberships wm
-                  WHERE wm.workspace_id = $1 AND wm.user_id = $2) = 'admin')`;
-
-const DOCUMENTS_LIST_ORDER = ` ORDER BY position ASC, created_at DESC`;
-
-type ParentFilter = 'any' | 'null' | 'value';
-
-// Statement text must be stable for a given name, so it is derived from the shape
-// and memoised rather than rebuilt per request.
-const documentsListStatements = new Map<string, string>();
-
-function documentsListStatement(hasType: boolean, parentFilter: ParentFilter): { name: string; text: string } {
-  const name = `documents_list_${hasType ? 't' : 'x'}_${parentFilter}`;
-  let text = documentsListStatements.get(name);
-  if (text === undefined) {
-    // $1 and $2 are always workspace id and user id, so the optional filters take $3 and
-    // $4 in the order the handler pushes them.
-    const parentParam = hasType ? '$4' : '$3';
-    let sql = DOCUMENTS_LIST_SELECT;
-    if (hasType) sql += ` AND document_type = $3`;
-    if (parentFilter === 'null') sql += ` AND parent_id IS NULL`;
-    else if (parentFilter === 'value') sql += ` AND parent_id = ${parentParam}`;
-    text = sql + DOCUMENTS_LIST_ORDER;
-    documentsListStatements.set(name, text);
-  }
-  return { name, text };
-}
-
 // List documents
+//
+// PF-241/PF-243 — parse, call, respond. The query that used to live here (six
+// named prepared-statement shapes with the admin check folded in as an
+// uncorrelated subquery) moved VERBATIM into `documentService.list`, names and
+// all. Nothing about the SQL changed: PF-264 holds the per-route query budget
+// against `docs/baseline-part1.json`, and re-issuing `isWorkspaceAdmin()` per
+// request is exactly the regression a naive extraction introduces.
+//
+// The response body is unchanged too, including the in-place flattening of
+// `properties` into legacy top-level fields below. That projection stays in the
+// route rather than moving into the service because the public surface must NOT
+// have it — it projects through an allowlist instead (PF-252).
 router.get('/', authMiddleware, async (req: Request, res: Response) => {
   try {
     const { type, parent_id } = req.query;
     const { userId, workspaceId } = requireAuth(req);
 
-    const parentFilter: ParentFilter =
-      parent_id === undefined ? 'any'
-        : (parent_id === 'null' || parent_id === '') ? 'null'
-          : 'value';
-
-    const { name, text } = documentsListStatement(Boolean(type), parentFilter);
-    const params: (string | null)[] = [workspaceId, userId];
-    if (type) params.push(type as string);
-    if (parentFilter === 'value') params.push(parent_id as string);
-
-    const result = await pool.query({ name, text, values: params });
+    const documents = await documentService.list(
+      { workspaceId, userId, db: pool },
+      {
+        mode: 'internal',
+        type: type as string | undefined,
+        // `undefined` = no filter, `null`/`''` = top level only, else that parent.
+        parentId: parent_id === undefined ? undefined : (parent_id as string),
+      },
+    );
 
     // Extract properties into flat fields for backwards compatibility.
     // Mutated in place: the previous version allocated a second 600-element array
     // of spread copies purely to add seven keys, which is ~600 extra objects of
     // garbage per request on the app's highest-traffic endpoint.
-    const documents = result.rows;
     for (let i = 0; i < documents.length; i++) {
+      // Indexed access is `T | undefined` now that the service returns a typed
+      // row rather than `any`. Same loop, same mutation, one guard.
       const row = documents[i];
-      const props = row.properties || {};
+      if (!row) continue;
+      const props = (row.properties || {}) as Record<string, unknown>;
       row.state = props.state;
       row.priority = props.priority;
       row.estimate = props.estimate;
@@ -532,9 +496,50 @@ router.patch('/:id/content', authMiddleware, async (req: Request, res: Response)
   }
 });
 
+/**
+ * L14 PF-405 — the document service THIS request should use.
+ *
+ * `docs/architecture.md` claims both surfaces call the same service and get one
+ * publish ("same service, same publish"). That was only half true: the public
+ * router is built with `createDocumentService({ bus: deps.bus })`, while this
+ * file used the module-level default, which has no bus — so a document created
+ * through the Ship UI, which is where documents are actually created, published
+ * nothing.
+ *
+ * `createApp` puts a bus-carrying instance on `app.locals`. Read from there
+ * rather than from a module-level mutable, because tests call `createApp()` many
+ * times in one process and a module-level service would mean the last app
+ * constructed silently owned every earlier app's events. `app.locals` is
+ * Express's own per-application store, so each app keeps its own.
+ *
+ * The fallback keeps the module default for any caller that mounts this router
+ * without going through the composition root — it publishes nothing, which is
+ * the correct behaviour for a router nobody wired a bus to, and is what keeps
+ * this change from silently depending on mount order.
+ *
+ * Note what this function does NOT do: it never names the bus, never imports the
+ * events module and never calls `.publish(`. PF-411's fitness test enforces all
+ * three for everything under `routes/`.
+ */
+function serviceFor(req: Request): typeof documentService {
+  const configured = req.app?.locals?.documentService as typeof documentService | undefined;
+  return configured ?? documentService;
+}
+
 // Create document
+//
+// PF-241/PF-243 — parse, call, respond. The `INSERT INTO documents … RETURNING *`
+// and the three association inserts moved into `documentService.create`, which
+// owns the transaction. The Zod schema, the `{error, details}` failure shape,
+// the 201 body (`RETURNING *`, every column) and the `accountability:updated`
+// broadcast all stay exactly as Part 1 shipped them.
+//
+// The broadcast stays HERE on purpose. It is a websocket push to the session
+// that made the request — an internal-surface concern with no public-surface
+// meaning — and moving it into the service would fire it for bearer-token
+// callers who have no socket. The domain event L14 needs is a different thing
+// and goes on the injected bus inside the service (PF-262).
 router.post('/', authMiddleware, async (req: Request, res: Response) => {
-  const client = await pool.connect();
   try {
     const parsed = createDocumentSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -542,82 +547,35 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
       return;
     }
 
-    const { title, document_type, parent_id, program_id, sprint_id, properties, content, belongs_to } = parsed.data;
-    let { visibility } = parsed.data;
+    const { title, document_type, parent_id, program_id, sprint_id, properties, content, belongs_to, visibility } = parsed.data;
+    const { userId, workspaceId } = requireAuth(req);
 
-    // If parent_id is provided and visibility is not specified, inherit from parent
-    if (parent_id && !visibility) {
-      const parentResult = await client.query(
-        'SELECT visibility FROM documents WHERE id = $1 AND workspace_id = $2',
-        [parent_id, req.workspaceId]
-      );
-      if (parentResult.rows[0]) {
-        visibility = parentResult.rows[0].visibility;
+    const newDoc = await serviceFor(req).create(
+      { workspaceId, userId, db: pool },
+      {
+        title,
+        documentType: document_type,
+        parentId: parent_id,
+        programId: program_id,
+        sprintId: sprint_id,
+        properties,
+        visibility,
+        content,
+        belongsTo: belongs_to,
       }
-    }
-
-    // Default to 'workspace' visibility if not specified
-    visibility = visibility || 'workspace';
-
-    await client.query('BEGIN');
-
-    const result = await client.query(
-      `INSERT INTO documents (workspace_id, document_type, title, parent_id, properties, created_by, visibility, content)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING *`,
-      [req.workspaceId, document_type, title, parent_id || null, JSON.stringify(properties || {}), req.userId, visibility, content ? JSON.stringify(content) : null]
     );
-
-    const newDoc = result.rows[0];
-
-    // Handle belongs_to associations (creates document_associations records)
-    if (belongs_to && belongs_to.length > 0) {
-      for (const assoc of belongs_to) {
-        await client.query(
-          `INSERT INTO document_associations (document_id, related_id, relationship_type)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (document_id, related_id, relationship_type) DO NOTHING`,
-          [newDoc.id, assoc.id, assoc.type]
-        );
-      }
-    }
-
-    // Handle sprint_id via document_associations (backward compatibility)
-    if (sprint_id) {
-      await client.query(
-        `INSERT INTO document_associations (document_id, related_id, relationship_type)
-         VALUES ($1, $2, 'sprint')
-         ON CONFLICT (document_id, related_id, relationship_type) DO NOTHING`,
-        [newDoc.id, sprint_id]
-      );
-    }
-
-    // Handle program_id via document_associations (mirrors column for junction table queries)
-    if (program_id) {
-      await client.query(
-        `INSERT INTO document_associations (document_id, related_id, relationship_type)
-         VALUES ($1, $2, 'program')
-         ON CONFLICT (document_id, related_id, relationship_type) DO NOTHING`,
-        [newDoc.id, program_id]
-      );
-    }
-
-    await client.query('COMMIT');
 
     // Broadcast accountability update for document types that affect action items
     // Sprint plans clear the "write sprint plan" action item
     // Documents with outcome property linked to sprints clear the "write retro" action item
     if (document_type === 'weekly_plan' || (properties && 'outcome' in properties)) {
-      broadcastToUser(requireAuth(req).userId, 'accountability:updated', { documentId: newDoc.id, documentType: document_type });
+      broadcastToUser(userId, 'accountability:updated', { documentId: newDoc.id, documentType: document_type });
     }
 
     res.status(201).json(newDoc);
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('Create document error:', err);
     res.status(500).json({ error: 'Internal server error' });
-  } finally {
-    client.release();
   }
 });
 
@@ -1149,12 +1107,13 @@ router.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
       return;
     }
 
-    const result = await pool.query(
-      'DELETE FROM documents WHERE id = $1 AND workspace_id = $2 RETURNING id',
-      [id, workspaceId]
-    );
+    // PF-403/PF-409 — the DELETE moved into `documentService.delete`, which
+    // captures the row before removing it and publishes `document.deleted`.
+    // The access checks above stay here: they are this surface's session-auth
+    // policy, and the public surface has a different one.
+    const deleted = await serviceFor(req).delete({ workspaceId, userId, db: pool }, { id });
 
-    if (result.rows.length === 0) {
+    if (!deleted) {
       res.status(404).json({ error: 'Document not found' });
       return;
     }

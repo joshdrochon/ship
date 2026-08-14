@@ -2,10 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import crypto from 'crypto';
 import { createApp } from '../app.js';
+import { testDeps } from '../deps.js';
 import { pool } from '../db/client.js';
 
 describe('Search API', () => {
-  const app = createApp('http://localhost:5173');
+  const app = createApp(testDeps({ corsOrigin: 'http://localhost:5173' }));
   // Use unique identifiers to avoid conflicts between concurrent test runs
   const testRunId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const testEmail = `search-${testRunId}@ship.local`;
@@ -140,7 +141,7 @@ describe('Search API', () => {
 });
 
 describe('Search Learnings API', () => {
-  const app = createApp('http://localhost:5173');
+  const app = createApp(testDeps({ corsOrigin: 'http://localhost:5173' }));
   const testRunId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const testEmail = `learning-${testRunId}@ship.local`;
   const testWorkspaceName = `Learning Test ${testRunId}`;

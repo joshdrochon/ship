@@ -1,0 +1,26 @@
+{
+  "name": "@ship/browser-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser SDK demo — Authorization Code + PKCE in a real single-page app. The registered web app PRD p.5 Testing Scenario 2 presumes. Imports ONLY @ship/sdk.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "type-check": "tsc -b",
+    "test": "vitest run",
+    "test:pkce": "playwright test -c playwright.config.ts"
+  },
+  "dependencies": {
+    "@ship/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.57.0",
+    "@types/node": "22.19.5",
+    "typescript": "5.9.3",
+    "vite": "6.4.1",
+    "vitest": "4.1.10"
+  }
+}

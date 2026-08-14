@@ -1,0 +1,63 @@
+# PR discipline — PF-026.
+#
+# PRD p.12, Submission Requirements: "Public; per-slice branches preserved; each PR
+# description lists which acceptance criterion that slice advances and confirms the
+# fitness test passed."
+#
+# The PR description is a graded artifact. `.github/pull_request_template.md` (PF-024)
+# is the prompt; this workflow is the gate. An unenforced template drifts by the third
+# PR of a 26-lane week, and by then the evidence the grader reads is gone.
+#
+# ── Why a separate workflow file and not a job in ci.yml ──────────────────────────
+# ci.yml runs on `push` to every branch. A push has no PR body, so a job there would
+# have to skip itself on ~90% of runs, and a check that usually skips is a check nobody
+# notices has broken. This one triggers only on pull_request events, where the thing it
+# inspects actually exists. It also keeps the file conflict-free while 26 lanes are
+# editing ci.yml in parallel.
+#
+# ── The GitLab gap, stated rather than hidden ────────────────────────────────────
+# .gitlab-ci.yml is the pipeline that blocks merges (this fork's origin is GitLab), and
+# it deliberately cannot run this check: its `workflow.rules` sets
+# `merge_request_event -> never`, so no MR-triggered job ever fires there, and the MR
+# description is not available to a branch pipeline. That rule exists for a good reason
+# (a jobless MR pipeline was marking every MR failed — see the comment at the top of
+# .gitlab-ci.yml) and is not worth reverting for this.
+#
+# So the enforcement lives here, and `pnpm check:pr-body <file>` runs the identical
+# check locally against any body, on either platform, before the MR is opened.
+
+name: PR discipline
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches: ['**']
+
+jobs:
+  pr-body:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Written to a file rather than interpolated into a shell command: a PR body is
+      # attacker-controlled text and `run: node script "${{ github.event.pull_request.body }}"`
+      # is a script injection with extra steps.
+      - name: Write PR body to a file
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s' "$PR_BODY" > /tmp/pr-body.md
+
+      - name: Require acceptance criterion and fitness-test confirmation
+        run: node scripts/check-pr-body.mjs /tmp/pr-body.md
+
+  # PF-025. Cheap, and it catches the one failure mode that is invisible until it is
+  # too late: the "automatically delete head branches" setting being flipped on, which
+  # deletes every merged pf/** branch with no local trace.
+  branch-preservation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guards against pruning per-slice branches are in place
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-branch-preservation.mjs

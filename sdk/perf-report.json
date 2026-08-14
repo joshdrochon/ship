@@ -1,0 +1,14 @@
+{
+  "measuredAt": "2026-08-13T20:54:56.687Z",
+  "subject": "verifyWebhook",
+  "iterations": 5000,
+  "bodyBytes": 439,
+  "meanMs": 0.015639,
+  "p50Ms": 0.012583,
+  "p95Ms": 0.020292,
+  "p99Ms": 0.096417,
+  "maxMs": 4.169792,
+  "budgetMs": 1,
+  "withinBudget": true,
+  "source": "PRD p.8, Signature Challenge performance table"
+}

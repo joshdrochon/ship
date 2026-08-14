@@ -1,0 +1,43 @@
+-- 068 — drop `idx_documents_keyset_tenant`. Migration 067 should not have created it.
+--
+-- 067 added (workspace_id, created_at DESC, id DESC) WHERE archived_at IS NULL
+-- AND deleted_at IS NULL, on the reasoning that 063's (created_at DESC, id DESC)
+-- cannot satisfy the route query's `workspace_id` equality and so forces a Sort.
+--
+-- That reasoning was right about 063 and wrong about the schema. Migration 060
+-- had ALREADY shipped the tenant-first index:
+--
+--   CREATE INDEX IF NOT EXISTS idx_documents_workspace_keyset
+--     ON documents (workspace_id, created_at DESC, id DESC);
+--
+-- with a comment saying, in as many words, "Both indexes are kept: L08's is the
+-- generic contract `assertKeysetIndexed` checks, this one is what the live route
+-- rides." The problem 067 set out to fix was fixed seven migrations earlier. I
+-- checked 063 and did not check 060.
+--
+-- So 067's index is a third overlapping candidate on the same three columns,
+-- differing only by a partial predicate. Measured on 2000 rows, dropping it
+-- changes the real route query's plan not at all — byte-identical EXPLAIN output,
+-- same `idx_documents_keyset` chosen, same cost. It buys nothing and it costs a
+-- write on every INSERT, UPDATE and DELETE against the busiest table in the
+-- schema.
+--
+-- It also did active harm. `assertKeysetIndexed` (PF-222) EXPLAINs against
+-- whatever is in the table, and at that point in the suite the table is empty —
+-- `ANALYZE` reports rows=0, every candidate index costs the same rounding error,
+-- and the planner's choice among them is arbitrary. With two candidates that
+-- arbitrary choice came up wrong sometimes, which is the intermittent failure
+-- recorded as F44. Adding a third tipped it to wrong almost always, which is how
+-- an old flake became a hard failure with no code change to explain it.
+--
+-- The test is fixed in the same commit and is the real fix: PF-222 now seeds 200
+-- rows before it reads a plan, because a plan asserted against an empty table
+-- measures pg_statistic's emptiness rather than the schema. Dropping this index
+-- is not what makes that test pass — it passes with the index present, once the
+-- statistics are real. This is dropped because it is redundant, which is a
+-- separate and sufficient reason.
+--
+-- 060's and 063's indexes both stay. There are two keyset queries, they want
+-- different leading columns, and each has one index that serves it.
+
+DROP INDEX IF EXISTS idx_documents_keyset_tenant;

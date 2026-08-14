@@ -11,6 +11,7 @@ import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 import { Pool } from 'pg';
 import { loadProductionSecrets } from '../config/ssm.js';
+import { assertPlatformAppSecrets, seedPlatformApps } from './platformApps.js';
 
 // Load .env.local for local development
 config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../.env.local') });
@@ -31,6 +32,18 @@ async function migrate() {
     connectionString: databaseUrl,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
   });
+
+  // L02 PF-055 — the loud failure, before a single statement runs.
+  //
+  // The lesson this replaces is recorded in api/src/db/seedAgentToken.ts: a
+  // green boot with a missing credential row cost a full destroy-redeploy cycle
+  // to diagnose, because the symptom (the agent 401ing on its first write) is
+  // three layers away from the cause. Failing here names the variable.
+  //
+  // Production only. Dev and test run with no credentials configured and are
+  // deliberately untouched — requiring them locally would make `pnpm dev` need
+  // a secret to start, which is how developers end up committing one.
+  assertPlatformAppSecrets();
 
   try {
     console.log('Running database migrations...');
@@ -81,6 +94,7 @@ async function migrate() {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
+
         await client.query(migrationSql);
         await client.query('INSERT INTO schema_migrations (version) VALUES ($1)', [version]);
         await client.query('COMMIT');
@@ -92,6 +106,27 @@ async function migrate() {
       } finally {
         client.release();
       }
+    }
+
+    // L02 PF-054/PF-055/PF-056/PF-057 — the first-party OAuth apps.
+    //
+    // Runs on EVERY invocation, not as a numbered migration. `migrate.ts` skips
+    // migrations already in `schema_migrations`, so a numbered file runs exactly
+    // once per database — an app row seeded that way would never see a secret
+    // set after the first deploy, and a rotated secret would never be written.
+    // Migration 041 keeps the one-time structural rows; this is the part that
+    // has to be re-applied. What docs/architecture.md promises is that the
+    // agent's app provably exists in deployed environments, and "runs whenever
+    // db:migrate runs" is the guarantee that delivers it.
+    //
+    // Absent secrets seed nothing and fail nothing (PF-055): local development
+    // is untouched. Production loudness already happened, above, before any
+    // statement ran.
+    const seededApps = await seedPlatformApps(pool);
+    if (seededApps.length > 0) {
+      console.log(`✅ ${seededApps.length} first-party app(s) seeded: ${seededApps.join(', ')}`);
+    } else {
+      console.log('ℹ️  No first-party app secrets in the environment — no apps seeded');
     }
 
     if (migrationsRun === 0) {

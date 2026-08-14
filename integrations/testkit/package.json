@@ -1,0 +1,30 @@
+{
+  "name": "@ship/integration-testkit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PF-721 — THE signed-delivery listener fixture. One implementation of 'the delivery arrived', imported by every webhook-receiving integration. Imports ONLY @ship/sdk.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "type-check": "tsc -b",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ship/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

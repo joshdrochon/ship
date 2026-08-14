@@ -1,4 +1,10 @@
-# Submission — ShipShape
+# Submission — ShipShape (Week 5)
+
+> **Grading Week 6 (PlugForge)? This is the wrong file — go to
+> [`SUBMISSION-PLUGFORGE.md`](SUBMISSION-PLUGFORGE.md).** Everything below describes the
+> Week 5 ShipShape audit, and the Render URL it names is Week 5's application. It is still
+> live and it is correct for this document; it has no `/api/v1`, no OAuth and no SDK.
+> Week 6 runs on AWS.
 
 Map of every deliverable to the file that contains it. Start here.
 

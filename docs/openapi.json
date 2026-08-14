@@ -1,0 +1,4501 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Ship Public API",
+    "version": "1.0.0",
+    "description": "The public, versioned Ship platform API.\n\nGenerated from route metadata — every operation below is produced by the same `declareV1Route()` call that mounts its Express handler, so an endpoint cannot exist without appearing here and cannot appear here without existing."
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "This deployment."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "shipOAuth2": {
+        "type": "oauth2",
+        "description": "OAuth 2.0 access token, presented as `Authorization: Bearer <token>`. Every operation lists the scopes it requires.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "/oauth/authorize",
+            "tokenUrl": "/oauth/token",
+            "refreshUrl": "/oauth/token",
+            "scopes": {
+              "documents:read": "Read documents in your workspace",
+              "documents:write": "Create and update documents in your workspace",
+              "issues:read": "Read issues in your workspace",
+              "issues:write": "Create and update issues in your workspace",
+              "sprints:read": "Read sprints in your workspace",
+              "sprints:write": "Create and update sprints in your workspace",
+              "webhooks:manage": "Create, update and delete webhook subscriptions"
+            }
+          },
+          "clientCredentials": {
+            "tokenUrl": "/oauth/token",
+            "scopes": {
+              "documents:read": "Read documents in your workspace",
+              "documents:write": "Create and update documents in your workspace",
+              "issues:read": "Read issues in your workspace",
+              "issues:write": "Create and update issues in your workspace",
+              "sprints:read": "Read sprints in your workspace",
+              "sprints:write": "Create and update sprints in your workspace",
+              "webhooks:manage": "Create, update and delete webhook subscriptions"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ApiError": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "unauthorized"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "expired",
+                      "invalid",
+                      "missing"
+                    ]
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "forbidden"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "missing_scope": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "granted_scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "scope_description": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "unrecognized_scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "missing_scope",
+                  "granted_scopes",
+                  "scope_description"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id",
+              "details"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "not_found"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "validation_failed"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "field": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "message": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "field",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "fields"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id",
+              "details"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "rate_limited"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "details": {
+                "type": "object",
+                "properties": {
+                  "retry_after_seconds": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "required": [
+                  "retry_after_seconds"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "server_error"
+                ]
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "request_id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "request_id"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenapiJson",
+        "tags": [
+          "openapi.json"
+        ],
+        "summary": "The OpenAPI 3.1 description of this API.",
+        "description": "Generated from route metadata at boot — never hand-written. Requires no credentials: a specification a consumer cannot fetch before authenticating is a specification they cannot use to authenticate.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 description of this API.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "openapi": {
+                      "type": "string",
+                      "enum": [
+                        "3.1.0"
+                      ]
+                    },
+                    "info": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "version"
+                      ]
+                    },
+                    "paths": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "openapi",
+                    "info",
+                    "paths"
+                  ]
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents": {
+      "get": {
+        "operationId": "getDocuments",
+        "tags": [
+          "documents"
+        ],
+        "summary": "List documents, newest first.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "documents:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List documents, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "document_type": {
+                            "type": "string",
+                            "enum": [
+                              "wiki",
+                              "weekly_plan",
+                              "weekly_retro",
+                              "standup",
+                              "weekly_review"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "parent_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "created_by": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "document_type",
+                          "title",
+                          "parent_id",
+                          "created_at",
+                          "updated_at",
+                          "created_by"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `documents:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postDocuments",
+        "tags": [
+          "documents"
+        ],
+        "summary": "Create a document.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "documents:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "default": "Untitled"
+                  },
+                  "document_type": {
+                    "type": "string",
+                    "enum": [
+                      "wiki",
+                      "weekly_plan",
+                      "weekly_retro",
+                      "standup",
+                      "weekly_review"
+                    ],
+                    "default": "wiki"
+                  },
+                  "parent_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  },
+                  "belongs_to": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "program",
+                            "project",
+                            "sprint",
+                            "parent"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type"
+                      ]
+                    }
+                  },
+                  "properties": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "visibility": {
+                    "type": "string",
+                    "enum": [
+                      "private",
+                      "workspace"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Create a document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "wiki",
+                        "weekly_plan",
+                        "weekly_retro",
+                        "standup",
+                        "weekly_review"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "parent_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "parent_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `documents:write`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/documents/{id}": {
+      "get": {
+        "operationId": "getDocumentsById",
+        "tags": [
+          "documents"
+        ],
+        "summary": "Fetch one document by id.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "documents:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fetch one document by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "wiki",
+                        "weekly_plan",
+                        "weekly_retro",
+                        "standup",
+                        "weekly_review"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "parent_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "parent_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `documents:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/issues": {
+      "get": {
+        "operationId": "getIssues",
+        "tags": [
+          "issues"
+        ],
+        "summary": "List issues, newest first.",
+        "description": "Ordered by `(created_at, id)` descending — NOT by priority or `updated_at`, which the issue board sorts on internally. Both of those are mutable by any update, so a cursor over them would skip and repeat rows; PRD p.3 requires cursors stable across reordering operations.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "issues:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List issues, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "document_type": {
+                            "type": "string",
+                            "enum": [
+                              "issue"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "ticket_number": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "triage",
+                              "backlog",
+                              "todo",
+                              "in_progress",
+                              "in_review",
+                              "done",
+                              "cancelled"
+                            ]
+                          },
+                          "priority": {
+                            "type": "string",
+                            "enum": [
+                              "urgent",
+                              "high",
+                              "medium",
+                              "low",
+                              "none"
+                            ]
+                          },
+                          "assignee_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "belongs_to": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "format": "uuid"
+                                },
+                                "type": {
+                                  "type": "string",
+                                  "enum": [
+                                    "program",
+                                    "project",
+                                    "sprint",
+                                    "parent"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "type"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "created_by": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "document_type",
+                          "title",
+                          "ticket_number",
+                          "state",
+                          "priority",
+                          "assignee_id",
+                          "belongs_to",
+                          "created_at",
+                          "updated_at",
+                          "created_by"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `issues:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postIssues",
+        "tags": [
+          "issues"
+        ],
+        "summary": "Create an issue.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "issues:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "triage",
+                      "backlog",
+                      "todo",
+                      "in_progress",
+                      "in_review",
+                      "done",
+                      "cancelled"
+                    ]
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "urgent",
+                      "high",
+                      "medium",
+                      "low",
+                      "none"
+                    ]
+                  },
+                  "assignee_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  },
+                  "belongs_to": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "program",
+                            "project",
+                            "sprint",
+                            "parent"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "title"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Create an issue.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "issue"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "ticket_number": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "triage",
+                        "backlog",
+                        "todo",
+                        "in_progress",
+                        "in_review",
+                        "done",
+                        "cancelled"
+                      ]
+                    },
+                    "priority": {
+                      "type": "string",
+                      "enum": [
+                        "urgent",
+                        "high",
+                        "medium",
+                        "low",
+                        "none"
+                      ]
+                    },
+                    "assignee_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "belongs_to": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "program",
+                              "project",
+                              "sprint",
+                              "parent"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "ticket_number",
+                    "state",
+                    "priority",
+                    "assignee_id",
+                    "belongs_to",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `issues:write`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/issues/{id}": {
+      "get": {
+        "operationId": "getIssuesById",
+        "tags": [
+          "issues"
+        ],
+        "summary": "Fetch one issue by id.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "issues:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fetch one issue by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "issue"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "ticket_number": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "triage",
+                        "backlog",
+                        "todo",
+                        "in_progress",
+                        "in_review",
+                        "done",
+                        "cancelled"
+                      ]
+                    },
+                    "priority": {
+                      "type": "string",
+                      "enum": [
+                        "urgent",
+                        "high",
+                        "medium",
+                        "low",
+                        "none"
+                      ]
+                    },
+                    "assignee_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "belongs_to": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "program",
+                              "project",
+                              "sprint",
+                              "parent"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "ticket_number",
+                    "state",
+                    "priority",
+                    "assignee_id",
+                    "belongs_to",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `issues:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchIssuesById",
+        "tags": [
+          "issues"
+        ],
+        "summary": "Update an issue’s title, state, priority, assignee or associations.",
+        "description": "A patch that changes nothing returns 200 and writes nothing — no history row and no event. `state` and `assignee_id` changes are what produce `issue.status_changed` and `issue.assigned`.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "issues:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "triage",
+                      "backlog",
+                      "todo",
+                      "in_progress",
+                      "in_review",
+                      "done",
+                      "cancelled"
+                    ]
+                  },
+                  "priority": {
+                    "type": "string",
+                    "enum": [
+                      "urgent",
+                      "high",
+                      "medium",
+                      "low",
+                      "none"
+                    ]
+                  },
+                  "assignee_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  },
+                  "belongs_to": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "type": {
+                          "type": "string",
+                          "enum": [
+                            "program",
+                            "project",
+                            "sprint",
+                            "parent"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "type"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Update an issue’s title, state, priority, assignee or associations.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "issue"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "ticket_number": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "triage",
+                        "backlog",
+                        "todo",
+                        "in_progress",
+                        "in_review",
+                        "done",
+                        "cancelled"
+                      ]
+                    },
+                    "priority": {
+                      "type": "string",
+                      "enum": [
+                        "urgent",
+                        "high",
+                        "medium",
+                        "low",
+                        "none"
+                      ]
+                    },
+                    "assignee_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "belongs_to": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "program",
+                              "project",
+                              "sprint",
+                              "parent"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "ticket_number",
+                    "state",
+                    "priority",
+                    "assignee_id",
+                    "belongs_to",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `issues:write`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sprints": {
+      "get": {
+        "operationId": "getSprints",
+        "tags": [
+          "sprints"
+        ],
+        "summary": "List sprints, newest first.",
+        "description": "Ordered by `(created_at, id)` descending — creation order, NOT sprint-number order. `sprint_number` is a mutable value inside an unindexed JSONB field, so a cursor over it could not be stable across reordering (PRD p.3). `sprint_number` is on every item, so a consumer that wants sprint order can sort a page itself.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "sprints:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List sprints, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "document_type": {
+                            "type": "string",
+                            "enum": [
+                              "sprint"
+                            ]
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "sprint_number": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "planning",
+                              "active",
+                              "completed"
+                            ]
+                          },
+                          "start_date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "end_date": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "owner_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "program_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "created_by": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "document_type",
+                          "title",
+                          "sprint_number",
+                          "status",
+                          "start_date",
+                          "end_date",
+                          "owner_id",
+                          "program_id",
+                          "created_at",
+                          "updated_at",
+                          "created_by"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `sprints:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postSprints",
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Create a sprint.",
+        "description": "`start_date`, `end_date` and `status` are derived and are rejected if sent — the server stores only `sprint_number` and the owner, and computes the rest.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "sprints:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sprint_number": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "owner_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  },
+                  "program_id": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "uuid"
+                  }
+                },
+                "required": [
+                  "sprint_number"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Create a sprint.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "sprint"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "sprint_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "planning",
+                        "active",
+                        "completed"
+                      ]
+                    },
+                    "start_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "end_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "owner_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "program_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "sprint_number",
+                    "status",
+                    "start_date",
+                    "end_date",
+                    "owner_id",
+                    "program_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `sprints:write`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sprints/{id}": {
+      "get": {
+        "operationId": "getSprintsById",
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Fetch one sprint by id.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "sprints:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fetch one sprint by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "sprint"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "sprint_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "planning",
+                        "active",
+                        "completed"
+                      ]
+                    },
+                    "start_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "end_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "owner_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "program_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "sprint_number",
+                    "status",
+                    "start_date",
+                    "end_date",
+                    "owner_id",
+                    "program_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `sprints:read`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchSprintsById",
+        "tags": [
+          "sprints"
+        ],
+        "summary": "Move a sprint through its lifecycle.",
+        "description": "The only public writer of sprint status, and therefore the only way a platform consumer can cause `sprint.started` or `sprint.completed`. Legal moves are planning → active, planning → completed and active → completed; anything else is a 422. Re-asserting the current status is a 200 that publishes nothing.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "sprints:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "planning",
+                      "active",
+                      "completed"
+                    ]
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Move a sprint through its lifecycle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "document_type": {
+                      "type": "string",
+                      "enum": [
+                        "sprint"
+                      ]
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "sprint_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "planning",
+                        "active",
+                        "completed"
+                      ]
+                    },
+                    "start_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "end_date": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "owner_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "program_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "created_by": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "document_type",
+                    "title",
+                    "sprint_number",
+                    "status",
+                    "start_date",
+                    "end_date",
+                    "owner_id",
+                    "program_id",
+                    "created_at",
+                    "updated_at",
+                    "created_by"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `sprints:write`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "getMe",
+        "tags": [
+          "me"
+        ],
+        "summary": "The authenticated caller: which app, which user, and what the token may do.",
+        "description": "Resolves the presented bearer token into the app it was issued to, the user who consented (null for a machine-to-machine token), and the scopes the token actually carries — which may be a subset of the scopes the app requested. Requires no scope: a token can always discover its own identity.",
+        "security": [
+          {
+            "shipOAuth2": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authenticated caller: which app, which user, and what the token may do.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "email",
+                        "name",
+                        "workspace_id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "app": {
+                      "type": "object",
+                      "properties": {
+                        "client_id": {
+                          "type": "string"
+                        },
+                        "name": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "client_id",
+                        "name"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "scopes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "documents:read",
+                          "documents:write",
+                          "issues:read",
+                          "issues:write",
+                          "sprints:read",
+                          "sprints:write",
+                          "webhooks:manage"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "user",
+                    "app",
+                    "scopes"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/deliveries": {
+      "get": {
+        "operationId": "getWebhooksDeliveries",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "List webhook delivery attempts for this app, newest first.",
+        "description": "One row per ATTEMPT, not per delivery: a delivery that failed six times has six rows sharing a `delivery_group_id` and one `idempotency_key`. `?status=dead_lettered` is the dead-letter queue. `key_usage` reports how many times we sent that idempotency key and how those attempts ended — it cannot report whether the subscriber deduped, which needs the subscriber's own signal.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "in_flight",
+                "delivered",
+                "failed",
+                "dead_lettered",
+                "cancelled"
+              ],
+              "description": "Filter by attempt status. `dead_lettered` is the dead-letter queue — the deliveries that exhausted the retry ladder, hit a permanent status, or were refused by the per-subscription circuit breaker."
+            },
+            "required": false,
+            "description": "Filter by attempt status. `dead_lettered` is the dead-letter queue — the deliveries that exhausted the retry ladder, hit a permanent status, or were refused by the per-subscription circuit breaker.",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Only attempts for this subscription. Must belong to the calling app."
+            },
+            "required": false,
+            "description": "Only attempts for this subscription. Must belong to the calling app.",
+            "name": "subscription_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "document.created",
+                "document.updated",
+                "document.deleted",
+                "issue.created",
+                "issue.assigned",
+                "issue.status_changed",
+                "sprint.started",
+                "sprint.completed"
+              ],
+              "description": "Only attempts carrying this event type."
+            },
+            "required": false,
+            "description": "Only attempts carrying this event type.",
+            "name": "event_type",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List webhook delivery attempts for this app, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "delivery_group_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "subscription_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "event_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "event_type": {
+                            "type": "string"
+                          },
+                          "attempt_number": {
+                            "type": "integer"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "in_flight",
+                              "delivered",
+                              "failed",
+                              "dead_lettered",
+                              "cancelled"
+                            ]
+                          },
+                          "response_status": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "response_excerpt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "latency_ms": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "idempotency_key": {
+                            "type": "string"
+                          },
+                          "dlq_reason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "enum": [
+                              "max_attempts_exhausted",
+                              "permanent_status",
+                              "circuit_open"
+                            ]
+                          },
+                          "attempted_at": {
+                            "type": "string"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "signature_header": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "replay_of_delivery_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "uuid"
+                          },
+                          "key_usage": {
+                            "type": "object",
+                            "properties": {
+                              "idempotency_key": {
+                                "type": "string"
+                              },
+                              "attempt_count": {
+                                "type": "integer"
+                              },
+                              "terminal_statuses": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "enum": [
+                                    "in_flight",
+                                    "delivered",
+                                    "failed",
+                                    "dead_lettered",
+                                    "cancelled"
+                                  ]
+                                }
+                              }
+                            },
+                            "required": [
+                              "idempotency_key",
+                              "attempt_count",
+                              "terminal_statuses"
+                            ],
+                            "additionalProperties": false
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "delivery_group_id",
+                          "subscription_id",
+                          "event_id",
+                          "event_type",
+                          "attempt_number",
+                          "status",
+                          "response_status",
+                          "response_excerpt",
+                          "latency_ms",
+                          "idempotency_key",
+                          "dlq_reason",
+                          "attempted_at",
+                          "created_at",
+                          "signature_header",
+                          "replay_of_delivery_id",
+                          "key_usage"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/deliveries/{id}/replay": {
+      "post": {
+        "operationId": "postWebhooksDeliveriesByIdReplay",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Replay a logged delivery, carrying the ORIGINAL idempotency key.",
+        "description": "Re-emits the exact bytes that were signed for the original delivery — not a freshly derived payload, so a replay after the underlying document changed still delivers what the event said. The signature is recomputed with a fresh timestamp and the subscription's current secret, so the replay verifies rather than reading as expired. The new delivery enters the same retry ladder: a replay against a still-broken subscriber retries and re-dead-letters. The original record is left untouched. Replaying twice is safe by construction — both carry one key, which is the subscriber dedupe contract working.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Replay a logged delivery, carrying the ORIGINAL idempotency key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "delivery_group_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "subscription_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event_type": {
+                      "type": "string"
+                    },
+                    "attempt_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "in_flight",
+                        "delivered",
+                        "failed",
+                        "dead_lettered",
+                        "cancelled"
+                      ]
+                    },
+                    "response_status": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "response_excerpt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "latency_ms": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "idempotency_key": {
+                      "type": "string"
+                    },
+                    "dlq_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "max_attempts_exhausted",
+                        "permanent_status",
+                        "circuit_open"
+                      ]
+                    },
+                    "attempted_at": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "signature_header": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "replay_of_delivery_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "key_usage": {
+                      "type": "object",
+                      "properties": {
+                        "idempotency_key": {
+                          "type": "string"
+                        },
+                        "attempt_count": {
+                          "type": "integer"
+                        },
+                        "terminal_statuses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "in_flight",
+                              "delivered",
+                              "failed",
+                              "dead_lettered",
+                              "cancelled"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "idempotency_key",
+                        "attempt_count",
+                        "terminal_statuses"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "delivery_group_id",
+                    "subscription_id",
+                    "event_id",
+                    "event_type",
+                    "attempt_number",
+                    "status",
+                    "response_status",
+                    "response_excerpt",
+                    "latency_ms",
+                    "idempotency_key",
+                    "dlq_reason",
+                    "attempted_at",
+                    "created_at",
+                    "signature_header",
+                    "replay_of_delivery_id",
+                    "key_usage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/deliveries/{id}": {
+      "get": {
+        "operationId": "getWebhooksDeliveriesById",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Fetch one delivery attempt by id.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fetch one delivery attempt by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "delivery_group_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "subscription_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event_type": {
+                      "type": "string"
+                    },
+                    "attempt_number": {
+                      "type": "integer"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "in_flight",
+                        "delivered",
+                        "failed",
+                        "dead_lettered",
+                        "cancelled"
+                      ]
+                    },
+                    "response_status": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "response_excerpt": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "latency_ms": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "idempotency_key": {
+                      "type": "string"
+                    },
+                    "dlq_reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "enum": [
+                        "max_attempts_exhausted",
+                        "permanent_status",
+                        "circuit_open"
+                      ]
+                    },
+                    "attempted_at": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "signature_header": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "replay_of_delivery_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "uuid"
+                    },
+                    "key_usage": {
+                      "type": "object",
+                      "properties": {
+                        "idempotency_key": {
+                          "type": "string"
+                        },
+                        "attempt_count": {
+                          "type": "integer"
+                        },
+                        "terminal_statuses": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "in_flight",
+                              "delivered",
+                              "failed",
+                              "dead_lettered",
+                              "cancelled"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "idempotency_key",
+                        "attempt_count",
+                        "terminal_statuses"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "delivery_group_id",
+                    "subscription_id",
+                    "event_id",
+                    "event_type",
+                    "attempt_number",
+                    "status",
+                    "response_status",
+                    "response_excerpt",
+                    "latency_ms",
+                    "idempotency_key",
+                    "dlq_reason",
+                    "attempted_at",
+                    "created_at",
+                    "signature_header",
+                    "replay_of_delivery_id",
+                    "key_usage"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks": {
+      "post": {
+        "operationId": "postWebhooks",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Subscribe to one event type. Returns the signing secret exactly once.",
+        "description": "Creates a subscription bound to the calling token's app. The `signing_secret` in the response is the only time it is ever returned — capture it here or rotate. `target_url` must be an absolute `https` URL that does not resolve into private address space.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "event": {
+                    "type": "string",
+                    "enum": [
+                      "document.created",
+                      "document.updated",
+                      "document.deleted",
+                      "issue.created",
+                      "issue.assigned",
+                      "issue.status_changed",
+                      "sprint.started",
+                      "sprint.completed"
+                    ]
+                  },
+                  "target_url": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "event",
+                  "target_url"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Subscribe to one event type. Returns the signing secret exactly once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "signing_secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at",
+                    "signing_secret"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getWebhooks",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "List this app's webhook subscriptions, newest first.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List this app's webhook subscriptions, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "event": {
+                            "type": "string",
+                            "enum": [
+                              "document.created",
+                              "document.updated",
+                              "document.deleted",
+                              "issue.created",
+                              "issue.assigned",
+                              "issue.status_changed",
+                              "sprint.started",
+                              "sprint.completed"
+                            ]
+                          },
+                          "target_url": {
+                            "type": "string"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "secret_prefix": {
+                            "type": "string"
+                          },
+                          "secret_version": {
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "type": "string"
+                          },
+                          "updated_at": {
+                            "type": "string"
+                          },
+                          "deactivated_at": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "event",
+                          "target_url",
+                          "active",
+                          "secret_prefix",
+                          "secret_version",
+                          "created_at",
+                          "updated_at",
+                          "deactivated_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/{id}": {
+      "get": {
+        "operationId": "getWebhooksById",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Fetch one subscription by id.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fetch one subscription by id.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchWebhooksById",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Activate or deactivate a subscription. `active` is the only mutable field.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "active": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "active"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Activate or deactivate a subscription. `active` is the only mutable field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWebhooksById",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Deactivate a subscription. Idempotent; the row is retained.",
+        "description": "Sets `active` to false and stamps `deactivated_at`. The row is NOT removed, so the delivery log keeps a resolvable `subscription_id` after a subscriber walks away. Calling it twice returns the same 200 and the same `deactivated_at`.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deactivate a subscription. Idempotent; the row is retained.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/webhooks/{id}/rotate": {
+      "post": {
+        "operationId": "postWebhooksByIdRotate",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "Mint a new signing secret. The previous one stops verifying immediately.",
+        "description": "Returns the new `signing_secret` exactly once and increments `secret_version`. There is no grace period: the previous secret verifies nothing from the moment this returns, and the retry ladder is what covers the window while a subscriber updates its environment.",
+        "security": [
+          {
+            "shipOAuth2": [
+              "webhooks:manage"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Mint a new signing secret. The previous one stops verifying immediately.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "document.created",
+                        "document.updated",
+                        "document.deleted",
+                        "issue.created",
+                        "issue.assigned",
+                        "issue.status_changed",
+                        "sprint.started",
+                        "sprint.completed"
+                      ]
+                    },
+                    "target_url": {
+                      "type": "string"
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "secret_prefix": {
+                      "type": "string"
+                    },
+                    "secret_version": {
+                      "type": "integer"
+                    },
+                    "created_at": {
+                      "type": "string"
+                    },
+                    "updated_at": {
+                      "type": "string"
+                    },
+                    "deactivated_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "signing_secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "event",
+                    "target_url",
+                    "active",
+                    "secret_prefix",
+                    "secret_version",
+                    "created_at",
+                    "updated_at",
+                    "deactivated_at",
+                    "signing_secret"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token is valid but was not granted `webhooks:manage`. The body names the missing scope, the granted scopes, and what the missing one permits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such resource.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}

@@ -1,0 +1,63 @@
+{
+  "name": "@ship/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed TypeScript SDK for the Ship public API (/api/v1) — OAuth helpers, resource clients, async-iterator pagination, webhook verification",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "browser": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      },
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
+    },
+    "./node": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node ./scripts/emit-cjs-marker.mjs",
+    "dev": "tsc -p tsconfig.json --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "type-check": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.typeproofs.json",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "size": "node ./scripts/measure-install-size.mjs",
+    "size:check": "node ./scripts/measure-install-size.mjs --check",
+    "perf:verify": "node ./scripts/measure-verify-latency.mjs",
+    "perf:check": "node ./scripts/measure-verify-latency.mjs --check"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10",
+    "@vitest/coverage-v8": "4.0.17"
+  }
+}

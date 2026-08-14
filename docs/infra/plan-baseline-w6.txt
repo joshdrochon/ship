@@ -1,0 +1,749 @@
+===============================================================================
+PF-623 - terraform plan against real credentials
+===============================================================================
+Run date        : 2026-08-12T23:52:00Z
+Root            : terraform/  (the graded root -- see docs/infra/topology.md)
+Terraform       : Terraform v1.15.8
+Provider (aws)  : 5.100.0
+Provider (rand) : 3.7.2
+Account alias   : None
+Account id      : 379484935796
+Caller          : arn:aws:iam::379484935796:user/ship-terraform
+Backend         : s3://<state-bucket>/ship/terraform.tfstate (use_lockfile=true)
+plan exit code  : 0
+===============================================================================
+
+random_password.db_password: Refreshing state... [id=none]
+random_password.session_secret: Refreshing state... [id=none]
+data.aws_availability_zones.available: Reading...
+aws_cloudfront_function.spa_routing: Refreshing state... [id=ship-spa-routing]
+aws_cloudfront_cache_policy.api_no_cache: Refreshing state... [id=ac0b64c0-55a0-49d7-a76b-330ad9842a17]
+aws_ssm_parameter.db_password: Refreshing state... [id=/ship/dev/DB_PASSWORD]
+aws_iam_role.cloudfront_realtime_logs: Refreshing state... [id=ship-dev-cf-realtime-logs]
+aws_elastic_beanstalk_application.api: Refreshing state... [id=ship-api]
+aws_cloudwatch_log_group.vpc_flow_logs: Refreshing state... [id=/aws/vpc/ship]
+aws_iam_role.eb_service: Refreshing state... [id=ship-eb-service-role]
+aws_rds_cluster_parameter_group.aurora: Refreshing state... [id=ship-aurora-pg16]
+aws_iam_role.eb_instance: Refreshing state... [id=ship-eb-instance-role]
+aws_ssm_parameter.session_secret: Refreshing state... [id=/ship/dev/SESSION_SECRET]
+data.aws_availability_zones.available: Read complete after 0s [id=us-east-1]
+aws_wafv2_regex_pattern_set.static_files[0]: Refreshing state... [id=f59a3ad7-b363-455c-90ed-ddf377a9a8bb]
+aws_cloudfront_origin_access_control.frontend: Refreshing state... [id=EZKVPJ5ZM2PIG]
+aws_iam_role.vpc_flow_logs: Refreshing state... [id=ship-vpc-flow-logs]
+aws_cloudfront_origin_request_policy.api: Refreshing state... [id=93ea07e5-7d9e-48dd-af83-9c32c177809e]
+data.aws_caller_identity.current: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=379484935796]
+aws_vpc.main: Refreshing state... [id=vpc-06ed04dea6a97a28c]
+aws_kinesis_stream.cloudfront_logs: Refreshing state... [id=arn:aws:kinesis:us-east-1:379484935796:stream/ship-dev-cloudfront-logs]
+aws_budgets_budget.monthly: Refreshing state... [id=379484935796:ship-monthly-cost]
+aws_wafv2_ip_set.bad_ips[0]: Refreshing state... [id=ac4dcaaa-8ef2-4b39-9f6b-e14a99030b38]
+aws_iam_role_policy_attachment.eb_service_policy: Refreshing state... [id=ship-eb-service-role-20260812185947223600000002]
+aws_iam_role_policy_attachment.eb_service_managed: Refreshing state... [id=ship-eb-service-role-20260812185947084400000001]
+aws_s3_bucket.uploads: Refreshing state... [id=ship-uploads-dev-379484935796]
+aws_s3_bucket.frontend: Refreshing state... [id=ship-frontend-dev-379484935796]
+aws_iam_role_policy.eb_ssm_access: Refreshing state... [id=ship-eb-instance-role:ship-eb-ssm-access]
+aws_iam_role_policy_attachment.eb_worker_tier: Refreshing state... [id=ship-eb-instance-role-20260812185947512200000004]
+aws_iam_role_policy_attachment.eb_multicontainer_docker: Refreshing state... [id=ship-eb-instance-role-20260812185947285800000003]
+aws_iam_role_policy.eb_secrets_manager_access: Refreshing state... [id=ship-eb-instance-role:ship-eb-secrets-manager-access]
+aws_iam_role_policy_attachment.eb_web_tier: Refreshing state... [id=ship-eb-instance-role-20260812185947705000000005]
+aws_iam_instance_profile.eb: Refreshing state... [id=ship-eb-instance-profile]
+aws_iam_role_policy.eb_bedrock_access: Refreshing state... [id=ship-eb-instance-role:ship-eb-bedrock-access]
+aws_iam_role_policy.vpc_flow_logs: Refreshing state... [id=ship-vpc-flow-logs:ship-vpc-flow-logs]
+aws_iam_role_policy.cloudfront_realtime_logs: Refreshing state... [id=ship-dev-cf-realtime-logs:ship-dev-cf-realtime-logs]
+aws_cloudfront_realtime_log_config.main: Refreshing state... [id=arn:aws:cloudfront::379484935796:realtime-log-config/ship-dev-realtime-logs]
+aws_security_group.aurora: Refreshing state... [id=sg-029f73b3333ec3fba]
+aws_internet_gateway.main: Refreshing state... [id=igw-0cd2d09f55013c554]
+aws_subnet.public[0]: Refreshing state... [id=subnet-08ddc8883fad35242]
+aws_flow_log.main: Refreshing state... [id=fl-02ccde0cf96156e01]
+aws_security_group.alb: Refreshing state... [id=sg-05cfe8b63251ae8bf]
+aws_subnet.public[1]: Refreshing state... [id=subnet-0ba9c7774e055807a]
+aws_subnet.private[0]: Refreshing state... [id=subnet-0c278c943317e6de3]
+aws_subnet.private[1]: Refreshing state... [id=subnet-025c8cbacae8db971]
+aws_route_table.public: Refreshing state... [id=rtb-0c543248b5de465d5]
+aws_eip.nat[0]: Refreshing state... [id=eipalloc-003c6d0b735e5a2c4]
+aws_security_group.eb_instance: Refreshing state... [id=sg-0277455ede9088403]
+aws_db_subnet_group.aurora: Refreshing state... [id=ship-aurora]
+aws_route_table_association.public[1]: Refreshing state... [id=rtbassoc-0b9118c0d0e5890cc]
+aws_route_table_association.public[0]: Refreshing state... [id=rtbassoc-0c101097a21418f62]
+aws_security_group_rule.aurora_ingress_from_eb: Refreshing state... [id=sgrule-1440904557]
+aws_elastic_beanstalk_environment.api: Refreshing state... [id=e-a8fqx5xspr]
+aws_s3_bucket_cors_configuration.uploads: Refreshing state... [id=ship-uploads-dev-379484935796]
+aws_s3_bucket_versioning.uploads: Refreshing state... [id=ship-uploads-dev-379484935796]
+aws_wafv2_web_acl.cloudfront[0]: Refreshing state... [id=0d3d2ec3-ccf2-4ba8-a6ab-31a6fb6fdf10]
+aws_s3_bucket_public_access_block.uploads: Refreshing state... [id=ship-uploads-dev-379484935796]
+aws_s3_bucket_lifecycle_configuration.uploads: Refreshing state... [id=ship-uploads-dev-379484935796]
+aws_s3_bucket_server_side_encryption_configuration.uploads: Refreshing state... [id=ship-uploads-dev-379484935796]
+aws_s3_bucket_server_side_encryption_configuration.frontend: Refreshing state... [id=ship-frontend-dev-379484935796]
+aws_s3_bucket_public_access_block.frontend: Refreshing state... [id=ship-frontend-dev-379484935796]
+aws_s3_bucket_versioning.frontend: Refreshing state... [id=ship-frontend-dev-379484935796]
+aws_nat_gateway.main[0]: Refreshing state... [id=nat-09f7ed15834926679]
+aws_rds_cluster.aurora: Refreshing state... [id=ship-aurora]
+aws_route_table.private: Refreshing state... [id=rtb-0403e8a8e4737e8e9]
+aws_route_table_association.private[0]: Refreshing state... [id=rtbassoc-002ed346093452c75]
+aws_route_table_association.private[1]: Refreshing state... [id=rtbassoc-08b4ea8b250586098]
+aws_ssm_parameter.db_username: Refreshing state... [id=/ship/dev/DB_USERNAME]
+aws_rds_cluster_instance.aurora: Refreshing state... [id=ship-aurora-instance-1]
+aws_ssm_parameter.database_url: Refreshing state... [id=/ship/dev/DATABASE_URL]
+aws_ssm_parameter.db_host: Refreshing state... [id=/ship/dev/DB_HOST]
+aws_cloudwatch_log_group.aurora: Refreshing state... [id=/aws/rds/cluster/ship-aurora/postgresql]
+aws_ssm_parameter.db_name: Refreshing state... [id=/ship/dev/DB_NAME]
+aws_cloudfront_distribution.frontend: Refreshing state... [id=E3VSP84GNHG3D]
+aws_s3_bucket_policy.frontend: Refreshing state... [id=ship-frontend-dev-379484935796]
+aws_ssm_parameter.cdn_domain: Refreshing state... [id=/ship/dev/CDN_DOMAIN]
+aws_ssm_parameter.cors_origin: Refreshing state... [id=/ship/dev/CORS_ORIGIN]
+aws_ssm_parameter.app_base_url: Refreshing state... [id=/ship/dev/APP_BASE_URL]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # aws_cloudfront_distribution.frontend will be updated in-place
+  ~ resource "aws_cloudfront_distribution" "frontend" {
+        id                              = "E3VSP84GNHG3D"
+        tags                            = {
+            "Name" = "ship-frontend-cdn"
+        }
+        # (23 unchanged attributes hidden)
+
+      ~ viewer_certificate {
+          ~ minimum_protocol_version       = "TLSv1" -> "TLSv1.2_2021"
+            # (4 unchanged attributes hidden)
+        }
+
+        # (3 unchanged blocks hidden)
+    }
+
+  # aws_elastic_beanstalk_application.api will be updated in-place
+  ~ resource "aws_elastic_beanstalk_application" "api" {
+        id          = "ship-api"
+        name        = "ship-api"
+      ~ tags        = {
+          + "Name" = "ship-api"
+        }
+      ~ tags_all    = {
+          + "Name"        = "ship-api"
+            # (4 unchanged elements hidden)
+        }
+        # (2 unchanged attributes hidden)
+    }
+
+  # aws_elastic_beanstalk_environment.api will be updated in-place
+  ~ resource "aws_elastic_beanstalk_environment" "api" {
+        id                     = "e-a8fqx5xspr"
+        name                   = "ship-api-prod"
+      ~ tags                   = {
+          + "Name" = "ship-api-prod"
+        }
+      ~ tags_all               = {
+          + "Name"        = "ship-api-prod"
+            # (4 unchanged elements hidden)
+        }
+        # (18 unchanged attributes hidden)
+
+        # (25 unchanged blocks hidden)
+    }
+
+  # aws_wafv2_web_acl.cloudfront[0] will be updated in-place
+  ~ resource "aws_wafv2_web_acl" "cloudfront" {
+        id                          = "0d3d2ec3-ccf2-4ba8-a6ab-31a6fb6fdf10"
+        name                        = "ship-dev-cloudfront-waf"
+        tags                        = {
+            "Environment" = "dev"
+            "Name"        = "ship-cloudfront-waf"
+        }
+        # (9 unchanged attributes hidden)
+
+      - rule {
+          - name     = "RateBasedRule-IP-300" -> null
+          - priority = 1 -> null
+
+          - action {
+              - block {
+                  - custom_response {
+                      - response_code            = 429 -> null
+                        # (1 unchanged attribute hidden)
+
+                      - response_header {
+                          - name  = "Retry-After" -> null
+                          - value = "300" -> null
+                        }
+                    }
+                }
+            }
+
+          - statement {
+              - rate_based_statement {
+                  - aggregate_key_type    = "IP" -> null
+                  - evaluation_window_sec = 300 -> null
+                  - limit                 = 300 -> null
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "ship-RateBasedRule-IP-300" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesAmazonIpReputationList" -> null
+          - priority = 2 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesAmazonIpReputationList" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "ship-AWSIpReputationList" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesBotControlRuleSet" -> null
+          - priority = 7 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesBotControlRuleSet" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+
+                  - managed_rule_group_configs {
+                        # (2 unchanged attributes hidden)
+
+                      - aws_managed_rules_bot_control_rule_set {
+                          - enable_machine_learning = false -> null
+                          - inspection_level        = "COMMON" -> null
+                        }
+                    }
+
+                  - rule_action_override {
+                      - name = "CategoryAdvertising" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryAI" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryArchiver" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryContentFetcher" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryEmailClient" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryHttpLibrary" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryLinkChecker" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryMiscellaneous" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryMonitoring" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryScrapingFramework" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategorySearchEngine" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategorySecurity" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategorySeo" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategorySocialMedia" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "SignalAutomatedBrowser" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "SignalKnownBotDataCenter" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "SignalNonBrowserUserAgent" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "ship-AWSBotControl" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesCommonRuleSet" -> null
+          - priority = 3 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesCommonRuleSet" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "ship-AWSCommonRuleSet" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesKnownBadInputsRuleSet" -> null
+          - priority = 4 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesKnownBadInputsRuleSet" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "ship-AWSKnownBadInputs" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesSQLiRuleSet" -> null
+          - priority = 5 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesSQLiRuleSet" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "ship-AWSSQLiRuleSet" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      + rule {
+          + name     = "RateBasedRule-IP-300"
+          + priority = 1
+
+          + action {
+              + block {
+                  + custom_response {
+                      + response_code = 429
+
+                      + response_header {
+                          + name  = "Retry-After"
+                          + value = "300"
+                        }
+                    }
+                }
+            }
+
+          + statement {
+              + rate_based_statement {
+                  + aggregate_key_type    = "IP"
+                  + evaluation_window_sec = 300
+                  + limit                 = 300
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "ship-RateBasedRule-IP-300"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesAmazonIpReputationList"
+          + priority = 2
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesAmazonIpReputationList"
+                  + vendor_name = "AWS"
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "ship-AWSIpReputationList"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesBotControlRuleSet"
+          + priority = 7
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesBotControlRuleSet"
+                  + vendor_name = "AWS"
+                    # (1 unchanged attribute hidden)
+
+                  + managed_rule_group_configs {
+                        # (2 unchanged attributes hidden)
+
+                      + aws_managed_rules_bot_control_rule_set {
+                          + enable_machine_learning = true
+                          + inspection_level        = "COMMON"
+                        }
+                    }
+
+                  + rule_action_override {
+                      + name = "CategoryAdvertising"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryAI"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryArchiver"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryContentFetcher"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryEmailClient"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryHttpLibrary"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryLinkChecker"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryMiscellaneous"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryMonitoring"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryScrapingFramework"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategorySearchEngine"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategorySecurity"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategorySeo"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategorySocialMedia"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "SignalAutomatedBrowser"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "SignalKnownBotDataCenter"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "SignalNonBrowserUserAgent"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "ship-AWSBotControl"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesCommonRuleSet"
+          + priority = 3
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesCommonRuleSet"
+                  + vendor_name = "AWS"
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "ship-AWSCommonRuleSet"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesKnownBadInputsRuleSet"
+          + priority = 4
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesKnownBadInputsRuleSet"
+                  + vendor_name = "AWS"
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "ship-AWSKnownBadInputs"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesSQLiRuleSet"
+          + priority = 5
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesSQLiRuleSet"
+                  + vendor_name = "AWS"
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "ship-AWSSQLiRuleSet"
+              + sampled_requests_enabled   = true
+            }
+        }
+
+        # (3 unchanged blocks hidden)
+    }
+
+Plan: 0 to add, 4 to change, 0 to destroy.
+
+Warning: Invalid Attribute Combination
+
+  with aws_s3_bucket_lifecycle_configuration.uploads,
+  on s3-cloudfront.tf line 429, in resource "aws_s3_bucket_lifecycle_configuration" "uploads":
+ 429:   rule {
+
+No attribute specified when one (and only one) of
+[rule[0].filter,rule[0].prefix] is required
+
+This will be an error in a future version of the provider
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

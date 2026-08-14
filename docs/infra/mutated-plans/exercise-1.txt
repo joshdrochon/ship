@@ -1,0 +1,89 @@
+$ terraform plan
+
+aws_vpc.main: Refreshing state... [id=vpc-0a3f21c9e4b7d5081]
+data.aws_caller_identity.current: Reading...
+data.aws_availability_zones.available: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=379484935796]
+data.aws_availability_zones.available: Read complete after 0s [id=us-east-1]
+aws_elastic_beanstalk_application.api: Refreshing state... [id=ship-api]
+aws_iam_role.eb_instance: Refreshing state... [id=ship-eb-instance-role]
+aws_iam_role.eb_service: Refreshing state... [id=ship-eb-service-role]
+aws_iam_role.vpc_flow_logs: Refreshing state... [id=ship-vpc-flow-logs]
+aws_kinesis_stream.cloudfront_logs: Refreshing state... [id=arn:aws:kinesis:us-east-1:379484935796:stream/ship-dev-cloudfront-logs]
+aws_rds_cluster_parameter_group.aurora: Refreshing state... [id=ship-aurora-pg16]
+aws_subnet.private[0]: Refreshing state... [id=subnet-041c8e77a2b93f6de]
+aws_subnet.private[1]: Refreshing state... [id=subnet-0d92b4fa617c30e85]
+aws_db_subnet_group.aurora: Refreshing state... [id=ship-aurora]
+aws_security_group.alb: Refreshing state... [id=sg-06f4a1d2e8b73c95f]
+aws_security_group.eb_instance: Refreshing state... [id=sg-0b83e5c17df246a90]
+aws_security_group.aurora: Refreshing state... [id=sg-0e21d7b845f9c3a6e]
+aws_rds_cluster.aurora: Refreshing state... [id=ship-aurora]
+aws_cloudwatch_log_group.aurora: Refreshing state... [id=/aws/rds/cluster/ship-aurora/postgresql]
+aws_iam_role_policy.eb_ssm_access: Refreshing state... [id=ship-eb-instance-role:ship-eb-ssm-access]
+aws_iam_role_policy.eb_bedrock_access: Refreshing state... [id=ship-eb-instance-role:ship-eb-bedrock-access]
+aws_iam_role_policy.eb_secrets_manager_access: Refreshing state... [id=ship-eb-instance-role:ship-eb-secrets-manager-access]
+aws_iam_instance_profile.eb: Refreshing state... [id=ship-eb-instance-profile]
+aws_elastic_beanstalk_environment.api: Refreshing state... [id=e-2mqk7pv3xw]
+aws_ssm_parameter.database_url: Refreshing state... [id=/ship/dev/DATABASE_URL]
+aws_ssm_parameter.db_password: Refreshing state... [id=/ship/dev/DB_PASSWORD]
+aws_ssm_parameter.session_secret: Refreshing state... [id=/ship/dev/SESSION_SECRET]
+aws_cloudfront_distribution.frontend: Refreshing state... [id=E3VSP84GNHG3D]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  # aws_cloudwatch_log_group.aurora will be updated in-place
+  ~ resource "aws_cloudwatch_log_group" "aurora" {
+        id                = "/aws/rds/cluster/ship-aurora/postgresql"
+        name              = "/aws/rds/cluster/ship-aurora/postgresql"
+      ~ retention_in_days = 30 -> 0
+        tags              = {
+            "Name" = "ship-aurora-logs"
+        }
+        # (6 unchanged attributes hidden)
+    }
+
+  # aws_iam_role_policy.eb_ssm_access will be updated in-place
+  ~ resource "aws_iam_role_policy" "eb_ssm_access" {
+        id          = "ship-eb-instance-role:ship-eb-ssm-access"
+        name        = "ship-eb-ssm-access"
+      ~ policy      = jsonencode(
+          ~ {
+              ~ Statement = [
+                    {
+                        Action   = [
+                            "ssm:GetParameter",
+                            "ssm:GetParameters",
+                            "ssm:GetParametersByPath",
+                        ]
+                        Effect   = "Allow"
+                        Resource = "arn:aws:ssm:us-east-1:379484935796:parameter/ship/dev/*"
+                    },
+                  - {
+                      - Action    = [
+                          - "kms:Decrypt",
+                        ]
+                      - Condition = {
+                          - StringEquals = {
+                              - "kms:ViaService" = "ssm.us-east-1.amazonaws.com"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "*"
+                    },
+                ]
+                # (1 unchanged attribute hidden)
+            }
+        )
+        # (1 unchanged attribute hidden)
+    }
+
+Plan: 0 to add, 2 to change, 0 to destroy.
+
+─────────────────────────────────────────────────────────────────────────────
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.

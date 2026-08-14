@@ -1,0 +1,228 @@
+# L19 · CLI Reference Integration (must-ship)
+
+| | |
+|---|---|
+| **Agent** | `cli-integration` |
+| **Tier** | 7 — runs concurrently with L22 |
+| **Block** | PF-556–585 (26 allocated, 4 reserved for audit) |
+| **Blocks on** | L18 (PF-521/522 resource clients, PF-524/525 webhooks client + secret-once, PF-533/536 iterate + `list()`, PF-537/538/540/541 device login + `slow_down` + store discipline, PF-542/544 verifier); transitively L17 (PF-491 base-URL resolution, PF-497–502 error union, PF-504/506/509 file store + single-flight refresh, PF-512 rate-limit status), L01 (PF-005 workspace registration, PF-007 tsconfig, PF-011–013 the `integrations/**` boundary rule and its CI job), L15 (PF-425 `target_url` validation), L16 (PF-458/464/475 delivery log, its public route, and the stored replayable body). **L05 (device grant, server side) is unwritten and blocked on a user decision** — cited in prose only, never in a `Deps` cell |
+| **Unblocks** | L20 (TTFE drill & CI harness) |
+| **Testing Scenarios** | **TS-3** (p.5) — *"Run the Device Authorization Grant flow from a test CLI: poll /oauth/token until authorized, verify slow-down responses are honored, confirm the resulting token works against /api/v1/me."* **Claimed here.** It was unclaimed board-wide: the spine maps it to L05 + L10, L05 is blocked and unwritten, and the scenario's subject is literally *a test CLI*. PF-564 is the ticket |
+
+**What this lane owns.** The `ship` binary and its five commands, end to end: `login` (device flow),
+`docs ls` / `docs get` / `docs create`, and `webhooks tail`. Build Strategy §7 (p.11) is the mandate —
+*"CLI reference integration (must-ship). The CLI is the proof the platform works. ship login (device
+flow), ship docs create (write through SDK + public API), ship webhooks tail (the demo moment)."*
+Two graded artifacts are terminal output from this lane and nothing else: the Demo Video (p.12,
+*"The five-line story is the demo"*) and the Social Post (p.13, *"The screenshot is the ship webhooks
+tail terminal showing a verified signed event arriving in real time"*). The tail command's legibility
+is therefore a graded property, not a nicety — PF-577–579 ticket what it prints.
+
+**`integrations/cli` may import ONLY `@ship/sdk`.** Critical Guidance (p.11) is categorical:
+*"External integrations live in integrations/ and import only @ship/sdk — never api/src/."* L01's
+PF-011 is the rule and PF-012 the negative fixture; PF-558 is this lane proving the rule fires against
+*this* package. If a command needs something the SDK cannot do, that is an SDK gap and it gets fixed
+in L18, never by reaching around the front door. The CLI is the only consumer in the repo that has no
+privileged path available to it — that is precisely what makes it proof.
+
+**`INT:<row>` is a new `Advances` prefix and it needs one row added to the spine.** Five tickets
+here advance the p.8 integrations menu — *"Implement at Least 5 of the Following Integrations /
+Flows: ☐ CLI tool with device flow — ship login, ship docs ls/get/create, ship webhooks tail
+(must-ship)"* — which is a graded requirement with a **must-ship** stamp and no existing prefix that
+fits: it is not an MVP checkbox (p.2), not a Testing Scenario (p.5), not a Core Technical Requirements
+row (those are p.2–5; this is p.8), and not a Submission Requirements deliverable (p.12–13). The spine
+says in as many words to add a prefix rather than bend one. I did not edit `TICKETS-PLUGFORGE.md` —
+26 agents are authoring in parallel — so the exact row to add is in the audit notes. Meanwhile
+`INT:CLI` is used here and defined here. `ls` and `get` exist **only** on that p.8 row; they are
+absent from p.6's five-line story, which is why they carry `INT:CLI` and the story commands carry
+`SUB:Demo Video`.
+
+**The sketch is a spike.** `integrations/cli/src/index.ts` is 47 lines: a `USAGE` string, a switch
+that prints *"not implemented yet — see TODO(josh) E6"* and exits 1 for all three real commands, and
+a comment recommending commander/oclif. `package.json` already declares `bin: { ship: ./dist/index.js }`
+and exactly one dependency (`@ship/sdk`, `workspace:*`) — that manifest is right and PF-558 pins it.
+Nothing else in the directory is done.
+
+## Tickets
+
+| ID | Title | Acceptance criterion | Advances | PRD | Deps |
+|---|---|---|---|---|---|
+| PF-556 | ☐ `ship` is a real binary that runs from a clean checkout | Today every real command prints *"not implemented yet"* and exits 1 (`integrations/cli/src/index.ts:35`). Acceptance: `pnpm --filter @ship/cli build` emits `dist/index.js` with the `#!/usr/bin/env node` shebang preserved and the executable bit set; `ship --help` exits **0** and names all five commands from p.8's menu (`login`, `docs ls`, `docs get`, `docs create`, `webhooks tail`); `ship` with no argument exits 0 with usage; an unknown command exits 2 with usage on **stderr**. p.8's first drill stage is *"Workspace package resolves; types load in editor; no peer-dependency errors"* — a binary that does not resolve fails the drill before it starts | INT:CLI | p.8, p.11 | PF-005, PF-007 |
+| PF-557 | ☐ **Decision:** argv framework is `commander`, pinned, and it is the CLI's *second* dependency | p.10's Technical Stack row reads *"CLI in Node + commander or oclif"*; the sketch's own comment adds *"plain argv parsing is acceptable for the week."* Three defensible answers, and I lean **commander**: oclif brings a plugin architecture, a generator and a multi-file command tree this lane does not need, and hand-rolled argv means writing the `--help` text that p.8's menu and the demo both read off. Acceptance: the choice and its one-line rationale are recorded in `integrations/cli/README.md`; the dependency is pinned to an exact version; `dependencies` contains exactly `@ship/sdk` and `commander` and a test asserts it — the CLI's dependency list is the one place a stray `node-fetch` or `axios` would prove the SDK is not actually the front door | — | p.10 | PF-556 |
+| PF-558 | ☐ The boundary rule is proven against **this** package, not just against L01's fixture | L01's PF-011/PF-012 ship the rule and one generic fixture. This ticket points it at `integrations/cli`: a fixture module under the CLI that imports `../../../api/src/routes/documents` fails `pnpm lint` with PF-011's message; a second fixture importing `@ship/shared` fails the same way (the rule's group list includes it); and a grep over `integrations/cli/src/**` finds zero occurrences of `api/src`, `@ship/api`, `@ship/shared` and `pg`. Runs in CI through PF-013's blocking job. p.18's Pre-Search 3.3 asks which lint rules catch this — *"no imports from api/src/ in integrations/"* — and the answer has to be a firing rule, not a convention | — | p.11, p.18 | PF-011, PF-012, PF-013 |
+| PF-559 | ☐ One instance-URL resolver, shared with the SDK's — not a second copy in the CLI | Order: `--base-url` flag → `SHIP_BASE_URL` → the value persisted alongside the credential at login → L17's published default (PF-491 owns that chain). `ship login --base-url <deployed>` persists it so no later command needs the flag. Table test over four shapes, including a base URL with a **path prefix** — PF-494 is the SDK-side defect where a prefix is silently discarded, and the CLI is the surface a grader will point at a deployed instance behind one. Assertion that the CLI computes no URL of its own: grep finds no `/api/v1` string literal under `integrations/cli/src/**` | — | p.13, p.18 | PF-491, PF-494 |
+| PF-560 | ☐ Every failure renders from the SDK's five-kind union — exhaustive `switch`, no stack traces | p.4's `kind: 'auth' \| 'rate_limit' \| 'not_found' \| 'validation' \| 'server'` is the CLI's entire error surface. One renderer with a `switch` that assigns to `never` in the unreachable branch (deleting a case fails `pnpm type-check`). `auth` prints *run `ship login`*; `rate_limit` prints the reset time from L17's `RateLimitStatus` (PF-512); `not_found` echoes the id; `validation` names the offending field from `details`; `server` prints the `request_id` (PF-502) and nothing else. A raw `Error.stack` never reaches the terminal, asserted over captured output on all five paths. p.4 requires consumers to *"switch on kind exhaustively"* — the CLI is the reference consumer, so it is where that claim is demonstrated | — | p.4, p.7 | PF-497, PF-500, PF-502, PF-512 |
+| PF-561 | ☐ Exit codes are exported data, stable, and one per failure class | `EXIT_CODES` as a frozen table: 0 success, 1 unexpected, 2 usage, 3 auth-required, 4 rate-limited, 5 signature-verification-failed. One test per code drives a real failure and asserts the process's exit status. L20's drill and any CI harness branch on these, so they are a published contract from the first commit rather than something the drill reverse-engineers from `!== 0` | — | p.8, p.11 | PF-560 |
+| PF-562 | ☐ `ship login` is the device flow and nothing but a call into `ShipClient.deviceLogin()` | p.6's second line, p.11's §7. The command's whole auth path is L18's PF-537 helper: grep asserts `integrations/cli/src/**` contains no `fetch(`, no `/oauth/` string literal, and no `code_verifier`/`device_code` handling of its own. Acceptance is behavioural, not structural too: `ship login` exits 0 against a booted Ship, and a **separate later invocation** of `ship docs ls` with no flags and no env succeeds. Any auth logic that lands in this package instead of the SDK is an L18 gap that got worked around | SUB:Demo Video | p.6, p.11, p.12 | PF-537, PF-506 |
+| PF-563 | ☐ The user code and verification URL are printed so a human can act on them, and a machine can scrape them | p.7's callback is `onUserCode(code, verifyUrl)`; p.8's drill stage is *"User code displayed."* Acceptance: the code is echoed **verbatim** — no lowercasing, no stripping of the RFC 8628 grouping hyphen, because the user pastes it into `/oauth/device/verify`; the URL is on its own line with no trailing punctuation so terminals linkify it; the pair prints as a visually separated block; and when stdout is not a TTY the same two values still appear on a stable, parseable line (the drill and PF-564's test read them). Both go to **stderr**, keeping stdout clean for PF-571's `--json` contract | SUB:Demo Video | p.7, p.8 | PF-562 |
+| PF-564 | ☐ **Testing Scenario 3, claimed:** the device grant driven from the CLI, `slow_down` honored, token proven on `/api/v1/me` | p.5: *"Run the Device Authorization Grant flow from a test CLI: poll /oauth/token until authorized, verify slow-down responses are honored, confirm the resulting token works against /api/v1/me."* Three assertions against a booted Ship with the real binary: (a) the CLI polls `/oauth/token` no faster than the server-supplied `interval`, and after a `slow_down` response no request is sent inside `interval + 5s` — measured from recorded request timestamps through L17's injected clock, with **zero** `setTimeout` in the test per p.11; (b) an out-of-band `POST /oauth/device/verify` with the printed `user_code` flips the grant and the next poll succeeds; (c) the resulting credential resolves `/api/v1/me` with a populated `app.client_id`. ⚑ The server half is **L05**, which is unwritten and blocked on a user decision — this ticket cannot go green until it lands, and it is the scenario's only claimant board-wide | TS-3 | p.3, p.5, p.11 | PF-538, PF-562 |
+| PF-565 | ☐ Denied, expired, or abandoned: the CLI stops, says which, and writes **nothing** | Three cases, each a distinct message and a non-zero exit: `access_denied` (user refused consent), `expired_token` (device code aged out), and a user who never verifies — where the CLI must stop at the device code's expiry rather than polling forever. In all three, a counting `ITokenStore` asserts `save()` was called **zero** times and no `~/.ship/credentials.json` is created. p.12's Failure Modes requires that *"the token store is corrupted"* and its neighbours never leave a partial credential; L18's PF-540 enforces it in the helper, and this is the same contract observed at the process boundary where a user can actually see it | — | p.12 | PF-540, PF-506 |
+| PF-566 | ☐ The credential survives the process — `ship login` once, every later command authenticated | p.8's Auth drill stage: *"User code displayed; polling succeeds within 60s in tests; token persists in configured store."* Acceptance: after `ship login`, a **new process** running `ship docs ls` with an empty environment succeeds; the file is `~/.ship/credentials.json` at mode 0600 (L17's PF-506) and contains the refresh token as well as the access token (PF-504's decision) — an access-token-only store makes every command a fresh device flow and fails the drill on its second line | SUB:Demo Video | p.8 | PF-506, PF-504 |
+| PF-567 | ☐ An expired access token refreshes silently once; a dead one says `ship login` and stops | With an expired access token, `ship docs ls` succeeds having issued **exactly one** `/oauth/token` refresh, and the rotated refresh token is written back to the file store — p.3's refresh tokens are one-time-use, so failing to persist the rotation logs the user out on the next command. With a revoked family, the command exits with `EXIT_CODES.auth` and a message naming `ship login`, having made exactly one refresh attempt. Request counts asserted on both paths through L17's single-flight path (PF-509); a refresh loop against a rotating family revokes the family and is the failure this ticket exists to make impossible | — | p.3, p.12 | PF-541, PF-509, PF-566 |
+| PF-568 | ☐ `ship docs create --title "hello"` — the five-line story's third line, exactly as p.6 writes it | The literal command from p.6 creates a document through `client.documents.create` and prints the new id on stdout. `--title` is required: its absence is a usage error (exit 2) with the correct invocation shown, never a crash or an `Untitled` document. A token lacking `documents:write` produces the 403 path with the missing scope named (p.2's gate item 6, surfaced through L17's PF-500 `required_scope`) rather than an opaque failure. This is Build Strategy §7's *"ship docs create (write through SDK + public API)"* — the assertion that matters is that the write went through `/api/v1`, checkable in the public audit trail | SUB:Demo Video | p.2, p.6, p.11, p.12 | PF-521, PF-560 |
+| PF-569 | ☐ `ship docs ls` — one page by default, `--all` walks the iterator, and no flag exposes a cursor | p.8's menu names `ls`. Default prints at most `--limit` rows (default 25, L08's PF-225) through L18's `list()`; `--all` drains `client.documents.iterate()` and a three-page fixture asserts the output equals the concatenated pages. The parser accepts **no** `--cursor` flag and no cursor appears in any output mode, asserted on both — p.4 is explicit that *"Cursors handled internally; consumer code never sees them."* This command is half of L18's PF-536 rationale for exposing `list()` at all; if `--limit` did not need one page, iterators-only would have won | INT:CLI | p.4, p.8 | PF-533, PF-536 |
+| PF-570 | ☐ `ship docs get <id>` — and an unknown id is `not_found`, not a stack trace | Prints the document. An id that does not exist exits with `not_found`'s rendering and the id echoed back; a syntactically malformed id renders as `validation`, not `server` — L17's PF-501 table is what makes that distinction survive a reverse proxy, and the CLI is where a user sees whether it did. No output mode prints the document's `content`; `get` prints identifiers, title and properties, matching what the event payloads expose (L14's PF-408) | INT:CLI | p.8 | PF-521, PF-560 |
+| PF-571 | ☐ `--json` puts exactly one JSON value on stdout and every human word on stderr | `ship docs ls --json \| jq .` parses, and so does `docs get`, `docs create` and each `webhooks tail` delivery block (newline-delimited JSON in tail's case, since it streams). With `--json`, progress text, the device-code block and all diagnostics go to stderr; without it, output is a human table. Asserted by capturing the two streams separately and parsing stdout in full. This is what lets L20's drill read the CLI's results instead of scraping prose, and it is why PF-563 puts the login block on stderr | — | p.8, p.11 | PF-569, PF-570 |
+| PF-572 | ☐ No command ever prints an access token, a refresh token, or a signing secret | A test runs `login`, `docs create`, `docs ls` and `webhooks tail` with real credentials, concatenates stdout **and** stderr, and asserts zero occurrences of the access token, the refresh token and the subscription's signing secret as substrings — in both human and `--json` modes. The credential file's *path* may be printed; its contents may not. p.13's Social Post is a screenshot of this exact terminal and p.15's 1.4 asks how the *"shown-once UX"* is protected from *"accidental leakage via screenshot, log line, or browser back-button"* — the CLI is the log line and the screenshot at once, so this is the one place the answer is mechanically checkable | SUB:Social Post | p.13, p.15 | PF-571, PF-563 |
+| PF-573 | ☐ **Decision:** how a signed delivery reaches a developer's laptop — the PRD does not say, and `tail` cannot ship until it does | p.6 promises *"ship webhooks tail — Streams signed deliveries to stdout"* and p.11 calls it *"the demo moment"*, but a webhook is an inbound POST and a laptop has no public address. Four options, none free: (1) **loopback listener** — the CLI binds `127.0.0.1:PORT` and subscribes to it; works only when Ship can reach the laptop, i.e. local dev and CI; (2) **public tunnel** (ngrok/cloudflared) — works anywhere, and puts a third-party service and an account inside a graded demo and every CI run; (3) **Ship-hosted relay** — a WebSocket/SSE endpoint the server forwards to; cleanest UX, an entirely new public surface the PRD never asks for, and a new lane; (4) **long-poll the delivery log** — `GET /api/v1/webhooks/deliveries` already exists (L16's PF-464), works against the deployed instance, and shows a delivery that already happened rather than one arriving. **Answer: (1) as the default, (4) behind `--poll` as the fallback, tunnels never.** Rationale: the demo and the TTFE drill both run against a local or containerized Ship where loopback resolves, and only that path produces a genuinely arriving signed POST — which is what p.13's screenshot claims; option (4) is what a grader pointing the CLI at the deployed instance gets, and it is honest about being a log tail. Acceptance: the decision, both modes and the reachability constraint are written into `integrations/cli/README.md`, and each mode has its own test | INT:CLI | p.6, p.8, p.11 | PF-464 |
+| PF-574 | ☐ `--listen` — bind loopback, subscribe to it, and clean up the subscription on exit | Default mode. The CLI binds an ephemeral port on `127.0.0.1`, creates a `document.created` subscription via `client.webhooks.create` pointed at it, keeps the returned `signing_secret` in memory only (L18's PF-525 returns it exactly once), and prints the target URL. On SIGINT/SIGTERM it deletes the subscription it created — asserted by a follow-up `client.webhooks.list()` finding none. A crash leaves at most one orphan, and `ship webhooks tail --cleanup` removes any subscription this CLI created and abandoned, identified by a marker the CLI itself set, never by deleting subscriptions it did not create | SUB:Demo Video | p.3, p.6, p.12 | PF-524, PF-525, PF-425 |
+| PF-575 | ☐ ⚑ **Cross-lane blocker:** L15 rejects the only target URL `--listen` can produce, outside the test runner | L15's PF-425 rejects a non-`https` scheme **and** a host in loopback / link-local / RFC 1918 space, permitting `http://localhost` *"only when `NODE_ENV === 'test'`, gated by one named constant."* That covers CI and the drill and covers neither the demo video nor a developer running `pnpm dev` — in both, `NODE_ENV` is `development` and `ship webhooks tail --listen` fails at subscription creation with `validation_failed`. Ask: widen PF-425's named constant from an `NODE_ENV === 'test'` check to an explicitly-set, default-off env flag, so a local instance can opt in and the deployed instance provably cannot. Acceptance: a test asserts the deployed configuration rejects a loopback `target_url`, a second asserts the opted-in local configuration accepts it, and the flag's name appears in exactly one place. If L15 declines, `--listen` is CI-and-test-only, `--poll` becomes the demo path, and the README says so — that is a worse demo, not a broken one, which is why this is an ask rather than a veto | — | p.3, p.11 | PF-425, PF-574 |
+| PF-576 | ☐ `--poll` — tail the delivery log against an instance that cannot reach you | Polls `GET /api/v1/webhooks/deliveries` (L16's PF-464, `webhooks:manage`-gated) at a fixed interval, requesting page 1 each time and de-duplicating on delivery `id` — the list is newest-first, so a forward-tail cursor does not exist and asking L16 for a `?since=` param is not necessary. Prints each new delivery through the same renderer as `--listen`. ⚑ **Verification honesty:** L16's PF-475 stores the exact signed `rawBody` but the signature is recomputed per attempt (PF-442) and the `Ship-Signature` header sent is **not persisted**, so this mode cannot verify a stored signature today. Two acceptable outcomes and the ticket takes either: L16 adds one column holding the header actually sent, and `--poll` verifies it with `verifyWebhook`; or `--poll` prints `signature not verifiable in poll mode` and never prints `signature verified ✓`. Silently omitting the verification line is not one of them | INT:CLI | p.4, p.8 | PF-464, PF-475, PF-542 |
+| PF-577 | ☐ The demo moment's output — what one delivery looks like, pinned by a golden test | p.13 grades a *screenshot of the `ship webhooks tail` terminal showing a verified signed event arriving in real time*, so the block's content and shape are the deliverable. Each delivery prints: the event type, `event.id`, the target document's id and title, the `t=` value from `Ship-Signature` rendered as local time, the `Idempotency-Key` (p.4 — so the dedupe contract is visible), the elapsed time since the event, and a final line reading `signature verified ✓` — matching p.6's `→ document.created event arrives, signature verified ✓` character for character on the verified case. Golden-output test with color disabled asserts the block byte-for-byte and that **no line exceeds 80 columns**, so nothing wraps in the screenshot | SUB:Social Post | p.4, p.6, p.13 | PF-574, PF-542 |
+| PF-578 | ☐ A delivery that fails verification is visibly a failure and can fail the process | Feed the renderer a tampered body, a stale timestamp, and a header missing `v1` (L18's PF-544 covers the verifier; this covers what the terminal does about it). Each renders a visually distinct block ending `signature INVALID ✗` and naming which check failed, never the verified glyph. `--exit-on-invalid` makes the process exit `EXIT_CODES.signature` on the first failure so a CI harness can assert on it. p.4 requires that *"Tampered bodies fail; expired timestamps fail; missing v1 header fails"* — a tail that swallows a forged delivery into the same green output as a real one turns the graded screenshot into a lie | SUB:Social Post | p.4, p.13 | PF-577, PF-544 |
+| PF-579 | ☐ `tail` streams — the first block is readable before the second event exists | *"arriving in real time"* (p.13) and *"Streams signed deliveries to stdout"* (p.6) are both claims about latency, not about eventual output. Acceptance: a test spawns the CLI, publishes one event, and asserts the first delivery block is fully readable on the child's stdout **before** the second event is published; output is line-flushed so `ship webhooks tail \| head -20` does not lose it; and each block carries the observed event→arrival elapsed milliseconds, which makes p.6's *"Webhook delivery latency (P95, first attempt) < 2s"* visible to a viewer of the demo rather than only to a test | SUB:Social Post | p.6, p.13 | PF-577 |
+| PF-580 | ☐ One-command setup from a clean clone, in the README where a grader will look | p.18's Pre-Search 3.4 asks directly: *"If a grader wants to install the CLI from your repo and run it against your deployed instance, what is the one-command setup, and where does it live in the README?"* Acceptance: a single documented command (or one `pnpm` script) taken **verbatim** from the README is executed by a test from a clean checkout in a container and reaches an authenticated `ship docs ls` against the deployed instance; the same README section carries the pre-registered grader app's `client_id` (p.13's Deployed Application row: *"a pre-registered OAuth app (read-only scopes) for graders, plus credentials in the README"*). Note the read-only constraint deliberately: the documented smoke command is `docs ls`, not `docs create`, because the grader's app cannot write | SUB:Deployed Application | p.13, p.18 | PF-556, PF-559 |
+| PF-581 | ☐ Every command is an importable function, so L20's drill drives the CLI without scraping a terminal | `runLogin`, `runDocsLs`, `runDocsGet`, `runDocsCreate`, `runWebhooksTail` exported with typed arguments, an injectable output sink and an injectable clock; `src/index.ts` is argv parsing and dispatch with no business logic, asserted by a test that runs every command function with `process.argv` untouched. p.7's example drill lives at `integrations/cli/tests/ttfe.drill.ts` — inside this package's directory but **written by L20** — and it composes SDK calls directly; these exports are what let the drill instrument the real command paths instead of a parallel re-implementation that can drift from what the demo actually runs | — | p.7, p.8 | PF-556, PF-574 |
+
+## Slices
+
+One branch and one PR per slice, per PRD p.12. Branch name is `pf/L19-<slug>`; the PR body names the
+acceptance criterion each slice advances and confirms its fitness test passed.
+
+| Slice | Branch | Tickets | Advances | Fitness test |
+|---|---|---|---|---|
+| S1 | `pf/L19-cli-skeleton` | PF-556–561 | p.8's must-ship CLI row, as a binary that exists — plus p.11's Critical Guidance boundary, proven against this package | `ship --help` exits 0 naming five commands; `dependencies` is exactly `@ship/sdk` + `commander`; both boundary fixtures fail `pnpm lint` in CI and no `api/src` string exists under `src/`; base-URL table test covers a path prefix; error renderer's `switch` fails `type-check` when a case is deleted; one test per exit code |
+| S2 | `pf/L19-login` | PF-562–567 | **Testing Scenario 3** and p.6's second line — device flow from the CLI, `slow_down` honored, the credential surviving the process | Grep finds no `fetch(`, no `/oauth/` and no `device_code` in `integrations/cli/src/`; user code echoed verbatim on stderr; polling never faster than `interval`, `slow_down` adds 5s, zero `setTimeout` in the test; token resolves `/api/v1/me`; three failure paths each `save()` zero times; new process authenticates from the 0600 file; one refresh on expiry, one attempt then stop on a dead family |
+| S3 | `pf/L19-docs` | PF-568–572 | p.6's third line and p.8's `docs ls/get/create` — a write through the SDK and the public API, with output a machine can read and no secret in it | p.6's literal `ship docs create --title "hello"` creates and prints an id; missing `--title` exits 2; `--all` equals the concatenated pages and no `--cursor` flag exists; unknown id renders `not_found`, malformed id renders `validation`; `--json` stdout parses whole with all prose on stderr; captured output contains zero occurrences of access token, refresh token or signing secret |
+| S4 | `pf/L19-webhooks-tail` | PF-573–579 | **p.11's "demo moment"** and **p.13's Social Post** — a verified signed delivery arriving in a terminal, legibly, with the reachability problem answered rather than hand-waved | Reachability decision and both modes documented in the CLI README; `--listen` binds loopback, subscribes, and deletes its own subscription on exit; the loopback `target_url` gate is settled with L15 either way and written down; `--poll` de-dupes on delivery id and either verifies a stored header or refuses to claim verification; golden-output block matches byte-for-byte with no line over 80 columns; tampered / stale / missing-`v1` each render `INVALID ✗` and can exit non-zero; first block readable before the second event is published |
+| S5 | `pf/L19-packaging` | PF-580–581 | p.13's Deployed Application README requirement and p.18's Pre-Search 3.4 — a grader gets from clone to authenticated in one command; and the seam L20 builds its drill on | README command executed verbatim from a clean container reaches an authenticated `docs ls` against the deployed instance using the read-only grader app; every command is exported as a typed function with injectable output and clock, and runs with `process.argv` untouched |
+
+## Notes for the audit agent
+
+Read the full PRD, not just the pages cited above. Known thin spots and the calls made, so you can
+confirm or refute rather than rediscover:
+
+- **The one spine change this lane needs, spelled out.** Add to the `Advances` taxonomy table in
+  `TICKETS-PLUGFORGE.md`:
+  `| `INT` | Integrations / Flows menu, p.8 — the "implement at least 5" list, one of which is stamped **must-ship** | `INT:CLI`, `INT:Slack`, … |`
+  Five tickets here cite `INT:CLI`. I did not make the edit because 26 lanes are being authored in
+  parallel and a spine edit is a merge conflict waiting to happen; L24 (Secondary Integrations) will
+  hit the identical gap for the other four of the five, so the row is worth adding once for both.
+  The alternative I rejected was stretching `CTR`, which the spine defines as p.2–5 — L17 and L18
+  both refused the same stretch for the p.6/p.8/p.9 performance tables, and bending it here would
+  make `CTR` mean "graded, roughly."
+- **TS-3 is claimed here, and it was genuinely unowned.** The spine's Testing Scenario table maps
+  Scenario 3 to L05 + L10. L05 is not written and is blocked on a user decision, L10 is not written,
+  and the scenario's own subject is *"a test CLI."* PF-564 claims it. Two consequences the audit
+  should hold me to: this lane now has a ticket that cannot go green until an unwritten, blocked lane
+  lands — that is real and it is stated in the ticket, not hidden; and if L05 later writes its own
+  Scenario 3 ticket, the two must be split explicitly (server honors `slow_down` / client obeys it),
+  not duplicated. `PF-564`'s `Deps` cell deliberately contains no L05 ticket ID because no such ID
+  exists yet; re-point it when `lane-05-*.md` is written.
+- **The reachability answer, and what would change my mind.** PF-573 chooses loopback-listener by
+  default and delivery-log long-poll behind `--poll`, and rules out tunnels outright. The one
+  argument that would flip me is if the demo video is recorded against the *deployed* instance rather
+  than a local one — then `--listen` never runs in the graded artifact and the honest thing is to
+  lead with `--poll` and be explicit that it is a log tail. That is a recording-logistics decision I
+  do not own. A Ship-hosted relay (option 3) is the genuinely nicer product and I did not pick it
+  because it is a new public surface the PRD never asks for, arriving at tier 7 with no lane, and the
+  Critical Guidance on scope creep (p.11) points the other way.
+- **PF-575 is the ticket most likely to be waved through, and it stops the demo dead.** L15's PF-425
+  permits `http://localhost` only when `NODE_ENV === 'test'`. Read that literally: the drill passes,
+  CI passes, and a human running `pnpm dev` who types `ship webhooks tail` gets `validation_failed`
+  on subscription creation — including whoever records the demo video and takes the Social Post
+  screenshot. L15 wrote that gate for exactly the right reason (an unvalidated `target_url` is an
+  SSRF primitive) and the fix is one named opt-in flag, not a weakened check. Confirm with L15 rather
+  than editing PF-425 from this side.
+- **PF-576's verification gap is real and I could not close it from this lane.** L16's PF-475 stores
+  the signed `rawBody`; PF-442 recomputes the signature per attempt; nothing persists the
+  `Ship-Signature` header that was actually sent. So a delivery-log tail can show you a delivery but
+  cannot honestly say `signature verified ✓` about it. One nullable column on `webhook_deliveries`
+  closes it. The ticket accepts either resolution because I would rather ship a mode that says
+  *"not verifiable in poll mode"* than one that prints a checkmark it did not earn — and the
+  checkmark is the graded artifact, so quietly printing it would be the worst available outcome.
+- **`Advances: —` on ten tickets, and why each is really plumbing.** PF-557 (framework choice),
+  PF-558 (L01 owns the lint rule; this points it), PF-559 (L17 owns the resolver), PF-560/561 (error
+  rendering and exit codes), PF-565/567 (Failure Modes contract, whose home is p.12's *architecture
+  document* row — a deliverable L26 assembles, not one this lane produces), PF-571 (`--json`),
+  PF-575 (a cross-lane ask), PF-581 (a seam for L20). None of them is an MVP checkbox, a Testing
+  Scenario, a p.2–5 CTR row, or a p.12–13 submission deliverable. If the `INT` prefix lands,
+  PF-560/561/571 have a plausible claim on `INT:CLI` and I would not argue against it.
+- **What I did not claim, deliberately.** **TS-9** (the TTFE drill) is L20's per the spine, even
+  though p.7 puts the example drill file at `integrations/cli/tests/ttfe.drill.ts` — inside this
+  package. PF-581 builds the seam and stops. If the audit finds L20 re-implementing command logic
+  rather than importing PF-581's exports, that is duplication to flag: the drill would then be timing
+  a code path the demo does not run. Also not claimed: MVP gate items (this lane is entirely
+  post-MVP, per the spine's *"L16, L19–L26 are all post-MVP"*), and the `Idempotency-Key` dedupe
+  drill from p.8's menu, which is a separate row on that list and belongs to L24 or L16.
+- **The grader's app is read-only and that constrains the documented smoke test.** p.13 and p.2 both
+  say the pre-registered app carries *"read-only scopes."* So `ship docs create` — the headline of
+  p.6's five-line story — **cannot** be run by a grader against the deployed instance with the
+  credentials the README hands them. PF-580 documents `docs ls` as the one-command smoke test for
+  that reason. Someone should decide whether a second, write-scoped demo app is pre-registered for
+  the video; that is an L21/L26 call, not mine, and it is the sort of thing that is discovered at
+  11pm on Saturday.
+- **What I could not ticket.** The PRD never says what `ship webhooks tail` should do about
+  *existing* subscriptions (tail all of the app's, or only the one the command created — PF-574
+  assumes the latter); never specifies output formatting, color, or paging for `docs ls`; never names
+  a config-file format or a profile concept for multiple instances (PF-559 resolves a single base URL
+  and stops); never says whether `login` should open a browser at the verification URL (p.7's
+  `onUserCode` hands the caller a URL and says nothing about opening it, and L18's notes flag the same
+  gap for `authorizationCodeFlow`); and gives no completion, no man page and no `--version`
+  requirement. I invented none of those. `ship logout` and `ship whoami` are the two commands I most
+  wanted and cut: they appear on no PRD page, and the spine's own rule is that a ticket which cannot
+  cite one is scope creep.
+- **Not covered here, on purpose:** the device-grant server endpoints (L05, blocked), `/api/v1/me`
+  (L10), the SDK helpers and verifier this lane calls (L17, L18), the delivery log and replay behind
+  `--poll` (L16), `target_url` validation (L15), the boundary lint rule itself (L01), the TTFE drill
+  and its CI wiring (L20), the developer portal (L22), and the other four of p.8's five integrations
+  (L24). If any of those is unowned at audit time it goes to `lane-99-unassigned.md`, not into this
+  file.
+
+---
+
+## S6 — `pf/L19-live-story`: the story, executed
+
+The previous slice's own honest note: *"I have not run any command against a booted Ship except raw
+curl probes — `docs ls/get/create` and `webhooks tail` have never executed against a real
+instance."* This slice closes that. Everything below ran against Ship booted on `http://localhost:3919`
+with PostgreSQL `ship_l19b` (60 migrations, 3 platform apps seeded). Verbatim transcript:
+`docs/l19-five-line-story.md`.
+
+**What running it found.** Three defects, none of which the 16 argv-level tests could see:
+
+| Finding | Effect |
+| --- | --- |
+| F120 | `withCredentialLock` throws ENOENT (not EEXIST) on a first-ever login, because `~/.ship` does not exist yet. |
+| F121 | `realClock.sleep` unref'd its timer, so `ship login` **exited 0 in 64 ms having made zero HTTP requests**. |
+| F122 | No seeded app carried `webhooks:manage`, so p.11's "demo moment" was unreachable — `ship webhooks tail` exited 3. |
+
+F121 is the one that matters most: exit 0 on work never done is worse than a crash, and the existing
+tests were structurally incapable of catching it because every one of them injects a fake clock — the
+code path that was fine.
+
+**Proven live** (`pnpm --filter @ship/cli test:server`, 11 tests, ~11 s, each spawning the real
+`dist/index.js`):
+
+- **PF-562** ☑ `ship login` exits 0 against a booted Ship, and a *separate later invocation* with no
+  flags and no environment succeeds.
+- **PF-563** ☑ user code verbatim on stderr, grouping hyphen intact, plus the parseable line.
+- **PF-565** ☑ a denied grant exits `EXIT_CODES.auth`, says so, and leaves no credential file.
+- **PF-566** ☑ `~/.ship/credentials.json` at 0600, carrying a refresh token; a new process authenticates from it.
+- **PF-568** ☑ p.6's literal `ship docs create --title "hello"` creates and prints an id; missing `--title` exits 2.
+- **PF-570** ☑ `docs get` prints the document and no `content`; an unknown id renders `not_found` with the id echoed and no stack trace.
+- **PF-571** ☑ `docs ls --json` parses whole off stdout, with no cursor in any mode.
+- **PF-572** ☑ the tokens actually on disk appear nowhere in the concatenated output of a real session.
+- **PF-573** ☑ decision, both modes and the reachability constraint written into `integrations/cli/README.md`.
+- **PF-574** ☑ `--listen` binds loopback, subscribes, receives a **verified** signed delivery, and deletes its own subscription on SIGINT; `--cleanup` then finds nothing.
+- **PF-575** ☑ **UNBLOCKED.** `SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS` — one name, one place, default-off, off-by-absence. Tests assert the deployed configuration rejects a loopback target and the opted-in local one accepts it. L15's ask is answered by its consumer, as L15 asked.
+- **PF-577** ☑ the delivery block rendered live; every line ≤ 80 columns; last line is p.6's fifth line character for character. Observed latency **24 ms** against p.6's < 2 s budget.
+
+**Still NOT proven, and not claimed:**
+
+- **PF-564** — the `slow_down` timing half of Testing Scenario 3. The grant is driven end to end and
+  the token works, but no test yet asserts the poll interval is honoured from recorded timestamps.
+- **PF-567** — refresh-on-expiry and the dead-family path. Never executed.
+- **PF-576** — `--poll` has never run against a real delivery log. Source only.
+- **PF-578** — tampered / stale / missing-`v1` blocks and `--exit-on-invalid`. Renderer only.
+- **PF-579** — "first block readable before the second event exists" is not asserted.
+- **PF-580** — the README command is written and its parts were executed by hand; it has NOT been run
+  verbatim from a clean checkout in a container, and not against the deployed instance.
+
+**The harness.** `scripts/l19-device-approve.ts` is the human-with-a-browser: it opens a Ship session
+(a `sessions` INSERT — there is no public endpoint for that) and drives the two consent POSTs. It
+lives outside `integrations/` and runs as a **subprocess**. The ESLint fence is import-scoped, so it
+could have sat next to the tests without tripping — a separate process makes "the CLI has no
+privileged path" true by construction rather than by an import list nobody re-reads. It deliberately
+does not touch `oauth_device_codes`: flipping the row would make the suite green while proving
+nothing about `/oauth/device/verify`, which is what TS-3 is actually about.

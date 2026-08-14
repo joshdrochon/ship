@@ -12,6 +12,7 @@ import {
   type BelongsToEntry,
 } from '../utils/document-crud.js';
 import { broadcastToUser, applyTitleToRoom } from '../collaboration/index.js';
+import { issueService } from '../services/issues.js';
 
 type RouterType = ReturnType<typeof Router>;
 const router: RouterType = Router();
@@ -120,106 +121,35 @@ router.get('/', authMiddleware, async (req: Request, res: Response) => {
     // Get visibility context for filtering
     const { isAdmin } = await getVisibilityContext(userId, workspaceId);
 
-    let query = `
-      SELECT d.id, d.title, d.properties, d.ticket_number,
-             d.content,
-             d.created_at, d.updated_at, d.created_by,
-             d.started_at, d.completed_at, d.cancelled_at, d.reopened_at,
-             d.converted_from_id,
-             u.name as assignee_name,
-             CASE WHEN person_doc.archived_at IS NOT NULL THEN true ELSE false END as assignee_archived
-      FROM documents d
-      LEFT JOIN users u ON (d.properties->>'assignee_id')::uuid = u.id
-      LEFT JOIN documents person_doc ON person_doc.workspace_id = d.workspace_id
-        AND person_doc.document_type = 'person'
-        AND person_doc.properties->>'user_id' = d.properties->>'assignee_id'
-      WHERE d.workspace_id = $1 AND d.document_type = 'issue'
-        AND ${VISIBILITY_FILTER_SQL('d', '$2', '$3')}
-    `;
-    const params: (string | boolean | null)[] = [workspaceId, userId, isAdmin];
-
-    // Exclude archived and deleted issues by default
-    query += ` AND d.archived_at IS NULL AND d.deleted_at IS NULL`;
-
-    // Filter by source if specified (internal or external)
-    if (source) {
-      query += ` AND d.properties->>'source' = $${params.length + 1}`;
-      params.push(source as string);
-    }
-    // No default filtering - show all issues regardless of source
-
-    if (state) {
-      const states = (state as string).split(',');
-      query += ` AND d.properties->>'state' = ANY($${params.length + 1})`;
-      params.push(states as any);
-    }
-
-    if (priority) {
-      query += ` AND d.properties->>'priority' = $${params.length + 1}`;
-      params.push(priority as string);
-    }
-
-    if (assignee_id) {
-      if (assignee_id === 'null' || assignee_id === 'unassigned') {
-        query += ` AND (d.properties->>'assignee_id' IS NULL OR d.properties->>'assignee_id' = '')`;
-      } else {
-        query += ` AND d.properties->>'assignee_id' = $${params.length + 1}`;
-        params.push(assignee_id as string);
-      }
-    }
-
-    // Filter by program via junction table
-    if (program_id) {
-      query += ` AND EXISTS (
-        SELECT 1 FROM document_associations da
-        WHERE da.document_id = d.id AND da.related_id = $${params.length + 1} AND da.relationship_type = 'program'
-      )`;
-      params.push(program_id as string);
-    }
-
-    // Filter by sprint via junction table
-    if (sprint_id) {
-      query += ` AND EXISTS (
-        SELECT 1 FROM document_associations da
-        WHERE da.document_id = d.id AND da.related_id = $${params.length + 1} AND da.relationship_type = 'sprint'
-      )`;
-      params.push(sprint_id as string);
-    }
-
-    // Filter by parent/sub-issue status
-    if (parent_filter) {
-      if (parent_filter === 'top_level') {
-        // Issues that have NO parent (not a sub-issue)
-        query += ` AND NOT EXISTS (
-          SELECT 1 FROM document_associations da
-          WHERE da.document_id = d.id AND da.relationship_type = 'parent'
-        )`;
-      } else if (parent_filter === 'has_children') {
-        // Issues that HAVE at least one child (sub-issue)
-        query += ` AND EXISTS (
-          SELECT 1 FROM document_associations da
-          WHERE da.related_id = d.id AND da.relationship_type = 'parent'
-        )`;
-      } else if (parent_filter === 'is_sub_issue') {
-        // Issues that ARE sub-issues (have a parent)
-        query += ` AND EXISTS (
-          SELECT 1 FROM document_associations da
-          WHERE da.document_id = d.id AND da.relationship_type = 'parent'
-        )`;
-      }
-    }
-
-    query += ` ORDER BY
-      CASE d.properties->>'priority'
-        WHEN 'urgent' THEN 1
-        WHEN 'high' THEN 2
-        WHEN 'medium' THEN 3
-        WHEN 'low' THEN 4
-        ELSE 5
-      END,
-      d.updated_at DESC`;
-
-    const result = await pool.query(query, params);
+    // ── L10 PF-277 — the query moved into `issueService.list` (mode:'internal') ──
+    //
+    // This handler is now parse → call → respond, and the body it produces is
+    // byte-identical to what it produced before: same columns, same filters,
+    // same `ORDER BY CASE priority …, updated_at DESC`, same batch association
+    // fetch below. `list-endpoints-regression.test.ts` and PF-264's query counts
+    // are what hold that.
+    //
+    // The extraction is the point rather than a tidy-up. `docs/architecture.md`
+    // claims both surfaces call the same domain service; until this line existed
+    // the public `/api/v1/issues` had nothing to call and would have had to
+    // re-implement the query, and two copies of a tenancy predicate is how one
+    // surface comes to disclose what the other hides.
+    const result = {
+      rows: await issueService.list(
+        { workspaceId, userId, db: pool },
+        {
+          mode: 'internal',
+          isAdmin,
+          source: source as string | undefined,
+          states: state ? (state as string).split(',') : undefined,
+          priority: priority as string | undefined,
+          assigneeId: assignee_id as string | undefined,
+          programId: program_id as string | undefined,
+          sprintId: sprint_id as string | undefined,
+          parentFilter: parent_filter as string | undefined,
+        }
+      ),
+    };
 
     // Extract issues and batch-fetch associations to avoid N+1 queries
     const issueIds = result.rows.map(row => row.id);
@@ -556,7 +486,6 @@ router.get('/:id', authMiddleware, async (req: Request, res: Response) => {
 // Create issue
 // Uses advisory lock to prevent race condition in ticket number generation
 router.post('/', authMiddleware, async (req: Request, res: Response) => {
-  const client = await pool.connect();
   try {
     const parsed = createIssueSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -577,58 +506,36 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
       accountability_type,
     } = parsed.data;
 
-    await client.query('BEGIN');
+    const { userId, workspaceId } = requireAuth(req);
 
-    // Use advisory lock to serialize ticket number generation per workspace
-    // This prevents race conditions where concurrent requests get the same MAX value
-    // The lock key is derived from workspace_id (first 15 hex chars as bigint)
-    const workspaceIdHex = requireAuth(req).workspaceId.replace(/-/g, '').substring(0, 15);
-    const lockKey = parseInt(workspaceIdHex, 16);
-    await client.query('SELECT pg_advisory_xact_lock($1)', [lockKey]);
-
-    // Now safely get next ticket number - we hold the lock until transaction ends
-    const ticketResult = await client.query(
-      `SELECT COALESCE(MAX(ticket_number), 0) + 1 as next_number
-       FROM documents
-       WHERE workspace_id = $1 AND document_type = 'issue'`,
-      [req.workspaceId]
+    // ── L10 PF-279 — the transaction moved into `issueService.create` ─────────
+    //
+    // The advisory lock, the `MAX(ticket_number) + 1` allocation, the INSERT and
+    // the `belongs_to` fan-out all moved verbatim. The lock in particular is not
+    // incidental: without it two concurrent creates read the same MAX and both
+    // insert it, so Ship's human-facing `#42` stops being unique.
+    //
+    // The accountability fields ARE still passed here and are deliberately NOT
+    // on the public request schema (PF-279): an app able to mint
+    // `is_system_generated: true` items could fabricate system-authored
+    // obligations that Ship's UI presents as its own.
+    const row = await issueService.create(
+      { workspaceId, userId, db: pool },
+      {
+        title,
+        state,
+        priority,
+        assigneeId: assignee_id,
+        belongsTo: belongs_to,
+        source,
+        dueDate: due_date,
+        isSystemGenerated: is_system_generated,
+        accountabilityTargetId: accountability_target_id,
+        accountabilityType: accountability_type,
+      }
     );
-    const ticketNumber = ticketResult.rows[0].next_number;
-
-    // Build properties JSONB
-    const properties = {
-      state: state || 'backlog',
-      priority: priority || 'medium',
-      source: source || 'internal',
-      assignee_id: assignee_id || null,
-      rejection_reason: null,
-      // Accountability fields for action_items issues
-      due_date: due_date || null,
-      is_system_generated: is_system_generated || false,
-      accountability_target_id: accountability_target_id || null,
-      accountability_type: accountability_type || null,
-    };
-
-    const result = await client.query(
-      `INSERT INTO documents (workspace_id, document_type, title, properties, ticket_number, created_by)
-       VALUES ($1, 'issue', $2, $3, $4, $5)
-       RETURNING *`,
-      [req.workspaceId, title, JSON.stringify(properties), ticketNumber, req.userId]
-    );
-
-    const newIssueId = result.rows[0].id;
-
-    // Create associations from belongs_to array
-    for (const assoc of belongs_to) {
-      await client.query(
-        `INSERT INTO document_associations (document_id, related_id, relationship_type)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (document_id, related_id, relationship_type) DO NOTHING`,
-        [newIssueId, assoc.id, assoc.type]
-      );
-    }
-
-    await client.query('COMMIT');
+    const result = { rows: [row] };
+    const ticketNumber = row.ticket_number;
 
     // Auto-complete sprint_issues accountability when first issue is created in a sprint
     const sprintAssociations = belongs_to.filter(bt => bt.type === 'sprint');
@@ -643,26 +550,25 @@ router.post('/', authMiddleware, async (req: Request, res: Response) => {
 
       // Broadcast celebration when first issue is added to sprint
       if (issueCount === 1) {
-        broadcastToUser(requireAuth(req).userId, 'accountability:updated', { type: 'week_issues', targetId: sprintAssoc.id });
+        broadcastToUser(userId, 'accountability:updated', { type: 'week_issues', targetId: sprintAssoc.id });
       }
     }
 
     // Get the belongs_to associations with display info
-    const belongsToResult = await getBelongsToAssociations(newIssueId);
+    const belongsToResult = await getBelongsToAssociations(row.id);
 
-    const row = result.rows[0];
-    const issue = extractIssueFromRow(row);
+    const issue = extractIssueFromRow(result.rows[0]);
     res.status(201).json({
       ...issue,
       display_id: `#${ticketNumber}`,
       belongs_to: belongsToResult,
     });
   } catch (err) {
-    await client.query('ROLLBACK');
+    // The ROLLBACK and the client lifecycle moved into the service with the
+    // transaction (PF-279). A failure that reaches here has already been rolled
+    // back and its connection released.
     console.error('Create issue error:', err);
     res.status(500).json({ error: 'Internal server error' });
-  } finally {
-    client.release();
   }
 });
 

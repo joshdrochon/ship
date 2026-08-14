@@ -39,8 +39,9 @@ import { ActionItemsModal } from '@/components/ActionItemsModal';
 import { AccountabilityBanner } from '@/components/AccountabilityBanner';
 import { FleetGraphRailIndicator } from '@/components/fleetgraph/FleetGraphRailIndicator';
 import { ProjectContextSidebar } from '@/components/sidebars/ProjectContextSidebar';
+import { PortalAppsSidebar } from '@/components/portal/PortalAppsSidebar';
 
-type Mode = 'docs' | 'issues' | 'projects' | 'programs' | 'sprints' | 'team' | 'settings' | 'dashboard' | 'project-context';
+type Mode = 'docs' | 'issues' | 'projects' | 'programs' | 'sprints' | 'team' | 'settings' | 'dashboard' | 'project-context' | 'portal';
 
 export function AppLayout() {
   const { user, logout, isSuperAdmin, impersonating, endImpersonation } = useAuth();
@@ -183,6 +184,9 @@ export function AppLayout() {
     if (location.pathname.startsWith('/programs') || location.pathname.startsWith('/feedback')) return 'programs';
     if (location.pathname.startsWith('/team')) return 'team';
     if (location.pathname.startsWith('/settings')) return 'settings';
+    // L22 PF-654 — the developer portal is a mode of the same shell, not a
+    // separate app. `/portal` and `/portal/:appId` are both it.
+    if (location.pathname.startsWith('/portal')) return 'portal';
     return 'dashboard';
   };
 
@@ -219,6 +223,7 @@ export function AppLayout() {
       case 'sprints': navigate('/sprints'); break;
       case 'team': navigate('/team'); break;
       case 'settings': navigate('/settings'); break;
+      case 'portal': navigate('/portal'); break;
     }
   };
 
@@ -412,6 +417,18 @@ export function AppLayout() {
               document, per PRESEARCH.md Q22.
             */}
             <FleetGraphRailIndicator />
+            {/*
+              L22 PF-654 — the developer portal's rail entry. Placed beside
+              Settings rather than among the content modes because it is about
+              the workspace's integrations, not about its documents; p.11 also
+              puts the portal last in build order and calls it "should-ship".
+            */}
+            <RailIcon
+              icon={<PortalIcon />}
+              label="Developer portal"
+              active={activeMode === 'portal'}
+              onClick={() => handleModeClick('portal')}
+            />
             <RailIcon
               icon={<SettingsIcon />}
               label="Settings"
@@ -449,6 +466,7 @@ export function AppLayout() {
                 {activeMode === 'team' && 'Teams'}
                 {activeMode === 'settings' && 'Settings'}
                 {activeMode === 'project-context' && 'Project'}
+                {activeMode === 'portal' && 'Your apps'}
               </h2>
               <div className="flex items-center gap-1">
                 {activeMode === 'docs' && (
@@ -536,6 +554,9 @@ export function AppLayout() {
               )}
               {activeMode === 'dashboard' && (
                 <DashboardSidebar />
+              )}
+              {activeMode === 'portal' && (
+                <PortalAppsSidebar />
               )}
               {activeMode === 'project-context' && currentDocumentProjectId && (
                 <ProjectContextSidebar
@@ -1824,6 +1845,14 @@ function TeamIcon() {
   return (
     <svg aria-hidden="true" focusable="false" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+    </svg>
+  );
+}
+
+function PortalIcon() {
+  return (
+    <svg aria-hidden="true" focusable="false" className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
     </svg>
   );
 }

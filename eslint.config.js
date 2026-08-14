@@ -28,6 +28,10 @@ export default tseslint.config(
   {
     // Generated, vendored, or build output — never linted.
     ignores: [
+      // Agent worktrees are checkouts of this repo. Linting them reports every
+      // pre-existing problem once per worktree, which buried 40 duplicate errors
+      // in a run that was otherwise clean.
+      '.claude/worktrees/**',
       '**/dist/**',
       '**/dev-dist/**', // vite-plugin-pwa generates a bundled service worker here
       '**/node_modules/**',
@@ -37,6 +41,12 @@ export default tseslint.config(
       '**/.terraform/**',
       'web/src/components/icons/generated/**',
       'api/src/db/migrations/**',
+
+      // Deliberate boundary violations. These files exist to be rejected, so a
+      // normal `pnpm lint` must not see them or the tree could never be green.
+      // `pnpm lint:boundary` re-runs eslint over them with --no-ignore and
+      // asserts each one FAILS with the right message (PF-012).
+      'eslint-fixtures/**',
     ],
   },
 
@@ -118,6 +128,185 @@ export default tseslint.config(
       // empty destructure is required by the API to declare no fixture dependencies.
       // See e2e/fixtures/isolated-env.ts:109.
       'no-empty-pattern': 'off',
+    },
+  },
+
+  // --- PlugForge boundary rules (Week 6) --------------------------------------
+  //
+  // Four fences. The public/internal split is a one-way door (PRD Critical
+  // Guidance, p.11), and Build Strategy §2 (p.10) says to add the rule "before
+  // you have any cross-imports to lint" — which is why these ship in the same
+  // week the directories were created and not after the first violation.
+  //
+  // Every fence has a negative fixture under eslint-fixtures/ and
+  // `pnpm lint:boundary` asserts lint actually FAILS on each one. A rule that
+  // never fires is an untested rule (PF-012).
+  //
+  // Known limit, stated rather than papered over: `no-restricted-imports` sees
+  // static `import`/`export ... from` specifiers only. It does not see
+  // `require()` or dynamic `import()`. The workspace-dependency half of the
+  // fence (scripts/check-boundary-lint.mjs, PF-011) is what covers the case
+  // where someone reaches for the API package rather than a path.
+
+  // Fence 1 + 2 (PF-009, PF-010) — platform/ may not import internal route files
+  // or internal middleware.
+  //
+  // PF-009 names platform/api/v1/**; the glob here is all of platform/**, which
+  // is strictly stronger and matches what platform/README.md documents. There is
+  // no module under platform/ that has any business calling an internal route.
+  //
+  // The fixture globs sit alongside the real ones so the fixtures are linted by
+  // the same rule object, not by a copy of it that could drift.
+  {
+    files: ['api/src/platform/**/*.ts', 'eslint-fixtures/platform/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/routes/**', '**/routes/*', '@ship/api/routes/*'],
+              message:
+                'BOUNDARY (platform → routes): platform/ must not import internal route files. The route file IS the internal HTTP surface — call the domain service it calls (utils/, services/) and attach the platform middleware stack instead. See api/src/platform/README.md.',
+            },
+            {
+              group: ['**/middleware/**', '**/middleware/*', '@ship/api/middleware/*'],
+              message:
+                'BOUNDARY (platform → middleware): platform/ has its own stack (bearer auth, scopes, token bucket, audit). The internal session/CSRF stack does not apply to /api/v1 and must stay byte-for-byte what Part 1 shipped. See api/src/platform/README.md.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Fence 3 (PF-011) — integrations/ may import ONLY @ship/sdk.
+  //
+  // Integrations are strangers. If a command needs something the SDK cannot do,
+  // that is an SDK gap — fix it there, never by importing server code. This is
+  // what makes "the agent is a platform citizen" true rather than aspirational
+  // when the Epic 7 rewire lands.
+  //
+  // PF-718 — the glob is `{ts,tsx,mts,cts}`, not `.ts`, and that is a fix rather
+  // than tidiness. `.mts` and `.cts` are files TypeScript compiles and Node
+  // executes; under the old `integrations/**/*.ts` a listener written as
+  // `handler.mts` could import `@ship/api` and `pnpm lint` stayed green. The
+  // fixtures under `eslint-fixtures/integrations/{slack,drills/idempotency}`
+  // are those two extensions, so the narrowing cannot come back unnoticed.
+  {
+    files: [
+      'integrations/**/*.{ts,tsx,mts,cts}',
+      'eslint-fixtures/integrations/**/*.{ts,tsx,mts,cts}',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@ship/api',
+                '@ship/api/*',
+                '@ship/agent',
+                '@ship/agent/*',
+                '@ship/shared',
+                '@ship/shared/*',
+                '@ship/web',
+                '@ship/web/*',
+                '**/api/src/**',
+                '**/api/dist/**',
+                '**/agent/src/**',
+                '**/shared/src/**',
+                '**/web/src/**',
+              ],
+              message:
+                'BOUNDARY (integrations → server): integrations/ may import only @ship/sdk — the front door, same as any external developer. A deep-relative path into api/ is the same violation as importing @ship/api. See api/src/platform/README.md.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Fence 5 (L23 PF-692) — agent/ may not import api/src/.
+  //
+  // p.11 is categorical about what makes citizenship real: "External integrations
+  // live in integrations/ and import only @ship/sdk — never api/src/. Enforced by
+  // a workspace dependency rule. This is what makes 'the agent is a platform
+  // citizen' true rather than aspirational."
+  //
+  // Fence 3 fences `integrations/**` and NOT `agent/**` — the agent predates that
+  // rule and does not live in that directory. Moving the package late in the week
+  // would drag the whole build graph (shared → agent → api) and the cron
+  // entrypoint's deployment with it, so the rule is extended where the package
+  // stands instead.
+  //
+  // ── Narrower than fence 3, deliberately ─────────────────────────────────────
+  // `@ship/shared` stays ALLOWED. The agent's business-day arithmetic and its
+  // circuit breaker live there and always have; `circuitBreaker.ts` was moved into
+  // `@ship/shared` precisely so the agent would stop reaching into `api/dist`.
+  // Banning it here would be a rewrite wearing a lint rule.
+  //
+  // What is banned is the direction the rewire removes: `api/src/**`, `api/dist/**`
+  // and `@ship/api`. The REVERSE direction stays and is correct —
+  // `api/src/routes/fleetgraph/agentBridge.ts` imports `@ship/agent` to trigger a
+  // chat turn, which is Ship invoking its own app, not the agent reaching around
+  // the front door. `docs/architecture.md`'s before-diagram is relabelled to say so.
+  {
+    files: ['agent/**/*.ts', 'eslint-fixtures/agent/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@ship/api',
+                '@ship/api/*',
+                '@ship/web',
+                '@ship/web/*',
+                '**/api/src/**',
+                '**/api/dist/**',
+                '**/web/src/**',
+              ],
+              message:
+                "BOUNDARY (agent → server): the agent is a platform citizen — it reaches Ship through @ship/sdk, the same front door as any external developer, never through api/src/. p.11 makes this the rule that decides whether 'the agent is a platform citizen' is true or aspirational. @ship/shared and @ship/sdk are fine; api/ is not.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+
+  // Fence 4 (F24) — sdk/ may import nothing from this repository.
+  //
+  // @ship/sdk is the one package a stranger actually installs, and it was the
+  // only one with no fence at all. A workspace import here would compile fine in
+  // the monorepo and fail on `npm install @ship/sdk` — the worst possible place
+  // to discover a boundary violation. Node builtins and real npm dependencies
+  // are unaffected; only the workspace is out of bounds.
+  {
+    files: ['sdk/**/*.ts', 'eslint-fixtures/sdk/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '@ship/*',
+                '**/api/src/**',
+                '**/api/dist/**',
+                '**/agent/src/**',
+                '**/shared/src/**',
+                '**/web/src/**',
+              ],
+              message:
+                'BOUNDARY (sdk → workspace): @ship/sdk is published standalone and may not import anything from this repository. A workspace import compiles here and breaks on `npm install @ship/sdk`. Copy the type or widen the SDK, do not reach back into the monorepo.',
+            },
+          ],
+        },
+      ],
     },
   },
 

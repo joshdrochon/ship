@@ -398,13 +398,23 @@ export async function createNotification(
     body?: string | null;
     targetId?: string | null;
     pendingThreadId?: string | null;
+    /**
+     * L23 PF-702 — `'finding'` (default) or `'recommendation'`.
+     *
+     * Optional, and defaulting to the column's own default, so every existing
+     * caller means exactly what it meant before this parameter existed. The
+     * only caller that passes `'recommendation'` is the read-only act
+     * implementation, which is the whole population the distinction exists for.
+     */
+    kind?: 'finding' | 'recommendation';
   },
   db: Db = getPool()
 ): Promise<string> {
   const { rows } = await db.query(
     `INSERT INTO fleetgraph_notifications
-       (workspace_id, observation_id, recipient_user_id, title, body, target_id, pending_thread_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)
+       (workspace_id, observation_id, recipient_user_id, title, body, target_id,
+        pending_thread_id, kind)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      RETURNING id`,
     [
       params.workspaceId,
@@ -414,6 +424,7 @@ export async function createNotification(
       params.body ?? null,
       params.targetId ?? null,
       params.pendingThreadId ?? null,
+      params.kind ?? 'finding',
     ]
   );
   return rows[0].id;

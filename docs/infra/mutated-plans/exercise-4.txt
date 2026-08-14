@@ -1,0 +1,150 @@
+$ terraform plan
+
+data.aws_caller_identity.current: Reading...
+data.aws_availability_zones.available: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=379484935796]
+data.aws_availability_zones.available: Read complete after 0s [id=us-east-1]
+random_password.db_password: Refreshing state... [id=none]
+aws_vpc.main: Refreshing state... [id=vpc-0a3f21c9e4b7d5081]
+aws_subnet.private[0]: Refreshing state... [id=subnet-041c8e77a2b93f6de]
+aws_subnet.private[1]: Refreshing state... [id=subnet-0d92b4fa617c30e85]
+aws_db_subnet_group.aurora: Refreshing state... [id=ship-aurora]
+aws_rds_cluster_parameter_group.aurora: Refreshing state... [id=ship-aurora-pg16]
+aws_security_group.eb_instance: Refreshing state... [id=sg-0b83e5c17df246a90]
+aws_security_group.aurora: Refreshing state... [id=sg-0e21d7b845f9c3a6e]
+aws_rds_cluster.aurora: Refreshing state... [id=ship-aurora]
+aws_rds_cluster_instance.aurora: Refreshing state... [id=ship-aurora-instance-1]
+aws_cloudwatch_log_group.aurora: Refreshing state... [id=/aws/rds/cluster/ship-aurora/postgresql]
+aws_ssm_parameter.database_url: Refreshing state... [id=/ship/dev/DATABASE_URL]
+aws_ssm_parameter.db_host: Refreshing state... [id=/ship/dev/DB_HOST]
+aws_ssm_parameter.db_name: Refreshing state... [id=/ship/dev/DB_NAME]
+aws_ssm_parameter.db_username: Refreshing state... [id=/ship/dev/DB_USERNAME]
+aws_ssm_parameter.db_password: Refreshing state... [id=/ship/dev/DB_PASSWORD]
+aws_elastic_beanstalk_environment.api: Refreshing state... [id=e-2mqk7pv3xw]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+-/+ destroy and then create replacement
+
+Terraform will perform the following actions:
+
+  # aws_rds_cluster.aurora must be replaced
+-/+ resource "aws_rds_cluster" "aurora" {
+      ~ allocated_storage                     = 1 -> (known after apply)
+      ~ arn                                   = "arn:aws:rds:us-east-1:379484935796:cluster:ship-aurora" -> (known after apply)
+      ~ availability_zones                    = [
+          - "us-east-1a",
+          - "us-east-1b",
+          - "us-east-1c",
+        ] -> (known after apply)
+        backup_retention_period               = 1
+      ~ ca_certificate_identifier             = "rds-ca-rsa2048-g1" -> (known after apply)
+      ~ ca_certificate_valid_till             = "2027-08-11T20:14:33Z" -> (known after apply)
+        cluster_identifier                    = "ship-aurora"
+      ~ cluster_members                       = [
+          - "ship-aurora-instance-1",
+        ] -> (known after apply)
+      ~ cluster_resource_id                   = "cluster-VZ4KQ7XNPHW2LDJ3RBGYMS6TAU" -> (known after apply)
+        copy_tags_to_snapshot                 = false
+      ~ database_name                         = "ship_main" -> "ship" # forces replacement
+        db_cluster_parameter_group_name       = "ship-aurora-pg16"
+        db_subnet_group_name                  = "ship-aurora"
+        delete_automated_backups              = true
+        enabled_cloudwatch_logs_exports       = [
+            "postgresql",
+        ]
+      ~ endpoint                              = "ship-aurora.cluster-cx8mqy4kzp1n.us-east-1.rds.amazonaws.com" -> (known after apply)
+        engine                                = "aurora-postgresql"
+      ~ engine_lifecycle_support              = "open-source-rds-extended-support" -> (known after apply)
+        engine_mode                           = "provisioned"
+        engine_version                        = "16.8"
+      ~ engine_version_actual                 = "16.8" -> (known after apply)
+      ~ hosted_zone_id                        = "Z2R2ITUGPM61AM" -> (known after apply)
+      ~ id                                    = "ship-aurora" -> (known after apply)
+      ~ iam_roles                             = [] -> (known after apply)
+      ~ kms_key_id                            = "arn:aws:kms:us-east-1:379484935796:key/b91f0c34-7d25-4e68-a0f3-5c2e19d7ba48" -> (known after apply)
+        master_password                       = (sensitive value)
+      ~ master_user_secret                    = [] -> (known after apply)
+        master_username                       = "postgres"
+      ~ port                                  = 5432 -> (known after apply)
+        preferred_backup_window               = "03:00-04:00"
+        preferred_maintenance_window          = "sun:04:00-sun:05:00"
+      ~ reader_endpoint                       = "ship-aurora.cluster-ro-cx8mqy4kzp1n.us-east-1.rds.amazonaws.com" -> (known after apply)
+        skip_final_snapshot                   = true
+        storage_encrypted                     = true
+      ~ storage_type                          = "aurora" -> (known after apply)
+        tags                                  = {
+            "Name" = "ship-aurora-cluster"
+        }
+      ~ vpc_security_group_ids                = [
+          - "sg-0e21d7b845f9c3a6e",
+        ] -> (known after apply)
+        # (11 unchanged attributes hidden)
+
+        serverlessv2_scaling_configuration {
+            max_capacity             = 4
+            min_capacity             = 0.5
+          ~ seconds_until_auto_pause = 300 -> (known after apply)
+        }
+    }
+
+  # aws_rds_cluster_instance.aurora must be replaced
+-/+ resource "aws_rds_cluster_instance" "aurora" {
+      ~ arn                                   = "arn:aws:rds:us-east-1:379484935796:db:ship-aurora-instance-1" -> (known after apply)
+      ~ availability_zone                     = "us-east-1a" -> (known after apply)
+      ~ ca_cert_identifier                    = "rds-ca-rsa2048-g1" -> (known after apply)
+      ~ cluster_identifier                    = "ship-aurora" -> (known after apply) # forces replacement
+      ~ db_parameter_group_name               = "default.aurora-postgresql16" -> (known after apply)
+        db_subnet_group_name                  = "ship-aurora"
+      ~ dbi_resource_id                       = "db-QK7N2VJXHM4PLZR8TDWY3AC6BE" -> (known after apply)
+      ~ endpoint                              = "ship-aurora-instance-1.cx8mqy4kzp1n.us-east-1.rds.amazonaws.com" -> (known after apply)
+      ~ engine                                = "aurora-postgresql" -> (known after apply)
+      ~ engine_version                        = "16.8" -> (known after apply)
+      ~ id                                    = "ship-aurora-instance-1" -> (known after apply)
+        identifier                            = "ship-aurora-instance-1"
+        instance_class                        = "db.serverless"
+      ~ kms_key_id                            = "arn:aws:kms:us-east-1:379484935796:key/b91f0c34-7d25-4e68-a0f3-5c2e19d7ba48" -> (known after apply)
+      ~ port                                  = 5432 -> (known after apply)
+        publicly_accessible                   = false
+      ~ storage_encrypted                     = true -> (known after apply)
+      ~ writer                                = true -> (known after apply)
+        tags                                  = {
+            "Name" = "ship-aurora-instance-1"
+        }
+        # (12 unchanged attributes hidden)
+    }
+
+  # aws_ssm_parameter.database_url will be updated in-place
+  ~ resource "aws_ssm_parameter" "database_url" {
+        id             = "/ship/dev/DATABASE_URL"
+        name           = "/ship/dev/DATABASE_URL"
+      ~ value          = (sensitive value)
+      ~ version        = 1 -> (known after apply)
+        # (9 unchanged attributes hidden)
+    }
+
+  # aws_ssm_parameter.db_host will be updated in-place
+  ~ resource "aws_ssm_parameter" "db_host" {
+        id             = "/ship/dev/DB_HOST"
+        name           = "/ship/dev/DB_HOST"
+      ~ value          = (sensitive value)
+      ~ version        = 1 -> (known after apply)
+        # (9 unchanged attributes hidden)
+    }
+
+  # aws_ssm_parameter.db_name will be updated in-place
+  ~ resource "aws_ssm_parameter" "db_name" {
+        id             = "/ship/dev/DB_NAME"
+        name           = "/ship/dev/DB_NAME"
+      ~ value          = (sensitive value)
+      ~ version        = 1 -> (known after apply)
+        # (9 unchanged attributes hidden)
+    }
+
+Plan: 2 to add, 3 to change, 2 to destroy.
+
+Changes to Outputs:
+  ~ aurora_cluster_endpoint        = "ship-aurora.cluster-cx8mqy4kzp1n.us-east-1.rds.amazonaws.com" -> (known after apply)
+  ~ aurora_cluster_reader_endpoint = "ship-aurora.cluster-ro-cx8mqy4kzp1n.us-east-1.rds.amazonaws.com" -> (known after apply)
+  ~ database_name                  = "ship_main" -> "ship"

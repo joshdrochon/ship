@@ -42,6 +42,9 @@ Thumbs.db
 # Claude agents
 .claude/agents/
 
+# Graded PRDs — source PDFs and their text extractions are not ours to redistribute
+.claude/prd/
+
 # Playwright MCP screenshots
 .playwright-mcp/
 
@@ -165,3 +168,12 @@ docs/audit/raw/e2e-*.log
 # Run artifacts from scripts/destroy-redeploy.sh — state snapshots and logs.
 # Local evidence of a cycle, not source. The write-up quotes them; git does not carry them.
 .destroy-redeploy/
+
+# Agent worktrees (isolation checkouts, never committed)
+.claude/worktrees/
+
+# L26 PF-804 scratch: one real measurement plus the doctored baselines derived from
+# it. Regenerable with `pnpm baseline:compare -- --measure-out .l26-evidence/current.json`
+# then `pnpm baseline:evidence`; the numbers and exit codes are quoted in
+# docs/mvp-gate-item-9.md, which is what git carries.
+.l26-evidence/

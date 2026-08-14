@@ -1,0 +1,35 @@
+{
+  "name": "@ship/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ship — reference CLI for the Ship platform. Imports ONLY @ship/sdk (the front door, like any external developer).",
+  "type": "module",
+  "bin": {
+    "ship": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "default": "./dist/public.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -b && chmod +x dist/index.js",
+    "dev": "tsc -b --watch",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "type-check": "tsc -b",
+    "test": "vitest run",
+    "test:server": "vitest run --config vitest.server.config.ts"
+  },
+  "dependencies": {
+    "@ship/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.5",
+    "typescript": "5.9.3",
+    "vitest": "4.1.10"
+  }
+}

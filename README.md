@@ -19,10 +19,119 @@
 
 ---
 
-> **Reviewing the ShipShape audit and improvements?** Start at
-> **[SUBMISSION.md](SUBMISSION.md)** — it maps every deliverable to its file, lists the
-> measured before/after for all eight categories, and shows how to reproduce each number.
-> This README describes the product; that file describes the work done to it.
+> **Which week are you grading?**
+>
+> | Week | Start here | Deployment |
+> |---|---|---|
+> | **Week 6 — PlugForge** (platform, OAuth, SDK, webhooks) | **[SUBMISSION-PLUGFORGE.md](SUBMISSION-PLUGFORGE.md)** | AWS — `https://d258p92d3n1ebe.cloudfront.net/` |
+> | Week 5 — ShipShape audit & improvements | [SUBMISSION.md](SUBMISSION.md) | Render — `https://shipshape-fkub.onrender.com` |
+>
+> Both deployments are live and they are **different applications**. The Render service
+> runs Week 5's `main` and has no `/api/v1` at all; `SUBMISSION.md` and `CREDENTIALS.md`
+> describe it correctly and are not Week 6 documents. This README describes the product.
+
+---
+
+## For graders — the deployed instance (Week 6)
+
+<!-- PF-631 (L21), corrected by L26. PRD p.13 requires credentials in the README; p.18
+     asks for a one-command path to the deployed instance. -->
+
+**Everything below points at the live AWS deployment. Nothing here needs a local
+checkout, a database, or a build.**
+
+| | |
+|---|---|
+| **Start here / base URL** | `https://d258p92d3n1ebe.cloudfront.net` |
+| **OpenAPI spec** | `<base>/api/v1/openapi.json` — public, no credentials required |
+| **Health** | `<base>/health` — reports the deployed commit SHA |
+| **Dev portal** | `<base>/portal` |
+| **API origin (no TLS, `curl` only)** | `http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com` |
+
+**Use the CloudFront URL.** It serves the frontend from S3 and proxies `/api/**` and
+`/health` to the Elastic Beanstalk origin, so one host covers the UI, the dev portal and
+the public API over TLS.
+
+**The EB origin is not a browser URL.** It answers `curl` correctly, but `helmet` sends
+`upgrade-insecure-requests` and the environment has no TLS listener, so a browser
+requests the page's own assets over `https` against a port that is not there and renders
+a white screen. It is listed because one path genuinely needs it — see the warning below.
+
+> ⚠ **`/oauth/*` does not currently route through CloudFront.** Only `/api/**` and
+> `/health` are proxied to the API origin; every other path falls through to the S3 SPA.
+> So `GET /oauth/device/verify` returns the app shell instead of the server-rendered
+> consent page, and `POST /oauth/device/code` / `POST /oauth/token` return a CloudFront
+> 403 (*"the distribution supports only cachable requests"*). **`ship login` therefore
+> cannot complete against the CloudFront URL**, and the device-code response points its
+> `verification_uri` at that same CloudFront path — so the EB origin does not route
+> around it either. Fix is a CloudFront cache behaviour for `/oauth/*` on the EB origin
+> with all methods allowed. Tracked in `SUBMISSION-PLUGFORGE.md` §9 and L99 F160.
+
+> **Read `docs/infra/grader-access.md` §6 before relying on any of these.** That
+> section carries the dated `curl` output proving what actually answers, and it is the
+> only place in this repo that asserts the deployment is up. A URL in a table is a
+> configuration claim, not evidence — this project has already published one dead URL
+> (`.claude/CLAUDE.md` still names the retired `eba-xsaqsg9h` CNAME, which no longer
+> resolves) and the whole point of the verification log is that it cannot happen
+> silently again.
+
+### Pre-registered OAuth apps
+
+Two apps are seeded for graders. They live in a **dedicated workspace** owned by a
+dedicated user, not the primary account — so a token issued to either sees that
+workspace and nothing else (p.18, *"without exposing your tenant's data"*).
+
+| App | `client_id` | Scopes | Use it for |
+|---|---|---|---|
+| Grader (read-only) | `ship_app_grader_readonly` | `documents:read`, `issues:read`, `sprints:read` | Everything read-only. This is the app MVP gate item 10 refers to. |
+| Grader demo (write) | `ship_app_grader_demo` | read + write | `ship docs create` and the rest of the five-line story. |
+
+**Why there are two, and which to use when.** The gate requires the pre-registered app
+to be **read-only** (p.2), but the headline demo is `ship login` → `ship docs create` →
+`ship webhooks tail`. Those two requirements are in direct tension: a grader following
+the demo with the read-only app gets a `403`, which looks like a broken product and is
+in fact the security property working. So the read-only app is the gate app, and the
+demo app exists so the demo is reproducible. **Use the demo app for anything that
+writes.** (Recorded as L99 decision D12.)
+
+The `client_id` values are not secret and are published above deliberately. The
+`client_secret` values are not in git — read them from the deployed environment's
+parameter store:
+
+```bash
+aws ssm get-parameter --name /ship/dev/GRADER_CLIENT_SECRET \
+  --with-decryption --query Parameter.Value --output text
+aws ssm get-parameter --name /ship/dev/DEMO_CLIENT_SECRET \
+  --with-decryption --query Parameter.Value --output text
+```
+
+### One command
+
+Point the CLI at the deployed instance and confirm it answers:
+
+```bash
+export SHIP_API_URL=https://d258p92d3n1ebe.cloudfront.net
+curl -s "$SHIP_API_URL/api/v1/openapi.json" | head -c 200
+```
+
+For anything under `/oauth/*` — which today means `ship login` — point at the EB origin
+instead, and read the CloudFront warning above first:
+
+```bash
+export SHIP_OAUTH_URL=http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com
+curl -s -X POST "$SHIP_OAUTH_URL/oauth/device/code" \
+  -d 'client_id=ship_app_grader_demo&scope=documents:read'
+```
+
+### Verifying the deployment yourself
+
+One script checks every claim on this page, and it asserts on **content**, not on status
+codes — the Elastic Beanstalk sample application returns HTTP 200 with an HTML page on
+every path, including `/api/v1/openapi.json`, so a `200` proves nothing on its own:
+
+```bash
+scripts/verify-deployment.sh "$SHIP_API_URL"
+```
 
 ---
 

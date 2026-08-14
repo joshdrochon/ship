@@ -3,3 +3,13 @@ packages:
   - 'web'
   - 'shared'
   - 'agent'
+  - 'sdk'
+  - 'integrations/*'
+  # PF-718 — the drills are a GROUP, not a package, so they sit one level
+  # deeper. Everything that enumerates `integrations/*` has to learn about
+  # this: the lint glob is `integrations/**` (eslint.config.js, fence 3) and
+  # the manifest scanner walks for package.json rather than listing one level
+  # (scripts/lib/integration-packages.mjs). A scanner that missed them would
+  # skip both drills silently, which is the failure mode those checks exist
+  # to prevent.
+  - 'integrations/drills/*'

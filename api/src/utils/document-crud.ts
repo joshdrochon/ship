@@ -49,7 +49,26 @@ export async function logDocumentChange(
   field: string,
   oldValue: string | null,
   newValue: string | null,
-  changedBy: string,
+  /**
+   * The user the change is attributed to, or `null`.
+   *
+   * Widened from `string` by L10 (PF-293) to match the column, which has always
+   * been `changed_by UUID REFERENCES users(id)` — nullable (`schema.sql:231`) —
+   * and which the history reader already renders as `changed_by: null`
+   * (`routes/issues.ts`, `row.changed_by_id ? … : null`).
+   *
+   * The case that needs it is a machine-to-machine access token: a
+   * `PlatformAuthContext` carries `userId: string | null`, and an app acting
+   * with no consenting user genuinely has nobody to attribute the change to.
+   * The alternatives were both worse than a null — inventing an attribution
+   * (wrong, and unfalsifiable later) or skipping the history row entirely (a
+   * silent hole in an audit trail, on exactly the traffic Epic 7 must prove went
+   * through the front door).
+   *
+   * Widening a parameter type cannot break an existing caller; every internal
+   * call site still passes a string.
+   */
+  changedBy: string | null,
   automatedBy?: string,
   queryRunner?: { query: typeof pool.query }
 ): Promise<void> {

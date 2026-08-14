@@ -1,0 +1,165 @@
+$ terraform plan
+
+data.aws_availability_zones.available: Reading...
+data.aws_caller_identity.current: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=379484935796]
+data.aws_availability_zones.available: Read complete after 0s [id=us-east-1]
+aws_vpc.main: Refreshing state... [id=vpc-0a3f21c9e4b7d5081]
+aws_internet_gateway.main: Refreshing state... [id=igw-05c8b1e93a7f42d60]
+aws_eip.nat[0]: Refreshing state... [id=eipalloc-0f61c7a2d84b39e57]
+aws_subnet.public[0]: Refreshing state... [id=subnet-07b2e94c1d6a5f083]
+aws_subnet.public[1]: Refreshing state... [id=subnet-0c9d13f8ae65b247a]
+aws_subnet.private[0]: Refreshing state... [id=subnet-041c8e77a2b93f6de]
+aws_subnet.private[1]: Refreshing state... [id=subnet-0d92b4fa617c30e85]
+aws_nat_gateway.main[0]: Refreshing state... [id=nat-09f7ed15834926679]
+aws_route_table.public: Refreshing state... [id=rtb-0b47e29a3c81df650]
+aws_route_table.private: Refreshing state... [id=rtb-0e83a5c72f194bd28]
+aws_route_table_association.public[0]: Refreshing state... [id=rtbassoc-03e1f97a2c48d5b6e]
+aws_route_table_association.public[1]: Refreshing state... [id=rtbassoc-0a72c85e13f9bd407]
+aws_route_table_association.private[0]: Refreshing state... [id=rtbassoc-06b39d1c47e2a850f]
+aws_route_table_association.private[1]: Refreshing state... [id=rtbassoc-0f5e2a94b18c73d6a]
+aws_db_subnet_group.aurora: Refreshing state... [id=ship-aurora]
+aws_rds_cluster.aurora: Refreshing state... [id=ship-aurora]
+aws_rds_cluster_instance.aurora: Refreshing state... [id=ship-aurora-instance-1]
+aws_elastic_beanstalk_environment.api: Refreshing state... [id=e-2mqk7pv3xw]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+  ~ update in-place
+  - destroy
+-/+ destroy and then create replacement
+
+Terraform will perform the following actions:
+
+  # aws_db_subnet_group.aurora will be updated in-place
+  ~ resource "aws_db_subnet_group" "aurora" {
+        id                      = "ship-aurora"
+        name                    = "ship-aurora"
+      ~ subnet_ids              = [
+          - "subnet-041c8e77a2b93f6de",
+          + (known after apply),
+            "subnet-0d92b4fa617c30e85",
+        ]
+        tags                    = {
+            "Name" = "ship-aurora-subnet-group"
+        }
+        # (5 unchanged attributes hidden)
+    }
+
+  # aws_elastic_beanstalk_environment.api will be updated in-place
+  ~ resource "aws_elastic_beanstalk_environment" "api" {
+        id                     = "e-2mqk7pv3xw"
+        name                   = "ship-api-prod"
+        # (17 unchanged attributes hidden)
+
+      ~ setting {
+            name      = "ELBSubnets"
+            namespace = "aws:ec2:vpc"
+          ~ value     = "subnet-07b2e94c1d6a5f083,subnet-0c9d13f8ae65b247a" -> (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+      ~ setting {
+            name      = "Subnets"
+            namespace = "aws:ec2:vpc"
+          ~ value     = "subnet-041c8e77a2b93f6de,subnet-0d92b4fa617c30e85" -> (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+        # (22 unchanged blocks hidden)
+    }
+
+  # aws_nat_gateway.main[0] must be replaced
+-/+ resource "aws_nat_gateway" "main" {
+      ~ allocation_id                      = "eipalloc-0f61c7a2d84b39e57" -> (known after apply)
+      ~ association_id                     = "eipassoc-0d4917fa26c3b85e1" -> (known after apply)
+      ~ id                                 = "nat-09f7ed15834926679" -> (known after apply)
+      ~ network_interface_id               = "eni-0c8f3a71e59d4b206" -> (known after apply)
+      ~ private_ip                         = "10.0.0.183" -> (known after apply)
+      ~ public_ip                          = "35.153.128.210" -> (known after apply)
+      ~ subnet_id                          = "subnet-07b2e94c1d6a5f083" -> (known after apply) # forces replacement
+        tags                               = {
+            "Name" = "ship-nat"
+        }
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_route_table.private will be updated in-place
+  ~ resource "aws_route_table" "private" {
+        id               = "rtb-0e83a5c72f194bd28"
+      ~ route            = [
+          ~ {
+              ~ nat_gateway_id             = "nat-09f7ed15834926679" -> (known after apply)
+                # (10 unchanged attributes hidden)
+            },
+        ]
+        tags             = {
+            "Name" = "ship-private-rt"
+        }
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_route_table_association.private[0] must be replaced
+-/+ resource "aws_route_table_association" "private" {
+      ~ id             = "rtbassoc-06b39d1c47e2a850f" -> (known after apply)
+      ~ subnet_id      = "subnet-041c8e77a2b93f6de" -> (known after apply) # forces replacement
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_route_table_association.public[0] must be replaced
+-/+ resource "aws_route_table_association" "public" {
+      ~ id             = "rtbassoc-03e1f97a2c48d5b6e" -> (known after apply)
+      ~ subnet_id      = "subnet-07b2e94c1d6a5f083" -> (known after apply) # forces replacement
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_subnet.private[0] must be replaced
+-/+ resource "aws_subnet" "private" {
+      ~ arn                                            = "arn:aws:ec2:us-east-1:379484935796:subnet/subnet-041c8e77a2b93f6de" -> (known after apply)
+      ~ availability_zone                              = "us-east-1a" -> "us-east-1c" # forces replacement
+      ~ availability_zone_id                           = "use1-az4" -> (known after apply)
+        cidr_block                                     = "10.0.10.0/24"
+      ~ id                                             = "subnet-041c8e77a2b93f6de" -> (known after apply)
+      ~ owner_id                                       = "379484935796" -> (known after apply)
+        tags                                           = {
+            "Name" = "ship-private-1"
+            "Tier" = "Private"
+        }
+        # (11 unchanged attributes hidden)
+    }
+
+  # aws_subnet.public[0] must be replaced
+-/+ resource "aws_subnet" "public" {
+      ~ arn                                            = "arn:aws:ec2:us-east-1:379484935796:subnet/subnet-07b2e94c1d6a5f083" -> (known after apply)
+      ~ availability_zone                              = "us-east-1a" -> "us-east-1c" # forces replacement
+      ~ availability_zone_id                           = "use1-az4" -> (known after apply)
+        cidr_block                                     = "10.0.0.0/24"
+      ~ id                                             = "subnet-07b2e94c1d6a5f083" -> (known after apply)
+      ~ owner_id                                       = "379484935796" -> (known after apply)
+        map_public_ip_on_launch                        = true
+        tags                                           = {
+            "Name" = "ship-public-1"
+            "Tier" = "Public"
+        }
+        # (11 unchanged attributes hidden)
+    }
+
+Plan: 5 to add, 3 to change, 5 to destroy.
+
+Changes to Outputs:
+  ~ eb_config_summary              = {
+      ~ private_subnets         = "subnet-041c8e77a2b93f6de,subnet-0d92b4fa617c30e85" -> (known after apply)
+      ~ public_subnets          = "subnet-07b2e94c1d6a5f083,subnet-0c9d13f8ae65b247a" -> (known after apply)
+        # (6 unchanged attributes hidden)
+    }
+  ~ eb_private_subnets             = "subnet-041c8e77a2b93f6de,subnet-0d92b4fa617c30e85" -> (known after apply)
+  ~ eb_public_subnets              = "subnet-07b2e94c1d6a5f083,subnet-0c9d13f8ae65b247a" -> (known after apply)
+  ~ private_subnet_ids             = [
+      - "subnet-041c8e77a2b93f6de",
+      + (known after apply),
+        "subnet-0d92b4fa617c30e85",
+    ]
+  ~ public_subnet_ids              = [
+      - "subnet-07b2e94c1d6a5f083",
+      + (known after apply),
+        "subnet-0c9d13f8ae65b247a",
+    ]
