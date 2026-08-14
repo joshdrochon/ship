@@ -58,6 +58,25 @@ const FENCES = [
     marker: 'BOUNDARY (integrations → server)',
   },
   {
+    // PF-558 — the same fence, pointed at the must-ship CLI rather than at the
+    // generic fixture above. "The rule fires somewhere" is a weaker claim than
+    // "the rule fires on the one package whose entire value is that it has no
+    // privileged path available to it".
+    ticket: 'PF-558',
+    name: 'integrations/cli → api/src',
+    fixture: 'eslint-fixtures/integrations/cli/imports-api-route.ts',
+    marker: 'BOUNDARY (integrations → server)',
+  },
+  {
+    // The workspace-package spelling of the same violation. `@ship/shared`
+    // looks like a types-only package and feels harmless; it is the version
+    // someone reaches for honestly.
+    ticket: 'PF-558',
+    name: 'integrations/cli → @ship/shared',
+    fixture: 'eslint-fixtures/integrations/cli/imports-shared-package.ts',
+    marker: 'BOUNDARY (integrations → server)',
+  },
+  {
     ticket: 'F24',
     name: 'sdk → workspace',
     fixture: 'eslint-fixtures/sdk/imports-workspace-package.ts',
