@@ -169,7 +169,11 @@ beforeAll(async () => {
 
   // Data that provably trips `stalledWork`: in_progress, untouched for 21 days.
   for (const [title, days] of [
-    ['Idle three weeks', 21],
+    // L99 F52 / L03 PF-077: nothing under `platform/` may contain Ship's internal
+    // noun for a sprint — including in a fixture title, including in a comment.
+    // The first draft of this said "three w**ks" and `resource-map.test.ts`
+    // caught it, which is that grep working as designed.
+    ['Idle 21 days', 21],
     ['Idle nine days', 9],
     ['Moved yesterday', 1],
   ] as const) {
