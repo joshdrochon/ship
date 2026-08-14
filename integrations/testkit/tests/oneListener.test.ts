@@ -52,6 +52,12 @@ const INTEGRATIONS_ROOT = dirname(PACKAGE_ROOT);
 const ALLOWED_SERVER_FILES = [
   'testkit/src/listener.ts',
   'cli/src/commands/webhooksTail.ts',
+  // PF-739 — the Slack integration IS an HTTP server; that is the point of
+  // choosing it (p.8 wants a genuinely external process receiving signed
+  // deliveries). `src/server.ts` only BUILDS the app; the two files below are
+  // the only ones that bind a socket, and neither is a delivery-capture fixture.
+  'slack/src/index.ts',
+  'slack/tests/support/harness.ts',
 ];
 
 /** Line and block comments removed, so honest prose cannot fail the grep (F113). */
