@@ -185,7 +185,7 @@ describe('PF-691 — the agent app is distinguishable, and B11 does not apply', 
   it('resolves with the same fixed client_id when a secret is present', () => {
     const resolved = resolvePlatformAppSeeds({ AGENT_CLIENT_SECRET: 'test-secret-value' });
     expect(resolved.map((r) => r.client_id)).toEqual([AGENT_CLIENT_ID]);
-    expect(resolved[0].is_public).toBe(false);
-    expect(resolved[0].is_first_party).toBe(true);
+    expect(resolved[0]!.is_public).toBe(false);
+    expect(resolved[0]!.is_first_party).toBe(true);
   });
 });
