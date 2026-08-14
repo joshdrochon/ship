@@ -162,7 +162,7 @@ jobs:
           # own guidance. Raise it when a package grows tests; never lower it to
           # make a red job green.
           - package: '@ship/integration-testkit'
-            minimum: 11
+            minimum: 19
           - package: '@ship/cli'
             minimum: 21
           - package: '@ship/browser-demo'
