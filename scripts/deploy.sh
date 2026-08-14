@@ -248,6 +248,17 @@ echo "✓ Docker build and import test passed"
 # Source, not dist, and the manifests for every workspace member — pnpm resolves
 # the whole workspace graph from `pnpm-workspace.yaml`, so a member whose
 # package.json is absent fails the install, not just its own build.
+#
+# `sdk` ships in FULL, not just its manifest. L22's developer portal imports
+# `@ship/sdk` from the web app (p.10: the portal reuses the public API like any
+# other client), so the image builds the SDK — and `COPY sdk/ ./sdk/` can only
+# copy what the bundle contains. With the manifest alone, `tsc -p tsconfig.json`
+# fails on the instance with TS5058 "path does not exist".
+#
+# NOTE ON THE PREFLIGHT: the local `docker build` above CANNOT catch this class
+# of failure. It builds from the working tree, where every path the Dockerfile
+# references exists; the instance builds from this zip. A path missing here and
+# present locally passes the preflight and fails on the instance every time.
 BUNDLE="/tmp/api-${VERSION}.zip"
 zip -r "$BUNDLE" \
   Dockerfile \
@@ -259,7 +270,7 @@ zip -r "$BUNDLE" \
   shared \
   agent \
   web \
-  sdk/package.json \
+  sdk \
   integrations/cli/package.json \
   -x "*.git*" "*/node_modules/*" "*/dist/*" "*/.turbo/*" "*/coverage/*" \
      "*/test-results/*" "*/playwright-report/*" "*.log" "*.tsbuildinfo"
