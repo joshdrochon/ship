@@ -390,6 +390,80 @@ agent-test:
         - agent/junit.xml
   allow_failure: false
 
+# PF-608 — the Time-to-First-Event drill, blocking, on every branch pipeline.
+#
+# p.6: "Drill runs in CI on every PR." p.11: "Time-to-first-event drill in CI from Day 5
+# onward." p.13 makes a green run of THIS job Epic 6's proof artifact, so a local pass is
+# not the deliverable — this is.
+#
+# Three repo-specific constraints, each of which has already broken a job in this file:
+#
+#  (a) `workflow.rules` above sets `merge_request_event -> when: never`. "Every PR" is
+#      therefore served by the BRANCH pipeline for the same SHA, deliberately (see the
+#      block at the top). Giving this job MR-only rules would mean it never executes.
+#
+#  (b) Testcontainers, not dind — copied from `agent-test` for the reason recorded there:
+#      the `docker:27-dind` service never attached to this runner's job network and killed
+#      10 of 20 spec files in `beforeAll`. The runner mounts the host socket, so containers
+#      this job starts are SIBLINGS and publish on the Docker host.
+#
+#  (c) `scripts/assert-tests-ran.sh 3 --` so a drill that executes zero stages exits 2 —
+#      VOID RUN — rather than reading as a pass. Three is the whole drill file: the loop,
+#      PF-602's benchmark link, and PF-611's CLI path.
+#
+# `pnpm drill ttfe` is the invocation p.6 names literally, and it is what runs here. No
+# retry wrapper, ever: p.9's target is 0% flake and a retry is the mechanism that converts
+# a flake into a pass (PF-605).
+ttfe:
+  stage: verify
+  needs: ['build']
+  variables:
+    TESTCONTAINERS_HOST_OVERRIDE: 'host.docker.internal'
+    TESTCONTAINERS_RYUK_DISABLED: 'true'
+    # The harness provisions and DROPS a database. The pipeline-wide DATABASE_URL points
+    # at the shared `postgres` service, and the harness refuses to adopt any inherited
+    # URL by design (PF-587) — cleared here so the refusal is never the thing that fails
+    # this job.
+    DATABASE_URL: ''
+  script:
+    # The drill's own sources are checked by no other job: tsconfig.json excludes
+    # `tests/`, and vitest strips types without checking them.
+    - pnpm --filter @ship/cli exec tsc -p tsconfig.drill.json
+    # PF-605 / PF-609: no sleeps, `retry: 0`, not a Playwright spec, one thresholds file.
+    - node scripts/ttfe/check-fitness.mjs
+    - docker pull postgres:16
+    - scripts/assert-tests-ran.sh 3 -- pnpm drill ttfe
+    # PF-600 / PF-603: the two gates no single run can produce. Reads the same
+    # test-results/ttfe-series.jsonl the soak does.
+    - node scripts/ttfe/check-series.mjs
+  artifacts:
+    when: always
+    expire_in: 1 month
+    paths:
+      # PF-592 / PF-610: the machine-readable artifact, next to junit.xml and
+      # playwright-report/. Four consumers read this one file.
+      - test-results/ttfe.json
+      - test-results/ttfe-series.jsonl
+  allow_failure: false
+
+# PF-587 / PF-607 — the drill's negative controls, as their own job.
+#
+# Separate from `ttfe` because they boot two extra Ship instances and run the SDK suite:
+# folding them into the same process would inflate the number p.8 grades. Blocking all the
+# same — p.11 claims the drill "will catch contract regressions faster than any unit test",
+# and until it has been seen failing for the right reason that claim has no evidence.
+ttfe-controls:
+  stage: verify
+  needs: ['build']
+  variables:
+    TESTCONTAINERS_HOST_OVERRIDE: 'host.docker.internal'
+    TESTCONTAINERS_RYUK_DISABLED: 'true'
+    DATABASE_URL: ''
+  script:
+    - docker pull postgres:16
+    - scripts/assert-tests-ran.sh 4 -- pnpm drill ttfe --controls
+  allow_failure: false
+
 coverage:
   stage: verify
   needs: ['build']

@@ -180,11 +180,12 @@ newline-delimited, because it streams.
 
 ## Tests
 
-Two suites, deliberately separate.
+Three suites, deliberately separate.
 
 ```bash
 pnpm --filter @ship/cli test          # fast: argv, exit codes, boundary, golden output
 pnpm --filter @ship/cli test:server   # the real binary against a real booted Ship
+pnpm drill ttfe                       # L20's TTFE drill — see below
 ```
 
 The fast suite runs anywhere, with no database and no server — it is what a
@@ -227,3 +228,22 @@ a **subprocess**, because it needs `DATABASE_URL` and this package may not have
 one. It does not touch `oauth_device_codes` directly — flipping the row would
 make the test green while proving nothing about `/oauth/device/verify`, which is
 the surface Testing Scenario 3 is actually about.
+
+### The TTFE drill (L20)
+
+`tests/ttfe.drill.ts` lives in this package because p.7 puts it here, but it is
+**L20's file, not this lane's**. It needs no setup at all — no database, no
+server, no `pnpm dev`:
+
+```bash
+pnpm drill ttfe              # the loop; refuses to start if DATABASE_URL is set
+pnpm drill ttfe --controls   # the negative controls
+```
+
+It provisions its own throwaway Postgres, applies the migrations, boots
+`api/src/index.ts` on a free port and destroys all of it afterwards. The part
+that concerns *this* package: the drill's second test drives the same loop
+through `runLogin` / `runDocsCreate` / `runWebhooksTail` from `src/public.ts`
+(PF-581) with an injected sink, so a change to a command's contract fails the
+drill rather than drifting away from the demo unnoticed. Full detail in
+`docs/ttfe-drill.md`.

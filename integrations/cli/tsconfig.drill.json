@@ -1,0 +1,22 @@
+{
+  // The drill and its support, type-checked.
+  //
+  // `tsconfig.json` excludes `tests/` because the package's own build emits only
+  // `src/`. That left the drill — the file p.14 calls "the rubric" — as the one
+  // piece of this lane that no compiler ever read: vitest strips types with
+  // esbuild and never checks them, so a type error in the drill shows up as a
+  // green run of a test that quietly did something else.
+  //
+  // Checked by `pnpm --filter @ship/cli type-check:drill`, which the `ttfe` CI
+  // job runs before the drill itself. Deliberately NOT part of `tsc -b`: this is
+  // a no-emit check over test sources, and folding it into the build would put
+  // test files in the project graph the `bin` is built from.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["tests/**/*.ts", "src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
