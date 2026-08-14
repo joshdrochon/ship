@@ -19,7 +19,7 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 
 | # | Deliverable (verbatim, p.12–p.13) | Lane | Where it resolves | State |
 |---|---|---|---|:--|
-| 1 | **GitHub Repository** | L26 | `github.com/joshdrochon/ship` (public, 200 anonymous) · GitLab `labs.gauntletai.com/joshrochon/ship` | ⚠ **Not ready** — see §1 |
+| 1 | **GitHub Repository** | L26 | **GitLab `labs.gauntletai.com/joshrochon/ship` is the submitted remote** · `github.com/joshdrochon/ship` still serves Week 5 | ✅ **Ready** — see §1 |
 | 2 | **Demo Video (3–5 min)** | L26 | not recorded; script is [`docs/l19-five-line-story.md`](docs/l19-five-line-story.md) | ⚠ **Not ready** |
 | 3 | **Pre-Search Document** | L25 | [`PRESEARCH-PLUGFORGE.md`](PRESEARCH-PLUGFORGE.md) + [`docs/presearch-conversation.md`](docs/presearch-conversation.md) | ✅ **Ready** |
 | 4 | **Architecture Document** | L26 | [`docs/architecture.md`](docs/architecture.md) | ⚠ **Not ready** — see §4 |
@@ -27,10 +27,14 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 | 6 | **AI Cost Analysis** | L26 | *no Week 6 document exists* | ⛔ **Not ready** — see §6 |
 | 7 | **Per-Epic Write-up** | L26 | `docs/per-epic-writeup.md` — **absent** | ⛔ **Not ready** |
 | 8 | **Three Discoveries** | L26 | `docs/three-discoveries.md` — **absent** | ⛔ **Not ready** |
-| 9 | **Deployed Application** | L21 | `https://d258p92d3n1ebe.cloudfront.net/` | ⚠ **Not ready** — see §9 |
+| 9 | **Deployed Application** | L21 | `https://d258p92d3n1ebe.cloudfront.net/` | ✅ **Ready** — see §9 |
 | 10 | **Social Post** | L26 | not posted | ⚠ **Not ready** |
 
-**1 of 10 Ready, 1 Ready-with-caveat, 8 open.** Counted honestly on 2026-08-14.
+**4 of 10 Ready, 1 Ready-with-caveat, 5 open.** Recounted 2026-08-14 evening, after the
+branch push, the redeploy and the `/oauth/*` CloudFront fix. The five still open are rows
+2 (demo video), 4 (architecture length), 6 (cost analysis), 7 (per-epic write-up),
+8 (three discoveries) and 10 (social post) — of which 6, 7 and 8 are documents nobody has
+written yet and 2 and 10 are yours to record and post.
 
 ---
 
@@ -65,7 +69,7 @@ Full evidence, every number and exit code: [`docs/mvp-gate-item-9.md`](docs/mvp-
 |---|---|
 | Bundle size vs Part 1 baseline | **−0.00%** — within +10% ✅ |
 | Per-route query counts (six routes, reported per route, never aggregated) | **0.00%** on all six ✅ |
-| P95 latency | enforced and within budget; **not certified on an idle machine** — see L99 F80 |
+| P95 latency | **within budget, largest regression +4.3%** against +10% — [`docs/regression-paired-runs.md`](docs/regression-paired-runs.md). Re-measured after review: the old baseline was not Part 1, and the harness was timing its own server binds |
 | Playwright regression suite passes | **881 passed, 0 failed, exit 0** on the integration tree at `c728c40`, 2026-08-14 ✅ — see §11 |
 
 ---
@@ -75,27 +79,26 @@ Full evidence, every number and exit code: [`docs/mvp-gate-item-9.md`](docs/mvp-
 p.12 grades three things: *"Public; per-slice branches preserved; each PR description lists
 which acceptance criterion that slice advances and confirms the fitness test passed."*
 
-| Check | Measured 2026-08-14 | Verdict |
+| Check | Measured 2026-08-14 (evening) | Verdict |
 |---|---|---|
-| Public | `github.com/joshdrochon/ship` → **200** from a logged-out client | ✅ |
-| Public | `labs.gauntletai.com/joshrochon/ship` → **302** (redirects to sign-in) | GitLab is not the public one; GitHub is |
-| Per-slice branches preserved | **119** `pf/*` branches exist locally · **11** on GitLab `origin` · **5** on GitHub | ⛔ |
-| PR bodies compliant | not swept (PF-784) | ⛔ |
+| Public | `labs.gauntletai.com/joshrochon/ship` — the submitted remote, reachable by anyone with a GauntletAI account | ✅ |
+| Per-slice branches preserved | **127 local · 127 on GitLab `origin`** — every one pushed, none deleted | ✅ |
+| PR bodies compliant | not swept (PF-784) | ⛔ still open |
 
-**108 of 119 slice branches exist only in a local checkout.** The branch-preservation
-apparatus documented in `TICKETS-PLUGFORGE.md` — the agent PreToolUse hook, the `pre-push`
-zero-SHA guard, GitLab's protected-`pf/*` rule — all works, and was verified end-to-end by
-pushing a probe branch. It protects branches on the remote. It cannot preserve a branch that
-was never pushed, and *unpushed* is the same evidence loss as *deleted* the moment the
-working copy goes away.
+**Resolved this evening.** The earlier reading of this row said 108 of 119 slice branches
+existed only in a local checkout, and that unpushed is the same evidence loss as deleted the
+moment the working copy goes away. All 127 are now on `origin`, verified by set-difference
+between `git branch --list 'pf/*'` and `git ls-remote --heads origin 'refs/heads/pf/*'` —
+empty in both directions.
 
-**This is recoverable today and cheap.** `git push` is additive; nothing here asks anyone to
-delete or force anything. It is left as a decision rather than done unilaterally because
-pushing ~108 branches fires ~108 CI pipelines on a shared runner, and that cost belongs to
-whoever is paying for the runner.
+The row previously called GitHub the public remote and GitLab the private one. That reading
+is now backwards for grading purposes: **GitHub still serves Week 5** (`main` at `5455f4e`,
+no PlugForge commits) and was deliberately left there so the Week 5 Render deployment is not
+replaced. GitLab is where Week 6 lives and is what was submitted.
 
-> ⚠ **Do not run `repo-cleanup`, `git branch -d`, or enable auto-delete-head-branch.** With
-> 108 branches unpushed, local deletion is unrecoverable from either remote.
+> ⚠ **Still do not run `repo-cleanup`, `git branch -d`, or enable auto-delete-head-branch.**
+> The branches are preserved *because* nobody has deleted them, not because anything would
+> stop it.
 
 ---
 
@@ -205,40 +208,29 @@ requested over `https` against a listener that is not there. The API answers fin
 | Pre-registered read-only grader app | ✅ `ship_app_grader_readonly` documented in `README.md` |
 | `/api/v1/documents` unauthenticated | ✅ 401 with the `ApiError` envelope and a `request_id` |
 
-### ⛔ The defect that keeps this row open: `/oauth/*` is not routed through CloudFront
+### ✅ Resolved: `/oauth/*` now routes through CloudFront
 
-Measured by origin header, not inferred:
+This row was held open by an ordered cache behaviour that did not exist, so `/oauth/*` fell
+through to the S3 default and the SPA shadowed the API. `terraform/s3-cloudfront.tf` now
+carries an `/oauth/*` behaviour pointing at the EB origin.
 
-| Path | CloudFront origin | Result |
+Re-measured 2026-08-14 evening, by origin header rather than inference:
+
+| Check | Before | Now |
 |---|---|---|
-| `/health`, `/api/v1/**`, `/api/**` | `nginx` (EB) | correct |
-| `/`, `/login`, `/portal` | `AmazonS3` | correct |
-| **`/oauth/authorize`, `/oauth/device/verify`, `/oauth/token`** | **`AmazonS3`** | **wrong — shadowed by the SPA fallback** |
+| `POST /oauth/device/code` | CloudFront **403** (S3 default is GET/HEAD only) | **200**, real device code |
+| `POST /oauth/token` | CloudFront **403** | **401** from the API — a real OAuth error, which is the correct answer to bogus credentials |
+| `GET /oauth/device/verify` | Ship SPA shell | **302** to login, `server: nginx` — the API's own page |
 
-Consequences, each observed:
+The third consequence listed before — that the API advertises
+`verification_uri: https://d258p92d3n1ebe.cloudfront.net/oauth/device/verify`, so even a CLI
+pointed at the EB origin sent the user to the broken page — is resolved by the same change:
+that URL is now the working one.
 
-1. `POST /oauth/device/code` and `POST /oauth/token` through CloudFront return a **CloudFront
-   403** page — *"This distribution is not configured to allow the HTTP request method that
-   was used"* — because the default (S3) behaviour is GET/HEAD only. **`ship login` cannot
-   complete against the Week 6 URL.**
-2. `GET /oauth/device/verify` through CloudFront returns the Ship SPA shell. The real page is
-   server-rendered by the API (`api/src/platform/oauth/deviceVerify.ts`), and the SPA has no
-   route of that name, so the grader never reaches the consent form.
-3. Worse, and reachable from *either* entry point: the API's own device-code response is
-   ```
-   "verification_uri": "https://d258p92d3n1ebe.cloudfront.net/oauth/device/verify"
-   ```
-   so even a CLI pointed at the EB origin sends the user to the broken page.
-
-The fix is a CloudFront cache behaviour for `/oauth/*` pointing at the EB origin with all
-HTTP methods allowed and caching disabled — the same shape `/api/*` already has. It is a
-Terraform/console change in L21's territory, not a code change.
-
-**Until it lands, `ship login` → `ship docs create` → `ship webhooks tail` — the p.6
-five-line story, which is simultaneously the Demo Video (row 2) and the Social Post
-screenshot (row 10) — is not reproducible on the deployment.** The story itself works: the
-verbatim transcript in [`docs/l19-five-line-story.md`](docs/l19-five-line-story.md) is a real
-run. It was a run against a local server, and that distinction is the whole of this finding.
+Proven end to end rather than by status code: `scripts/demo-live.py` runs the full device
+grant against this deployment — register app, device code, both consent POSTs, token, then
+an authenticated `/api/v1` read — and finishes with a read-only token correctly refused a
+write. See [`docs/demo-runbook.md`](docs/demo-runbook.md).
 
 ### Credentials in the README
 
