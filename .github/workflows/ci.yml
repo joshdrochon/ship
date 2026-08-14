@@ -183,6 +183,62 @@ jobs:
       - name: ${{ matrix.package }} — suite, behind the zero-tests-ran guard
         run: scripts/assert-tests-ran.sh ${{ matrix.minimum }} -- pnpm --filter ${{ matrix.package }} test
 
+  # PF-727 — `pnpm drill:refresh` runs headless as a BLOCKING job.
+  #
+  # Server-backed, so it gets its own job rather than a row in the matrix above:
+  # it needs a database service and it boots two Ship instances of its own, one
+  # of them with a zero-second refresh TTL so PF-726's expired case is produced
+  # by configuration rather than by waiting.
+  #
+  # `retry: 0` is set in the package's vitest config, not here. p.9 targets zero
+  # flake over twenty consecutive runs and a retry is precisely what converts a
+  # flake into a pass (L99 F27, about playwright.config.ts).
+  drill-refresh-rotation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_drill
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_drill
+      # F91 — the key is resolved lazily, so a deployment missing it boots green
+      # and 500s on the first webhook create. Set explicitly so the drill can
+      # never meet that failure and mistake it for its own.
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      # The three first-party apps are seeded by `db:migrate`, and it seeds
+      # nothing at all when their secrets are absent — a silent no-op that reads
+      # as "the app does not exist" three layers later.
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared && pnpm --filter @ship/agent build && pnpm --filter @ship/sdk build
+      - run: pnpm db:migrate
+      - name: PF-723..727 — the refresh rotation drill, against two booted Ships
+        run: scripts/assert-tests-ran.sh 21 -- pnpm drill:refresh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: refresh-failure-shapes
+          path: integrations/drills/refresh-rotation/test-results/
+
   type-check:
     runs-on: ubuntu-latest
     needs: build

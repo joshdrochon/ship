@@ -381,6 +381,21 @@ function positiveIntEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+/**
+ * Same shape as `positiveIntEnv`, but ZERO is a legitimate value.
+ *
+ * Separate rather than a flag on the one above, because the two really are
+ * different rules: a zero rate-limit capacity denies every request forever and
+ * must fall back, while a zero token TTL is exactly what L24's refresh drill
+ * asks for — a refresh token that is born expired, so PF-726's `expired` case
+ * needs no elapsed time. Negative still falls back; a negative lifetime is a
+ * typo, not an intention.
+ */
+function nonNegativeIntEnv(name: string, fallback: number): number {
+  const parsed = Number.parseInt(process.env[name] ?? '', 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 const SECONDS_PER_MINUTE = 60;
 
 /** Per-minute allowance → token-bucket options, with burst equal to the rate. */
@@ -587,7 +602,34 @@ export function productionDeps(overrides: Partial<AppDeps> = {}): AppDeps {
       };
     },
 
-    tokenTtl: DEFAULT_TOKEN_TTL,
+    // L24 PF-727 — the drill boot knob the TTL seam was built for.
+    //
+    // `tokens.ts` already says it, verbatim: *"Carried on `AppDeps` so a drill
+    // can boot with a 2-second access TTL."* The seam existed; nothing wired it
+    // to a boot-time value, so the only way to reach it was `testDeps`, which is
+    // in-process and therefore cannot serve a drill that talks over HTTP.
+    //
+    // PF-727 requires that *"token expiry is produced by configuring a short TTL
+    // at boot, never by waiting"* — p.11 rules out `setTimeout` waits by name and
+    // p.9 sets drill flake at zero over twenty runs, which a "sleep past the
+    // expiry" would forfeit on the first slow machine. The refresh drill boots a
+    // SECOND instance with `SHIP_REFRESH_TOKEN_TTL_SECONDS=0`, where every
+    // refresh token is born expired, so the expired case costs no elapsed time.
+    //
+    // Zero is meaningful here and negative is not, so the parse accepts `>= 0`
+    // rather than reusing `positiveIntEnv`. An absent or malformed value falls
+    // back to the shipped defaults: this is a knob, and a typo in a knob must not
+    // change how long a production token lives.
+    tokenTtl: {
+      accessSeconds: nonNegativeIntEnv(
+        'SHIP_ACCESS_TOKEN_TTL_SECONDS',
+        DEFAULT_TOKEN_TTL.accessSeconds,
+      ),
+      refreshSeconds: nonNegativeIntEnv(
+        'SHIP_REFRESH_TOKEN_TTL_SECONDS',
+        DEFAULT_TOKEN_TTL.refreshSeconds,
+      ),
+    },
 
     corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
 
