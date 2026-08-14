@@ -72,6 +72,15 @@ export interface PlatformAppSeed {
   name: string;
   requestedScopes: string[];
   isFirstParty: boolean;
+  /**
+   * F100 — may this app redeem a grant with `client_id` alone?
+   *
+   * Required rather than optional, so adding a fourth app is a compile error
+   * until someone decides. The whole defect was that nobody decided: migration
+   * 074 shipped the column, `authenticateClient` honoured it, and every seeded
+   * row silently kept the `false` default.
+   */
+  isPublic: boolean;
   /** Env var holding the raw secret. Absent → no row (PF-055). */
   secretEnvVar: string;
 }
@@ -107,6 +116,11 @@ export const PLATFORM_APP_SEEDS: PlatformAppSeed[] = [
     // holes. L23's PF-690 asserts exactly this list.
     requestedScopes: ['documents:read', 'issues:read', 'sprints:read'],
     isFirstParty: true,
+    // F100 — DELIBERATELY CONFIDENTIAL, and a test pins it. This app runs
+    // server-side on a schedule under Client Credentials (D5a), so it can keep
+    // a secret and must. `client_id` is not a secret; marking this public would
+    // let anyone who read the README mint agent tokens.
+    isPublic: false,
     secretEnvVar: 'AGENT_CLIENT_SECRET',
   },
   {
@@ -119,6 +133,11 @@ export const PLATFORM_APP_SEEDS: PlatformAppSeed[] = [
     // write scope here. A test asserts no scope ends in ':write'.
     requestedScopes: ['documents:read', 'issues:read', 'sprints:read'],
     isFirstParty: false,
+    // F100. A grader drives this from `ship docs ls` on their own laptop — a
+    // public client under RFC 6749 §2.1, with nowhere to keep a secret. The
+    // secret is still issued and still works for anyone who has it; this only
+    // permits the `client_id`-alone path the device grant needs.
+    isPublic: true,
     secretEnvVar: 'GRADER_CLIENT_SECRET',
   },
   {
@@ -146,6 +165,11 @@ export const PLATFORM_APP_SEEDS: PlatformAppSeed[] = [
     name: 'Grader demo (write)',
     requestedScopes: ['documents:read', 'documents:write'],
     isFirstParty: false,
+    // F100. This is the app `ship docs create` runs as — the headline command
+    // of p.6's five-line story. Public for the same reason as the grader app.
+    // The write scope is reachable only after a HUMAN approves the device code
+    // in a browser; `client_id` alone starts a flow, it does not finish one.
+    isPublic: true,
     secretEnvVar: 'DEMO_CLIENT_SECRET',
   },
 ];
@@ -155,6 +179,23 @@ export interface ResolvedAppSeed {
   name: string;
   requested_scopes: string[];
   is_first_party: boolean;
+  /**
+   * F100 — whether this app may redeem a grant with `client_id` ALONE.
+   *
+   * Migration 074 added the column and `authenticateClient` honours it, but
+   * nothing ever set it: every row in every deployed database was `false`, so a
+   * CLI or an SPA could START a device flow (200) and never finish it
+   * (401 invalid_client). That killed `ship login`, Testing Scenario 3, p.6's
+   * five-line story and the browser PKCE demo identically, and it was invisible
+   * in tests because they set the flag in fixtures.
+   *
+   * RFC 6749 §2.1 is the rule: a client that cannot keep a secret is public. A
+   * CLI on a stranger's laptop and a single-page app cannot. The agent runs
+   * server-side under Client Credentials (D5a) and CAN, so it stays
+   * confidential — marking it public would let anyone holding its `client_id`,
+   * which is not a secret, mint agent tokens.
+   */
+  is_public: boolean;
   client_secret_hash: string;
   secret_prefix: string;
 }
@@ -179,6 +220,7 @@ export function resolvePlatformAppSeeds(
       name: seed.name,
       requested_scopes: seed.requestedScopes,
       is_first_party: seed.isFirstParty,
+      is_public: seed.isPublic,
       // The one hashing site, reused. Postgres never learns the algorithm.
       client_secret_hash: hashClientSecret(raw),
       secret_prefix: secretPrefix(raw),
@@ -259,15 +301,20 @@ export async function seedPlatformApps(
     await db.query(
       `INSERT INTO oauth_apps (
          client_id, client_secret_hash, secret_prefix, name,
-         owner_user_id, workspace_id, redirect_uris, requested_scopes, is_first_party
+         owner_user_id, workspace_id, redirect_uris, requested_scopes, is_first_party,
+         is_public
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (client_id) DO UPDATE
        SET client_secret_hash  = EXCLUDED.client_secret_hash,
            secret_prefix       = EXCLUDED.secret_prefix,
            name                = EXCLUDED.name,
            requested_scopes    = EXCLUDED.requested_scopes,
            is_first_party      = EXCLUDED.is_first_party,
+           -- Without this a reseed leaves an already-existing row at its old
+           -- value, which is exactly how F100 survived: the column existed and
+           -- every deployed row kept the default.
+           is_public           = EXCLUDED.is_public,
            -- A reseed revives an app that D2 deactivated. Without these three
            -- the row would keep active=false and the credential would be
            -- silently dead after an owner-deletion incident.
@@ -288,6 +335,7 @@ export async function seedPlatformApps(
         ['http://127.0.0.1:8976/callback'],
         seed.requested_scopes,
         seed.is_first_party,
+        seed.is_public,
       ]
     );
     written.push(seed.client_id);

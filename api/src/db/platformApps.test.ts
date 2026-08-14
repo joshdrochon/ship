@@ -230,4 +230,46 @@ describe('PF-034 — the seeding path does not introduce a second hashing site',
     );
     expect(migration.replace(/^\s*--.*$/gm, '')).not.toMatch(/digest\(|pgcrypto/i);
   });
+  // ── F100 ──────────────────────────────────────────────────────────────────
+  describe('F100 — public vs confidential is DECIDED, and the agent is not public', () => {
+    it('the agent app is confidential; the two grader apps are public', () => {
+      const by = (id: string) => PLATFORM_APP_SEEDS.find((s) => s.clientId === id)!;
+
+      // The agent runs server-side on a schedule under Client Credentials
+      // (D5a), so it can keep a secret and must. `client_id` is not a secret —
+      // it is printed in the README — so a public agent app would let any
+      // reader mint agent tokens. This is the assertion that would have caught
+      // that mistake, and it is the reason the flag is required rather than
+      // optional on the seed type.
+      expect(by(AGENT_CLIENT_ID).isPublic, 'the agent must stay confidential').toBe(false);
+
+      // A CLI on a stranger's laptop and a single-page app cannot keep a
+      // secret. RFC 6749 §2.1 calls those public clients, and without this the
+      // device grant starts (200) and never finishes (401 invalid_client).
+      expect(by(GRADER_CLIENT_ID).isPublic).toBe(true);
+      expect(by(DEMO_CLIENT_ID).isPublic).toBe(true);
+    });
+
+    it('every seed states it — a new app cannot inherit a silent default', () => {
+      // F100 existed because migration 074 shipped the column, the guard
+      // honoured it, and nobody ever wrote a value. The seed type makes the
+      // field required; this proves no seed slipped through as undefined.
+      for (const seed of PLATFORM_APP_SEEDS) {
+        expect(typeof seed.isPublic, `${seed.clientId} does not state isPublic`).toBe('boolean');
+      }
+    });
+
+    it('the resolved seed carries it through to the row that gets written', () => {
+      const resolved = resolvePlatformAppSeeds({
+        AGENT_CLIENT_SECRET: 'a'.repeat(48),
+        GRADER_CLIENT_SECRET: 'b'.repeat(48),
+        DEMO_CLIENT_SECRET: 'c'.repeat(48),
+      } as NodeJS.ProcessEnv);
+
+      const agent = resolved.find((r) => r.client_id === AGENT_CLIENT_ID)!;
+      const grader = resolved.find((r) => r.client_id === GRADER_CLIENT_ID)!;
+      expect(agent.is_public).toBe(false);
+      expect(grader.is_public).toBe(true);
+    });
+  });
 });
