@@ -57,6 +57,10 @@ import type { UserCodeAttemptThrottle } from './deviceThrottle.js';
 import { deviceCodeGrant, DEVICE_CODE_GRANT_TYPE } from './deviceGrant.js';
 import { mountDeviceAuthorizationRoutes } from './deviceAuthorization.js';
 import { mountDeviceVerifyRoutes } from './deviceVerify.js';
+import {
+  clientCredentialsGrant,
+  CLIENT_CREDENTIALS_GRANT_TYPE,
+} from './clientCredentialsGrant.js';
 import { publicCors } from '../publicCors.js';
 
 export interface OAuthRouterDeps {
@@ -243,7 +247,25 @@ export function grantHandlers(deps: OAuthRouterDeps): Record<string, GrantHandle
         }
       : {}),
 
-    // TODO(L05/D5): client_credentials for the seeded first-party agent app.
+    /**
+     * ★ CLIENT CREDENTIALS. L23's entry (PF-686), and the FOURTH lane to add a
+     * grant type to this map without editing the dispatcher below.
+     *
+     * NOT conditional on any extra repository, unlike its three neighbours: it
+     * redeems nothing and stores nothing beyond the token it issues, so there is
+     * no store whose absence would make it dishonest to advertise. The two
+     * dependencies it has — the token repo and the clock — are required by
+     * `OAuthRouterDeps` already.
+     *
+     * The eligibility rules (first-party, confidential) live in the handler
+     * rather than here, because they are properties of the grant and not of the
+     * router's wiring. See `clientCredentialsGrant.ts`.
+     */
+    [CLIENT_CREDENTIALS_GRANT_TYPE]: clientCredentialsGrant({
+      tokenRepo: deps.tokenRepo,
+      clock: deps.clock,
+      ttl: deps.ttl,
+    }),
   };
 }
 

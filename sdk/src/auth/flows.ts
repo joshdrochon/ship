@@ -576,3 +576,87 @@ export async function runAuthorizationCodeFlow(
     clock: common.clock,
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Client Credentials — RFC 6749 §4.4. L23 PF-686, consumed by the agent.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The machine-to-machine flow. No browser, no user, no callback.
+ *
+ * ## Why this is in the SDK rather than hand-rolled in the agent
+ *
+ * PRD p.11 requires the rewired agent to reach Ship *"only through
+ * `@ship/sdk`"*. An agent that used the SDK for reads and its own `fetch` for
+ * the token exchange would satisfy the letter of that and miss the point: the
+ * token endpoint is exactly the part an external developer also has to get
+ * right, and a helper the first-party agent needed but the published SDK did not
+ * ship would be the clearest possible evidence that we are not eating our own
+ * dog food (p.10).
+ *
+ * ## Two things differ from the other two flows
+ *
+ * `clientSecret` is REQUIRED here rather than optional. The others treat it as
+ * optional because a public client (RFC 6749 §2.1) has none — a CLI and an SPA
+ * cannot keep a secret. This grant is confidential-clients-only, so an absent
+ * secret is a programming error the caller should hear about before a request
+ * goes out, not as a 400 from a server three layers away.
+ *
+ * And the result carries NO refresh token, because §4.4.3 says the server should
+ * not issue one. `toStoredTokens` already handles that — `refreshToken` is null.
+ * The consequence is worth stating rather than discovering: when this credential
+ * expires the caller calls this function again. There is nothing to refresh and
+ * nothing to rotate, which is the whole reason a scheduled job wants this grant.
+ */
+export interface ClientCredentialsOptions extends Omit<CommonFlowOptions, 'clientSecret'> {
+  /** REQUIRED. See the header — this grant is confidential-clients-only. */
+  clientSecret: string;
+  /** Space-separated on the wire; an array here. Omitted grants the app's registered set. */
+  scopes?: string[];
+}
+
+export async function runClientCredentials(
+  options: ClientCredentialsOptions,
+): Promise<FlowResult> {
+  if (options.clientSecret === '') {
+    throw new ShipError({
+      kind: 'auth',
+      code: null,
+      status: 0,
+      message:
+        'client_credentials requires a client secret (RFC 6749 §4.4). This grant is ' +
+        'available to confidential clients only; a public client has nothing to present.',
+    });
+  }
+
+  const common = resolveCommon(options);
+
+  const form = new URLSearchParams({
+    grant_type: 'client_credentials',
+    client_id: common.clientId,
+  });
+  if (options.scopes !== undefined && options.scopes.length > 0) {
+    form.set('scope', options.scopes.join(' '));
+  }
+
+  const exchanged = await postForm(
+    common.http,
+    buildOAuthTokenUrl(common.baseUrl).toString(),
+    form,
+    options.clientSecret,
+  );
+
+  if (exchanged.status < 200 || exchanged.status >= 300 || exchanged.body === null) {
+    throw oauthError(exchanged.status, exchanged.body, 'Client credentials exchange');
+  }
+
+  const tokens = toStoredTokens(exchanged.body, common.clock.now());
+  await common.tokenStore.save(tokens);
+
+  return {
+    tokens,
+    tokenStore: common.tokenStore,
+    baseUrl: common.baseUrl,
+    clientId: common.clientId,
+  };
+}

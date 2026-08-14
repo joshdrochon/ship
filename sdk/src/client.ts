@@ -31,8 +31,10 @@ import { InMemoryTokenStore, type ITokenStore } from './auth/tokenStore.js';
 import {
   runDeviceLogin,
   runAuthorizationCodeFlow,
+  runClientCredentials,
   type DeviceLoginOptions,
   type AuthorizationCodeFlowOptions,
+  type ClientCredentialsOptions,
   type FlowResult,
 } from './auth/flows.js';
 
@@ -261,6 +263,27 @@ export class ShipClient {
     options: AuthorizationCodeFlowOptions,
   ): Promise<ShipClient> {
     return ShipClient.fromFlow(await runAuthorizationCodeFlow(options), options);
+  }
+
+  /**
+   * L23 PF-686 — Client Credentials (RFC 6749 §4.4).
+   *
+   * The grant for a process with no human at a keyboard: a scheduled job, a
+   * server-side integration, the FleetGraph agent. `deviceLogin` and
+   * `authorizationCodeFlow` both need someone to visit a URL; a cron container
+   * cannot.
+   *
+   * STATIC for the same reason as its two neighbours — there is no
+   * authenticated client to call it on yet.
+   *
+   * The returned client carries the `clientSecret`, so it is the same object
+   * that could re-authenticate. It cannot REFRESH: §4.4.3 issues no refresh
+   * token and the server honours that, so re-authentication is a second call to
+   * this method rather than a rotation. That is a real difference from the other
+   * two flows and it is stated here rather than discovered at the first expiry.
+   */
+  static async clientCredentials(options: ClientCredentialsOptions): Promise<ShipClient> {
+    return ShipClient.fromFlow(await runClientCredentials(options), options);
   }
 
   /** A client wired to the credential a flow just wrote. */

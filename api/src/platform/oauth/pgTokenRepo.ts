@@ -33,6 +33,7 @@ import type { Database, QueryRunner } from '../../db/client.js';
 import type { Scope } from '../scopes/scopes.js';
 import type {
   ITokenRepo,
+  InsertAccessOnlyInput,
   InsertPairInput,
   InsertedPair,
   RevocationReason,
@@ -140,6 +141,37 @@ abstract class TokenStatements implements ITokenRepo {
     const refresh = result.rows.find((r) => r.token_type === 'refresh');
     if (!access || !refresh) throw new Error('insertPair did not return both rows');
     return { access: toDomain(access), refresh: toDomain(refresh) };
+  }
+
+  /**
+   * L23 PF-686 — one access row, no refresh partner (RFC 6749 §4.4.3).
+   *
+   * Same column list as `insertPair`, one value tuple instead of two. There is
+   * deliberately no `token_type` parameter: `'access'` is a literal in the SQL,
+   * so this method cannot be talked into writing a refresh row.
+   */
+  async insertAccessOnly(input: InsertAccessOnlyInput): Promise<TokenRecord> {
+    const result = await this.q.query<Row>(
+      `INSERT INTO oauth_tokens (
+         token_hash, token_prefix, token_type, family_id, app_id, user_id,
+         workspace_id, scopes, expires_at, replaces_token_id, created_at
+       ) VALUES ($1, $2, 'access', $3, $4, $5, $6, $7::text[], $8, NULL, $9)
+       RETURNING ${COLUMNS}`,
+      [
+        input.accessTokenHash,
+        input.accessTokenPrefix,
+        input.familyId,
+        input.appId,
+        input.userId,
+        input.workspaceId,
+        input.scopes,
+        input.accessExpiresAt,
+        input.createdAt,
+      ],
+    );
+    const row = result.rows[0];
+    if (!row) throw new Error('insertAccessOnly did not return a row');
+    return toDomain(row);
   }
 
   async findByHash(tokenHash: string): Promise<TokenRecord | null> {

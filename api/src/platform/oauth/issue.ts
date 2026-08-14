@@ -142,3 +142,78 @@ export async function issueTokenPair(
     familyId,
   };
 }
+
+/**
+ * RFC 6749 §4.4.3's response. Note what is NOT here: `refresh_token`.
+ *
+ * *"A refresh token SHOULD NOT be included."* A client credentials client holds
+ * its own secret and can mint a new token whenever it likes, so a refresh token
+ * would be a second long-lived credential earning nothing — and one with no
+ * rotation story, since there is no user session to log out and nothing to
+ * revoke a family against beyond the token itself.
+ *
+ * L23's PF-686 asserts the absence by KEY, not by value: `'refresh_token' in
+ * body` must be false. An `undefined` value would serialise away over JSON and
+ * pass a truthiness check while a second implementation quietly reintroduced it.
+ */
+export interface AccessTokenResponse {
+  access_token: string;
+  token_type: 'Bearer';
+  expires_in: number;
+  scope: string;
+}
+
+export interface IssuedAccessToken {
+  response: AccessTokenResponse;
+  access: TokenRecord;
+  familyId: string;
+}
+
+/**
+ * L23 PF-686 — the client-credentials issuance path.
+ *
+ * Lives HERE, in `issue.ts`, rather than in the grant handler, because PF-155's
+ * rule is that this file is the only place tokens are minted. The grep in
+ * `issue.test.ts` — nothing under `platform/oauth/` draws random bytes except
+ * `tokens.ts` — is what keeps that true, and a second minting site inside the
+ * grant would satisfy the grep while defeating its purpose.
+ *
+ * `userId` is not a parameter. A client-credentials token belongs to an app and
+ * to no human (RFC 6749 §4.4: *"the client is acting on its own behalf"*), so
+ * there is nothing for a caller to pass and nothing for a caller to get wrong.
+ * The column is nullable for exactly this case — `043_oauth_tokens.sql` says so
+ * in its own comment.
+ */
+export async function issueAccessTokenOnly(
+  deps: IssueTokenPairDeps,
+  input: { app: OAuthApp; scopes: Scope[]; repo?: ITokenRepo },
+): Promise<IssuedAccessToken> {
+  const repo = input.repo ?? deps.tokenRepo;
+  const now = new Date(deps.clock.nowMs());
+  const accessToken = generateAccessToken();
+  const familyId = newFamilyId();
+
+  const access = await repo.insertAccessOnly({
+    familyId,
+    appId: input.app.id,
+    // THE null. Not an omission — see the header.
+    userId: null,
+    workspaceId: input.app.workspaceId,
+    scopes: input.scopes,
+    accessTokenHash: hashToken(accessToken),
+    accessTokenPrefix: tokenPrefix(accessToken),
+    accessExpiresAt: new Date(now.getTime() + deps.ttl.accessSeconds * 1000),
+    createdAt: now,
+  });
+
+  return {
+    response: {
+      access_token: accessToken,
+      token_type: 'Bearer',
+      expires_in: deps.ttl.accessSeconds,
+      scope: input.scopes.join(' '),
+    },
+    access,
+    familyId,
+  };
+}
