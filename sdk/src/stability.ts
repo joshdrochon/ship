@@ -108,12 +108,17 @@ export const STABLE_SURFACE = [
   'FileTokenStore',
   'runDeviceLogin',
   'runAuthorizationCodeFlow',
+  // L23 PF-686 — RFC 6749 §4.4. Stable on the same footing as its two
+  // neighbours: it is a named grant in a published RFC, the shape is the same
+  // `FlowResult`, and the FleetGraph agent depends on it from Epic 7 onward.
+  'runClientCredentials',
   'buildAuthorizationRequest',
   'parseAuthorizationRedirect',
   'exchangeAuthorizationCode',
   'oauthErrorCode',
   'DeviceLoginOptions',
   'AuthorizationCodeFlowOptions',
+  'ClientCredentialsOptions',
   'AuthorizationRequest',
   'FlowResult',
 

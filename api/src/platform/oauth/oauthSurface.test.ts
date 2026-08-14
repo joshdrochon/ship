@@ -145,11 +145,28 @@ describe('PF-166: the refresh grant over HTTP', () => {
     expect(res.body.error).toBe('unsupported_grant_type');
   });
 
-  it('registers grant types as DATA, so L04/L05 add entries rather than editing a switch', async () => {
+  /**
+   * The two UNCONDITIONAL entries, with no optional repository wired.
+   *
+   * L04's `authorization_code` and L05's device grant are absent here on
+   * purpose — both are conditional on a store, and a server with nowhere to
+   * record a code cannot honour a grant that redeems one.
+   *
+   * L23's `client_credentials` is unconditional because it redeems nothing: it
+   * needs the token repo and the clock, both of which `OAuthRouterDeps` already
+   * requires. A conditional entry would be advertising a capability's absence
+   * that never exists.
+   *
+   * The exact list is the anti-vacuity guard and it stays exact — a fifth grant
+   * appearing here without a lane claiming it is the thing this assertion is
+   * for.
+   */
+  it('registers grant types as DATA, so L04/L05/L23 add entries rather than editing a switch', async () => {
     const { grantHandlers } = await import('./router.js');
     const handlers = grantHandlers({ appsRepo, tokenRepo, clock, ttl: DEFAULT_TOKEN_TTL });
-    expect(Object.keys(handlers)).toEqual(['refresh_token']);
+    expect(Object.keys(handlers).sort()).toEqual(['client_credentials', 'refresh_token']);
     expect(typeof handlers.refresh_token).toBe('function');
+    expect(typeof handlers.client_credentials).toBe('function');
   });
 });
 

@@ -82,6 +82,7 @@ export { exchangeRefreshToken, singleFlight } from './auth/refresh.js';
 export {
   runDeviceLogin,
   runAuthorizationCodeFlow,
+  runClientCredentials,
   buildAuthorizationRequest,
   parseAuthorizationRedirect,
   exchangeAuthorizationCode,
@@ -93,6 +94,7 @@ export {
 export type {
   DeviceLoginOptions,
   AuthorizationCodeFlowOptions,
+  ClientCredentialsOptions,
   AuthorizationRequest,
   FlowResult,
 } from './auth/flows.js';

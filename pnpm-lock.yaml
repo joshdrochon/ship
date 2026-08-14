@@ -88,6 +88,9 @@ importers:
       '@langchain/langgraph-checkpoint-postgres':
         specifier: ^1.0.4
         version: 1.0.4(@langchain/core@1.2.4(ws@8.19.0))(@langchain/langgraph-checkpoint@1.1.3(@langchain/core@1.2.4(ws@8.19.0)))
+      '@ship/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       '@ship/shared':
         specifier: workspace:*
         version: link:../shared
@@ -8694,7 +8697,7 @@ snapshots:
       obug: 2.1.1
       std-env: 3.10.0
       tinyrainbow: 3.1.1
-      vitest: 4.1.10(@types/node@22.19.5)(@vitest/coverage-v8@4.0.17)(@vitest/ui@4.1.10)(jsdom@27.4.0)(vite@6.4.1(@types/node@22.19.5)(jiti@1.21.7)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
+      vitest: 4.1.10(@types/node@22.19.5)(@vitest/coverage-v8@4.0.17)(@vitest/ui@4.0.17)(jsdom@27.4.0)(vite@6.4.1(@types/node@22.19.5)(jiti@1.21.7)(terser@5.44.1)(tsx@4.21.0)(yaml@2.8.2))
 
   '@vitest/expect@4.1.10':
     dependencies:

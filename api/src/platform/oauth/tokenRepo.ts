@@ -91,6 +91,32 @@ export interface InsertedPair {
   refresh: TokenRecord;
 }
 
+/**
+ * L23 PF-686 — one access row, no refresh partner.
+ *
+ * Structurally `InsertPairInput` minus every refresh field. Written out rather
+ * than `Omit<…>` so a reader of the client-credentials grant can see exactly
+ * what a machine-to-machine token records: an app, a workspace, a scope set, and
+ * NO user.
+ *
+ * `familyId` survives even though nothing will ever rotate this token, because
+ * `oauth_tokens.family_id` is `NOT NULL` for a reason 043 states: *"a token with
+ * no family is a token the revocation sweep cannot reach."* A client-credentials
+ * token is a family of one, and `revokeFamily` still reaches it.
+ */
+export interface InsertAccessOnlyInput {
+  familyId: string;
+  appId: string;
+  /** ALWAYS null in practice. Typed as nullable to match the column, not to invite a value. */
+  userId: string | null;
+  workspaceId: string;
+  scopes: Scope[];
+  accessTokenHash: string;
+  accessTokenPrefix: string;
+  accessExpiresAt: Date;
+  createdAt: Date;
+}
+
 export interface ITokenRepo {
   /**
    * Writes BOTH rows and their shared `family_id` atomically (PF-155).
@@ -100,6 +126,29 @@ export interface ITokenRepo {
    * for an hour and then cannot recover without re-authenticating.
    */
   insertPair(input: InsertPairInput): Promise<InsertedPair>;
+
+  /**
+   * Writes ONE access row, with no refresh partner (L23 PF-686).
+   *
+   * ── Why the interface grew rather than the grant reusing `insertPair` ───────
+   * RFC 6749 §4.4.3: *"A refresh token SHOULD NOT be included."* A client
+   * credentials client re-presents its secret whenever it wants a token, so a
+   * refresh token buys it nothing and costs it a second long-lived credential
+   * with no rotation story attached.
+   *
+   * The tempting alternative — call `insertPair` and simply not serialise the
+   * refresh token — was rejected: it writes a live `oauth_tokens` row of type
+   * `refresh` that nobody holds the plaintext for, so the table would claim the
+   * agent has refresh tokens outstanding while `expires_at` ticks on rows that
+   * can never be spent. An audit trail whose own credential table is decorative
+   * is the wrong thing to build under a lane whose whole deliverable is *"the
+   * audit rows are the proof"*.
+   *
+   * ⚑ Cross-lane: this widens L06's port. It is purely ADDITIVE — no existing
+   * caller changes and both implementations gain one method — which is the same
+   * species of widening as L99's F51. Recorded as F140.
+   */
+  insertAccessOnly(input: InsertAccessOnlyInput): Promise<TokenRecord>;
 
   /** The lookup on every `/api/v1` request. Returns the row regardless of state. */
   findByHash(tokenHash: string): Promise<TokenRecord | null>;
@@ -224,6 +273,29 @@ export class InMemoryTokenRepo implements ITokenRepo {
       input.replacesRefreshTokenId ?? null,
     );
     return { access, refresh };
+  }
+
+  async insertAccessOnly(input: InsertAccessOnlyInput): Promise<TokenRecord> {
+    for (const row of this.rows.values()) {
+      if (row.tokenHash === input.accessTokenHash) throw new Error('duplicate token_hash');
+    }
+    // Reuses `mint` by presenting the access half of a pair. The refresh fields
+    // it does not read are the ones this shape does not have.
+    return this.mint(
+      {
+        ...input,
+        // Never read by `mint` for the 'access' branch. Present so the shared
+        // helper keeps ONE definition of what a token row looks like.
+        refreshTokenHash: '',
+        refreshTokenPrefix: '',
+        refreshExpiresAt: input.accessExpiresAt,
+      },
+      'access',
+      input.accessTokenHash,
+      input.accessTokenPrefix,
+      input.accessExpiresAt,
+      null,
+    );
   }
 
   async findByHash(tokenHash: string): Promise<TokenRecord | null> {
