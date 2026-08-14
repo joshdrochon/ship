@@ -44,6 +44,7 @@ import {
   describeMethod,
   measureBundle,
   measureRoutes,
+  type RouteMeasurement,
 } from './lib/perf-measure.js';
 import {
   BaselineError,
@@ -61,6 +62,57 @@ function flag(name: string): string | undefined {
 }
 function has(name: string): boolean {
   return process.argv.includes(`--${name}`);
+}
+
+interface SelfCheck {
+  /** Largest absolute per-route p95 difference between two runs of one tree, %. */
+  noisePercent: number;
+  /** The route that produced it. */
+  worstRoute: string;
+  /** The budget it is being judged against. */
+  budgetPercent: number;
+  /** True when the instrument is quiet enough to enforce that budget. */
+  usable: boolean;
+  perRoute: { route: string; first: number; second: number; deltaPercent: number }[];
+}
+
+/**
+ * Compare two measurements of the SAME tree and decide whether the instrument
+ * can resolve `budgetPercent`.
+ *
+ * The comparison is symmetric — `abs` — because noise in either direction is
+ * disqualifying. A second run that comes in 30% FASTER is exactly as much
+ * evidence that the harness is untrustworthy as one that comes in 30% slower,
+ * and only the slower direction would ever have been noticed by a human reading
+ * a regression report.
+ */
+function assessSelfCheck(
+  first: Record<string, RouteMeasurement>,
+  second: Record<string, RouteMeasurement>,
+  budgetPercent: number,
+): SelfCheck {
+  const perRoute = Object.keys(first)
+    .filter((id) => second[id] !== undefined)
+    .map((id) => {
+      const a = first[id]!.latencyMs.p95;
+      const b = second[id]!.latencyMs.p95;
+      return {
+        route: id,
+        first: a,
+        second: b,
+        deltaPercent: a === 0 ? 0 : Math.abs((b - a) / a) * 100,
+      };
+    })
+    .sort((x, y) => y.deltaPercent - x.deltaPercent);
+
+  const worst = perRoute[0];
+  return {
+    noisePercent: worst ? Math.round(worst.deltaPercent * 10) / 10 : 0,
+    worstRoute: worst?.route ?? '(none)',
+    budgetPercent,
+    usable: worst === undefined || worst.deltaPercent <= budgetPercent,
+    perRoute,
+  };
 }
 
 /**
@@ -93,6 +145,30 @@ async function main(): Promise<void> {
   const raw = existsSync(baselinePath) ? readFileSync(baselinePath, 'utf8') : null;
   const baseline = loadBaseline(raw, baselinePath);
 
+  // PF-807 — a baseline measured through a different instrument is not a
+  // denominator, it is a second unknown.
+  //
+  // `transport` is the harness's own fingerprint. When PF-806 replaced the
+  // per-request supertest bind with one listener and a keep-alive socket, every
+  // number moved — `GET /health` p95 fell from ~0.7ms to ~0.24ms on unchanged
+  // code. Comparing across that change would have reported a 65% IMPROVEMENT
+  // that nobody earned, and the same mechanism in reverse invents regressions.
+  // Re-capture the baseline with the current harness instead of reasoning about
+  // which direction the artifact points.
+  const baselineTransport = baseline.method?.transport;
+  const currentTransport = (await describeMethod()).transport;
+  if (baselineTransport !== undefined && baselineTransport !== currentTransport) {
+    throw new BaselineError(
+      `The baseline was captured through a different measurement path.\n\n` +
+        `  baseline: ${baselineTransport}\n` +
+        `  current : ${currentTransport}\n\n` +
+        `Latency numbers are not comparable across a harness change. Re-capture the ` +
+        `baseline at its own commit with THIS harness (check the ref out into a worktree, ` +
+        `copy api/src/scripts/lib/ in, run measure-baseline there), then compare. See ` +
+        `docs/regression-paired-runs.md.`,
+    );
+  }
+
   let current: CurrentMeasurement;
 
   if (currentPath !== undefined) {
@@ -124,6 +200,47 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── PF-807: the A/A self-check ────────────────────────────────────────────
+  //
+  // Measure the SAME tree a second time and compare it to the first. Nothing
+  // changed between them, so every delta here is the instrument's own noise.
+  // If that noise is larger than the budget, this run cannot tell a regression
+  // from a scheduler hiccup, and the honest verdict is INCONCLUSIVE — not
+  // "within budget", which is what it would have said by luck about half the
+  // time.
+  //
+  // This is the check whose absence cost the MVP. The evidence that failed
+  // review reported `GET /health` — a route with no query and no database — as
+  // +32%, and once as +108%. One A/A run would have surfaced that instantly,
+  // because a route that does nothing cannot regress. Instead the number was
+  // trusted, and the three defects under it (a baseline that was not Part 1, a
+  // harness timing its own server binds, mismatched rate-limit ceilings)
+  // survived behind a green check.
+  //
+  // Skipped when --current replays a saved measurement: there is only one
+  // sample and nothing to re-measure. Skippable with --no-self-check for a
+  // quick local look, which is exactly why CI must not pass that flag.
+  // The A/A self-check is NOT done here, in-process. Two attempts at that are
+  // recorded in docs/regression-paired-runs.md because both failed instructively:
+  //
+  //   attempt 1 — measure twice, diff. Reported 98.9% "noise" that was not noise:
+  //     every database-touching route was slower on the second pass and /health,
+  //     which touches none, was faster. A signature, not a spread. `measureRoutes`
+  //     builds a fixture and deletes it, so pass two ran against the first pass's
+  //     dead tuples.
+  //
+  //   attempt 2 — VACUUM between passes. Still systematic, and now /health moved
+  //     388% too. `measureRoutes` calls `createApp()` per pass and never disposes
+  //     it, so the later pass competes with the earlier apps' still-running
+  //     timers. No amount of database hygiene fixes that.
+  //
+  // The real comparison does not have this problem: baseline and current are each
+  // measured in their OWN process. The self-check has to reproduce that, so it
+  // lives in `scripts/perf-self-check.mjs`, which spawns this script twice with
+  // --no-self-check --measure-out and diffs the two artifacts. A guard that fires
+  // on its own setup is worse than no guard, because it gets deleted.
+  const selfCheck = undefined as SelfCheck | undefined;
+
   const report = compare(baseline, current, { strictLatency });
 
   writeFileSync(outPath, renderMarkdown(report));
@@ -149,8 +266,44 @@ async function main(): Promise<void> {
       console.log(`               - ${report.load.reason}`);
     }
   }
+  if (selfCheck !== undefined) {
+    console.log(
+      `  noise      ${selfCheck.noisePercent}% (${selfCheck.worstRoute}) — same tree, measured twice`,
+    );
+  }
   console.log(`  report     ${outPath}`);
   console.log('');
+
+  // PF-807 — the instrument gets judged before the tree does.
+  //
+  // Ordering matters: this runs BEFORE `report.ok` is consulted, so a noisy run
+  // can never be reported as a pass. The failure that reached review was a pass
+  // reported by an instrument that could not have detected the thing it was
+  // clearing.
+  if (selfCheck !== undefined && !selfCheck.usable) {
+    console.error(
+      `  INCONCLUSIVE — the measurement cannot resolve a +${selfCheck.budgetPercent}% budget.\n`,
+    );
+    console.error(
+      `  Measuring the same tree twice moved ${selfCheck.worstRoute} by ` +
+        `${selfCheck.noisePercent}%. Nothing changed between those two runs, so that ` +
+        `figure is the instrument's noise, and it is larger than the budget it is being\n` +
+        `  asked to enforce. Any verdict from this run — pass OR fail — would be luck.\n`,
+    );
+    for (const r of selfCheck.perRoute.slice(0, 6)) {
+      console.error(
+        `    ${r.route.padEnd(28)} ${String(r.first).padStart(7)} → ${String(r.second).padStart(7)} ms  ` +
+          `${r.deltaPercent.toFixed(1)}%`,
+      );
+    }
+    console.error(
+      `\n  Quieten the machine and re-run, or raise PERF_TRIALS (currently ` +
+        `${process.env.PERF_TRIALS ?? '5'}) so each p95 is a median over more passes.\n` +
+        `  scripts/perf-paired-runs.sh is the protocol for a machine that will not go quiet.\n`,
+    );
+    await pool.end();
+    process.exit(2);
+  }
 
   if (report.ok) {
     const enforced = report.deltas.filter((d) => d.status !== 'advisory').length;
