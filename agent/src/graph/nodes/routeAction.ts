@@ -85,6 +85,23 @@ export function routeAction(state: GraphStateType): GraphUpdate {
       threshold: signal.threshold,
       phrasing: top.phrasing,
       context: signal.context,
+
+      // ── L23 PF-699/PF-702 — three additive fields ───────────────────────
+      //
+      // Under D5b the agent is read-only, so `act('comment')` writes a
+      // RECOMMENDATION row instead of posting a comment. That row needs a
+      // workspace, an observation and a recipient, and `ActFn` takes only the
+      // action — by design, since the whole point of that seam is that the
+      // action layer knows nothing about the graph.
+      //
+      // So the action carries what it needs. Additive: nothing reads these
+      // under the flag off, `act.test.ts` builds actions without them and
+      // still passes, and the alternative — widening `ActFn` to take graph
+      // state — would make every act implementation depend on the graph and
+      // undo the separation `deps.ts` exists to keep.
+      workspaceId: state.scope.workspaceId,
+      fingerprint: signal.fingerprint,
+      recipientUserId: top.recipientUserId ?? signal.accountableUserId,
     },
   };
 

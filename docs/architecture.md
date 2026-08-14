@@ -617,17 +617,53 @@ Today FleetGraph is a privileged insider by construction — two separate back d
 ```mermaid
 flowchart TB
     subgraph Before["BEFORE — privileged insider"]
-        A1[FleetGraph agent] -->|"in-process import (api → @ship/agent,<br/>routes/fleetgraph/agentBridge.ts)"| API1[internal routes]
+        API1[internal routes] -->|"TRIGGER: api → @ship/agent, in-process<br/>(routes/fleetgraph/agentBridge.ts)"| A1[FleetGraph agent]
         A1 -->|"direct SQL — agent/src/data/pool.ts,<br/>boundary.ts"| DB1[(Postgres)]
     end
     subgraph After["AFTER — platform citizen"]
-        A2[FleetGraph agent] -->|"@ship/sdk"| V1["/api/v1/*"]
+        API2[internal routes] -->|"TRIGGER — unchanged, and not a back door"| A2[FleetGraph agent]
+        A2 -->|"@ship/sdk"| V1["/api/v1/*"]
         V1 -->|"bearer + scopes + rate limit + audit ★"| SVC[same domain services]
         SVC --> DB2[(Postgres)]
     end
 ```
 
-The agent authenticates as a first-party OAuth app (seeded by `db:migrate`, so it provably exists in deployed environments — see *First-Party App Seeding* below), requesting only the scopes its detectors and actions need — least privilege, not `*`. The swap lives behind a feature flag; CI runs the Part 2 regression suite with the flag **on and off**, which is what makes the rewire a refactor rather than a rewrite. ★ **The payoff is the audit trail:** every agent action now lands in the public audit log under the agent app's `client_id` — "the agent went through the front door" is provable with one query, not a claim. One LLM call per agent turn is unchanged; the platform itself does zero AI work.
+**The `api → @ship/agent` edge points the way it always did, and it survives the rewire.** It was drawn above as one of two "back doors" and it is not one: it is Ship *invoking its own app* from the chat endpoint, which is the same direction as a user pressing a button. The privilege the rewire removes is the arrow that used to run the other way — the agent reaching around the front door into Postgres. So the edge is relabelled rather than deleted, and L01's boundary fence is extended to `agent/src/**` in the direction that matters: nothing under `agent/` may import `api/src/`.
+
+The agent authenticates as a first-party OAuth app (seeded by `db:migrate`, so it provably exists in deployed environments — see *First-Party App Seeding* below). The swap lives behind a feature flag, `SHIP_AGENT_VIA_SDK`, default **off**; CI runs the Part 2 regression suite with the flag **on and off**, which is what makes the rewire a refactor rather than a rewrite. ★ **The payoff is the audit trail:** every agent read now lands in the public audit log under the agent app's `client_id` — "the agent went through the front door" is provable with one query, not a claim. One LLM call per agent turn is unchanged; the platform itself does zero AI work.
+
+### The three scopes, and the defence for each
+
+Least privilege, not `*` — and under decision **D5b** that means **read-only**. Exactly three, and each is earned by a named reader rather than requested in case it is useful:
+
+| Scope | What needs it |
+|---|---|
+| `issues:read` | `stalledWork.ts`, `reviewBottleneck.ts`, `reworkChurn.ts`, `loadImbalance.ts` and `sprintMissRisk.ts` all read `documents` filtered to `document_type = 'issue'` |
+| `sprints:read` | `loadImbalance.ts` and `sprintMissRisk.ts` read `document_type = 'sprint'`; the sprint's calendar window comes from `sprintSchema`'s server-computed `start_date`/`end_date` rather than from the `workspaces` table, which has no public route and should never have one — it is tenant configuration |
+| `documents:read` | `reworkChurn.ts` reads a `project` document and `graph/nodes/fetchParticipants.ts` reads a `person` document; both are `documents` on the public surface |
+
+There is **no write scope, and no `webhooks:manage`.** `agentAppCitizen.test.ts` asserts the list is exactly those three and names any offender — the agent carried `issues:write` until 2026-08-12 under a comment claiming least privilege, which is the failure that assertion exists to prevent.
+
+### The two write actions became recommendations, and that is a real change
+
+The agent had three action kinds. `notify` never touched Ship over HTTP and is unchanged. The other two — `comment` (`POST /api/documents/:id/comments`) and `history_note` (`POST /api/issues/:id/history`) — **have no public route and no registered scope**, so under read-only there is nowhere for them to go.
+
+Adding those routes was considered and rejected: it is exactly the sprawl p.2 warns against, and it would need two write scopes the seven-scope registry does not have. So under the flag both actions write a **recommendation** into `fleetgraph_notifications` — the agent's own table, carrying the same model phrasing, the same measurement and the same threshold the comment would have carried, distinguished by a `kind` column (migration 075).
+
+**What that costs, stated rather than glossed.** A `document_history` row is rendered in Ship's own UI and makes *"what did the agent do last week"* answerable with one query by someone who does not know which documents to look at. A recommendation row is not rendered there. **The agent's trail moves from `document_history` to `public_api_calls` + `fleetgraph_notifications`, so the query a reader would run changes.** The information still reaches the accountable person; the surface it reaches them on is different, and one reader of the old surface loses a view.
+
+### The front-door claim is bounded, and here is the boundary
+
+Under the flag, the agent's reads go through `@ship/sdk` → `/api/v1/*`, and a `Queryable` wrapper records every statement the flag-on path issues. The run asserts the tables touched are a subset of the agent's own — `fleetgraph_watermarks`, `fleetgraph_observations`, `fleetgraph_notifications`, `fleetgraph_checkpoints` — **plus a named exception list**, which is non-empty:
+
+| Exception | Why it is not on the public API |
+|---|---|
+| `document_history` (`reworkChurn.ts`, `resolveScope.ts`) | A `GET /api/v1/issues/:id/history` route would invent a public endpoint the PRD never asks for and a scope p.3 does not register. Left on direct SQL, named and counted, rather than growing the public surface to win a sentence |
+| `users.name` (`loadImbalance.ts`, `fetchParticipants.ts`) | No public users resource this week. The display name degrades to the id, which is cosmetic in a prompt — and a client-credentials token has no user context to resolve names against anyway |
+
+Everything else was rescued rather than excepted: issue→sprint and issue→project membership arrives as `issueSchema.belongs_to` (**D13**), so `loadImbalance` and `sprintMissRisk` need no `document_associations` read.
+
+So the honest claim is **"every Ship-data read the agent makes goes through the public API, except the two rows above, which are named and asserted"** — not "every action, without qualification". A bounded claim a reader can check beats an absolute one they cannot.
 
 ## First-Party App Seeding
 

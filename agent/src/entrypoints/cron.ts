@@ -34,7 +34,8 @@ import {
 } from '../graph/index.js';
 import { getCheckpointer } from '../graph/checkpointer.js';
 import { makeJudge, makeAnswer, describeProvider } from '../llm/index.js';
-import { makeShipAct } from '../actions/index.js';
+import { makeShipAct, makeRecommendAct } from '../actions/index.js';
+import { agentViaSdk } from '../composition.js';
 import { ensureSynchronousCallbacks, logTracingStatus } from '../observability/tracing.js';
 
 /** Backstop for a hang, not a performance target. See the header. */
@@ -61,7 +62,24 @@ const refuseToAct = async (action: ProposedAction) => ({
  * single capability instead of killing the process before any detection
  * happens. Detection is the valuable half; commenting is the garnish.
  */
-function resolveAct() {
+function resolveAct(db: GraphDeps['db']) {
+  // ── L23 PF-704 — the ONE read of the flag, at the composition root ────────
+  //
+  // Resolved here and passed down, never consulted again. `agentViaSdk()` is
+  // the only function that touches `process.env.SHIP_AGENT_VIA_SDK` in the
+  // whole package, and `flagSite.test.ts` greps to keep it that way.
+  if (agentViaSdk()) {
+    // D5b. No Ship write path exists for this agent, so `comment` and
+    // `history_note` become recommendations in `fleetgraph_notifications` —
+    // its own table, reached over the same connection the graph already has.
+    //
+    // Note what is NOT checked here: `SHIP_API_TOKEN`. The read-only path
+    // needs no Ship credential to deliver a recommendation, so a deployment
+    // running flag-on with no token still surfaces its findings. That is a
+    // genuine improvement and it is the only one D5b buys for free.
+    return makeRecommendAct({ db });
+  }
+
   if (!process.env.SHIP_API_TOKEN) return refuseToAct;
   try {
     return makeShipAct();
@@ -128,7 +146,7 @@ export async function scanWorkspace(
           db: client,
           judge: deps.judge ?? makeJudge(),
           answer: deps.answer ?? makeAnswer(),
-          act: deps.act ?? resolveAct(),
+          act: deps.act ?? resolveAct(client),
           now: deps.now,
         },
         checkpointer
