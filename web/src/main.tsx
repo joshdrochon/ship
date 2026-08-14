@@ -54,6 +54,10 @@ const WorkspaceSettingsPage = React.lazy(() => import('@/pages/WorkspaceSettings
 const ConvertedDocumentsPage = React.lazy(() => import('@/pages/ConvertedDocuments').then(m => ({ default: m.ConvertedDocumentsPage })));
 const UnifiedDocumentPage = React.lazy(() => import('@/pages/UnifiedDocumentPage').then(m => ({ default: m.UnifiedDocumentPage })));
 const StatusOverviewPage = React.lazy(() => import('@/pages/StatusOverviewPage').then(m => ({ default: m.StatusOverviewPage })));
+// L22 PF-654 — the developer portal. Lazy like every other page, so the SDK it
+// imports is a separate chunk and Part 1's initial bundle is unchanged (p.6's
+// +10% regression budget is measured on the entry bundle, not on the app total).
+const PortalPage = React.lazy(() => import('@/pages/portal/PortalPage').then(m => ({ default: m.PortalPage })));
 const ReviewsPage = React.lazy(() => import('@/pages/ReviewsPage').then(m => ({ default: m.ReviewsPage })));
 const OrgChartPage = React.lazy(() => import('@/pages/OrgChartPage').then(m => ({ default: m.OrgChartPage })));
 const InviteAcceptPage = React.lazy(() => import('@/pages/InviteAccept').then(m => ({ default: m.InviteAcceptPage })));
@@ -311,6 +315,15 @@ function AppRoutes() {
         <Route path="feedback/:id" element={<FeedbackEditorPage />} />
         <Route path="settings" element={<WorkspaceSettingsPage />} />
         <Route path="settings/conversions" element={<ConvertedDocumentsPage />} />
+        {/*
+          L22 PF-654 — the developer portal. Two routes, one page: `/portal` is
+          the "pick an app" state and `/portal/:appId` is the delivery log. The
+          selected app lives in the PATH rather than in component state so the
+          contextual sidebar (rendered by AppLayout, above the Outlet) and the
+          main panel agree without a context provider spanning both.
+        */}
+        <Route path="portal" element={<PortalPage />} />
+        <Route path="portal/:appId" element={<PortalPage />} />
       </Route>
     </Routes>
   );
