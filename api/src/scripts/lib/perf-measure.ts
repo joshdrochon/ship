@@ -41,6 +41,7 @@ import request from 'supertest';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
+import { Agent } from 'node:http';
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PoolClient } from 'pg';
@@ -52,6 +53,25 @@ export { BASELINE_PATH, REPO, WEB_DIST } from './perf-paths.js';
 
 /** Requests per route that count toward the percentile. */
 export const SAMPLES = 60;
+
+/**
+ * How many independent 60-sample passes each route gets. The reported p95 is
+ * the MEDIAN of the per-pass p95 values, not one pass's.
+ *
+ * PF-806. One pass cannot resolve a ±10% budget on this workload. Measured on
+ * an idle machine, the SAME code three times running gave `GET /api/issues`
+ * p95 of 5.12, 9.29 and 7.24 ms — an 81% spread against a 10% gate. A
+ * single-pass comparison therefore reports the machine, not the diff, and it
+ * does so in both directions: the first `--strict-latency` run that ever went
+ * green was as meaningless as the four that failed after it.
+ *
+ * Five passes because that is where the median stopped moving between repeats
+ * here; it is not a magic number, and `PERF_TRIALS` exists so a noisier or
+ * quieter machine can say so. Sampling harder inside one pass does not fix
+ * this — the variance is between passes, from scheduling and cache state, not
+ * within them.
+ */
+export const TRIALS = Math.max(1, Number(process.env.PERF_TRIALS ?? 5));
 /** Requests per route discarded first — JIT warm-up, pool fill, plan caching. */
 export const WARMUP = 15;
 /** Rows the list endpoints page over. Fixed so the numbers are comparable. */
@@ -142,6 +162,17 @@ export interface RouteMeasurement {
   latencyMs: LatencyStats;
   queriesPerRequest: number;
   note: string;
+  /**
+   * How many independent passes produced `latencyMs`, and the spread of the
+   * per-pass p95 values it is the median of. Optional: baselines captured
+   * before PF-806 are single-pass and carry neither.
+   *
+   * `p95Trials` is the honesty check on the headline number. If those values
+   * are 5.11 and 10.80, the median is real but the budget comparison against
+   * it is not, and the reader can see that without re-running anything.
+   */
+  trials?: number;
+  p95Trials?: number[];
 }
 
 export interface BundleMeasurement {
@@ -163,6 +194,11 @@ export interface BundleMeasurement {
 export interface MethodBlock {
   transport: string;
   samplesPerRoute: number;
+  /**
+   * Independent passes per route, the median of whose p95s is reported.
+   * Optional: baselines captured before PF-806 are single-pass.
+   */
+  trialsPerRoute?: number;
   warmupPerRoute: number;
   percentile: string;
   fixtureDocuments: number;
@@ -373,10 +409,14 @@ export async function describeMethod(): Promise<MethodBlock> {
   const cpuCount = os.cpus().length;
   const loadAvg1 = round(os.loadavg()[0]!, 2);
   return {
-    transport: 'in-process (supertest), no TCP — a before/after pair, not a production SLO',
+    transport:
+      'one app.listen(0) for the run, one kept-alive loopback socket (PF-806) — ' +
+      'a before/after pair, not a production SLO. NOT comparable to a baseline ' +
+      'captured with the old per-request supertest bind.',
     samplesPerRoute: SAMPLES,
+    trialsPerRoute: TRIALS,
     warmupPerRoute: WARMUP,
-    percentile: 'nearest-rank',
+    percentile: 'nearest-rank, median across trials',
     fixtureDocuments: FIXTURE_DOCUMENTS,
     node: process.version,
     platform: `${process.platform}-${process.arch}`,
@@ -401,6 +441,38 @@ export async function measureRoutes(
   const fixture = await createFixture();
   const routes: Record<string, RouteMeasurement> = {};
 
+  // PF-806 — ONE listener and ONE kept-alive socket for the whole run.
+  //
+  // This used to be `request(app)` per call, which makes supertest bind a fresh
+  // ephemeral server, accept one connection and tear both down — for EVERY
+  // sampled request, inside the timed region. Two consequences, and the second
+  // is why the budget was unmeasurable:
+  //
+  //   · at 25 trials the run died with ECONNRESET. 25 x 60 x 6 routes is 9000
+  //     listen/close pairs, and the ephemeral port range does not recycle
+  //     through TIME_WAIT that fast.
+  //
+  //   · the bind/accept/close cost was being MEASURED as route latency. It is
+  //     scheduler-dependent and swamps the routes it is measuring: per-trial
+  //     p95 spread on unchanged code was 21-87% against a 10% budget, and
+  //     `GET /health` — which runs no query and touches no database — moved
+  //     32% between runs of identical code.
+  //
+  // Binding once and reusing a keep-alive socket takes connection setup out of
+  // the measurement entirely. It does introduce a real loopback TCP hop, so
+  // `describeMethod().transport` says so: these numbers are not comparable to a
+  // baseline captured by the old in-process path, which is why the Part 1
+  // baseline is re-captured with this same code rather than reused.
+  const server = app.listen(0);
+  await new Promise<void>((resolve, reject) => {
+    server.once('listening', () => resolve());
+    server.once('error', reject);
+  });
+  const addr = server.address();
+  if (!addr || typeof addr === 'string') throw new Error('perf: server did not bind a port');
+  const base = `http://127.0.0.1:${addr.port}`;
+  const agent = new Agent({ keepAlive: true, maxSockets: 1 });
+
   try {
     for (const route of ROUTES) {
       // The concrete URL is what gets requested; `route.path` is what gets
@@ -410,7 +482,7 @@ export async function measureRoutes(
       const recordedPath = route.path === '__DOC__' ? '/api/documents/:id' : route.path;
 
       const send = () => {
-        const req = request(app).get(path);
+        const req = request(base).get(path).agent(agent);
         return route.auth ? req.set('Cookie', fixture.sessionCookie) : req;
       };
 
@@ -435,14 +507,38 @@ export async function measureRoutes(
       counting = false;
       const queriesPerRequest = queryCount;
 
-      // Latency.
-      const durations: number[] = [];
-      for (let i = 0; i < SAMPLES; i++) {
-        const started = performance.now();
-        await send();
-        durations.push(performance.now() - started);
+      // Latency. TRIALS independent passes, each of SAMPLES requests; the
+      // reported statistic is the MEDIAN across passes, per percentile.
+      //
+      // Taking the median of per-pass p95s rather than the p95 of all pooled
+      // samples is deliberate. Pooling would let one bad pass — a GC pause, a
+      // scheduler migration, Spotlight waking up — pull the combined tail up
+      // and be indistinguishable from a real regression. The median across
+      // passes discards that pass entirely, which is the whole point.
+      const perTrial: LatencyStats[] = [];
+      for (let t = 0; t < TRIALS; t++) {
+        const durations: number[] = [];
+        for (let i = 0; i < SAMPLES; i++) {
+          const started = performance.now();
+          await send();
+          durations.push(performance.now() - started);
+        }
+        durations.sort((a, b) => a - b);
+        perTrial.push({
+          p50: percentile(durations, 50),
+          p95: percentile(durations, 95),
+          p99: percentile(durations, 99),
+          min: durations[0]!,
+          max: durations[durations.length - 1]!,
+          mean: durations.reduce((a, b) => a + b, 0) / durations.length,
+        });
       }
-      durations.sort((a, b) => a - b);
+
+      const medianOf = (pick: (s: LatencyStats) => number): number => {
+        const xs = perTrial.map(pick).sort((a, b) => a - b);
+        const mid = Math.floor(xs.length / 2);
+        return xs.length % 2 ? xs[mid]! : (xs[mid - 1]! + xs[mid]!) / 2;
+      };
 
       const measurement: RouteMeasurement = {
         method: route.method,
@@ -450,15 +546,19 @@ export async function measureRoutes(
         status,
         samples: SAMPLES,
         latencyMs: {
-          p50: round(percentile(durations, 50)),
-          p95: round(percentile(durations, 95)),
-          p99: round(percentile(durations, 99)),
-          min: round(durations[0]!),
-          max: round(durations[durations.length - 1]!),
-          mean: round(durations.reduce((a, b) => a + b, 0) / durations.length),
+          p50: round(medianOf((s) => s.p50)),
+          p95: round(medianOf((s) => s.p95)),
+          p99: round(medianOf((s) => s.p99)),
+          // min/max stay the true extremes across every pass, not medians of
+          // extremes — they exist to show the range the median came out of.
+          min: round(Math.min(...perTrial.map((s) => s.min))),
+          max: round(Math.max(...perTrial.map((s) => s.max))),
+          mean: round(medianOf((s) => s.mean)),
         },
         queriesPerRequest,
         note: route.note,
+        trials: TRIALS,
+        p95Trials: perTrial.map((s) => round(s.p95)),
       };
 
       routes[route.id] = measurement;
@@ -466,6 +566,8 @@ export async function measureRoutes(
     }
   } finally {
     await destroyFixture(fixture);
+    agent.destroy();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
   }
 
   return routes;
