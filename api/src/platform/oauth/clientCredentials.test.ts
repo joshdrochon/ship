@@ -294,7 +294,7 @@ describe('PF-687 — five ways it must fail, each named', () => {
 
     // No token of any kind reached the store.
     expect(await tokenRepo.findByHash(hashToken('anything'))).toBeNull();
-    const anyRow = await tokenRepo.revokeByApp(agentApp.id, 'owner_deleted', new Date());
+    const anyRow = await tokenRepo.revokeByApp(agentApp.id, 'app_revoked', new Date());
     expect(anyRow).toBe(0);
   });
 });
