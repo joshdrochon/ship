@@ -163,9 +163,39 @@ describe('PF-294 · /me landed with zero lines changed under platform/openapi/',
     //
     // Measured against the merge-base rather than against a file list, so it
     // cannot be satisfied by a reviewer's memory of what was touched.
+    //
+    // The ref is RESOLVED rather than hardcoded. GitLab clones shallow and
+    // fetches only the ref the pipeline runs on, so `pf/integration` does not
+    // exist as a local branch there and this failed with
+    // `fatal: bad revision 'pf/integration...HEAD'` — an infrastructure detail
+    // reported as a fitness violation, which sent the reader looking for a
+    // generator edit that was never made.
+    const baseRef = ['pf/integration', 'origin/pf/integration'].find((ref) => {
+      try {
+        execFileSync('git', ['rev-parse', '--verify', '--quiet', ref], {
+          cwd: REPO_ROOT,
+          stdio: 'ignore',
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    });
+
+    // Loud, not skipped. A silent pass here would mean the pairing this test
+    // exists to hold is unwatched exactly where it matters — in CI.
+    expect(
+      baseRef,
+      'Neither `pf/integration` nor `origin/pf/integration` is present. This test diffs ' +
+        'against the integration branch, so a shallow clone that fetched only the current ' +
+        'ref cannot run it. Fetch it first:\n\n' +
+        '    git fetch --no-tags --depth=1 origin ' +
+        '+refs/heads/pf/integration:refs/remotes/origin/pf/integration\n',
+    ).toBeDefined();
+
     const changed = execFileSync(
       'git',
-      ['diff', '--name-only', 'pf/integration...HEAD', '--', 'api/src/platform/openapi/'],
+      ['diff', '--name-only', `${baseRef!}...HEAD`, '--', 'api/src/platform/openapi/'],
       { cwd: REPO_ROOT, encoding: 'utf8' },
     )
       .split('\n')
