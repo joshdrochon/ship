@@ -154,6 +154,26 @@ Use `/ship-philosophy-reviewer` to audit changes against Ship's core philosophy.
 - "Untitled" for all new docs (not "Untitled Issue")
 - YAGNI, boring technology, 4-panel layout
 
+## Git remotes — do not re-add `upstream`
+
+Remotes are `origin` (GitLab, **the graded remote**) and `github` (Week 5 / Render).
+
+There used to be an `upstream` pointing at `labs.gauntletai.com/byronmackay/ship`, the
+project this repo was forked from. **It was removed deliberately.** `glab` resolves the
+current project from the git remotes and preferred `upstream` over `origin`, so every
+`glab` command targeted someone else's project — including `glab mr create`, which opened
+a real merge request on `byronmackay/ship` before anyone noticed. The GitLab web UI has
+the same default and it has to be corrected by hand there every time.
+
+Nothing here pulls from the fork parent, so the remote bought nothing and cost that.
+
+If it ever needs to come back, expect `glab` to start targeting the wrong project again
+and pass `--repo joshrochon/ship` on every invocation:
+
+```bash
+git remote add upstream https://labs.gauntletai.com/byronmackay/ship.git
+```
+
 ## Security Compliance
 
 **NEVER use `git commit --no-verify`.** See `/ship-security-compliance` skill for pre-commit hooks (`comply opensource`), CI enforcement, and compliance check failure handling.
