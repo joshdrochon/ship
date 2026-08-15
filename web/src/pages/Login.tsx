@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, type FormEvent } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/cn';
-import { Icon } from '@/components/icons/uswds';
 import { SkipLink } from '@/components/SkipLink';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -387,20 +386,25 @@ export function LoginPage() {
         )}
 
         {/*
-          USWDS Icon visual verification - different sizes and colors
-          Used in E2E tests to verify icons are loading correctly 
+          There was a `USWDS Icons:` swatch here — four sample icons behind
+          `import.meta.env.VITE_APP_ENV !== 'production'`, as a visual check that
+          the lazy icon loader worked.
+
+          It shipped to the deployed login page. The guard reads an env var that
+          is only ever set by one line of `scripts/deploy-frontend.sh`, there is
+          no `web/.env*` file that defines it, and `undefined !== 'production'`
+          is TRUE — so every build that did not go through that exact script
+          rendered a debug swatch under the sign-in button, and the failure mode
+          was to render it rather than to hide it.
+
+          Removed rather than re-guarded. A build-env conditional is the wrong
+          mechanism for keeping debug UI off a production login screen: it fails
+          open, and nothing tests the negative case. What the swatch actually
+          proved — that `Icon` resolves a lazy chunk and emits an SVG element
+          carrying `role="img"` and `fill="currentColor"` — is asserted in
+          `web/src/components/icons/uswds/Icon.test.tsx`, which runs in the unit
+          suite and does not need a page to host it.
         */}
-        {import.meta.env.VITE_APP_ENV !== 'production' && (
-          <div data-testid="uswds-icons" className="mt-6 border-t border-border pt-4 text-center text-xs text-muted">
-            <p className="mb-2 text-muted">USWDS Icons:</p>
-            <div className="flex items-center justify-center gap-3">
-              <Icon name="check" className="h-3 w-3 text-green-500" title="Check (h-3)" />
-              <Icon name="close" className="h-4 w-4 text-red-400" title="Close (h-4)" />
-              <Icon name="warning" className="h-5 w-5 text-yellow-500" title="Warning (h-5)" />
-              <Icon name="info" className="h-6 w-6 text-accent" title="Info (h-6)" />
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );
