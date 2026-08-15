@@ -359,17 +359,46 @@ assert-tests-ran: 888 tests executed (>= 874); command exit 0
 |---|---:|
 | `e2e` job duration (job 66343) | **2,275.9 s** (37.9 min) |
 | Median across *successful* `e2e` jobs in the window | 2,315.5 s (n=28) |
-| Tests executed | 888, across 75 spec files at 4 workers |
+| Tests executed | 888, across 76 spec files at **1 worker** |
 | `oauth-pkce.spec.ts` | 5 tests |
-| **OAuth's share, by test count** | **0.56%** |
+| OAuth's share, by test count | 0.56% |
+| **OAuth's share, by wall time** | **~1.3–1.5%** |
 
-**That share is by count, and the count is all this instrument can give.** Playwright's CI
-reporter prints completions, not per-spec durations, and four workers interleave, so the
-trace cannot attribute wall time to one spec file. Converting 0.56% into ~12.8 s would
-assume every test costs the same, and one of the five is a *"P95 over 20 runs"* benchmark
-that plainly does not. So: 5 tests of 888, a rounding error either way — the count p.9 asks
-for rather than the hand-wave it warns against, without a time share the trace cannot
-support.
+The worker count is measured, not assumed: the trace's own first line reads
+`Running 888 tests using 1 worker`, and `.gitlab-ci.yml:583` sets `PLAYWRIGHT_WORKERS: '1'`
+on the ref this job ran from. **An earlier version of this table said "75 spec files at 4
+workers".** The 4 was stale — the value went 4 → 2 → 1 in three commits on 2026-08-01
+(`e668f3f`, `974a016`, `345b7c7`) — and the spec count was one short; 76 distinct
+`.spec.ts` paths appear in the trace. (The working tree now holds 77; one was added after
+this job ran, which is why the count is taken from the trace and not from `find`.)
+
+**That correction changes the argument, because one worker does not interleave.** The
+previous version refused to give a time share on the grounds that "four workers interleave,
+so the trace cannot attribute wall time to one spec file." At one worker the suite is
+sequential, `oauth-pkce.spec.ts` runs as a contiguous block (tests 490–494 of 888), and the
+trace lines are timestamped — so the share *is* derivable, and refusing to give it would now
+be the hand-wave p.9 warns against.
+
+**Derived from the trace's line timestamps** (not a per-spec duration the reporter emits —
+Playwright's line reporter prints a progress counter, and whether it stamps test start or
+test completion changes which end of the block is measured, so both bounds are given):
+
+| | |
+|---|---:|
+| Block start — line for test 490 | `07:27:14.857` |
+| Block end — line for test 494 / first line after (495) | `07:27:43.116` / `07:27:43.130` |
+| **`oauth-pkce.spec.ts` wall time** | **28.3–33.1 s** |
+| Suite wall time (`885 passed (36.5m)`) | 2,190 s |
+| **OAuth's share of suite wall time** | **1.29–1.51%** |
+
+So OAuth costs **~2.5× its share by test count** — and the reason is the one the previous
+version correctly predicted: the single *"P95 over 20 runs"* benchmark at
+`oauth-pkce.spec.ts:427` spans `07:27:22.595` → `07:27:43.116`, **20.5 s**, which is about
+two-thirds of the whole block on its own. The old text was right that converting 0.56% into
+~12.8 s would assume every test costs the same; it was wrong that no better number was
+available. Either way the conclusion is unchanged in substance — **OAuth is ~1.5% of the e2e
+job, a rounding error against the 35.1 min the job bills** — but it is now the measured share
+p.9 asks for rather than a count standing in for one.
 
 ### OpenAPI generation and validation overhead
 
@@ -719,18 +748,109 @@ tiers, which is the check that the pair is self-consistent:
 | 100,000 users | 5,000 | 50,000 | ~50,000 |
 
 p.10: *"Cost projection bends on this assumption, not on platform traffic."* Correct, and
-it is the only line here that moves with a token price. At 100,000 users, ~50,000 calls per
-day at a ~4k-token turn is 1.5M turns/month and ~6.0B tokens/month, which the document
-prices at **$3,000–6,000/month on its own**. That range implies a **blended $0.50–1.00 per
-million tokens**, stated here because it was previously implicit: it is a Sonnet/Haiku-class
-blended rate, matching p.10's *"Claude API (Sonnet 4 recommended)"* rather than the
-`claude-opus-4-5` currently pinned at `client.ts:107`. On the pinned model the line would be
-materially higher; the rate is an assumption, and it is the one to change first if the model
-choice is confirmed.
+it is the only line here that moves with a token price.
 
-**The two are not in conflict with p.9's $500–1,500: p.9 attributes LLM cost to the agent
-app's user-driven sessions, not to the platform.** The platform's own bill at 100,000 users
-is storage, compute and egress; the agent's bill belongs to whoever turns the agent on.
+**An earlier version of this line priced the agent at $3,000–6,000/month, and that was wrong
+by roughly 7×.** It rested on a blended **$0.50–1.00 per million tokens**, described as a
+Sonnet/Haiku-class rate. No Anthropic model prices there at any input/output mix — the
+cheapest, Haiku 4.5, is $1.00/M on input alone, and any real turn also produces output. The
+rate was never taken off a price sheet, and it is repriced below against the model the code
+actually pins.
+
+**Rates used — an assumption, not a measurement.** A vendor price sheet cannot be verified
+from inside this repo, so the rates are stated here for a reader to substitute:
+
+| Model | Input $/MTok | Output $/MTok |
+|---|---:|---:|
+| **`claude-opus-4-5` — the pinned model** | **$5.00** | **$25.00** |
+| `claude-sonnet-4-5` — p.10's recommendation class | $3.00 | $15.00 |
+| `claude-haiku-4-5` — the cheapest model offered | $1.00 | $5.00 |
+
+Source: Anthropic model overview, `platform.claude.com/docs/en/about-claude/models/overview`,
+retrieved **2026-08-15**. `agent/src/llm/client.ts:107` pins `claude-opus-4-5-20251101` (and
+`:96` the Bedrock equivalent). `FLEETGRAPH_MODEL_ID` can override it; nothing in the deployed
+environment does.
+
+**The arithmetic.** Volume is unchanged: at 100,000 users, p.9's own ~50,000 calls/day is
+1.5M turns/month, and at a ~4k-token turn that is ~6.0B tokens/month. Because that total is
+fixed, cost depends only on how it splits between input and output:
+
+> `cost = $5 × input_MTok + $25 × output_MTok`, with `input + output = 6,000 MTok`
+> which reduces to **`$30,000 + $20 × output_MTok`**
+
+`MAX_TOKENS = 2048` (`client.ts:113`) caps output per turn, so the split is bounded at both
+ends — and the code's own comment on that constant says the cap is *"far more than the schema
+can fill"*, because judgement *"returns a handful of short sentences"*:
+
+| Output per turn | Output MTok/month | **Agent LLM cost/month** |
+|---|---:|---:|
+| 0 — degenerate lower bound, not reachable | 0 | $30,000 |
+| ~200 tokens | 300 | **$36,000** |
+| **~300 tokens — the assumed case** | **450** | **$39,000** |
+| ~400 tokens | 600 | **$42,000** |
+| 2,048 — every turn at the `MAX_TOKENS` ceiling | 3,072 | $91,440 |
+
+**The line is ~$36,000–42,000/month, call it ~$39,000** — **6.5× the top of the $3,000–6,000
+range it replaces and 13× the bottom.** A first pass at this correction put it higher still
+(11–23×) by assuming ~1,300 output tokens per turn; `client.ts:113`'s own comment rules that
+out, so the correction to the correction is *downward*. The error was real and an order of
+magnitude; it was not quite the order of magnitude first claimed.
+
+**This bill is input-dominated.** At ~300 output tokens per turn, input is ~$27,750 of the
+~$39,000 — **71%** — and at the low end more. The lever is therefore prompt size and prompt
+caching, not the output cap or the model's output rate. `agent/src/llm/prompts/judge.ts` and
+`answer.ts` are 8.8 KB and 5.1 KB of source; the static portion of that prompt is resent on
+every one of 1.5M turns per month and is exactly what a cache read would discount.
+
+**What is load-bearing here is the ~4k-token turn, and it is assumed, not measured.** It
+appears in this document without a source, the agent has never run against a live model (no
+credential in the environment — see §4), and the whole line is linear in it. A turn half that
+size halves the bill. This is the first number to measure once the agent is scheduled, and
+until then every figure above inherits its uncertainty.
+
+#### Reconciling with p.9's $500–1,500
+
+p.9's tier table gives ~50,000 agent LLM calls/day and *"Est. cost/month $500–1,500"* on the
+same row, which reads as a contradiction with a $39,000 agent line. It is not one, and the
+reason is p.9's own scope statement directly above that table:
+
+> *"Platform-layer cost scales with API traffic and webhook delivery, not with LLM calls.
+> Numbers below assume the agent app is one of N installed apps at each tier; **LLM cost is
+> attributable to the agent app's user-driven sessions, not the platform itself.**"* — p.9
+
+So the **$500–1,500 column is platform infrastructure only and excludes the agent's LLM
+spend by p.9's own definition.** The calls/day column is a workload input; the cost column
+prices storage, compute and egress. The two lines sit side by side because the platform is
+what p.9 is costing, and the agent's bill belongs to whoever turns the agent on. This
+document keeps them separate for the same reason.
+
+**Of the three ways this could have resolved, the evidence picks the first:** the agent line
+genuinely dwarfs the platform line, and p.9's figure covers platform infrastructure. It is
+not a too-high token estimate — the estimate was corrected *downward* above and the gap
+survives — and it is not closed by a cheaper model, as the next paragraph shows.
+
+**Model choice is a real lever, and it does not close this gap.** Same 6.0B tokens, same
+~300-token output, the three rates above:
+
+| Model | Cost formula | **Agent LLM cost/month** | vs. pinned |
+|---|---|---:|---:|
+| **`claude-opus-4-5` — pinned today** | `$30,000 + $20 × out` | **~$39,000** | — |
+| `claude-sonnet-4-5` — p.10's class | `$18,000 + $12 × out` | **~$23,400** | −40% |
+| `claude-haiku-4-5` — cheapest offered | `$6,000 + $4 × out` | **~$7,800** | −80% |
+
+**Recommendation: move the agent to Sonnet, and treat it as a decision, not a defect.** It
+saves roughly **$15,600/month at the 100,000-user tier** and it is what p.10 asks for —
+*"Claude API (Sonnet 4 recommended)"*. The change needs no deploy: `FLEETGRAPH_MODEL_ID`
+already overrides the pin (`client.ts:107`). **The model pin is deliberately left as-is in
+this pass** — it is a capability/cost tradeoff for the owner to make, and `client.ts:96`
+records that Opus was inherited from `api/src/services/ai-analysis.ts` so that one product
+does not run two model ids.
+
+But note what the table does *not* show: **even Haiku, the cheapest model offered, prices this
+workload at ~$7,800/month — still 5× p.9's whole-tier figure.** No model choice brings the
+agent line inside $500–1,500 at this token volume. That is the arithmetic proof that p.9's
+column cannot have included agent LLM spend, independent of reading p.9's scope note — and it
+is why the reconciliation above is a scope distinction rather than a pricing error.
 
 **Sensitivity — the 2× case, which p.10 asks for by name.** The line is linear in the active
 rate: turns/day = `users × active rate × turns per active user`, and per-turn cost is fixed,
@@ -740,13 +860,16 @@ deliveries.
 
 | Agent active rate | Active users @100,000 | Agent calls/day | Tokens/month | **Agent LLM cost/month** |
 |---|---:|---:|---:|---:|
-| **5%** — assumed | 5,000 | ~50,000 | ~6.0B | **$3,000–6,000** |
-| **10%** — the 2× case | 10,000 | ~100,000 | ~12.0B | **$6,000–12,000** |
+| **5%** — assumed | 5,000 | ~50,000 | ~6.0B | **~$39,000** |
+| **10%** — the 2× case | 10,000 | ~100,000 | ~12.0B | **~$78,000** |
 
-At 10% the agent line alone is roughly an order of magnitude above p.9's whole platform
-estimate for that tier — which is not a contradiction, for the reason given above, but it is
-the number a reader should carry away: **the agent's active rate, not the platform's
-traffic, is the only assumption in this document with four-figure consequences.**
+Both at the pinned `claude-opus-4-5` and ~300 output tokens per turn; on Sonnet the same two
+rows are ~$23,400 and ~$46,800.
+
+At 10% the agent line alone is **~50× p.9's whole platform estimate for that tier** — which
+is not a contradiction, for the scope reason given above, but it is the number a reader
+should carry away: **the agent's active rate and its per-turn token size, not the platform's
+traffic, are the only assumptions in this document with five-figure consequences.**
 
 The agent's read-only scopes — `documents:read`, `issues:read`, `sprints:read`
 (`platformApps.ts:117`) — bound this further, and it is a cost property as much as a
