@@ -413,6 +413,62 @@ agent-test:
         - agent/junit.xml
   allow_failure: false
 
+# PF-706 — the agent flag matrix. THE answer to p.17 §2.6.
+#
+# p.11 build-strategy item 8 requires the Epic 7 rewire to land "behind a feature flag so
+# Part 2's tests pass with the flag on or off", and p.17 §2.6 asks the question directly:
+# "How does CI prove Part 2's tests pass with the flag both on and off?"
+#
+# Until this job existed, the honest answer was that it did not. `scripts/agent-flag-matrix.sh`
+# was written to be that proof and its header said so, but
+#
+#     grep -nE "agent-flag-matrix|SHIP_AGENT_VIA_SDK" .gitlab-ci.yml
+#
+# matched nothing across all 29 jobs. `agent-test` above runs the suite exactly once, at the
+# flag's default — OFF. One state is not a matrix, and a proof script no pipeline invokes
+# proves whatever a reader assumes it proves.
+#
+# ── Why a separate job and not `parallel: matrix` on `agent-test` ────────────────────
+# The obvious wiring is a `SHIP_AGENT_VIA_SDK: ['0', '1']` matrix on `agent-test`. It is
+# wrong here, and measurably so: `agent-test` runs the WHOLE agent suite, which includes
+# `src/entrypoints/cron.test.ts`, and five of that file's six tests fail flag-on with
+#
+#     [fleetgraph] SHIP_AGENT_VIA_SDK is on but AGENT_CLIENT_SECRET is not set.
+#
+# — the composition root refusing to run the rewired agent without a credential, which is
+# the design working, not a bug (docs/l23-flag-matrix.md). A matrix on `agent-test` would
+# therefore be red flag-on on day one, and the only ways to green it are to weaken the
+# refusal or to edit a Part 2 test, both of which trade the thing being proved for the
+# appearance of proving it. So `agent-test` keeps running the whole suite once at the
+# default, and this job runs the flag-invariant set twice.
+#
+# ── What it actually covers ─────────────────────────────────────────────────────────
+# 230 of the agent suite's 236 tests, in both states, measured — not 199. The script's
+# exclusion list arrived carrying three files and two of them did not survive being run:
+# `actions/act.test.ts` (11) and `actions/client.test.ts` (20) pass flag-on as well as
+# flag-off, because they stub `FetchLike` and never reach the composition root. They were
+# excluded on an argument rather than a measurement, and an exclusion list that skips
+# files which would have passed narrows what the matrix may prove for nothing. One file
+# is excluded now, `cron.test.ts`, and it is excluded because it was measured to fail.
+#
+# ── Why it cannot pass vacuously ────────────────────────────────────────────────────
+# The script carries both guards itself, so they cannot be lost in the YAML: each leg
+# asserts at least 200 tests ran (L99's F28 — a zero-stage run otherwise reads as a
+# pass), and the two legs must report the SAME count, so a leg that quietly skipped the
+# flag-sensitive files fails instead of passing for the wrong reason.
+#
+# Testcontainers rather than dind, and no docker CLI call, for the reasons recorded on
+# `agent-test` immediately above — the same image, the same two variables.
+agent-flag-matrix:
+  stage: verify
+  needs: ['build']
+  variables:
+    TESTCONTAINERS_HOST_OVERRIDE: 'host.docker.internal'
+    TESTCONTAINERS_RYUK_DISABLED: 'true'
+  script:
+    - ./scripts/agent-flag-matrix.sh
+  allow_failure: false
+
 # PF-608 — the Time-to-First-Event drill, blocking, on every branch pipeline.
 #
 # p.6: "Drill runs in CI on every PR." p.11: "Time-to-first-event drill in CI from Day 5

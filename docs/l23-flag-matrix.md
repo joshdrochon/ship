@@ -47,25 +47,42 @@ or which act implementation is behind the seam.
 | `llm/converse-mock.test.ts` | 3 |
 | `llm/judge.test.ts` | 14 |
 | `observability/tracing.test.ts` | 9 |
-| **Total** | **191** |
+| `actions/act.test.ts` | 11 | ← moved from bucket 2, 2026-08-15 |
+| `actions/client.test.ts` | 20 | ← moved from bucket 2, 2026-08-15 |
+| **Total** | **230** |
 
 Plus `e2e/fleetgraph-chat.spec.ts`, which drives the on-demand path and touches
 no action at all.
 
-**Measured both ways:** 191/191 with the flag off, 191/191 with the flag on.
+**Measured both ways, 2026-08-15:** 230/230 with the flag off, 230/230 with the
+flag on, via `./scripts/agent-flag-matrix.sh` (exit 0, ~2 min). The count was
+191 when this document was written and is 230 now for two reasons: tests were
+added to the suite (191 → 199), and `act.test.ts` + `client.test.ts` moved in
+from bucket 2 after being measured green flag-on (199 → 230).
 
-## Bucket 2 — transport-specific. One state, by construction.
+## Bucket 2 — one state. Now one file, not three.
 
-These instantiate an implementation directly and are therefore tests *of* that
-implementation. Running them in the other state would not be a stronger check;
-it would be a test of something they are not about.
+**Corrected 2026-08-15 by measurement.** Bucket 2 was authored as three files on
+the argument that each *instantiates an implementation directly and is therefore
+a test of that implementation*. The argument is tidy. Two of the three files do
+not need it, and running them is what showed that.
 
-| File | Tests | Which state, and why |
-|---|---|---|
-| `actions/act.test.ts` | 11 | Constructs `makeShipAct` with a stubbed `FetchLike` and asserts the HTTP shapes. It IS the flag-off action path |
-| `actions/client.test.ts` | 20 | The retry ladder, the circuit breaker, the `SINGLE_DOCUMENT_PATH` allowlist. Same |
-| `entrypoints/cron.test.ts` | 6 | **Found by running it — see below** |
-| **Total** | **37** | |
+The rule bucket 2 is held to now: **a file is excluded only if it has been
+measured to fail in the other state, and the measurement is in this table.** An
+argument is not sufficient. An exclusion list that skips files which would have
+passed does not make the matrix safer — it narrows what the matrix is permitted
+to prove, for free, and it is indistinguishable to a reviewer from a list that
+skips the files that would fail.
+
+| File | Tests | Measured flag-on | Verdict |
+|---|---|---|---|
+| `actions/act.test.ts` | 11 | **11/11 pass** | **Moved to bucket 1.** Stubs `FetchLike`, never reaches the composition root, so the flag never touches it |
+| `actions/client.test.ts` | 20 | **20/20 pass** | **Moved to bucket 1.** Same — the retry ladder, breaker and allowlist are all below the seam |
+| `entrypoints/cron.test.ts` | 6 | **5 fail, 1 passes** | **Stays.** The one entry the rule keeps — see below |
+
+Bucket 1 is therefore **230** tests, not 191, and the matrix covers 230 of the
+agent suite's 236. `git log -S` on `scripts/agent-flag-matrix.sh` shows the list
+shrinking from three entries to one.
 
 ### ⚑ `cron.test.ts` is a bucket-2 member PF-705 did not predict
 
@@ -86,8 +103,23 @@ composition root itself, and the composition root is the one place the flag
 lives. A test of the flag-off composition is a transport test whatever its
 assertions are about.
 
-Two alternatives were considered and rejected:
+Three alternatives were considered and rejected:
 
+- **Set `AGENT_CLIENT_SECRET` in the test environment.** The obvious fix, and it
+  does not work — it relocates the failure rather than removing it. Measured
+  2026-08-15 with `SHIP_AGENT_VIA_SDK=1 AGENT_CLIENT_SECRET=dummy-secret`: the
+  same five tests fail, now at
+
+  ```
+  ShipError: Client credentials exchange failed (invalid_client):
+  Client authentication failed.
+  ```
+
+  because flag-on the composition root does a real RFC 6749 §4.4 exchange, which
+  needs a **running API server with a seeded first-party app**. `cron.test.ts`
+  starts a Postgres container and nothing else. Making this leg pass means
+  standing up the API inside a unit test — that is the `cli-server-suite` shape,
+  not this one, and it is what closing this gap would actually cost.
 - **Inject `db` into `cron.test.ts` so it becomes flag-invariant.** It would
   work, and it would edit a Part 2 test to make a claim about Part 2's tests
   come out nicer. PF-708's whole point is that the old path survives untouched.
@@ -115,16 +147,43 @@ and this document changes with it.** Do not let the count go stale.
 
 ## The CI matrix
 
-`scripts/agent-flag-matrix.sh` runs bucket 1 twice, once per state, both
-blocking. Two anti-vacuity guards, because a matrix that runs zero tests in one
-leg is green and meaningless:
+**`.gitlab-ci.yml` → job `agent-flag-matrix`, stage `verify`, `needs: ['build']`,
+`allow_failure: false`.** It runs `./scripts/agent-flag-matrix.sh`, and it is the
+answer to p.17 §2.6.
 
-1. **A non-zero test count per leg**, via `scripts/assert-tests-ran.sh` — L99's
-   F28 records that a zero-stage run otherwise reads as a pass.
-2. **A break-it check.** Breaking the SDK reader must turn the flag-on leg red
+> **Until 2026-08-15 this section described a script no pipeline ran.** The
+> script existed and its header claimed to be the proof, but
+> `grep -nE "agent-flag-matrix|SHIP_AGENT_VIA_SDK" .gitlab-ci.yml` matched
+> nothing across all 29 jobs, and `agent-test` ran the suite exactly once at the
+> flag's default — OFF. A proof script no pipeline invokes proves whatever the
+> reader assumes it proves. Recorded rather than quietly fixed, because "the
+> script exists" and "CI runs it" are different claims and only the second
+> answers the PRD's question.
+
+**Not a `parallel: matrix` on `agent-test`.** That is the obvious wiring and it
+is wrong here: `agent-test` runs the *whole* agent suite, `cron.test.ts`
+included, so a `SHIP_AGENT_VIA_SDK: ['0','1']` matrix on it would be red flag-on
+from the first run, for the reason documented above. `agent-test` keeps running
+the whole suite once at the default; this job runs the flag-invariant 230 twice.
+
+Two anti-vacuity guards live in the script rather than the YAML so they cannot be
+lost in a job edit, because a matrix that runs zero tests in one leg is green and
+meaningless:
+
+1. **A floor on the test count per leg** — `MIN_BUCKET_1_TESTS=200`, asserted
+   inline against `numTotalTests` from vitest's JSON reporter. (The guard is in
+   the script itself, not `scripts/assert-tests-ran.sh`; an earlier draft of this
+   section named that helper and the script never used it.) L99's F28 records
+   that a zero-stage run otherwise reads as a pass. The floor sits below the
+   current 230 so adding a test does not break CI, and far above zero so a
+   filter that matched nothing does.
+2. **Both legs must report the same count.** A leg that quietly skipped the
+   flag-sensitive files would otherwise pass for the wrong reason — the exact
+   failure this script exists to catch in the code it tests.
+3. **A break-it check.** Breaking the SDK reader must turn the flag-on leg red
    while the flag-off leg stays green. Verified by hand on this branch by
    returning `[]` from `issuesInState`: `citizenReader.test.ts` failed flag-on
    (`expected [] to have length above 0`) and passed flag-off, because flag-off
    never constructs the reader.
 
-Bucket 2 runs once, in its own state, and the job name says so.
+`cron.test.ts` — the whole of bucket 2 — runs once, flag-off, inside `agent-test`.
