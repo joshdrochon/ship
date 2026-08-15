@@ -41,10 +41,11 @@ Domain logic stays where Part 1 put it (`api/src/utils/document-crud.ts`); the p
 it and never re-implements it, which is why the internal surface keeps working untouched.
 
 **O — Open/Closed.** `ScopeRegistry` in `api/src/platform/scopes/registry.ts` and the event
-registry in `api/src/platform/webhooks/events.ts` are *data*, not switch statements. Adding
-`sprints:write` or `sprint.completed` is a registration at module load — no middleware edit
-and no route audit — and the 403 handler names the missing scope by reading the registry
-rather than carrying a second copy of the list.
+registry in `api/src/platform/webhooks/events.ts` are *data*, not switch statements: seven
+scopes in a `SCOPE_DEFINITIONS` array and eight event types in a frozen `EVENT_TYPES`. Adding
+an eighth scope (`projects:read`, say) or a ninth event (`issue.commented`) is one entry in
+those arrays — no middleware edit and no route audit — and the 403 handler names the missing
+scope by reading the registry rather than carrying a second copy of the list.
 
 **L — Liskov Substitution.** `InProcessEventBus` (`api/src/platform/webhooks/bus.ts`) and a
 queue-backed bus are drop-in substitutes behind `IEventBus`; so are `InMemoryDeliverer`
@@ -74,8 +75,9 @@ concrete:
 ```ts
 // api/src/app.ts — annotated
 export function createApp(deps: AppDeps = productionDeps()) {
-  registerScopes(scopeRegistry);       // scopes-as-data: adding one is a registration (OCP)
-  registerEventTypes(eventRegistry);   // 8 Zod-typed event types, same shape
+  // Nothing is "registered" at boot. The scope set is SCOPE_DEFINITIONS in
+  // platform/scopes/scopes.ts and the eight event types are a frozen EVENT_TYPES in
+  // platform/webhooks/events.ts — module-level `as const` data, which is the OCP claim.
 
   deps.bus.subscribe('*', createWebhookPipeline({  // the domain publishes; the pipeline listens
     repo:   deps.subsRepo,                     // PgWebhookSubscriptionRepo(pool, envSecretCipher())
@@ -83,17 +85,22 @@ export function createApp(deps: AppDeps = productionDeps()) {
     queue:  deps.deliveryQueue,                // the seam the retry ladder arrives through;
   }));                                         // the ladder itself is RETRY_SCHEDULE_SECONDS, imported
 
-  app.use('/oauth', oauthRouter(deps));    // RFC 6749/7636/8628 — RFC error shape, IP-throttled
-  app.use('/api/v1', createPublicRouter({  // the ONLY public mount; shares NO middleware with /api
+  app.use('/api/v1', createPublicRouter({  // mounted FIRST; shares NO middleware with /api
     bearerAuth:      deps.bearerAuth,      // 401 + a distinct reason: expired | invalid | missing
     perAppLimiter:   deps.perAppLimiter,   // two separately-configured buckets, not one namespaced
     perTokenLimiter: deps.perTokenLimiter, //   — p.4 asks for per-app AND per-token
-    anonLimiter:     deps.anonLimiter,     // IP-keyed backstop mounted above bearer auth, so 401s,
-    auditSink:       deps.auditSink,       //   404s and openapi.json carry X-RateLimit-* as well
-    openApiDocument: generatePublicOpenAPIDocumentOrDie(),  // throws here ⇒ the process never boots
-  }));   // requireScope, apiErrorMiddleware and openapi.json all live INSIDE the router — the spec
-         // above bearerAuth, so a grader fetches it with no credentials (F11)
-  app.use('/api', internalRouters);        // Part-1 session + CSRF surface, byte-for-byte
+    anonLimiter:     deps.anonLimiter,     // IP-keyed backstop above bearerAuth, so 401s, 404s and
+    auditSink:       deps.auditSink,       //   openapi.json carry X-RateLimit-* as well
+    mountUnauthenticated: mountOpenApiSpec(generatePublicOpenAPIDocumentOrDie()),
+  }));  // ↑ generation throws ⇒ createApp() throws and no socket ever opens. That hook is the F11
+        // fix: the spec mounts INSIDE the router, above bearerAuth and above the not_found
+        // catch-all, so a grader fetches it with no credentials. requireScope and
+        // apiErrorMiddleware live inside the router too — /api/v1 is one self-contained stack.
+  app.use('/oauth', oauthRateLimitMiddleware(deps.oauthLimiter));  // F29 — /oauth/token met no limit
+  app.use('/oauth', createOAuthRouter({ ... }));   // authorize · token · device; RFC 6749 §5.2 errors,
+  app.use('/api/', apiLimiter);                    //   never the ApiError envelope
+  app.use('/api/documents', conditionalCsrf, documentsRoutes);   // ~40 Part-1 mounts, session + CSRF,
+  /* … */                                                        //   byte-for-byte unchanged
   return app;
 }
 ```
@@ -202,8 +209,13 @@ computes `HMAC-SHA256(secret, t + "." + rawBody)` and sends `Ship-Signature: t=<
 
 - **Signed per attempt, at send time**, with the subscription's current secret. The timestamp
   is what defeats replay; the SDK verifier rejects signatures older than 300 s.
-- **Retry ladder** 1s · 4s · 16s · 1m · 5m · 30m with jitter. A permanent 4xx, or the sixth
-  failure, moves the delivery to the dead-letter queue, replayable from the portal.
+- **Retry ladder** `RETRY_SCHEDULE_SECONDS` — 1s · 4s · 16s · 1m · 5m · 30m, ±10 % jitter. Six
+  rungs, but `MAX_ATTEMPTS` is 6 and the waits sit *between* attempts, so a full ladder
+  consumes **five** of them: `LADDER_TOTAL_WAIT_SECONDS` is 381 s, about **6½ minutes** end to
+  end, and the 30 m rung is unreachable at today's attempt count. `MAX_ATTEMPTS` is a separate
+  constant and not `RETRY_SCHEDULE_SECONDS.length`, because conflating the two is what produced
+  the bug the split exists to prevent. A permanent 4xx, or the sixth failure, moves the delivery
+  to the dead-letter queue, replayable from the portal.
 - **Idempotency-Key** is derived from `event_id` **and** `subscription_id` — one event
   legitimately produces N deliveries, and keying on the event alone would hand two unrelated
   apps sharing a target URL the same key. It is persisted on the attempt-1 row and read back
@@ -285,8 +297,9 @@ SDK cannot parse may still be one a human can repair. `FileTokenStore` writes to
 **A subscriber's signing secret is rotated mid-flight.** Rotation takes effect at the next
 attempt, because the signer reads the subscription's *current* secret at send time rather than
 at enqueue time. A subscriber that has not yet updated its own environment verifies against the
-old secret and fails; the retry ladder's ~36-minute tail is the update window, and the
-pathological case parks in the dead-letter queue, replayable from the portal with its original
+old secret and fails; the ladder's five waits — 381 s, about 6½ minutes — are the whole update
+window, which is short enough to say plainly: a subscriber that cannot pick up the new secret
+inside it parks in the dead-letter queue and is replayed from the portal with its original
 Idempotency-Key. The symptom is diagnostic: **one** subscription failing is a stale secret,
 **all** of them failing at once is server clock drift.
 

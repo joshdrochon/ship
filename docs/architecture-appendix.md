@@ -99,6 +99,14 @@ it, so the spec MVP gate item 10 requires a grader to fetch without credentials 
 answered 401. `mountUnauthenticated` is the seam that fixes both; the header of
 `api/src/platform/openapi/route.ts` carries the full finding.
 
+**`registerScopes` and `registerEventTypes` are the sketch's names and were never built.**
+Neither identifier exists anywhere in `api/src`. What shipped is simpler and makes the same
+Open/Closed point without a boot-time step: the scope set is the `SCOPE_DEFINITIONS` array in
+`platform/scopes/scopes.ts` and the event types are a frozen `EVENT_TYPES` in
+`platform/webhooks/events.ts`, both module-level `as const` data. `docs/architecture.md`'s
+Composition Root carries the shipped shape; this block is kept as the sketch it was, with the
+differences named here rather than silently edited into looking prescient.
+
 **What the webhook half of that sketch is called in the code, now that it exists (L15).**
 The sketch predates the build and its shapes are close but not literal; the names below are
 the ones a reader should grep for. `subsRepo(db)` is `PgWebhookSubscriptionRepo(pool,
@@ -870,7 +878,7 @@ The honest limit: because reuse and theft are indistinguishable at the server, a
 
 **Token store corrupted (SDK side).** `ITokenStore` reads that fail or return garbage are treated as logged-out, never as a retry loop: the next call surfaces `{ kind: 'auth' }` and the helper flows re-authenticate cleanly. Corruption is a client-local event — the server sees at worst a 401'd request, and no partial credential is ever written back.
 
-**Signing secret rotated mid-flight.** Rotation takes effect at the next delivery attempt: the signer reads the subscription's current secret at send time, so in-flight failures re-sign with the new secret on retry. A subscriber that hasn't updated its env verifies against the old secret, fails, and the retry ladder (30 min tail) covers the update window; the pathological case parks in the DLQ, replayable from the portal with the original Idempotency-Key.
+**Signing secret rotated mid-flight.** Rotation takes effect at the next delivery attempt: the signer reads the subscription's current secret at send time, so in-flight failures re-sign with the new secret on retry. A subscriber that hasn't updated its env verifies against the old secret, fails, and the retry ladder covers the update window — **381 s, about 6½ minutes**, not the 30-minute tail the ladder's last rung suggests, because `MAX_ATTEMPTS = 6` consumes only the first five rungs (`LADDER_TOTAL_WAIT_SECONDS` in `platform/webhooks/retry.ts`, and the same fact the composition-root sketch above records). The pathological case parks in the DLQ, replayable from the portal with the original Idempotency-Key.
 
 **Queue deliverer crashes.** The contract is at-least-once + Idempotency-Key dedupe — never silent at-most-once. Undelivered attempts are reconstructable because the delivery log (durable, Postgres) records every attempt; on restart, incomplete deliveries are re-driven from the log/DLQ and subscribers dedupe on the key. The in-process must-ship deliverer restarts with the process; the queue-backed drop-in inherits the same recovery semantics through the log.
 
