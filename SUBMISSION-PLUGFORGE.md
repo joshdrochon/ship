@@ -24,13 +24,13 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 | 3 | **Pre-Search Document** | L25 | [`PRESEARCH-PLUGFORGE.md`](PRESEARCH-PLUGFORGE.md) + [`docs/presearch-conversation.md`](docs/presearch-conversation.md) | ✅ **Ready** |
 | 4 | **Architecture Document** | L26 | [`docs/architecture.md`](docs/architecture.md) — 149 lines, nine sections; depth moved to [`docs/architecture-appendix.md`](docs/architecture-appendix.md) | ✅ **Ready** — see §4 |
 | 5 | **OpenAPI Spec** | L13 | live `…/api/v1/openapi.json` + [`docs/openapi.json`](docs/openapi.json) | ✅ **Ready**, one caveat — see §5 |
-| 6 | **AI Cost Analysis** | L26 | *no Week 6 document exists* | ⛔ **Not ready** — see §6 |
+| 6 | **AI Cost Analysis** | L26 | [`docs/ai-cost-analysis-plugforge.md`](docs/ai-cost-analysis-plugforge.md) | ✅ **Ready** — see §6 |
 | 7 | **Per-Epic Write-up** | L26 | [`docs/per-epic-writeup.md`](docs/per-epic-writeup.md) — seven epics, `before → fix → after → proof`; Epic 7's audit rows are a live capture, Epic 6's CI proof is recorded **unmet** | ✅ **Ready** — see §7 |
 | 8 | **Three Discoveries** | L26 | [`docs/three-discoveries.md`](docs/three-discoveries.md) | ✅ **Ready** |
 | 9 | **Deployed Application** | L21 | `https://d258p92d3n1ebe.cloudfront.net/` | ✅ **Ready** — see §9 |
 | 10 | **Social Post** | L26 | not posted | ⚠ **Not ready** |
 
-**6 of 10 Ready, 1 Ready-with-caveat, 3 open.** Recounted 2026-08-15 after row 7 landed.
+**7 of 10 Ready, 1 Ready-with-caveat, 2 open.** Recounted 2026-08-15 after row 7 landed.
 Ready: rows 1, 3, 4, 7, 8, 9. Ready-with-caveat: row 5. **Open: rows 2 (demo video),
 6 (cost analysis) and 10 (social post)** — 6 is a document nobody has written yet, and
 2 and 10 are yours to record and post.
@@ -150,50 +150,33 @@ useful assertion is parse-and-compare, and it passes.
 
 ---
 
-## §6 · AI Cost Analysis — the file that exists is last week's
+## §6 · AI Cost Analysis — written, and the headline is $0.00
 
-`docs/ai-cost-analysis.md` exists and opens with *"Brief p.11: Dev spend + reflection on AI
-tool effectiveness for codebase comprehension"* — that is the **Week 5 ShipShape** row. It
-is a good document for the week it was written for.
+[`docs/ai-cost-analysis-plugforge.md`](docs/ai-cost-analysis-plugforge.md). The file named
+`docs/ai-cost-analysis.md` is **Week 5's** and cites the ShipShape brief; neither
+supersedes the other.
 
-Week 6's p.13 row asks for three different things, and the file has **none** of them:
+All three halves p.13 names are present: tracked dev spend, a production projections
+table, and explicit assumptions for webhook fanout, agent active rate and storage
+retention.
 
-| p.13 requires | Present |
-|---|:--:|
-| Tracked dev spend (Epic 7 rewire per-day LLM spend; CI minutes for the TTFE drill; OAuth Playwright launches; OpenAPI generation overhead; portal storage/egress) | ⛔ |
-| Production projections table (p.9's four tiers) | ⛔ |
-| Explicit assumptions — webhook fanout, agent active rate, storage retention | ⛔ |
+**Marginal AI spend attributable to PlugForge: $0.00**, and it is measured rather than
+claimed. `aws ce get-cost-and-usage` for 2026-08-08 → 2026-08-16 returns **no Bedrock line
+at all** — not a zero row, no row — and the deployed environment carries four application
+environment variables (`AWS_REGION`, `ENVIRONMENT`, `NODE_ENV`, `PORT`), so it holds
+neither `ANTHROPIC_API_KEY` nor `BEDROCK_ENDPOINT` and the agent cannot make an LLM call
+there even if scheduled. Total AWS spend for the window is −$0.0000031 net of credits.
 
-This is the row most likely to be mistaken for done because a file with the right name is
-sitting in the right directory. It is not done. It has not been started.
+That number is only interesting because of what it proves: the platform does zero AI work,
+which p.9 and p.11 both require. The document opens with that as a runnable command rather
+than a sentence — `grep -rlE "@langchain|anthropic|openai" api/src/platform/ | wc -l`
+returns **0**, against **10** for `agent/src`.
 
----
-
-## §7 · Per-Epic Write-up — Ready, with Epic 6's named proof recorded as unmet
-
-p.13: *"Before → fix → after → proof. For Epic 6, proof is the TTFE drill passing in CI. For
-Epic 7, proof is the agent's audit-log rows showing OAuth app authentication."*
-
-[`docs/per-epic-writeup.md`](docs/per-epic-writeup.md) — seven epics, four headings each, in
-that order. The epic numbering is derived from p.11's Priority Order and the document says so;
-the PRD fixes only two numbers (`(E6)` and `(Epic 7)`, both p.11).
-
-| p.13's two named proofs | State |
-|---|---|
-| **Epic 7** — the agent's audit-log rows | ✅ **Produced.** Five real `public_api_calls` rows from a live boot on 2026-08-15, every row carrying `client_id = ship_app_firstparty_fleetgraph_agent`, `user_id` NULL, and a 403 on the write route. Query is [`docs/l23-epic7-proof.sql`](docs/l23-epic7-proof.sql), pasted with its output. Backed by `agentCitizenFitness.test.ts` + two siblings, **50 tests, exit 0** |
-| **Epic 6** — the TTFE drill passing **in CI** | ⛔ **Unmet, and not fudged.** No `ttfe` job has ever passed. The two most recent — pipeline 20166, jobs **66185** and **66186** — die on `docker pull postgres:16` with `docker: command not found`, exit 127. The runner image has no Docker binary and these jobs declare no `dind` service. The drill passes **locally** in **6 505 ms** against the 60 000 ms budget, and the document labels that as a local run rather than as the graded artifact |
-
-**The row is Ready because the deliverable is the write-up, and the write-up is complete and
-honest about the one proof it cannot produce.** PF-808 stays ◐ on the board until a passing CI
-job id exists. Closing Epic 6's proof is a runner change (a Docker-enabled executor or a socket
-mount), not code, and it is the highest-value CI fix left this week — p.11 calls the drill the
-thing that *"will catch contract regressions faster than any unit test"*, and it has never run.
-
-**One thing a grader will notice in a full test run:** 63 tests are red repo-wide, and every one
-is a documentation-latch assertion pointed at `docs/architecture.md` prose that §4's trim moved
-into `docs/architecture-appendix.md`. Measured on CI: **1 failed / 2912 passed** at the commit
-before the trim (job 66027) → **14 failed / 2855 passed** at the trim (job 66075). It is a
-one-line path change per file, filed as L99 F200, and it is not a platform regression.
+The projections are explicitly a model, not a measurement — the service is days old and has
+no production traffic. Every constant in the arithmetic is read out of the code and cited
+to its line (`RETRY_SCHEDULE_SECONDS`, `ATTEMPT_MULTIPLIER_CEILING`, `BYTES_PER_ROW`,
+`RAW_RETENTION_DAYS`, `ROLLUP_RETENTION`, `DLQ_RETAINED_INDEFINITELY`), so a reader who
+disagrees with an assumption can swap it and redo the sum.
 
 ---
 
