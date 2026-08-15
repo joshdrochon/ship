@@ -721,8 +721,43 @@ test.describe('Extend Session API', () => {
     // Wait for modal to dismiss
     await expect(modal).not.toBeVisible();
 
-    // Verify API call was made
-    expect(extendCalls.length).toBe(1);
+    /*
+     * The modal hiding does NOT mean the request has been sent, and this
+     * assertion used to assume it did.
+     *
+     * `resetTimer` (useSessionTimeout.ts:90) hides the modal SYNCHRONOUSLY —
+     * `setShowWarning(false)` — and only then awaits `apiPost`, which itself
+     * first awaits `ensureCsrfToken()` (api.ts:106): a whole `GET
+     * /api/csrf-token` round trip before `POST /api/auth/extend-session` is
+     * ever issued. So `not.toBeVisible()` resolving is a signal that lands one
+     * network round trip EARLIER than the thing being asserted, and a
+     * non-retrying `expect()` on the next line is a coin flip against it.
+     *
+     * Measured on this machine with `--repeat-each=10 --workers=1`, spec run on
+     * its own, both trees clean:
+     *
+     *   dbfb46d (before today's merges)   3 of 10 failed
+     *   f5fa778 (pf/integration)          6 of 10 failed
+     *
+     * — i.e. a pre-existing race, not a regression. It hides in a full-file run
+     * because the surrounding load stretches `click()` far enough to cover the
+     * round trip; run the spec alone and it fires. An instrumented run caught
+     * the losing interleaving exactly: the last request the page made was
+     * `GET /api/csrf-token`, with no POST after it, while the modal was already
+     * gone.
+     *
+     * `expect.poll` retries the same assertion — the contract is unchanged and
+     * still "exactly one extend-session call". Deliberately NOT a fixed wait:
+     * PRD p.11 bans `setTimeout` waits in tests and
+     * `api/src/platform/webhooks/retryClockFitness.test.ts` enforces it.
+     *
+     * Note whose click this actually is. `button.click()` hovers first, and
+     * `mousemove` is one of the activity events `handleActivity` listens for,
+     * so the activity path calls `resetTimer` before the button's own onClick
+     * does. The second call returns early on `extendingSessionRef` — that is
+     * the guard doing its job, and it is why the count is 1 and not 2.
+     */
+    await expect.poll(() => extendCalls.length).toBe(1);
     expect(extendCalls[0]).toContain('/api/auth/extend-session');
   });
 

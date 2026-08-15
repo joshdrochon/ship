@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { architectureText } from '../../test/architectureDoc.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const API_SRC = join(HERE, '..', '..');
@@ -198,7 +199,7 @@ describe('PF-451 — exactly one retry ladder in the repository', () => {
   });
 
   it('docs/architecture.md imports the constant rather than inlining the array', () => {
-    const doc = readFileSync(join(REPO_ROOT, 'docs', 'architecture.md'), 'utf8');
+    const doc = architectureText();
     expect(
       doc.includes('new RetryScheduler(clock, [1, 4, 16, 60, 300, 1800])'),
       'docs/architecture.md passed the ladder as an inline array literal into ' +

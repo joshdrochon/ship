@@ -16,10 +16,10 @@ import { pool } from '../../db/client.js';
 import { PUBLIC_API_CALL_FIELDS, type IAuditSink } from './audit.js';
 import { PgAuditSink, listCalls } from './pgAuditSink.js';
 import { RAW_RETENTION_DAYS, pruneRawCalls, callsPerDay } from './retention.js';
+import { architectureText } from '../../test/architectureDoc.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const ARCHITECTURE_DOC = join(HERE, '..', '..', '..', '..', 'docs', 'architecture.md');
-const architecture = readFileSync(ARCHITECTURE_DOC, 'utf8');
+const architecture = architectureText();
 
 const A_SECRET = 'cs_live_thisisaclientsecretnobodyshouldeversee';
 const A_TOKEN = 'at_live_thisisanaccesstokennobodyshouldeversee';

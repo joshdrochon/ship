@@ -130,6 +130,16 @@ export function checkLoad(current: CurrentMeasurement): LoadCheck {
   return { acceptable: true, loadAvg1, loadRatio };
 }
 
+/**
+ * The three answers this report can give about the +10% budget.
+ *
+ * `indeterminate` exists because the second one was previously spelled `pass`.
+ * A run whose latency was vetoed emitted `ok: true` and `failures: []` — a clean
+ * green on the artifact a grader opens — while the P95 half of PRD p.2 gate item 9
+ * had not been judged at all. An unjudged budget is not a passed budget.
+ */
+export type Verdict = 'pass' | 'fail' | 'indeterminate';
+
 export interface ComparisonReport {
   budgetPercent: number;
   baselineCapturedAt: string;
@@ -143,7 +153,28 @@ export interface ComparisonReport {
   latencyForced: boolean;
   deltas: Delta[];
   failures: Delta[];
-  /** True when nothing enforced exceeded the budget. */
+  /**
+   * Metrics that were measured but NOT judged against the budget on this run.
+   *
+   * Mirrors `failures` deliberately: a reader who scans for "is anything wrong"
+   * by checking one array should find the other in the same shape right next to
+   * it. An empty `failures` alongside a populated `unjudged` is not a pass.
+   */
+  unjudged: Delta[];
+  /**
+   * `pass` — every budget in this report was judged and met.
+   * `fail` — something judged exceeded its budget.
+   * `indeterminate` — nothing exceeded its budget, but not every budget was judged.
+   */
+  verdict: Verdict;
+  /**
+   * True only when `verdict === 'pass'`.
+   *
+   * Kept boolean on purpose. A tri-state string here would be truthy in every
+   * naive `if (report.ok)` consumer, so `"indeterminate"` would read as success
+   * in exactly the code paths this field exists to protect. False is the safe
+   * value for a consumer that has not been taught about `verdict`.
+   */
   ok: boolean;
   /** What the measurement ran against — stated, per the standing measurement warning. */
   databaseState: string;
@@ -454,6 +485,15 @@ export function compare(
   }
 
   const failures = deltas.filter((d) => d.status === 'fail');
+  const unjudged = deltas.filter((d) => d.status === 'advisory');
+
+  // A measured breach outranks an unmeasured budget: if something we DID judge is
+  // over, the run failed, and the unjudged rows are additional missing evidence
+  // rather than a softener. Otherwise, any unjudged budget makes the whole verdict
+  // indeterminate — the report covers three budgets from PRD p.2 and cannot claim
+  // success while one of them went unanswered.
+  const verdict: Verdict =
+    failures.length > 0 ? 'fail' : unjudged.length > 0 ? 'indeterminate' : 'pass';
 
   return {
     budgetPercent,
@@ -467,7 +507,9 @@ export function compare(
     latencyForced,
     deltas,
     failures,
-    ok: failures.length === 0,
+    unjudged,
+    verdict,
+    ok: verdict === 'pass',
     databaseState: current.databaseState,
   };
 }
@@ -515,7 +557,16 @@ export function renderMarkdown(report: ComparisonReport): string {
       'size, and per-route query counts within +10% of the Part 1 baseline."* Budget restated on p.6.',
   );
   L.push('');
-  L.push(`**Result: ${report.ok ? 'WITHIN BUDGET' : 'OVER BUDGET'}** — budget is +${report.budgetPercent}% on each metric.`);
+  const headline: Record<Verdict, string> = {
+    pass: `**Result: WITHIN BUDGET** — budget is +${report.budgetPercent}% on each metric, and every metric was judged.`,
+    fail: `**Result: OVER BUDGET** — budget is +${report.budgetPercent}% on each metric.`,
+    indeterminate:
+      `**Result: INDETERMINATE — this run does NOT establish that the budget is met.** ` +
+      `${report.unjudged.length} of ${report.deltas.length} metrics were measured but not judged ` +
+      `against the +${report.budgetPercent}% budget, so this report is not evidence of a pass. ` +
+      `Nothing that *was* judged exceeded its budget.`,
+  };
+  L.push(headline[report.verdict]);
   L.push('');
 
   L.push('| | |');
@@ -580,10 +631,24 @@ export function renderMarkdown(report: ComparisonReport): string {
     L.push('');
   }
 
-  if (!report.ok) {
+  if (report.failures.length > 0) {
     L.push(`## Over budget (${report.failures.length})`);
     L.push('');
     for (const f of report.failures) L.push(`- **${renderFailure(f, report.budgetPercent)}**`);
+    L.push('');
+  }
+
+  if (report.unjudged.length > 0) {
+    L.push(`## Not judged on this run (${report.unjudged.length})`);
+    L.push('');
+    L.push('These metrics were measured, but the measurement was not trustworthy enough to compare');
+    L.push('against the budget, so **no verdict was reached on them** — neither pass nor fail. The');
+    L.push('numbers are printed below for information only. Do not read them as a result in either');
+    L.push('direction.');
+    L.push('');
+    for (const d of report.unjudged) {
+      L.push(`- ${d.label}: ${d.current} ${d.unit} vs baseline ${d.baseline} ${d.unit} (${fmtPercent(d)}) — **not judged**`);
+    }
     L.push('');
   }
 
@@ -610,10 +675,15 @@ export function renderMarkdown(report: ComparisonReport): string {
   L.push('');
   L.push('Both sides run the same code — `api/src/scripts/lib/perf-measure.ts` — so the route list, sample');
   L.push('counts, percentile rule, fixture and bundle glob cannot drift between the denominator and the');
-  L.push('numerator. In-process through the Express app via supertest, no TCP: these are a before/after');
-  L.push('pair for this repo against itself, not a production SLO. Each route gets 15 discarded warm-up');
-  L.push('requests then 60 counted samples, nearest-rank percentile. Query counts come from one clean');
-  L.push('request with the pool instrumented, so a statement issued inside a transaction is still counted.');
+  L.push('numerator. The app is bound once with `app.listen(0)` and every sample reuses one kept-alive');
+  L.push('loopback socket (PF-806) — so the bind/accept/close cost is outside the timed region, but a real');
+  L.push('loopback TCP hop is inside it. These are a before/after pair for this repo against itself, not a');
+  L.push('production SLO, and they are not comparable to any baseline captured through the older');
+  L.push('per-request supertest bind. Each route gets 15 discarded warm-up requests, then `PERF_TRIALS`');
+  L.push('independent passes of 60 counted samples; the reported p95 is the nearest-rank p95 of each pass,');
+  L.push('taken as the median across passes — pooling samples lets one bad pass pull the combined tail up');
+  L.push('and look exactly like a regression. Query counts come from one clean request with the pool');
+  L.push('instrumented, so a statement issued inside a transaction is still counted.');
   L.push('');
   L.push('Routes are measured against a purpose-built fixture (one workspace, one user, 25 documents)');
   L.push('created and destroyed by the run, not against seed or developer data — so the numbers do not');

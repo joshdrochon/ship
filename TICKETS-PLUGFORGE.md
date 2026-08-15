@@ -158,6 +158,16 @@ concentrated in three places the epic list doesn't name: Terraform/IAM (L21, 30)
 Pre-Search appendix (L25, 26 — ~60 PRD questions collapsed to 26 tickets), and submission
 artifacts (L26, 30). Final count falls out of the lane files, not this estimate.
 
+**Measured 2026-08-15: 684 tickets across 27 lane files** (the 26 lanes above plus `L99`,
+the findings register, which is not a lane). The `Est.` column above is left
+as written — it records what was estimated, which is its whole purpose, and rewriting it
+would destroy that. But the estimate is now 30 short, and 12 lanes undercount while none
+overcounts (L16 32→34, L20 24→26, L23 26→28 are the largest); so **cite 684, not ~654, if
+this table is ever read as a current inventory.** Reproduce with
+`python3 scripts/check-plugforge-tickets.py`, which counts a row as a ticket only when it
+matches `^\|\s*PF-\d{3}\s*\|` under a live `\| ID \|` header — a raw `☑`/`◐`/`☐` tally does
+**not** agree with it.
+
 ## Critical Path
 
 Nine tiers deep. Parallelism widens each tier; it does not shorten the chain.

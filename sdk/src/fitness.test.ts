@@ -14,6 +14,27 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+/**
+ * Every `## SDK Surface` section in the supplied text.
+ *
+ * Both the submitted document and the appendix carry the same nine headings, so
+ * `indexOf` finds the submitted one and stops — which is the short version, by
+ * design, since p.13 caps that file at 1-2 pages. The claims asserted below live
+ * in the appendix. Concatenating every match means a claim satisfies this test
+ * from wherever it is documented, and a claim documented nowhere still fails.
+ */
+function sdkSurfaceSections(text: string): string {
+  const out: string[] = [];
+  let i = text.indexOf('## SDK Surface');
+  while (i !== -1) {
+    const end = text.indexOf('## Agent-as-Citizen', i);
+    out.push(text.slice(i, end === -1 ? undefined : end));
+    i = text.indexOf('## SDK Surface', i + 1);
+  }
+  return out.join('\n');
+}
+
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = HERE;
 const PACKAGE_ROOT = resolve(HERE, '..');
@@ -238,8 +259,13 @@ describe('PF-503 · the ITokenStore contract lives somewhere a consumer will fin
   });
 
   it('and in docs/architecture.md’s SDK Surface section — Pre-Search 2.4 needs a LOCATION', () => {
-    const doc = readFileSync(join(REPO_ROOT, 'docs/architecture.md'), 'utf8');
-    const sdkSection = doc.slice(doc.indexOf('## SDK Surface'), doc.indexOf('## Agent-as-Citizen'));
+    const doc = // Both documents. PRD p.13 caps the submitted Architecture Document at 1-2
+    // pages, so the SDK Surface depth this section asserts on -- the stable /
+    // pre-1.0 split, and which tokens ITokenStore persists -- moved to
+    // docs/architecture-appendix.md. The claim still has to be documented; it
+    // just is not in the file with the length cap on it.
+    `${readFileSync(join(REPO_ROOT, 'docs/architecture.md'), 'utf8')}\n${readFileSync(join(REPO_ROOT, 'docs/architecture-appendix.md'), 'utf8')}`;
+    const sdkSection = sdkSurfaceSections(doc);
     expect(sdkSection).toContain('ITokenStore');
     // The two questions Pre-Search 2.4 actually asks.
     expect(sdkSection, 'does not answer "refresh tokens too, or only access?"').toMatch(

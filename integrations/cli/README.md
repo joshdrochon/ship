@@ -13,23 +13,56 @@ something the SDK cannot do, that is an SDK gap and it gets fixed in the SDK.
 
 ## One-command setup (PF-580)
 
-Against the **deployed** instance, from a clean clone:
+From a clean clone — this is the whole of it:
 
 ```bash
-pnpm install && pnpm build:shared && pnpm --filter @ship/sdk build && pnpm --filter @ship/cli build
+pnpm cli:setup
 ```
 
-Then authenticate and smoke-test:
+That is one script in the root `package.json`, and it installs only what the CLI
+needs (`@ship/sdk` and this package — not the API, not the web app) and builds
+them. `tests/server/readmeSetup.test.ts` reads the line above **out of this
+README** and executes it in a clean checkout, so the command in this block
+cannot rot without the suite failing.
+
+Then authenticate and smoke-test against the **deployed** instance:
 
 ```bash
-node integrations/cli/dist/index.js login --client-id ship_app_grader_readonly
+node integrations/cli/dist/index.js login \
+  --base-url https://d258p92d3n1ebe.cloudfront.net \
+  --client-id ship_app_grader_readonly
 node integrations/cli/dist/index.js docs ls
 ```
+
+`--base-url` is passed **once**, on `login`, and persisted — that is why the
+second line needs no flag. It is shown explicitly here because an explicit
+instance is clearer than an implicit one, not because the default is wrong:
+the SDK's `DEFAULT_BASE_URL` now points at this deployment
+(`https://d258p92d3n1ebe.cloudfront.net`), so `ship login` with no flags
+resolves to the same place. It previously pointed at Part 1's host
+(`https://ship.awsdev.treasury.gov`), which answers `403` to an anonymous
+`/api/v1` request — that was L99 finding F172 and it is fixed.
+
+`SHIP_BASE_URL` in the environment sits between the two: explicit `--base-url`
+wins, then `SHIP_BASE_URL`, then the default. Note that `SHIP_API_URL`, which
+appears in the repository README's curl examples, is **not** read by the CLI.
 
 `login` prints a code and a URL; open the URL, paste the code, approve. The
 instance and the app are saved to `~/.ship/config.json`, so **no later command
 needs a flag**. The credential itself is `~/.ship/credentials.json` at mode
 `0600`.
+
+Both commands take the published instance by default. Point them somewhere else
+with `--base-url <url>` on `login` (it is persisted) or `SHIP_BASE_URL` in the
+environment.
+
+**What the test proves, and what it does not.** `readmeSetup.test.ts` copies
+this repository's tracked files into an empty directory — no `node_modules`, no
+`dist` — runs the command above verbatim, and reaches an authenticated
+`docs ls`. It runs on the host against whatever `SHIP_TEST_BASE_URL` points at,
+**not** inside a container and **not** against the deployed instance, because
+this lane has no reachable deployed PlugForge instance to point at. PF-580 asks
+for both; that half is open, not quietly claimed.
 
 ### The pre-registered apps
 

@@ -26,6 +26,27 @@ import { describe, expect, it } from 'vitest';
 import * as sdk from './index.js';
 import { STABLE_SURFACE, PRE_1_0_SURFACE, stabilityOf } from './stability.js';
 
+/**
+ * Every `## SDK Surface` section in the supplied text.
+ *
+ * Both the submitted document and the appendix carry the same nine headings, so
+ * `indexOf` finds the submitted one and stops — which is the short version, by
+ * design, since p.13 caps that file at 1-2 pages. The claims asserted below live
+ * in the appendix. Concatenating every match means a claim satisfies this test
+ * from wherever it is documented, and a claim documented nowhere still fails.
+ */
+function sdkSurfaceSections(text: string): string {
+  const out: string[] = [];
+  let i = text.indexOf('## SDK Surface');
+  while (i !== -1) {
+    const end = text.indexOf('## Agent-as-Citizen', i);
+    out.push(text.slice(i, end === -1 ? undefined : end));
+    i = text.indexOf('## SDK Surface', i + 1);
+  }
+  return out.join('\n');
+}
+
+
 const SRC = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(SRC, '../..');
 
@@ -173,8 +194,13 @@ describe('§3 · the five p.4 rows are all STABLE — that is what the row promi
 });
 
 describe('§4 · docs/architecture.md and the lists cannot drift', () => {
-  const doc = readFileSync(join(REPO_ROOT, 'docs/architecture.md'), 'utf8');
-  const section = doc.slice(doc.indexOf('## SDK Surface'), doc.indexOf('## Agent-as-Citizen'));
+  const doc = // Both documents. PRD p.13 caps the submitted Architecture Document at 1-2
+    // pages, so the SDK Surface depth this section asserts on -- the stable /
+    // pre-1.0 split, and which tokens ITokenStore persists -- moved to
+    // docs/architecture-appendix.md. The claim still has to be documented; it
+    // just is not in the file with the length cap on it.
+    `${readFileSync(join(REPO_ROOT, 'docs/architecture.md'), 'utf8')}\n${readFileSync(join(REPO_ROOT, 'docs/architecture-appendix.md'), 'utf8')}`;
+  const section = sdkSurfaceSections(doc);
 
   it('the section exists and states both halves', () => {
     expect(section.length).toBeGreaterThan(200);

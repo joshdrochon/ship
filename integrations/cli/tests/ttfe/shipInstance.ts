@@ -13,6 +13,8 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { resolveTsx } from './tsx.js';
+
 const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const REPO_ROOT = dirname(dirname(PACKAGE_ROOT));
 
@@ -40,11 +42,15 @@ export class ShipInstance {
     // than something the caller can defeat by accident.
     delete env.DATABASE_URL;
 
-    // `detached` for the same reason the harness detaches the server: `npx` is a
-    // wrapper, so the pid we hold is not the pid that matters, and a SIGTERM to
-    // the wrapper leaves the harness — and therefore a container and a database —
-    // alive. Measured, not theorised: PF-587's teardown assertion caught it.
-    const child = spawn('npx', ['tsx', join('scripts', 'ttfe', 'harness.ts')], {
+    // `detached` for the same reason the harness detaches the server: the binary
+    // below is a shell wrapper that execs node, so the pid we hold is not the pid
+    // that matters, and a SIGTERM to the wrapper leaves the harness — and
+    // therefore a container and a database — alive. Measured, not theorised:
+    // PF-587's teardown assertion caught it.
+    //
+    // `resolveTsx` rather than `npx tsx`: see tsx.ts. On a clean checkout `npx`
+    // finds nothing at the root and the harness dies 127 before its ready line.
+    const child = spawn(resolveTsx(REPO_ROOT), [join('scripts', 'ttfe', 'harness.ts')], {
       cwd: REPO_ROOT,
       env,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -106,7 +112,8 @@ export class ShipInstance {
       this.child.once('close', (code) => resolve(code ?? -1)),
     );
     // Closing stdin is the leash the harness listens on. SIGTERM to the GROUP is
-    // the backstop — the pid we hold belongs to `npx`, not to the harness.
+    // the backstop — the pid we hold belongs to tsx's shell wrapper, not to the
+    // harness.
     this.child.stdin.end();
     if (this.child.pid !== undefined) {
       try {
@@ -135,9 +142,8 @@ export function approveDeviceGrant(
 ): Promise<{ code: number; output: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(
-      'npx',
+      resolveTsx(REPO_ROOT),
       [
-        'tsx',
         join(REPO_ROOT, 'scripts', 'l19-device-approve.ts'),
         '--user-code',
         userCode,

@@ -16,6 +16,11 @@ import '../platform/api/v1/issues/routes.js';
 import '../platform/api/v1/sprints/routes.js';
 import '../platform/api/v1/me/routes.js';
 import '../platform/api/v1/webhooks/routes.js';
+// F113 — PRD p.4's audit trail. Omitting this line does NOT fail any test that
+// builds the app (those import the route module transitively through
+// `createApp`); it only makes the committed spec quietly smaller than the served
+// one, which is the exact drift the header above warns about.
+import '../platform/api/v1/audit/routes.js';
 import '../platform/openapi/route.js';
 import { writePublicSpec } from '../platform/openapi/staticCopy.js';
 

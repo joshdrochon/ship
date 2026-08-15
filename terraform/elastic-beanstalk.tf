@@ -31,20 +31,42 @@ resource "aws_iam_role" "eb_instance" {
 }
 
 # Attach AWS managed policies
+#
+# PF-635 (PRD p.5). Each AWS managed policy is decided individually, because a
+# managed policy is not least privilege merely because AWS wrote it. Rationale
+# per policy lives in docs/infra/iam-least-privilege.md.
+#
+# KEPT: AWSElasticBeanstalkWebTier. This is the only one the platform exercises
+# on every deploy and every health report -- it grants the s3:Get*/List* on
+# elasticbeanstalk-* buckets that lets the instance download its own application
+# version bundle, the CloudWatch Logs writes, and
+# elasticbeanstalk:PutInstanceStatistics for enhanced health. Without it the
+# instance cannot fetch the code it is supposed to run.
 resource "aws_iam_role_policy_attachment" "eb_web_tier" {
   role       = aws_iam_role.eb_instance.name
   policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier"
 }
 
-resource "aws_iam_role_policy_attachment" "eb_worker_tier" {
-  role       = aws_iam_role.eb_instance.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier"
-}
-
-resource "aws_iam_role_policy_attachment" "eb_multicontainer_docker" {
-  role       = aws_iam_role.eb_instance.name
-  policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker"
-}
+# DROPPED by PF-635: AWSElasticBeanstalkWorkerTier.
+#   Granted sqs:ReceiveMessage/DeleteMessage/SendMessage/ChangeMessageVisibility
+#   and full DynamoDB item CRUD including Scan, for the worker-tier sqsd daemon.
+#   This environment is Tier=WebServer / EnvironmentType=LoadBalanced and EB says
+#   so itself in the deploy log: "This is a web server environment instance,
+#   skip configure sqsd daemon". There is no queue and no periodic-task table.
+#
+# DROPPED by PF-635: AWSElasticBeanstalkMulticontainerDocker.
+#   Granted ecs:RegisterContainerInstance / DeregisterContainerInstance /
+#   StartTask / StopTask / Poll / Submit* / StartTelemetrySession, plus a SECOND
+#   bedrock:InvokeModel grant covering amazon.nova-* -- quietly wider than this
+#   project's deliberately Anthropic-scoped bedrock policy below. It exists for
+#   the ECS-backed Multi-container Docker platform; this environment runs
+#   "64bit Amazon Linux 2023 v4.13.6 running Docker", the plain Docker platform,
+#   which does not use ECS at all. ecs:RegisterContainerInstance would let a
+#   compromised instance join an ECS cluster, so this is dead weight with a real
+#   edge.
+#
+# Both were verified unused against the live environment before removal; see the
+# platform/tier evidence in docs/infra/iam-least-privilege.md.
 
 # Instance Profile
 resource "aws_iam_instance_profile" "eb" {

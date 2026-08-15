@@ -1,0 +1,191 @@
+# .gitleaksignore — reviewed false positives for the `security-scan` CI job
+#
+# ─── Why this file exists ──────────────────────────────────────────────────────
+#
+# `security-scan` (.gitlab-ci.yml) runs `gitleaks detect --source . --exit-code 1`
+# over the whole of git history. It was red on every run, and no submitted
+# document mentioned it. A permanently-red secret scanner is worse than no
+# scanner: nobody reads a job that is always red, so the run that finds a REAL
+# credential looks exactly like the 26 runs before it.
+#
+# This file makes the job green **honestly** — by recording that each finding was
+# opened and judged, not by muting the rule or skipping the job.
+#
+# ─── What was measured, and how ────────────────────────────────────────────────
+#
+# Scanned 2026-08-15 at `pf/integration` HEAD (dbfb46d), with BOTH the version CI
+# pins and a newer one, because gitleaks' default rule set changes between
+# releases and a scan that only matches one of them proves nothing:
+#
+#   gitleaks 8.28.0 (CI's pin, .gitlab-ci.yml)  → 26 findings
+#   gitleaks 8.30.1                             → 26 findings, identical
+#   the same scan limited to `origin/main`      → 20 findings, a strict subset
+#
+# All 26 are `generic-api-key`. Every one was opened and read in context. There
+# is **no real credential** among them, and every entry below says why in its own
+# words rather than deferring to a blanket "test fixture" label.
+#
+# ─── The specific check that mattered ──────────────────────────────────────────
+#
+# `/ship/dev/WEBHOOK_SECRET_KEY` was provisioned in SSM on 2026-08-15, so the
+# question "did any of it reach git?" needed a direct answer rather than an
+# inference from the findings list. Every value ever committed under that name
+# was enumerated (`git log --all -p -S WEBHOOK_SECRET_KEY`) and each is one of:
+#
+#   • the literal dummy `0123456789abcdef` × 4  (CI, and a test default)
+#   • `crypto.randomBytes(32).toString('base64')` — generated at CI runtime
+#   • `Buffer.alloc(32, 0x01)` / `Buffer.alloc(32, 0x5a)` — constant test buffers
+#   • terraform's `random_password`, which writes to SSM and is never rendered
+#
+# The real key is generated into SSM by terraform and read at boot through
+# `getSSMSecret('/ship/<env>/WEBHOOK_SECRET_KEY')`. It has never had a value in
+# the repository. Also checked across all history and clean: no `AKIA…` AWS
+# access key, and no `BEGIN … PRIVATE KEY` block carrying actual key material
+# (`docs/fpki-auth-client-dcr-analysis.md` has PEM *headers* inside illustrative
+# JSON — `"-----BEGIN PRIVATE KEY-----\n..."` and one truncated PKCS#8 prefix
+# that is byte-identical for every RSA key ever generated; no key bytes).
+#
+# ─── Maintaining this file ─────────────────────────────────────────────────────
+#
+# Entries are `commit:path:rule:line`, so they pin a finding to the commit that
+# introduced it. Editing one of these files LATER creates a new fingerprint and
+# the job goes red again — which is the intended behaviour. A new red line means
+# a human looks at a new value. Do not add an entry without reading the matched
+# value first, and do not convert this file into a path allowlist: "we reviewed
+# these 26 exact strings" is an auditable claim; "ignore this directory" is not.
+#
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+# ── .github/workflows/ci.yml (10) ─────────────────────────────────────────────
+#
+# Two hard-coded env values on the workflow's test jobs, each appearing at
+# several line numbers because the workflow was edited five times and gitleaks
+# fingerprints per commit.
+#
+#   WEBHOOK_SECRET_KEY: '0123456789abcdef' repeated to 64 hex chars
+#       Not a key, a shape. AES-256-GCM needs 32 bytes and `secretCipher.ts`
+#       rejects anything else, so CI needs *some* 64-hex string; this is the most
+#       obviously-fake one that satisfies the length check. It encrypts nothing
+#       outside a CI container that is destroyed with the job.
+#
+#   GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+#       Same idea — a placeholder OAuth client secret for a client that exists
+#       only in the CI database, which is created and dropped per run. It
+#       authenticates against no deployed environment.
+#
+# Neither value appears in terraform, in SSM, or in any deployed configuration.
+2316e96697ee7d2553f7e115f7de335202128c6b:.github/workflows/ci.yml:generic-api-key:312
+2316e96697ee7d2553f7e115f7de335202128c6b:.github/workflows/ci.yml:generic-api-key:314
+4dcfb3e28a1b1b50d7364c3cda360fafad37d011:.github/workflows/ci.yml:generic-api-key:359
+4dcfb3e28a1b1b50d7364c3cda360fafad37d011:.github/workflows/ci.yml:generic-api-key:361
+4dcfb3e28a1b1b50d7364c3cda360fafad37d011:.github/workflows/ci.yml:generic-api-key:442
+4dcfb3e28a1b1b50d7364c3cda360fafad37d011:.github/workflows/ci.yml:generic-api-key:444
+71c50e02322c3eb06abea5539ce895a50bd5a187:.github/workflows/ci.yml:generic-api-key:215
+71c50e02322c3eb06abea5539ce895a50bd5a187:.github/workflows/ci.yml:generic-api-key:220
+7fb28a72dad806c9be7ce8146ba27a051efe167f:.github/workflows/ci.yml:generic-api-key:265
+7fb28a72dad806c9be7ce8146ba27a051efe167f:.github/workflows/ci.yml:generic-api-key:267
+
+
+# ── api/src/platform/webhooks/__fixtures__/signature-vectors.json (8) ─────────
+#
+# PF-446's golden HMAC-SHA256 signature vectors. Each object is
+# {secret, timestamp, rawBody, expectedHeader} — the `secret` is the KEY INPUT to
+# a deterministic function whose expected OUTPUT is committed on the next line.
+#
+# Publishing it is the point of the artifact, not a mistake. These vectors are
+# what stop the server's signer and the SDK's verifier from drifting into
+# agreeing only with each other; a vector nobody can read cannot serve that
+# purpose, and every published webhook-signature spec (Stripe's included) ships
+# its test secret in the open for the same reason.
+#
+# `whsec_TFhwad…` is the primary vector and `whsec_9nJXTV…` is the deliberate
+# WRONG key, used to assert that verification FAILS. Neither has ever been a
+# subscription's real signing secret: real ones are minted per subscription by
+# `signingSecret.ts`, encrypted at rest under WEBHOOK_SECRET_KEY, and shown once.
+e9dc32a3c20dbae01f5c39f9aa1d9eb5b548b040:api/src/platform/webhooks/__fixtures__/signature-vectors.json:generic-api-key:8
+e9dc32a3c20dbae01f5c39f9aa1d9eb5b548b040:api/src/platform/webhooks/__fixtures__/signature-vectors.json:generic-api-key:16
+e9dc32a3c20dbae01f5c39f9aa1d9eb5b548b040:api/src/platform/webhooks/__fixtures__/signature-vectors.json:generic-api-key:24
+e9dc32a3c20dbae01f5c39f9aa1d9eb5b548b040:api/src/platform/webhooks/__fixtures__/signature-vectors.json:generic-api-key:32
+e9dc32a3c20dbae01f5c39f9aa1d9eb5b548b040:api/src/platform/webhooks/__fixtures__/signature-vectors.json:generic-api-key:40
+e9dc32a3c20dbae01f5c39f9aa1d9eb5b548b040:api/src/platform/webhooks/__fixtures__/signature-vectors.json:generic-api-key:48
+e9dc32a3c20dbae01f5c39f9aa1d9eb5b548b040:api/src/platform/webhooks/__fixtures__/signature-vectors.json:generic-api-key:56
+e9dc32a3c20dbae01f5c39f9aa1d9eb5b548b040:api/src/platform/webhooks/__fixtures__/signature-vectors.json:generic-api-key:64
+
+
+# ── api/src/platform/webhooks/signer.test.ts (2) ──────────────────────────────
+#
+# The same two vectors as module constants — `SECRET` and `OTHER_SECRET`, where
+# `OTHER_SECRET` exists so the suite can assert a signature made with one key
+# does NOT verify under the other. Identical strings to the fixture file above,
+# and non-secret for the identical reason.
+5dfdeaa9346f43b5f152f8266f0c6d12dc6e9c1f:api/src/platform/webhooks/signer.test.ts:generic-api-key:36
+5dfdeaa9346f43b5f152f8266f0c6d12dc6e9c1f:api/src/platform/webhooks/signer.test.ts:generic-api-key:37
+
+
+# ── sdk/src/verifyLatency.test.ts + sdk/scripts/measure-verify-latency.mjs (2) ─
+#
+# The SAME `whsec_TFhwad…` vector again, on the SDK side of the contract: the
+# verifier benchmark and its test feed the published vector so the measured
+# number is comparable with the server's. A different secret here would make the
+# two halves untestable against each other, which is exactly the drift the
+# vectors exist to catch.
+cde0004ae48bc23a98d2ff888fe5c42449279769:sdk/src/verifyLatency.test.ts:generic-api-key:35
+cde0004ae48bc23a98d2ff888fe5c42449279769:sdk/scripts/measure-verify-latency.mjs:generic-api-key:41
+
+
+# ── web/src/components/portal/portalSecret.test.tsx (1) ───────────────────────
+#
+#   const SECRET = 'ship_secret_4f9c2a71e0b84d3c9a6f1e5d8c7b2a94'
+#
+# A literal in a vitest file, with the reason stated at the callsite: *"A value
+# shaped like the real thing, so a substring match cannot pass by luck."* The
+# test drives `SecretOnceDialog` and asserts the show-exactly-once + auto-remask
+# behaviour, which needs a realistic-looking string to assert against. It was
+# typed by hand for the test and has never been issued to an app.
+25b1a732f7e373d7250e0423308b1fe2ed1555f8:web/src/components/portal/portalSecret.test.tsx:generic-api-key:22
+
+
+# ── web/src/components/portal/portalSubscriptions.test.tsx (1) ────────────────
+#
+#   signing_secret: 'whsec_live_9f3a7c1b5e2d8a460f11c37b9d4e5a28'
+#
+# The scariest-LOOKING string in this file, because of the `_live_` infix — which
+# is why it is called out rather than lumped in. It is the `signing_secret` field
+# of a MOCKED `create()` response inside a vitest file: `create.mockResolvedValue`
+# is two lines below it, so the value is invented by the test and handed to the
+# component. No network call produces it. Nothing in the real codebase mints a
+# secret with a `_live_` infix — `signingSecret.ts` emits `whsec_` + base64url
+# randomness — so this string cannot collide with a real one.
+23d0c6514c1f9e63a5baac63ecc0235d7b85d473:web/src/components/portal/portalSubscriptions.test.tsx:generic-api-key:258
+
+
+# ── api/src/__tests__/internal-middleware-stack.snapshot.json (1) ─────────────
+#
+#   "authMiddlewareSha256": "4fc2bd14…"
+#
+# Not a credential in any sense: it is a SHA-256 digest OF `authMiddleware`'s
+# source text, committed so the fitness test fails loudly when the internal
+# middleware stack changes shape. A hash is the output of a one-way function over
+# public source code — it authenticates nothing and grants nothing. Flagged only
+# because 64 hex characters next to a key-ish name matches `generic-api-key`.
+b639059217e96664ba843c1847bc450e21367d31:api/src/__tests__/internal-middleware-stack.snapshot.json:generic-api-key:3
+
+
+# ── docs/infra/mutated-plans/exercise-5.txt (1) ──────────────────────────────
+#
+#   lock_token = "a7f31d2c-05b9-4e86-91f4-2d8c0b6a53e7"
+#
+# Captured `terraform plan` output inside a deliberately-mutated plan used for the
+# plan-reading drills. A WAFv2 `lock_token` is an optimistic-concurrency token —
+# it is handed out by `GetWebACL`/`GetRegexPatternSet` to any caller already
+# holding valid AWS credentials, and it is invalidated by the next successful
+# update. It confers no access on its own, and this one belongs to a resource the
+# captured plan shows being destroyed (`-> null`).
+#
+# Noted, not ignored-away: the surrounding ARNs in this file do disclose the AWS
+# account id 379484935796. Account ids are semi-public identifiers (they appear in
+# every cross-account role ARN) and are not treated as secrets, but a reader who
+# would rather they were not in a public repo should raise it against
+# `docs/infra/`, which this lane does not own.
+68fbe47829e01816db8377630b48717dd0c8e992:docs/infra/mutated-plans/exercise-5.txt:generic-api-key:91

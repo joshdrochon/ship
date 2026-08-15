@@ -47,8 +47,17 @@ const PORTAL_DIRS = [
 
 const PORTAL_FILES = [
   join(WEB_SRC, 'lib', 'portalClient.ts'),
+  join(WEB_SRC, 'lib', 'portalError.ts'),
   join(WEB_SRC, 'hooks', 'usePortalApps.ts'),
   join(WEB_SRC, 'hooks', 'usePortalDeliveries.ts'),
+  // PF-671 — the subscription list and its three writes. The whole of it is
+  // `client.webhooks.*`, which is the point: `/api/v1/webhooks` is a public
+  // route with a public scope, so there was never a reason to reach past it.
+  join(WEB_SRC, 'hooks', 'usePortalSubscriptions.ts'),
+  // PF-664 — the scope registry / rotation-policy read. On the session surface
+  // like `usePortalApps`, and under the same rule for the same reason: the day
+  // it needs a public route it must widen the SDK rather than reach past it.
+  join(WEB_SRC, 'hooks', 'usePortalRegistry.ts'),
 ];
 
 /**

@@ -39,12 +39,48 @@
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from 'pg';
 
 const REPO_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+
+/**
+ * PF-608 — the same resolver as `integrations/cli/tests/ttfe/tsx.ts`, and
+ * deliberately a COPY rather than an import.
+ *
+ * That file is inside `integrations/`, whose whole contract (p.11, PF-588) is
+ * that it imports only `@ship/sdk`. An import in either direction across that
+ * fence to save nine lines would make this lane the one place in the repository
+ * where the boundary claim the drill exists to demonstrate is false. The two
+ * copies are held in step by `check-fitness.mjs`, which fails if their candidate
+ * lists diverge; the long form of the reasoning lives in that file.
+ *
+ * Short version: `tsx` is a devDependency of `api`, so pnpm links it into
+ * `api/node_modules/.bin` and NOT into the workspace root. `npx tsx` from the
+ * root therefore finds nothing on a clean `--frozen-lockfile` checkout and this
+ * harness died 127 before its ready line on every CI run. Letting `npx` fetch
+ * one instead would run the graded drill on an unpinned tsx.
+ */
+function resolveTsx(): string {
+  const candidates = [
+    join(REPO_ROOT, 'node_modules', '.bin', 'tsx'),
+    join(REPO_ROOT, 'api', 'node_modules', '.bin', 'tsx'),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (found === undefined) {
+    throw new Error(
+      'ttfe-harness: no `tsx` binary found. Looked at:\n' +
+        candidates.map((candidate) => `  · ${candidate}`).join('\n') +
+        '\n\nRun `pnpm install --frozen-lockfile` from the repo root. Do NOT fall back ' +
+        'to `npx tsx` — with a registry reachable that downloads an unpinned tsx and the ' +
+        'drill then measures a toolchain the lockfile does not name (PF-608).',
+    );
+  }
+  return found;
+}
 
 /** The line a caller waits for. Spelled once; the drill imports nothing from here. */
 export const READY_PREFIX = 'ttfe-harness-ready ';
@@ -266,10 +302,11 @@ async function main(): Promise<void> {
   };
 
   try {
-    await run('npx', ['tsx', join('api', 'src', 'db', 'migrate.ts')], serverEnv);
+    const tsx = resolveTsx();
+    await run(tsx, [join('api', 'src', 'db', 'migrate.ts')], serverEnv);
 
     // ── `detached: true` is load-bearing, not tidiness ──────────────────────
-    // `npx` execs a SHELL WRAPPER which execs node. Killing the pid we hold
+    // tsx's bin is a SHELL WRAPPER which execs node. Killing the pid we hold
     // kills the wrapper and leaves the server running as an orphan — measured:
     // the first version of PF-587's teardown assertion found `/health` still
     // answering 200 after the harness had exited 0. A leaked server holds the
@@ -279,7 +316,7 @@ async function main(): Promise<void> {
     // `detached` puts the child in its own process GROUP, and `kill(-pid)`
     // takes the whole group. This is the only spelling that reaches a
     // grandchild.
-    server = spawn('npx', ['tsx', join('api', 'src', 'index.ts')], {
+    server = spawn(tsx, [join('api', 'src', 'index.ts')], {
       cwd: REPO_ROOT,
       env: serverEnv,
       stdio: ['ignore', 'pipe', 'pipe'],

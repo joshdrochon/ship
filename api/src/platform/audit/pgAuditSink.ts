@@ -87,6 +87,24 @@ export interface ListCallsQuery {
   cursor?: string | null;
   /** Page size. The caller validates it against the public limits. */
   limit: number;
+  /**
+   * The resource name a minted cursor is BOUND to (PF-218). Defaults to
+   * `PUBLIC_API_CALLS_RESOURCE`.
+   *
+   * Exists because this repository function now serves two surfaces with two
+   * public identities. `GET /api/apps/:id/calls` (F111, the session route) is
+   * about the `public_api_calls` collection and keeps the default.
+   * `GET /api/v1/audit` (F113) is a `/api/v1` route, and L08's convention —
+   * asserted by `documents.regression.test.ts` — is that a route's cursor
+   * resource matches its path segment, so its cursors are bound to `audit`.
+   *
+   * The binding must be the same on the way in and the way out or page two
+   * breaks: a cursor minted as `public_api_calls` and presented to a route that
+   * validates `audit` is rejected as belonging to another collection. That is
+   * PF-218 working correctly, which is exactly why the name is a parameter here
+   * rather than a constant the caller cannot reach.
+   */
+  resource?: string;
 }
 
 /**
@@ -137,7 +155,8 @@ export async function listCalls(
     where.push(`route = $${values.length}`);
   }
 
-  const payload = decodeCursorOrNull(query.cursor);
+  const resource = query.resource ?? PUBLIC_API_CALLS_RESOURCE;
+  const payload = decodeCursorOrNull(query.cursor, resource);
   // `ORDER_COLUMN` is a module constant, never anything from a request.
   const keyset = keysetPredicate(payload, values.length, ORDER_COLUMN);
   if (keyset.sql) {
@@ -171,7 +190,7 @@ export async function listCalls(
         last.occurred_at instanceof Date
           ? last.occurred_at.toISOString()
           : String(last.occurred_at),
-      resource: PUBLIC_API_CALLS_RESOURCE,
+      resource,
     }),
   };
 }
@@ -184,8 +203,17 @@ export async function listCalls(
  * put HTTP semantics in a query builder. The route validates with
  * `parseCursor` before calling this; this is the belt for a caller that did not.
  */
-function decodeCursorOrNull(cursor: string | null | undefined): CursorPayload | null {
+function decodeCursorOrNull(
+  cursor: string | null | undefined,
+  // Must be the SAME name the page's `next_cursor` was minted with. Hard-coding
+  // `PUBLIC_API_CALLS_RESOURCE` here while the caller minted `audit` made every
+  // cursor fail to decode — and because a failed decode is treated as "no
+  // cursor" (see the note below), the walk silently restarted at page one
+  // instead of erroring. `audit.routes.test.ts` walks a multi-page result and
+  // asserts each row is seen exactly once, which is what caught it.
+  resource: string,
+): CursorPayload | null {
   if (!cursor) return null;
-  const decoded = decodeCursor(cursor, PUBLIC_API_CALLS_RESOURCE);
+  const decoded = decodeCursor(cursor, resource);
   return decoded.ok ? decoded.payload : null;
 }

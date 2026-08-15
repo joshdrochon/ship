@@ -224,6 +224,14 @@ describe('PF-373/375 — the real app: every mounted route is documented and vic
     );
     expect(documented.sort()).toEqual([
       'DELETE /webhooks/{id}',
+      // ADDED BY F113, by the rule this list exists to enforce: landing a public
+      // route means coming to this line and naming it. PF-294 held a THIRD time
+      // — the audit operation entered the spec with zero lines changed under
+      // `platform/openapi/` outside this enumerating test, from the same
+      // `declareV1Route()` call that declared its `scope: null` and its cursor
+      // pagination. Three independent resources have now proved the generator is
+      // open for extension.
+      'GET /audit',
       'GET /documents',
       'GET /documents/{id}',
       'GET /issues',

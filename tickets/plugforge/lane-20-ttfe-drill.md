@@ -81,7 +81,7 @@ itself (L18 PF-542–547), the signer (L15), the deliverer and delivery log (L16
 | PF-605 | ☑ Zero retries, zero sleeps — the drill may not be made to pass by running it again | p.9's target is *"0% (any flake = bug in the drill or the platform)"*, and a retry is precisely the mechanism that converts a flake into a pass, so that phrasing forbids retries rather than merely discouraging them. Acceptance: the drill's vitest config sets `retry: 0`, the CI job adds no retry wrapper, and a fitness grep over the drill and its harness finds no fixed-duration sleep — no bare `setTimeout(` wait, no `await new Promise(r => setTimeout(...))`. Every wait is on a condition with a named timeout (PF-599). ⚑ Repo fact: `playwright.config.ts:60` is `retries: process.env.CI ? 2 : 1`, so a drill written into that suite inherits two retries and forfeits this target silently — the second reason PF-586 keeps it out | PERF:drill flake rate 0% over 20 CI runs | p.9, p.11 | PF-586, PF-599 |
 | PF-606 | ☑ The 20-run soak, actually run and recorded — 20/20, or a named bug | p.9 measures flake *"over 20 consecutive CI runs"* and reads any flake as a bug in the drill or the platform. Acceptance: 20 consecutive runs against one commit, each in a fresh container, each appending its `ttfe.json` to the series; the pass count must be 20 of 20. A failing run is **not** re-run to clear it — it is diagnosed, and the diagnosis names either the drill or the platform, which is what the PRD's own gloss demands. Commit the run count, the commit SHA and the per-run totals as evidence: an unrecorded soak is indistinguishable from a soak nobody ran | PERF:drill flake rate 0% over 20 CI runs | p.9 | PF-605, PF-592 |
 | PF-607 | ☑ Negative control — the drill is observed catching a contract regression the unit suites miss | p.11 claims the drill *"will catch contract regressions faster than any unit test"* and p.14 asks the interviewee to *"Walk through a bug the TTFE drill caught that your unit tests missed."* Both are assertions about a test that, until it has been seen failing for the right reason, nobody has evidence for. Acceptance: a fixture branch introduces exactly one real contract break — candidates that stay green under every existing unit suite: the signer emits `t` in milliseconds rather than seconds (against L15's PF-435 grammar), `create()` stops returning `signing_secret`, or the packed `exports` map loses its types entry. Assert the drill goes red and names the failing stage, and assert `pnpm test` stays green on that same commit. The write-up in p.14's answer comes from this run | — | p.11, p.14 | PF-593, PF-594 |
-| PF-608 | ◐ CI wiring — a blocking job on every branch pipeline, on both platforms, live from Day 5 | p.6: *"Drill runs in CI on every PR."* p.11: *"Time-to-first-event drill in CI from Day 5 onward. Once the SDK and one resource exist, the drill exists."* Acceptance: a `ttfe` job in `.gitlab-ci.yml` stage `verify`, `needs: ['build']`, `allow_failure: false`, mirrored in `.github/workflows/ci.yml` beside the existing eight checks. Three repo-specific constraints, each of which has already broken a job in that file: (a) `workflow.rules` sets `merge_request_event → never`, so *"every PR"* is served by the **branch** pipeline for the same SHA — giving this job MR-only rules means it never runs; (b) copy `agent-test`'s `TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal` and `TESTCONTAINERS_RYUK_DISABLED: 'true'` and add **no** `docker:dind` service, which demonstrably never attaches on this runner; (c) wrap the invocation in `scripts/assert-tests-ran.sh 1 --` so a drill executing zero stages exits 2 rather than reading as a pass | TS-9 | p.6, p.11 | PF-013, PF-587 |
+| PF-608 | ☑ CI wiring — a blocking job on every branch pipeline, on both platforms, live from Day 5 | p.6: *"Drill runs in CI on every PR."* p.11: *"Time-to-first-event drill in CI from Day 5 onward. Once the SDK and one resource exist, the drill exists."* Acceptance: a `ttfe` job in `.gitlab-ci.yml` stage `verify`, `needs: ['build']`, `allow_failure: false`, mirrored in `.github/workflows/ci.yml` beside the existing eight checks. Three repo-specific constraints, each of which has already broken a job in that file: (a) `workflow.rules` sets `merge_request_event → never`, so *"every PR"* is served by the **branch** pipeline for the same SHA — giving this job MR-only rules means it never runs; (b) copy `agent-test`'s `TESTCONTAINERS_HOST_OVERRIDE: host.docker.internal` and `TESTCONTAINERS_RYUK_DISABLED: 'true'` and add **no** `docker:dind` service, which demonstrably never attaches on this runner; (c) wrap the invocation in `scripts/assert-tests-ran.sh 1 --` so a drill executing zero stages exits 2 rather than reading as a pass | TS-9 | p.6, p.11 | PF-013, PF-587 |
 | PF-609 | ☑ The regression threshold is one configured value, and crossing it fails the build | p.6: *"Any regression past the configured threshold fails the build."* Acceptance: every threshold lives in exactly one committed file — total budget (60 000 ms), per-stage budgets, and the P95 window size — read by the drill, the P95 check and the CI job alike, with a grep asserting no second literal `60_000`/`60000` anywhere else. Raising a threshold then becomes a reviewable diff with the number visible in it, which is the point: p.8's budget is graded, and a budget that can be relaxed inside a test body is not a budget. A run over threshold exits non-zero naming the threshold, the measured value, and the file to argue with | TS-9 | p.6, p.8 | PF-600, PF-592 |
 | PF-610 | ☐ Epic 6's proof artifact — the drill passing **in CI**, durably linked | p.13's Per-Epic Write-up row: *"For Epic 6, proof is the TTFE drill passing in"* CI. Not passing locally, not a screenshot of a terminal. Acceptance: a permanent link to a green `ttfe` job on a real pipeline with its `ttfe.json` attached, plus PF-606's soak record and PF-601's clean-machine log, assembled into the artifact set L26 consumes (it owns the write-up prose and final assembly; this lane owns producing evidence). Resolvability is part of the criterion, not a nicety — this repo has already shipped a submission whose first link 404'd for the whole window in which every other check stayed green, which is why `.gitlab-ci.yml` grew a `doc-links` job | SUB:Per-Epic Write-up | p.12, p.13 | PF-606, PF-601, PF-592 |
 | PF-611 | ☑ **Testing Scenario 9**, recorded as one pass/fail — and driven through the CLI, not only the SDK | The graded scenario (p.5): *"from a clean container, `pnpm install @ship/sdk` → `ship login` → create document → receive verified webhook in under 30 minutes elapsed."* Acceptance: the five stages plus the total run as a single test that cannot report a partial pass — no stage is skippable, an unreached stage is a failure rather than an absence, and all six stage records are asserted present before any timing is asserted. Second half: the loop is also driven through the **CLI**, because p.5 and p.6 both write it as `ship login` / `ship docs create` / `ship webhooks tail` — if the CLI cannot drive the loop then the platform's headline story is unproven no matter how green the SDK path is. That half **imports L19's exported command functions** (`runLogin`, `runDocsCreate`, `runWebhooksTail` — PF-581, built for exactly this) with an injected output sink, and branches on PF-561's exported exit codes. It does not re-implement command logic and it does not scrape a terminal: a drill that re-implements is timing a parallel path that can drift from what the demo actually runs, which L19's audit notes ask the auditor to flag. ⚑ Sequencing: the SDK-path drill lands first (Day 5, p.11); the CLI-path assertion lands when L19's commands do | TS-9 | p.5, p.6 | PF-594, PF-595, PF-596, PF-597, PF-598, PF-581, PF-561 |
@@ -250,10 +250,124 @@ quotes the stage as the delivery figure.
 |---|---|---|
 | PF-590 `--clean` | **not built.** `pnpm drill ttfe --clean` exits 2 with a message pointing at `docs/ttfe-drill.md` | It needs a container image, a tarball served over HTTP and a scheduled pipeline slot. The fast mode is a REAL install of the packed artifact, but from a local tarball on a machine with a warm store — so registry resolution and network variance remain unexercised, and that is stated in `docs/architecture.md` rather than glossed |
 | PF-601 human-timed run | **not run** | It needs a person, a clean machine and a stopwatch. p.6's *"with only the published docs"* is a claim about DOCUMENTATION, and no script can fail because a README omits a step. This is the target I would keep if only one of PF-590/PF-601 survives a cut |
-| PF-610 durable link | **not produced** | The `ttfe` job is wired and blocking on both platforms; the link has to come from a real pipeline run and has to still resolve at grading time |
-| PF-604 CI minutes | **half** | Local figures above are real. The CI figure is different work — testcontainers rather than a warm Postgres, a cold pnpm store on the first run — and has not been measured on the runner. Rows created per run: 1 document, 1 subscription, ≥1 delivery, plus the CLI path's second set |
-| PF-606 soak | **20/20 locally, on one commit, uncertified** | `scripts/ttfe/soak.sh 20` + `check-series.mjs --soak`, no re-runs and no filtering. It is not the *CI* soak p.9 describes, and every sample is above F80's load veto |
-| PF-608 CI job | **wired, never observed green** | `ttfe` and `ttfe-controls` in `.gitlab-ci.yml` stage `verify`, `needs: ['build']`, `allow_failure: false`, `assert-tests-ran.sh`-wrapped, testcontainers env copied from `agent-test` and no dind; mirrored in `.github/workflows/ci.yml`. Nothing in this lane ran a pipeline |
+| PF-610 durable link | **produced** — `https://labs.gauntletai.com/joshrochon/ship/-/jobs/66739`, with `test-results/ttfe.json` and `ttfe-series.jsonl` attached | Artifacts expire in 1 month, which is inside the grading window but not outside it. L26 owns whether that needs extending before Final |
+| PF-604 CI minutes | **measured** | `ttfe` 56.4 s + `ttfe-controls` 50.1 s = **1.8 min per pipeline**, jobs 66739/66740. The drill's own graded loop is 7.4 s of that; the rest is the pnpm install, the `build` artifact download and the testcontainer. Rows created per run: 1 document, 1 subscription, ≥1 delivery, plus the CLI path's second set |
+| PF-606 soak | **20/20 locally on one commit; 1 CI run so far** | `scripts/ttfe/soak.sh 20` + `check-series.mjs --soak`, no re-runs and no filtering. p.9's target is *CI* runs, and the CI series cannot accumulate: `test-results/ttfe-series.jsonl` is per-job, so every CI run reports a window of 1 (`TTFE series — 1 run(s) of the last 20`). Twenty CI runs are twenty separate artifacts, and nothing in this tree assembles them. Named rather than glossed — it is the last thing standing between this lane and p.9 |
+| PF-608 CI job | **green, observed** — pipeline **20237**, jobs **66739** (`ttfe`, 56.4 s) and **66740** (`ttfe-controls`, 50.1 s), commit `ab3f3fa` | See "The drill had never executed" below. Both `allow_failure: false`, both `assert-tests-ran.sh`-wrapped, testcontainers and no dind |
+
+### The drill had never executed in CI — two bugs, one shape
+
+Written after the fact, against pipeline **20237** on `pf/L20-ttfe-ci-docker`.
+
+The row above used to read *"wired, never observed green"*, and the reason was not that the
+drill was slow or flaky. **It had never run.** Every pipeline from **19893 to 20223** — 35 of
+them, unbroken since the job landed — failed the same way, and both jobs are
+`allow_failure: false`, so the board was red on Epic 6's proof for as long as that proof
+existed.
+
+| # | What failed | Why it hid |
+|---|---|---|
+| 1 | `docker pull postgres:16` → `/usr/bin/bash: line 196: docker: command not found`, exit 127 | The job's comment reasons correctly about DooD — the runner does mount `/var/run/docker.sock`, and its `config.toml` says so. What it missed is that `node:22-bookworm` ships no `docker` CLI. Testcontainers never wanted one: it speaks the Engine API over the socket through dockerode. `agent-test` sits ten lines above with the same image and the same two `TESTCONTAINERS_` vars and starts a Postgres per spec file across 24 files (job 65909, 228 tests, 36.9 s) |
+| 2 | `sh: tsx: command not found` → `ttfe harness exited 127 before printing its ready line` | Reached only once (1) was removed. `tsx` is a devDependency of `api`, and pnpm links a package's bins into *its own* `node_modules/.bin`. So `api/node_modules/.bin/tsx` exists and `<root>/node_modules/.bin/tsx` does not, and all four `npx tsx` spawns resolved nothing from the repo root |
+
+Bug 2 hid the way bug 1 did: **on the machine this lane was written on, a stale
+`<root>/node_modules/.bin/tsx` exists** from an earlier install in which tsx *was* a root
+dependency. A stale symlink is not a dependency, and `pnpm install --frozen-lockfile` — which
+is what CI runs — does not produce one. Letting `npx` fetch tsx instead was rejected: with a
+registry reachable it downloads the *latest* tsx and the graded drill then measures a
+toolchain the lockfile does not name.
+
+Neither fix touched the drill. `retry: 0` stands, no sleeps were added, no threshold moved,
+both jobs stayed `allow_failure: false`, and `assert-tests-ran.sh` still wraps both at 3 and 4.
+`check-fitness.mjs` gained two claims so this cannot come back: no owned file may spawn `npx`,
+and the two copies of the tsx resolver — duplicated because `scripts/` and `integrations/` may
+not import across the p.11 fence — must list identical candidates.
+
+### Bug 2 was repo-wide, and it is why `.gitlab-ci.yml` ran none of the nine
+
+The drill was where it was found, not where it lived. Chasing it out of the drill turned up
+**five spawn sites and three `package.json` scripts**, every one of which resolves `tsx` from
+the workspace root where pnpm never put it:
+
+| Where | What it broke |
+|---|---|
+| `scripts/ttfe/harness.ts` ×2 | the TTFE drill |
+| `integrations/cli/tests/ttfe/shipInstance.ts`, `ttfe.negative.drill.ts` | the drill and its controls |
+| `integrations/cli/tests/server/support/harness.ts` | `@ship/cli test:server` — `approval subprocess failed (127)` |
+| `integrations/drills/idempotency/tests/support/world.ts` | `drill:idempotency` |
+| `integrations/drills/refresh-rotation/tests/support/login.ts` | `drill:refresh` |
+| `integrations/slack/tests/live/wholePath.test.ts` | `slack:live` |
+| `scripts/l24-drill-server.ts:145` | all three of the above, at boot |
+| `package.json` lines 28–30, bare `tsx` | `drill:refresh`, `drill:idempotency`, `slack:live` before anything boots |
+
+`package.json` declares no `tsx` in `dependencies` or `devDependencies` at all. The correct
+shape was already in the same file two lines down — `baseline:measure` uses
+`pnpm --filter @ship/api exec tsx` — so the three scripts now match it.
+
+**Consequence, and the reason this belongs in a lane file rather than a commit message:**
+`integrations/README.md` claims *"Every one of those runs in CI behind
+`scripts/assert-tests-ran.sh <n>`"* for nine commands, and `.gitlab-ci.yml` ran **zero**.
+p.8's "at least five integrations" ships exactly five with no margin, so on the graded remote
+nothing verified any of them. Slack — the PRD's only `should-ship` after the CLI — had no
+automated proof at all.
+
+**All nine now run, in six jobs**, every count re-measured on this tree after merging
+`pf/integration`:
+
+| Command | Tests | Job |
+|---|---|---|
+| `@ship/cli test` | 83 | `integration-units` |
+| `@ship/slack test` | 19 | `integration-units` |
+| `@ship/browser-demo test` | 5 | `integration-units` |
+| `@ship/integration-testkit test` | 21 | `integration-units` |
+| `@ship/cli test:server` | 19 | `cli-server-suite` |
+| `@ship/browser-demo test:pkce` | 7 | `browser-demo-pkce` |
+| `drill:refresh` | 21 | `drill-refresh` |
+| `drill:idempotency` | 14 | `drill-idempotency` |
+| `slack:live` | 10 | `slack-live` |
+
+Three of those counts had drifted while this branch was open — cli 58→83, slack 17→19,
+`slack:live` 5→10 — so the guards are floors measured here, not inherited. `slack:live` is a
+misleading name and it cost a round trip: it needs **no Slack credentials**; "live" means a
+live Ship.
+
+`@ship/integration-testkit test` was the last to land and was held back for one pipeline
+because it was **red**, not because of the environment: PF-721's "one listener,
+repository-wide" named `cli/tests/support/stubShip.ts` (L19) and `cli/tests/ttfe/listener.ts`
+(**this lane**, PF-599) as unlisted socket binders. L24 has since allow-listed both with
+reasons and it passes 21/21.
+
+**Three environment facts these jobs paid for, in pipelines rather than in review:**
+
+1. The `build` artifact carries `shared/agent/api/web/sdk` dist and **nothing under
+   `integrations/`**. `@ship/slack test` imports `@ship/integration-testkit` at runtime, so
+   without an explicit testkit build it collects zero tests and `assert-tests-ran.sh`
+   correctly calls a SHORT RUN (job 67103).
+2. `oauth_apps` is **empty** after migrate + seed unless `AGENT_/GRADER_/DEMO_CLIENT_SECRET`
+   are set — verified directly: 0 rows without, 3 with. Every device login then answers
+   `invalid_client`, so a missing row presents as a plausible auth failure (jobs 67101,
+   67104).
+3. The drills **cannot share a database**. Each leaves subscriptions behind and a signing
+   secret is encrypted at rest under `WEBHOOK_SECRET_KEY`, so the second drill dies with
+   `WebhookSecretCryptoError … NOTHING was delivered`. Ordering the lines would have gone
+   green while leaving a suite that passes because of what ran before it — the shape p.9 sets
+   at zero. One job per drill gets one `postgres:16` service per drill.
+
+### Measured in CI, first time — job 66739
+
+| | |
+|---|---|
+| `totalMs` | **7384 ms** against the 60 000 ms budget (p.8) |
+| stages | install 2197 ms · login 5080 · subscribe 47 · create 58 · receive 0 · verify 1 |
+| `eventToPostMs` | **12 ms** against p.6's 2 000 ms |
+| series check | `pass rate 1/1 · totalMs P95 7384 ms · event→POST P95 12 ms` |
+| job wall clock | `ttfe` **56.4 s**, `ttfe-controls` **50.1 s** |
+| load-certified | **0/1** — F80's veto still fires on this runner, so the number is reported and not certified |
+
+Close to the local admin-server figures (6.3–7.0 s), which is the useful part: CI runs the
+**testcontainer** path, and the lane's local 20-run soak had only ever exercised admin-server
+mode. `install` is 2197 ms rather than 1.3–2.3 s local despite a cold-ish store, and `login`
+is still RFC 8628's 5 s poll interval — 69% of the graded total, and not the platform.
 
 ### Two decisions an auditor should check rather than accept
 

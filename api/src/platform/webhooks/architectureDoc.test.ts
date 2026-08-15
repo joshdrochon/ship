@@ -21,9 +21,10 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_TOLERANCE_SECONDS } from './signer.js';
+import { architectureText } from '../../test/architectureDoc.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
-const DOC = readFileSync(join(REPO_ROOT, 'docs', 'architecture.md'), 'utf8');
+const DOC = architectureText();
 
 describe('PF-434 — the doc states what is signed, and both rejected alternatives', () => {
   it('names the construction', () => {

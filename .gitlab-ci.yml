@@ -430,6 +430,25 @@ agent-test:
 #      10 of 20 spec files in `beforeAll`. The runner mounts the host socket, so containers
 #      this job starts are SIBLINGS and publish on the Docker host.
 #
+#      That reasoning was right and the job still never ran. Every pipeline from 19893 to
+#      20223 — 35 of them, unbroken since this job landed — exited 127 on a `docker pull
+#      postgres:16` line that used to sit below, three lines before `pnpm drill ttfe`:
+#
+#          $ docker pull postgres:16
+#          /usr/bin/bash: line 196: docker: command not found
+#
+#      The mounted socket is real; the `docker` CLI is not. `node:22-bookworm` ships no
+#      docker binary, and testcontainers never wanted one — it speaks the Engine API over
+#      /var/run/docker.sock through dockerode. `agent-test` sits ten lines above with the
+#      same image, the same two TESTCONTAINERS_ vars and no CLI call, and starts a Postgres
+#      per spec file across 24 files without complaint (job 65909, 228 tests, 36.9 s).
+#
+#      So the pre-pull is deleted rather than replaced. Nothing else needed changing: no
+#      dind service, no `postgres:16` service container, and no touching PF-587's refusal.
+#      The image pull now happens inside `provisionContainer()`, which runs in `beforeAll`
+#      and is recorded as `setupMs` — outside the total p.8 grades, by the same rule that
+#      already excludes the migrations and the server boot.
+#
 #  (c) `scripts/assert-tests-ran.sh 3 --` so a drill that executes zero stages exits 2 —
 #      VOID RUN — rather than reading as a pass. Three is the whole drill file: the loop,
 #      PF-602's benchmark link, and PF-611's CLI path.
@@ -454,7 +473,6 @@ ttfe:
     - pnpm --filter @ship/cli exec tsc -p tsconfig.drill.json
     # PF-605 / PF-609: no sleeps, `retry: 0`, not a Playwright spec, one thresholds file.
     - node scripts/ttfe/check-fitness.mjs
-    - docker pull postgres:16
     - scripts/assert-tests-ran.sh 3 -- pnpm drill ttfe
     # PF-600 / PF-603: the two gates no single run can produce. Reads the same
     # test-results/ttfe-series.jsonl the soak does.
@@ -483,9 +501,287 @@ ttfe-controls:
     TESTCONTAINERS_RYUK_DISABLED: 'true'
     DATABASE_URL: ''
   script:
-    - docker pull postgres:16
+    # No `docker pull` here either — same reason as `ttfe` above: the socket is mounted,
+    # the CLI is not, and testcontainers needs only the socket.
     - scripts/assert-tests-ran.sh 4 -- pnpm drill ttfe --controls
   allow_failure: false
+
+# ── The nine integration commands (PF-720) ──────────────────────────────────────────
+#
+# `integrations/README.md` says: *"Every one of those runs in CI behind
+# `scripts/assert-tests-ran.sh <n>`."* Before the four jobs below, this file ran ZERO of
+# them. GitHub Actions had some; this file's own header calls itself authoritative on
+# drift, and GitLab is the graded remote, so they only count here. p.8's headline asks for
+# at least five integrations and this repo ships exactly five, with no margin — so nothing
+# verified them on the remote that gets graded.
+#
+# Eight of the nine now run here. Counted against the README's own list:
+#
+#   @ship/cli test                  83  integration-units
+#   @ship/cli test:server           19  cli-server-suite
+#   @ship/slack test                19  integration-units
+#   slack:live                      10  slack-live
+#   @ship/browser-demo test          5  integration-units
+#   @ship/browser-demo test:pkce     7  browser-demo-pkce
+#   drill:refresh                   21  drill-refresh
+#   drill:idempotency               14  drill-idempotency
+#   @ship/integration-testkit test  21  integration-units
+#
+# Every count above was re-measured on THIS tree, after merging pf/integration. They are
+# floors, not equalities (`assert-tests-ran.sh` compares with >=), but a stale floor
+# under-guards: `@ship/cli test` was 58 and is 83, `@ship/slack test` was 17 and is 19,
+# `slack:live` was 5 and is 10 — all three grew while this branch was open. Re-measure
+# when they move rather than guessing upward.
+#
+# All nine run. `@ship/integration-testkit test` was the last, and it was held back for one
+# pipeline for a reason worth recording: it was RED, and not environmentally. Its own
+# PF-721 fitness test ("one listener, repository-wide") named two files outside the
+# allow-list that bind a socket — `cli/tests/support/stubShip.ts` and
+# `cli/tests/ttfe/listener.ts`. Both are deliberate (PF-599 needs the drill to own an
+# `http.Server` it can read raw bytes off, and the p.11 fence stops `integrations/cli`
+# importing the testkit at runtime anyway), so a job would have gone red on a real
+# disagreement between three lanes rather than on a defect. L24 has since allow-listed
+# both paths with reasons, and the suite passes 21/21 — so it has a job now.
+#
+# Every command below was run to completion on a worktree built with `pnpm install
+# --frozen-lockfile` — CI's own install — before its job was written. That was not
+# caution: SEVEN of them were broken, all by one bug, and a job added on faith would have
+# landed red. `tsx` is a devDependency of `api`, so pnpm links it into
+# `api/node_modules/.bin` and not into the workspace root; every `npx tsx` and every bare
+# `tsx` in a root script therefore resolved nothing on a clean checkout. Five spawn sites
+# and three `package.json` scripts were fixed in the same pass (PF-608).
+
+# The CLI's server-backed suite — the only thing that runs the real `ship` binary against
+# a real booted Ship.
+#
+# Two things had to be true before this job could exist, and neither was:
+#
+#  (a) `tests/server/support/harness.ts` spawned `npx tsx scripts/l19-device-approve.ts`.
+#      `tsx` is a devDependency of `api`, so a clean `--frozen-lockfile` checkout has no
+#      `tsx` at the workspace root and every test that logs in died with
+#      `approval subprocess failed (127): sh: tsx: command not found`. Same root cause as
+#      the TTFE drill's, found the same way, fixed the same way (PF-608).
+#
+#  (b) `OAUTH_RATE_LIMIT_PER_MINUTE` defaults to 30 per client IP (deps.ts, finding F29).
+#      Nineteen tests that each complete a device grant blow through that, and the run
+#      fails with `slow_down` — a failure about the harness, not about the CLI. Raised
+#      here on the throwaway server this job boots, exactly as `browser-demo`'s own
+#      playwright.config.ts sets `E2E_TEST: '1'` to lift the login limiter for the same
+#      reason. It changes no assertion in the suite; the suite tests the CLI.
+#
+# The boot sequence is the one `integrations/cli/README.md` documents, not an invention —
+# migrate, seed, build the binary, start `api/src/index.ts`, wait for `/health`. The wait
+# is a bounded poll rather than a sleep: a fixed sleep is either too short on a loaded
+# runner or wasted on an idle one, and it fails as a timeout that names nothing.
+cli-server-suite:
+  stage: verify
+  needs: ['build']
+  services:
+    - name: postgres:16
+      alias: postgres
+  variables:
+    SHIP_TEST_BASE_URL: 'http://127.0.0.1:3919'
+    # See (b). Throwaway server, one job, no traffic but this suite's.
+    OAUTH_RATE_LIMIT_PER_MINUTE: '100000'
+  script:
+    # Generated per job rather than written down: a literal here would be a committed
+    # secret-shaped string for no benefit. `secretCipher.ts` wants base64 of 32 bytes.
+    - export WEBHOOK_SECRET_KEY="$(head -c 32 /dev/urandom | base64)"
+    # PF-057's three platform apps — including `ship_app_grader_demo`, the app every
+    # device login below authenticates as — are seeded ONLY when these are set.
+    # Measured on jobs 67101 and 67104: without them `oauth_apps` is EMPTY after a
+    # migrate + seed, and every `ship login` answers
+    # `Requesting a device code failed (invalid_client)`. The suite then reports a
+    # perfectly explicable auth failure that is really a missing row. Throwaway values on
+    # a throwaway database, generated per job so nothing secret-shaped is committed; the
+    # TTFE harness does the same thing for the same reason.
+    - export AGENT_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - export GRADER_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - export DEMO_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - pnpm --filter @ship/api exec tsx src/db/migrate.ts
+    - pnpm db:seed
+    # `dist/index.js` is what the suite spawns — it drives the built binary, never a
+    # command function, so the build is part of what this job proves.
+    - pnpm --filter @ship/cli build
+    - |
+      set -eu
+      # PF-575's opt-in: `ship webhooks tail` subscribes a loopback target_url, which the
+      # deployed instance refuses by default and must keep refusing.
+      PORT=3919 \
+      APP_BASE_URL="$SHIP_TEST_BASE_URL" \
+      SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS=true \
+      NODE_ENV=development \
+        api/node_modules/.bin/tsx api/src/index.ts > ship-server.log 2>&1 &
+      echo "$!" > ship-server.pid
+    - |
+      set -eu
+      deadline=$(( $(date +%s) + 120 ))
+      until curl -sf "$SHIP_TEST_BASE_URL/health" > /dev/null; do
+        if ! kill -0 "$(cat ship-server.pid)" 2>/dev/null; then
+          echo "the Ship this job booted exited before answering /health:" >&2
+          cat ship-server.log >&2
+          exit 1
+        fi
+        if [ "$(date +%s)" -gt "$deadline" ]; then
+          echo "no answer from $SHIP_TEST_BASE_URL/health within 120 s:" >&2
+          cat ship-server.log >&2
+          exit 1
+        fi
+        sleep 1
+      done
+      echo "ship up at $SHIP_TEST_BASE_URL"
+    # 19 is the whole suite: story 11, deviceScenario 4, readmeSetup 2, tailModes 2.
+    # Counted from the files, so a spec that stops being collected exits 2 rather than
+    # reading as a pass.
+    - scripts/assert-tests-ran.sh 19 -- pnpm --filter @ship/cli test:server
+  after_script:
+    - test -f ship-server.pid && kill "$(cat ship-server.pid)" 2>/dev/null || true
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - ship-server.log
+  allow_failure: false
+
+# Authorization Code + PKCE, driven through a real Chromium against a real Ship.
+#
+# This is the only automated proof of that flow in a browser, and p.5's Testing Scenario 2
+# rests on it. `integrations/browser-demo/playwright.config.ts` already does the hard part:
+# it boots `api/src/index.ts` and `vite preview` as its own `webServer`s and registers the
+# public OAuth app in `globalSetup`. So all this job supplies is a database with the seed
+# user in it — `dev@ship.local`, whom the consent screen signs in as.
+#
+# `retries: 0` in that config, not the root's `process.env.CI ? 2 : 1`. Nothing here
+# overrides it, for the reason the drill does not either.
+#
+# Chromium is installed rather than baked in via a Playwright image, matching `e2e`: the
+# image tag would have to track @playwright/test by hand and a mismatch fails at runtime.
+browser-demo-pkce:
+  stage: verify
+  needs: ['build']
+  services:
+    - name: postgres:16
+      alias: postgres
+  variables:
+    # Not the config's 3124 default — nothing else in this job uses that port, but pinning
+    # it here keeps the number visible next to the job that depends on it. DEMO_PORT is
+    # NOT settable: `scripts/l24-browser-demo-setup.ts` registers the redirect URI as the
+    # constant `http://localhost:4173/` and vite inlines it at build time, so the two
+    # would drift into an `invalid_grant` nobody could read.
+    DEMO_API_PORT: '3124'
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.27.0 --activate
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+    - pnpm exec playwright install --with-deps chromium
+  script:
+    - export WEBHOOK_SECRET_KEY="$(head -c 32 /dev/urandom | base64)"
+    - pnpm --filter @ship/api exec tsx src/db/migrate.ts
+    # For `dev@ship.local` / `admin123`. globalSetup fails by name without that user.
+    - pnpm db:seed
+    # 7 is the whole spec file: 4 for PF-734, 1 for PF-735's negative case, 2 for PF-736.
+    - scripts/assert-tests-ran.sh 7 -- pnpm --filter @ship/browser-demo test:pkce
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - integrations/browser-demo/test-results/
+  allow_failure: false
+
+# The three integration suites that need nothing but a checkout — no database, no server,
+# no browser. Grouped into one job because this project's runner is a laptop with
+# `concurrent = 4`, and three jobs whose combined runtime is under a minute would spend
+# more time waiting for a slot than running.
+#
+# Each is wrapped separately, so the trace names which one shrank rather than reporting a
+# single merged count that no longer maps to a suite.
+integration-units:
+  stage: verify
+  needs: ['build']
+  script:
+    # `build` publishes shared/agent/api/web/sdk dist and nothing under integrations/.
+    # `@ship/slack`'s listener test imports `@ship/integration-testkit` at runtime, so
+    # without this it dies at collection with "Failed to resolve entry for package
+    # @ship/integration-testkit" and reports zero tests — which assert-tests-ran correctly
+    # calls a SHORT RUN rather than a failure. Measured on job 67103.
+    - pnpm --filter @ship/integration-testkit build
+    - scripts/assert-tests-ran.sh 83 -- pnpm --filter @ship/cli test
+    - scripts/assert-tests-ran.sh 19 -- pnpm --filter @ship/slack test
+    - scripts/assert-tests-ran.sh 5 -- pnpm --filter @ship/browser-demo test
+    # PF-721's own suite. It was red until L24 allow-listed the two files this repo
+    # deliberately carries a second listener in — `cli/tests/support/stubShip.ts` and
+    # `cli/tests/ttfe/listener.ts` — so it had no job on the older tree. It passes now,
+    # which is the last of the nine.
+    - scripts/assert-tests-ran.sh 21 -- pnpm --filter @ship/integration-testkit test
+  allow_failure: false
+
+# The three commands that boot a Ship through `scripts/l24-drill-server.ts` — it
+# provisions the instance, exports SHIP_DRILL_BASE_URL / SHIP_DRILL_CLIENT_ID, runs the
+# package's suite, and tears the instance down.
+#
+# THREE JOBS, NOT ONE, AND THAT COST A PIPELINE TO LEARN. Run back to back against a
+# single database (job 67104) the second drill fails with
+#
+#   [webhooks] could not resolve subscriptions for document.created … NOTHING was
+#   delivered … WebhookSecretCryptoError: Webhook signing secret failed to decrypt
+#
+# because each drill leaves its subscriptions behind and a signing secret is encrypted at
+# rest under WEBHOOK_SECRET_KEY. Seeding does not truncate them, so drill two inherits
+# drill one's rows. Ordering the lines "correctly" would hide that rather than fix it: it
+# would leave a suite that passes only because of what ran before it, which is the shape
+# of flake p.9 sets at zero. A job per drill means a `postgres:16` service container per
+# drill, which is a genuinely fresh database and needs no extra machinery.
+#
+# `slack:live` is a misleading name and it cost a round trip to establish: it needs NO
+# Slack credentials. "Live" means a live Ship — the suite drives a real webhook delivery
+# into the Slack integration's own handler over a socket. `tests/live/**` is excluded from
+# `@ship/slack test`'s default config, which is why it needs its own invocation.
+#
+# `drill:refresh` boots TWO instances (PF-727: the expired-token case comes from a second
+# process with SHIP_REFRESH_TOKEN_TTL_SECONDS=0, never from waiting).
+.drill-job: &drill-job
+  stage: verify
+  needs: ['build']
+  services:
+    - name: postgres:16
+      alias: postgres
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.27.0 --activate
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+    - export WEBHOOK_SECRET_KEY="$(head -c 32 /dev/urandom | base64)"
+    # PF-057's three platform apps — including `ship_app_grader_demo`, the app every
+    # device login authenticates as — are seeded ONLY when these are set. Measured on
+    # jobs 67101 and 67104: without them `oauth_apps` is EMPTY after migrate + seed and
+    # every `ship login` answers `Requesting a device code failed (invalid_client)`, so
+    # the suite reports a plausible auth failure that is really a missing row.
+    # Throwaway values on a throwaway database, generated per job so nothing
+    # secret-shaped is committed. The TTFE harness does the same, for the same reason.
+    - export AGENT_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - export GRADER_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - export DEMO_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - pnpm --filter @ship/api exec tsx src/db/migrate.ts
+    # For `dev@ship.local`, whom `scripts/l19-device-approve.ts` signs in as.
+    - pnpm db:seed
+  allow_failure: false
+
+# Minimums are the whole suite in each case, counted from a run on a clean install.
+drill-refresh:
+  <<: *drill-job
+  script:
+    - scripts/assert-tests-ran.sh 21 -- pnpm drill:refresh
+
+drill-idempotency:
+  <<: *drill-job
+  script:
+    - scripts/assert-tests-ran.sh 14 -- pnpm drill:idempotency
+
+slack-live:
+  <<: *drill-job
+  script:
+    - scripts/assert-tests-ran.sh 10 -- pnpm slack:live
 
 coverage:
   stage: verify

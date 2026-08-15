@@ -275,6 +275,63 @@ zip -r "$BUNDLE" \
   -x "*.git*" "*/node_modules/*" "*/dist/*" "*/.turbo/*" "*/coverage/*" \
      "*/test-results/*" "*/playwright-report/*" "*.log" "*.tsbuildinfo"
 
+# ---------------------------------------------------------------------------
+# PF-628 — bake the commit SHA into the bundle's Dockerfile, so /health can
+# report it.
+#
+# Until this existed, `/health` on the deployed instance returned
+# `{"status":"ok","revision":"unknown"}` while README.md claimed it reported the
+# deployed commit SHA. The value was never missing — `$GIT_SHA` is computed at
+# :117 and already labels the EB application version — it simply never reached
+# the runtime:
+#
+#   - EB builds the image ON THE INSTANCE from this zip and gives no way to pass
+#     `--build-arg`, so `ARG GIT_SHA=unknown` in the Dockerfile kept its default;
+#   - `ENV GIT_SHA=$GIT_SHA` therefore baked the literal `unknown`;
+#   - `api/src/app.ts` read that and reported it, correctly and uselessly.
+#
+# The `--build-arg` at the preflight build above does NOT fix this. That image is
+# tagged `ship-api:pre-deploy-test`, is never pushed, and is discarded — it
+# exists to catch build breakage, not to produce the deployed artifact.
+#
+# So the bundle's own copy of the Dockerfile has the ARG default rewritten. The
+# TRACKED Dockerfile is never modified: the substitution happens on a temporary
+# copy, which then REPLACES the `Dockerfile` entry already in the zip (`zip`
+# updates an entry by name). A dirty tracked Dockerfile would also trip this
+# script's own clean-tree guard at :101 on the next run.
+#
+# Baked into the image rather than set as an EB environment variable
+# deliberately. An `--option-settings` GIT_SHA would persist across deploys, so a
+# deploy that updated the version label but not the variable would leave /health
+# reporting a stale-but-plausible SHA — a lying health endpoint, which is worse
+# than an honest `unknown`. An image cannot report a SHA it was not built from.
+#
+# `scripts/build-eb-bundle.sh` implements the same substitution for a
+# `git archive`-based bundle. It is not called here because this script ships a
+# curated file list, for the reasons documented at length above, and swapping
+# that for `git archive HEAD` is a change to the deploy artifact and not to
+# provenance.
+# ---------------------------------------------------------------------------
+if ! grep -q '^ARG GIT_SHA=' Dockerfile; then
+  echo "ERROR: Dockerfile has no 'ARG GIT_SHA=' line to substitute."
+  echo "       /health would report 'unknown' and README.md's claim would be false."
+  exit 1
+fi
+
+SHA_STAGE="$(mktemp -d)"
+trap 'rm -rf "$SHA_STAGE"' EXIT
+# BSD and GNU sed disagree about `-i` with no argument, so write to a new file
+# rather than editing in place.
+sed "s|^ARG GIT_SHA=.*|ARG GIT_SHA=$GIT_SHA|" Dockerfile > "$SHA_STAGE/Dockerfile"
+
+if ! grep -q "^ARG GIT_SHA=$GIT_SHA\$" "$SHA_STAGE/Dockerfile"; then
+  echo "ERROR: the GIT_SHA substitution did not take."
+  exit 1
+fi
+
+( cd "$SHA_STAGE" && zip -q "$BUNDLE" Dockerfile )
+echo "✓ Baked GIT_SHA=$GIT_SHA into the bundle Dockerfile (/health will report it)"
+
 # Add .ebextensions and .platform at root level (EB expects them at root, not under api/)
 if [ -d "api/.ebextensions" ]; then
   echo "Adding .ebextensions to bundle..."

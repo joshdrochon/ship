@@ -500,7 +500,7 @@ describe('PF-172 / PF-176: the surface contract', () => {
     }
   });
 
-  it('rotation lives at exactly one grep-unique site (docs/architecture.md:118)', () => {
+  it('rotation lives at exactly one grep-unique site (the ★ in OAuth Flows)', () => {
     const definitions = scanDirectory(HERE)
       .filter((f) => /export\s+async\s+function\s+rotateRefreshToken\b/.test(f.code))
       .map((f) => f.name);

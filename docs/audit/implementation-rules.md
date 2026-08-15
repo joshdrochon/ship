@@ -7,6 +7,14 @@ Source: `GFA_Week_6_PlugForge.pdf`, sha `81a3788d…`, 18pp. Extracted page text
 verified with `grep -l "<phrase>" .claude/prd/page-*.txt`, not inferred from `full.txt`, whose
 whole-document reflow does **not** map to page numbers.
 
+> **Grepping the page files: normalise whitespace first.** The extracted text is hard-wrapped,
+> so a quoted sentence that spans a line break will not match a plain `grep -F`. Three of the
+> quotes below were once reported as unsourced for exactly this reason. Use:
+>
+> ```
+> for f in .claude/prd/page-*.txt; do tr -s ' \n\t' ' ' < "$f" | grep -qF "<phrase>" && echo "$f"; done
+> ```
+
 Predecessor: Week 4 ShipShape's 11 rules are archived at
 `docs/audit/archive/implementation-rules-week4-shipshape.md`. They governed a
 measure-and-improve audit. Week 6 is a build, so the rule set is different in kind — these are
@@ -16,64 +24,158 @@ contract-integrity rules, not improvement-proof rules.
 
 ---
 
-## The rules
+## How this file is structured, and why it is not a flat list
 
-### Contract integrity
+PRD p.11 is **8 + 6**: eight numbered Build Strategy priority rules, then six Critical Guidance
+bullets. This file mirrors that shape rather than merging it, because a flat 1–12 list makes an
+omission invisible — a reader counting eight priority rules can see that eight are here. Part A
+and Part B below are p.11 as written. Part C holds the rules this project derives from other
+pages; they are numbered separately so nothing in Part C can be mistaken for p.11 text.
 
-1. **The public/internal split is a one-way door.** No route or handler under `/api/v1/` may
-   import from `api/src/routes/` or internal middleware. The lint rule ships *before* there is
-   anything to lint. *"If you let routes from `/api/` leak into `/api/v1/` 'just this once', you
-   have permanently damaged the contract. The lint rule is not optional."* (p.11)
+---
 
-2. **Generate the OpenAPI spec; never write it.** Every public route's request/response schema
-   lives in Zod adjacent to the handler; the generator walks them. *"Hand-written specs lie
-   within a week."* (p.11)
+## Part A — Build Strategy: the eight priority rules (p.11)
 
-3. **Every `/api/v1` route satisfies all four contract properties**, asserted by fitness test:
-   an OpenAPI entry, a declared scope, the `ApiError` shape on failure paths, and cursor
-   pagination if it is a list endpoint. (p.5)
+All eight. None dropped. Quoted phrasing is p.11's; the "In this repo" line is ours.
 
-4. **`integrations/` imports only `@ship/sdk`** — never `api/src/`. Enforced by a workspace
-   dependency rule. *"This is what makes 'the agent is a platform citizen' true rather than
-   aspirational."* (p.11)
+**A1. OAuth foundation FIRST.** *"Without working tokens and scope checks, nothing else has a
+contract."* Authorization Code + PKCE end-to-end against a Playwright-driven browser on Day 1,
+**negative tests (wrong verifier rejected) included**. Device Authorization Grant the same day.
+→ In this repo: `api/src/platform/oauth/`; the negative case is Part C rule C4.
 
-### Test discipline
+**A2. Public/internal API boundary on Day 1.** `/api/v1/` is a fresh router that does **not**
+share middleware with the internal API. *"Add the lint rule that fails the build on
+cross-imports before you have any cross-imports to lint. This decision is far cheaper to enforce
+than to retrofit."*
+→ In this repo: `eslint.config.js` fences 1–5, each with a negative fixture under
+`eslint-fixtures/` that `pnpm lint:boundary` asserts actually fails.
 
-5. **No `setTimeout` waits in webhook or retry tests.** The queue-backed deliverer is tested
-   with deterministic clock injection. *"Timing-based webhook tests are flaky tests."* (p.11)
+**A3. Error shape and `ApiError` class before any resource endpoint.** *"Every /api/v1 failure
+must ship the same shape. Build the fitness test that enumerates routes and asserts the shape —
+that's your TODO list for E2."*
+→ In this repo: `api/src/platform/api/v1/errors.ts`; the enumerating fitness test is
+`routeFitness.ts`.
 
-6. **Negative cases are mandatory, not optional.** A wrong `code_verifier` must return
-   `invalid_grant`; a tampered webhook body must fail verification; an expired timestamp must
-   fail. The PRD names the PKCE negative test as mandatory in so many words. (p.5)
+**A4. OpenAPI generated from route metadata, never hand-written.** Get the generator working
+end-to-end with **one** resource (documents) before adding issues, sprints and me. *"The fitness
+test that asserts spec ↔ route parity is the single best defense against drift."*
+→ In this repo: `api/src/platform/openapi/registry.ts`.
 
-7. **The TTFE drill runs in CI from Day 5 onward.** Once the SDK and one resource exist, the
-   drill exists. *"It will catch contract regressions faster than any unit test."* (p.11)
-   Drill flake rate target over 20 consecutive runs is **0%** — any flake is a bug in the drill
-   or in the platform, never something to retry past. (p.8)
+**A5. Webhooks end-to-end on Day 4.** The seven slices, in order: *"event registry → event bus →
+subscriptions → signer → queue deliverer → delivery log → replay."* The signer (HMAC-SHA256 with
+Stripe-style timestamp) *"has its own unit test suite — positive, negative, replay, tamper."*
+→ In this repo: `api/src/platform/webhooks/`; the signer suite is `signer.test.ts` +
+`signatureVectors.test.ts`.
 
-### Budgets — these are numbers, not aspirations
+**A6. SDK skeleton + one resource client + auth helpers next.** Iterate by having the CLI (E6)
+consume the SDK as you build it. *"The SDK's worst bugs always surface when an actual consumer
+compiles against it."*
+→ In this repo: `sdk/src/`; the consumer is `integrations/cli/`.
 
-8. **Regression vs the Part 1 baseline: ≤ +10%** on P95 latency, bundle size, and per-route
-   query counts. (p.2, p.6)
+**A7. CLI reference integration (must-ship).** *"The CLI is the proof the platform works."*
+`ship login` (device flow), `ship docs create` (write through SDK + public API), `ship webhooks
+tail` (the demo moment).
 
-9. **SDK install footprint < 250 KB** minified + gzipped, production deps only, enforced in CI.
-   Webhook delivery P95 < 2s first attempt. OAuth Auth Code + PKCE round-trip P95 < 3s.
-   TTFE drill < 60s in CI. (p.6, p.8)
+**A8. Developer portal + agent rewire (Epic 7).** Portal is should-ship and short — it consumes
+the public API like any other client. *"The agent rewire is the architectural payoff: replace
+direct service calls with SDK calls, behind a feature flag so Part 2's tests pass with the flag
+on or off."*
 
-10. **The platform does zero AI work.** One LLM call per agent turn, and only on user-initiated
-    turns. *"If you find yourself wanting platform-layer AI features ('smart suggestions for
-    OAuth scopes'), you're scope-creeping."* (p.11)
+> **A8 is the rule with the weakest evidence, and it is stated here so that stays visible.**
+> The flag exists (`SHIP_AGENT_VIA_SDK`, `agent/src/composition.ts:38`, default OFF) and
+> `docs/l23-flag-matrix.md` inventories which of Part 2's tests are flag-sensitive. **No CI job
+> runs the suite in both flag states.** `grep -n "SHIP_AGENT_VIA_SDK" .gitlab-ci.yml
+> .github/workflows/*.yml` returns nothing. The matrix document is an inventory, not a proof,
+> and it says so itself. p.17 asks *"How does CI prove Part 2's tests pass with the flag both on
+> and off?"* — today the honest answer is that it does not.
 
-### Secrets and evidence
+---
 
-11. **Secrets are hashed at rest and shown exactly once** — `client_secret` on app creation and
-    rotation, webhook signing secrets on subscription creation. Never recoverable thereafter.
-    A discarded secret is not re-derivable; capture it at creation or the flow is dead. (p.2)
+## Part B — Critical Guidance: the six bullets (p.11)
 
-12. **Per-slice branches are preserved.** One branch per slice under `pf/LNN-<slug>`; the PR
-    description names the acceptance criterion the slice advances and confirms its fitness test
-    passed. Merged branches are graded evidence and are never pruned before Final Submission.
-    (p.12) Enforced by `.claude/hooks/guard-graded-branches.py` and `.husky/pre-push`.
+**B1. Public/internal split is a one-way door.** *"If you let routes from `/api/` leak into
+`/api/v1/` 'just this once,' you have permanently damaged the contract. The lint rule is not
+optional."*
+
+**B2. Generate the OpenAPI spec; do not write it.** Every public route's request/response schema
+lives in Zod adjacent to the handler; the generator walks them. *"Hand-written specs lie within a
+week."*
+
+**B3. Webhook in-memory deliverer for unit tests resolves synchronously.** The real queue-backed
+deliverer is tested with deterministic clock injection — *"never with `setTimeout` waits in
+tests. Timing-based webhook tests are flaky tests."*
+→ Enforced by `retryClockFitness.test.ts`, which greps `platform/webhooks/**` for a bare
+`setTimeout(`, `setInterval(`, `Date.now(` or `new Date()` outside `SystemClock`.
+
+**B4. One LLM call per agent turn, period.** The platform never invokes the LLM. *"If you find
+yourself wanting platform-layer AI features ('smart suggestions for OAuth scopes'), you're
+scope-creeping."*
+
+**B5. External integrations live in `integrations/` and import only `@ship/sdk`** — never
+`api/src/`. Enforced by a workspace dependency rule. *"This is what makes 'the agent is a
+platform citizen' true rather than aspirational."*
+→ `eslint.config.js` fence 3 covers `integrations/**`; fence 5 extends the same rule to
+`agent/**`, which predates the directory convention and was not moved.
+
+**B6. Time-to-first-event drill in CI from Day 5 onward.** Once the SDK and one resource exist,
+the drill exists. *"It will catch contract regressions faster than any unit test."*
+
+---
+
+## Part C — derived rules from other pages
+
+Numbered separately from Part A/B on purpose: none of these is p.11 text.
+
+**C1. Every `/api/v1` route satisfies all four contract properties**, asserted by a fitness test
+that enumerates routes: (a) an OpenAPI entry, (b) a declared scope, (c) the `ApiError` shape on
+failure paths, (d) cursor pagination if it is a list endpoint. (**p.5**, Testing Scenario 4)
+
+**C2. Regression vs the Part 1 baseline: ≤ +10%** on P95 latency, bundle size and per-route
+query counts. (**p.2**, MVP gate; **p.6**, Performance Targets)
+
+**C3. The performance targets, as numbers.** OAuth Auth Code + PKCE round-trip P95 **< 3 s**;
+webhook delivery latency P95, first attempt, **< 2 s**; OpenAPI spec parity **100%**; TTFE
+**< 60 s** in CI and **≤ 30 min** on a clean machine. (**p.6**) SDK install size
+**< 250 KB** minified + gzipped, production deps only; drill flake rate over 20 consecutive CI
+runs **0%** — any flake is a bug in the drill or the platform, never something to retry past.
+(**p.9**) Webhook signature verification in the SDK helper **< 1 ms per call**. (**p.8**)
+
+> Corrected 2026-08-15: the 250 KB footprint and the 0% flake target were previously cited to
+> p.8. Both are on **p.9**. p.8 carries the drill-stage table, the five-integration checklist
+> and the signature-verification target.
+
+**C4. Negative cases are mandatory, not optional.** p.5 says it in those words about PKCE: a
+wrong `code_verifier` on the token exchange must return `invalid_grant` (*"negative case is
+mandatory, not optional"*). The same standard applies to the webhook helper — a tampered body
+must fail, and a timestamp older than 5 min must fail (**p.8**, drill-stage table). (**p.5**,
+**p.8**)
+
+**C5. Secrets are shown exactly once and never recoverable thereafter.** `client_secret` on app
+creation and rotation, webhook signing secrets on subscription creation. A discarded secret is
+not re-derivable; capture it at creation or the flow is dead. (**p.2**: *"client_secret hashed in
+the database (raw secret shown exactly once on creation)"*)
+
+> **At rest, `client_secret` is hashed and webhook signing secrets are encrypted, not hashed.**
+> That is a knowing departure: p.3 says "hashed" while also requiring the secret be used to
+> compute an HMAC, which a hash cannot do. Recorded as decision C3 in
+> `docs/architecture.md` → Webhook Pipeline and in `docs/architecture-appendix.md`. Do not
+> "fix" the encryption to a hash.
+
+**C6. Expired tokens return 401 with a distinct error code.** MVP gate item 3: *"invalid tokens
+return 401, missing tokens return 401, expired tokens return 401 with a distinct error code."*
+(**p.2**)
+
+> As shipped, the distinction is `details.reason` (`missing` | `invalid` | `expired`) plus a
+> per-reason RFC 6750 `WWW-Authenticate` challenge, not a distinct `ApiErrorCode` member. The
+> argument for reading that as satisfying the gate is written out in `docs/architecture.md` →
+> Failure Modes and `api/src/platform/oauth/bearer.ts`. If a grader disagrees, the fix is one
+> new code member, not a redesign.
+
+**C7. Per-slice branches are preserved.** One branch per slice under `pf/LNN-<slug>`; the PR
+description names the acceptance criterion the slice advances and confirms its fitness test
+passed. Merged branches are graded evidence and are never pruned before Final Submission.
+(**p.12**) Enforced by `.claude/hooks/guard-graded-branches.py` and `.husky/pre-push`. See
+`POLICIES.md` §1 for the full mechanism list and for what this project did **not** satisfy.
 
 ---
 
@@ -92,3 +194,6 @@ debugging session already.
 - **Empty tests pass silently.** Use `test.fixme()` for unimplemented tests.
 - **PostgreSQL comes from Docker on port 5433.** There is no host install, despite what
   `api/.env.local` implies.
+- **`docs/architecture.md` is latched by fifteen test files** that read its prose. Edit it
+  through the seam at `api/src/test/architectureDoc.ts` and run `pnpm test` afterwards; an
+  earlier trim turned 62 tests red at once.

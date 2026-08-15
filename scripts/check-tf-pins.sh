@@ -51,13 +51,29 @@ TF_FILES=$(find "$TF_ROOT" -name '*.tf' -not -path '*/.terraform/*' | sort)
 
 # Walk each required_providers block and emit one line per provider entry:
 #   <file>|<lineno>|<provider>|<version-or-NONE>
+#
+# Every brace below is written as the bracket expression [{] / [}] rather than a bare
+# `{` / `}`. That is not style. This job runs on `hashicorp/terraform:1.15.8`, an Alpine
+# image whose `awk` is busybox, and busybox reads a bare `{` in an ERE as the opening of
+# an interval expression like `a{2,3}`:
+#
+#   awk: bad regex 'required_providers[[:space:]]*{': Invalid contents of {}
+#
+# gawk and mawk accept the bare brace, so this parsed fine on every developer machine and
+# died on the runner. Because the failure was a fatal awk error, ENTRIES came back EMPTY,
+# and the emptiness check below then reported "no required_providers entries found at
+# all" -- an audit that was checking nothing while printing a confident FAIL. The pins it
+# could not see were, and are, present and exact. The check had never passed: 0 of 73 runs.
+#
+# Escaping here rather than adding gawk to the image keeps the fix inside this file, and
+# bracket expressions are portable across busybox, mawk and gawk alike.
 ENTRIES=$(awk '
   FNR==1 { inrp=0; depth=0; inprov=0 }
   {
     line=$0
-    if (!inrp && line ~ /required_providers[[:space:]]*{/) { inrp=1; depth=1; next }
+    if (!inrp && line ~ /required_providers[[:space:]]*[{]/) { inrp=1; depth=1; next }
     if (inrp) {
-      if (!inprov && line ~ /^[[:space:]]*[A-Za-z0-9_-]+[[:space:]]*=[[:space:]]*{/) {
+      if (!inprov && line ~ /^[[:space:]]*[A-Za-z0-9_-]+[[:space:]]*=[[:space:]]*[{]/) {
         inprov=1
         name=line; sub(/^[[:space:]]*/,"",name); sub(/[[:space:]]*=.*$/,"",name)
         pstart=FNR; pver="NONE"
@@ -68,13 +84,13 @@ ENTRIES=$(awk '
           v=line; sub(/^.*version[[:space:]]*=[[:space:]]*"/,"",v); sub(/".*$/,"",v)
           pver=v; pverline=FNR
         }
-        if (line ~ /}/) {
+        if (line ~ /[}]/) {
           printf "%s|%s|%s|%s\n", FILENAME, (pver=="NONE"?pstart:pverline), name, pver
           inprov=0
         }
         next
       }
-      if (line ~ /}/) { inrp=0 }
+      if (line ~ /[}]/) { inrp=0 }
     }
   }
 ' $TF_FILES)

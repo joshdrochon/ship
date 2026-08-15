@@ -119,6 +119,71 @@ resource "aws_ssm_parameter" "session_secret" {
   }
 }
 
+# ---------------------------------------------------------------------------
+# PF-625 / L99 F91 — WEBHOOK_SECRET_KEY, the AES-256-GCM key that encrypts every
+# webhook subscription's signing secret at rest (L15 PF-422).
+#
+# This is provisioned NOWHERE before this block. The only two places that ever
+# set it are local drill harnesses (scripts/ttfe/harness.ts,
+# scripts/l24-drill-server.ts), so the deployed environment has never had it.
+#
+# WHY THAT IS INVISIBLE UNTIL IT IS NOT. `api/src/deps.ts` builds the
+# subscription repository with `envSecretCipher()`, which resolves the key
+# LAZILY and deliberately -- eager resolution would turn a missing key into a
+# boot failure for the whole application. So the container starts, /health goes
+# green, `GET /api/v1/webhooks` works, and the FIRST `POST /api/v1/webhooks`
+# throws `WebhookSecretCryptoError` out of `platform/webhooks/secretCipher.ts`.
+# Fail-closed is correct -- the alternative is a body delivered unsigned. The
+# defect is only that nothing supplied the key. PRD p.12's demo script ends with
+# `ship webhooks tail` showing a VERIFIED signed delivery, and p.13's social post
+# wants a screenshot of it, so this is the difference between the demo working
+# and the demo 500ing on its own last line.
+#
+# WHY random_bytes AND NOT random_password. `secretCipher.ts` accepts base64 or
+# hex and requires the decode to be EXACTLY 32 bytes. `random_password` produces
+# CHARACTERS, not bytes: the `length = 64, special = false` shape used for
+# session_secret above is 64 base62 characters, which is not valid hex (it
+# contains g-z) and base64-decodes to 48 bytes, so the key would be rejected at
+# first use with the same error this block exists to prevent. `random_bytes`
+# generates 32 actual bytes and exposes `.base64`, which is the shape the
+# application parses. hashicorp/random 3.7.2 is pinned in versions.tf and has it.
+#
+# WHY SSM AND NOT AN EB ENVIRONMENT VARIABLE. Same reasoning platform-apps.tf
+# sets out for the three client secrets: an EB option setting stores the value
+# in the environment's configuration in clear text, readable by anyone with
+# `elasticbeanstalk:DescribeConfigurationSettings`. The application already
+# reads its secrets from SSM at boot, and the instance role's inline policy
+# above is already scoped to `parameter/${project}/${environment}/*`, so this
+# needs NO IAM change.
+#
+# NO `terraform output` FOR THIS ONE, unlike grader_client_secret. That one is
+# published in the README because a grader has to type it (p.13). This key is
+# never presented to anybody; the only consumer is the API process, via SSM.
+# Not emitting an output is the smaller blast radius.
+#
+# ROTATION IS DESTRUCTIVE AND IS NOT A MAINTENANCE CHORE. Replacing this key
+# makes every already-stored `secret_ciphertext` undecryptable, and deliveries
+# for those subscriptions then fail closed (pipeline.ts logs exactly that).
+# `random_bytes` is stable across applies with no `keepers`, so a routine
+# `terraform apply` will not move it. A deliberate rotation means re-issuing
+# every subscriber's signing secret, which is a subscriber-visible event, not a
+# `-replace`.
+# ---------------------------------------------------------------------------
+resource "random_bytes" "webhook_secret_key" {
+  length = 32 # AES-256. `WEBHOOK_SECRET_KEY_BYTES` in secretCipher.ts.
+}
+
+resource "aws_ssm_parameter" "webhook_secret_key" {
+  name        = "/${var.project_name}/${var.environment}/WEBHOOK_SECRET_KEY"
+  description = "AES-256-GCM key encrypting webhook signing secrets at rest (L15 PF-422). Read at boot by api/src/config/ssm.ts. Rotating it orphans every stored subscription secret."
+  type        = "SecureString"
+  value       = random_bytes.webhook_secret_key.base64
+
+  tags = {
+    Name = "${var.project_name}-webhook-secret-key"
+  }
+}
+
 # IAM Role for EB instances to read SSM parameters
 resource "aws_iam_role_policy" "eb_ssm_access" {
   name = "${var.project_name}-eb-ssm-access"
@@ -178,6 +243,22 @@ resource "aws_iam_role_policy" "eb_bedrock_access" {
 }
 
 # IAM Role for EB instances to access Secrets Manager (FPKI OAuth credentials)
+#
+# PF-635 (PRD p.5): the WRITE half of this policy was dropped. It previously
+# granted secretsmanager:CreateSecret, UpdateSecret and TagResource, plus
+# kms:GenerateDataKey (which exists only to CREATE a secret, never to read one).
+#
+# A public-facing web instance that can rewrite its own OAuth client secret is a
+# privilege-escalation primitive, not a feature. Read stays because it is a live
+# boot/runtime path: api/src/services/caia.ts -> getCAIACredentials() reads
+# /ship/dev/caia-credentials, which exists in this account.
+#
+# KNOWN AND DELIBERATE CONSEQUENCE, recorded rather than discovered later:
+# POST /api/admin/credentials (api/src/routes/admin-credentials.ts, mounted at
+# api/src/app.ts:670) calls saveCAIACredentials() -> UpdateSecret/CreateSecret,
+# and now returns AccessDenied. Credential rotation moves to the operator path,
+# which runs under a human identity, not under the web tier's role. Restoring it
+# is a one-line change here if that trade is ever judged wrong.
 resource "aws_iam_role_policy" "eb_secrets_manager_access" {
   name = "${var.project_name}-eb-secrets-manager-access"
   role = aws_iam_role.eb_instance.id
@@ -188,10 +269,7 @@ resource "aws_iam_role_policy" "eb_secrets_manager_access" {
       {
         Effect = "Allow"
         Action = [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:CreateSecret",
-          "secretsmanager:UpdateSecret",
-          "secretsmanager:TagResource"
+          "secretsmanager:GetSecretValue"
         ]
         Resource = [
           "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/*",
@@ -199,10 +277,13 @@ resource "aws_iam_role_policy" "eb_secrets_manager_access" {
         ]
       },
       {
+        # kms:Decrypt only -- GenerateDataKey went with the write actions.
+        # Resource "*" is bounded by the ViaService condition: this key may only
+        # be used THROUGH Secrets Manager, so it cannot decrypt anything the
+        # resource scope above does not already permit.
         Effect = "Allow"
         Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey"
+          "kms:Decrypt"
         ]
         Resource = "*"
         Condition = {

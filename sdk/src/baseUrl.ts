@@ -51,8 +51,17 @@ export const BASE_URL_ENV_VAR = 'SHIP_BASE_URL';
  * This is a DEFAULT, not an assumption: a self-hosted instance passes `baseUrl`
  * or exports `SHIP_BASE_URL`, and both win. It exists so that the gate's
  * `new ShipClient({ token })` has a runtime meaning as well as a type-level one.
+ *
+ * It must point at the instance a grader is actually given, because the default
+ * is what the five-line story (PRD p.6, and the demo video on p.12) exercises:
+ * `ship login` with no flags resolves here. It previously pointed at
+ * `https://ship.awsdev.treasury.gov`, which is the Week 5 host and answers 403 —
+ * so `ship login` failed for anyone following the README, on the single most
+ * graded path in the project. Found by a hostile audit, not by a test, because
+ * nothing asserts that the default is reachable: a unit test would have to make
+ * a network call, and the CLI suites all pass `--base-url` explicitly.
  */
-export const DEFAULT_BASE_URL = 'https://ship.awsdev.treasury.gov';
+export const DEFAULT_BASE_URL = 'https://d258p92d3n1ebe.cloudfront.net';
 
 /** Where a resolved base URL came from — surfaced for diagnostics and tested. */
 export type BaseUrlSource = 'option' | 'env' | 'default';

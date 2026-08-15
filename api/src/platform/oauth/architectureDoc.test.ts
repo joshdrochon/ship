@@ -24,14 +24,13 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanDirectory } from '../../test/sourceScan.js';
+import { architectureText } from '../../test/architectureDoc.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // api/src/platform/oauth -> repo root
 const REPO_ROOT = join(HERE, '..', '..', '..', '..');
-const ARCHITECTURE = join(REPO_ROOT, 'docs', 'architecture.md');
-
 function doc(): string {
-  return readFileSync(ARCHITECTURE, 'utf8');
+  return architectureText();
 }
 
 describe('PF-176: the rotation marker (docs/architecture.md, Auth Code diagram)', () => {

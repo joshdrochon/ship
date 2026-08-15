@@ -28,6 +28,7 @@ import { asyncRoute } from './errorMiddleware.js';
 import { parsePageRequest } from './page.js';
 import { sliceToPage } from './pagination.js';
 import { enumerateV1Routes } from './routeFitness.js';
+import { architectureText } from '../../../test/architectureDoc.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -180,10 +181,7 @@ describe('PF-234 — additive-only within v1, enforced structurally', () => {
   });
 
   it('the policy is written down in docs/architecture.md, with its rejected option', () => {
-    const architecture = readFileSync(
-      join(HERE, '..', '..', '..', '..', '..', 'docs', 'architecture.md'),
-      'utf8',
-    );
+    const architecture = architectureText();
     expect(architecture).toMatch(/additive-only within v1/i);
     expect(architecture).toMatch(/\/api\/v2\//);
     // The rejected option matters as much as the chosen one: p.16 offers three

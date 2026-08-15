@@ -31,8 +31,19 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
-const REPO_ROOT = dirname(dirname(PACKAGE_ROOT));
+// PF-608. Same package, same test tree, no fence crossed — see that file for the
+// long form. Short version: `tsx` is a devDependency of `api`, so pnpm links it
+// into `api/node_modules/.bin` and NOT into the workspace root, and `npx tsx`
+// from the root finds nothing on a clean `--frozen-lockfile` checkout. This
+// suite's `approveDeviceGrant` was spawning `npx tsx` and every test that logs
+// in died with `approval subprocess failed (127): sh: tsx: command not found`.
+// The suite has therefore never passed on a clean checkout, which is also why it
+// could not be added to CI.
+import { resolveTsx } from '../../ttfe/tsx.js';
+
+export const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
+/** The monorepo root. PF-580's test copies its tracked files into a clean directory. */
+export const REPO_ROOT = dirname(dirname(PACKAGE_ROOT));
 
 /** The built binary. `dist`, not `src` — PF-556 is a claim about the artifact. */
 export const SHIP_BIN = join(PACKAGE_ROOT, 'dist', 'index.js');
@@ -96,10 +107,17 @@ export function cliEnv(home: string): NodeJS.ProcessEnv {
   return env;
 }
 
-/** Runs `ship <args>` to completion. */
-export function runShip(args: string[], home: string): Promise<RunResult> {
+/**
+ * Runs `ship <args>` to completion.
+ *
+ * `bin` defaults to this package's own `dist/index.js`. PF-580's test passes the
+ * binary built by the README's setup command inside a clean checkout — same
+ * driver, a different artifact, which is the point: nothing about the way these
+ * tests spawn a CLI is specific to this working copy.
+ */
+export function runShip(args: string[], home: string, bin: string = SHIP_BIN): Promise<RunResult> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [SHIP_BIN, ...args], {
+    const child = spawn(process.execPath, [bin, ...args], {
       env: cliEnv(home),
       cwd: REPO_ROOT,
     });
@@ -122,8 +140,8 @@ export class ShipProcess {
   private readonly waiters: (() => void)[] = [];
   private closed: { code: number } | null = null;
 
-  constructor(args: string[], home: string) {
-    this.child = spawn(process.execPath, [SHIP_BIN, ...args], {
+  constructor(args: string[], home: string, bin: string = SHIP_BIN) {
+    this.child = spawn(process.execPath, [bin, ...args], {
       env: cliEnv(home),
       cwd: REPO_ROOT,
     });
@@ -197,9 +215,8 @@ export function approveDeviceGrant(
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(
-      'npx',
+      resolveTsx(REPO_ROOT),
       [
-        'tsx',
         join(REPO_ROOT, 'scripts', 'l19-device-approve.ts'),
         '--user-code',
         userCode,
@@ -222,10 +239,14 @@ export function approveDeviceGrant(
 }
 
 /** `ship login`, driven to completion with the grant approved out of band. */
-export async function login(home: string): Promise<ShipProcess> {
+export async function login(
+  home: string,
+  options: { clientId?: string; bin?: string } = {},
+): Promise<ShipProcess> {
   const proc = new ShipProcess(
-    ['login', '--base-url', baseUrl(), '--client-id', DEMO_CLIENT_ID],
+    ['login', '--base-url', baseUrl(), '--client-id', options.clientId ?? DEMO_CLIENT_ID],
     home,
+    options.bin ?? SHIP_BIN,
   );
   await proc.waitFor((all) => all.includes('device-code-ready'), 'printing a user code');
 

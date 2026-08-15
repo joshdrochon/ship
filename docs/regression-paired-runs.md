@@ -20,7 +20,20 @@ running identical measurement code. Bundle size and per-route query counts are u
 and are reported by `docs/regression-report.md`; this document exists for latency, which
 is the only one of the three that is noisy.
 
-Reproduce: `scripts/perf-paired-runs.sh <part1-worktree> 10`.
+Reproduce: `scripts/perf-paired-runs.sh <part1-worktree> 10`. Raw per-run samples are in
+`docs/perf-paired-runs.txt`; the table above is the median of each side's ten runs.
+
+`GET /health` is the **control**. It runs no query and touches no database, so it cannot
+regress; the −5.8% it moved is the run-to-run floor. A large move on that row means the
+instrument is broken and the run is void — which is how the three defects below were found.
+
+> **This document is the authority for the latency half of MVP gate item 9.**
+> `docs/mvp-gate-item-9.md` records the gate item as a whole and cites this file for P95.
+> It previously said P95 was *"Not established"*, which was written on 2026-08-13 and was
+> already stale when this evidence landed on 2026-08-14 in `b6177e4`. If the two ever
+> disagree again, check which baseline each is standing on: this one is `5455f4e`, Week 5's
+> `main`. Anything citing a 2026-08-12 ref (`41393f6`, `b639059`) predates the re-capture
+> and is measuring Week-6-with-PlugForge against Week-6-with-more-PlugForge.
 
 ---
 

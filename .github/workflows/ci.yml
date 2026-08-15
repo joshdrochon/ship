@@ -161,14 +161,19 @@ jobs:
           # `minimum` comes from a known-good local run, per assert-tests-ran's
           # own guidance. Raise it when a package grows tests; never lower it to
           # make a red job green.
+          # Re-measured 2026-08-15 against a local run of each suite.
           - package: '@ship/integration-testkit'
-            minimum: 19
-          - package: '@ship/cli'
             minimum: 21
+          - package: '@ship/cli'
+            minimum: 58
           - package: '@ship/browser-demo'
             minimum: 5
+          # Raised 17 → 19 on 2026-08-15. PF-742 added two `issue.assigned`
+          # cases to `listener.test.ts` and the guard never followed them, so
+          # for three days this job would have gone green on a suite that had
+          # silently lost them again.
           - package: '@ship/slack'
-            minimum: 17
+            minimum: 19
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -187,6 +192,19 @@ jobs:
       - run: pnpm build:shared && pnpm --filter @ship/sdk build && pnpm --filter @ship/integration-testkit build
       - name: ${{ matrix.package }} — suite, behind the zero-tests-ran guard
         run: scripts/assert-tests-ran.sh ${{ matrix.minimum }} -- pnpm --filter ${{ matrix.package }} test
+      # PF-738 says the SDK's share of the demo bundle is "published as a build
+      # artifact". `tests/bundle.test.ts` wrote the number to
+      # `test-results/bundle-size.json` and NO job uploaded it, so the artifact
+      # existed only inside a runner that was then thrown away — the ticket's
+      # publish half was never done. The `browser-demo-pkce` job below uploads
+      # that same directory, but it is a different job with a different
+      # workspace and the file is not written there.
+      - uses: actions/upload-artifact@v4
+        if: always() && matrix.package == '@ship/browser-demo'
+        with:
+          name: bundle-size
+          path: integrations/browser-demo/test-results/bundle-size.json
+          if-no-files-found: error
 
   # PF-727 — `pnpm drill:refresh` runs headless as a BLOCKING job.
   #
@@ -325,8 +343,156 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:shared && pnpm --filter @ship/agent build && pnpm --filter @ship/sdk build
       - run: pnpm db:migrate
+      # Raised 5 → 10 on 2026-08-15, measured. PF-743's rewrite took the walk
+      # from four asserted hops to nine tests and this floor never followed; the
+      # tenth is PF-742's subscription half, which had the same one-of-two
+      # defect the delivery half did. A floor of 5 on a suite of 10 is a guard
+      # that would sit green through half the walk disappearing.
       - name: PF-743 — internal UI create → bus → matcher → signer → deliverer → Slack
-        run: scripts/assert-tests-ran.sh 5 -- pnpm slack:live
+        run: scripts/assert-tests-ran.sh 10 -- pnpm slack:live
+
+  # L24 — `pnpm --filter @ship/cli test:server`, which had never run in CI.
+  #
+  # `integrations/README.md` claimed for nine commands that "every one of those
+  # runs in CI behind assert-tests-ran.sh". For this one and for `test:pkce`
+  # below that was false: `grep test:server .github/workflows/*.yml` returned
+  # nothing. The suite that proves p.6's five-line story against a real booted
+  # Ship — the demo the video (p.12) is of — was laptop-only.
+  #
+  # Its own job, not a matrix row, for the same reason as the drills: it needs a
+  # database and a server. The recipe is the one documented in
+  # `docs/l19-five-line-story.md` § Reproducing it, step for step.
+  cli-server-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_l19
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_l19
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+      SHIP_TEST_BASE_URL: http://localhost:3919
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # PF-556 is a claim about the ARTIFACT: the harness spawns
+      # `integrations/cli/dist/index.js` as a child process, so the CLI must be
+      # built, not just type-checked.
+      - run: pnpm build:shared && pnpm --filter @ship/sdk build && pnpm --filter @ship/cli build
+      - run: pnpm db:migrate
+      # `scripts/l24-browser-demo-setup.ts` is not involved here, but the device
+      # consent subprocess signs in as the seeded human, so the seed is required.
+      - run: pnpm db:seed
+      - name: boot Ship on :3919
+        # SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS is PF-575's named, default-off
+        # opt-in and `ship webhooks tail --listen` cannot subscribe without it.
+        # It must never be set on a deployed instance; a job of its own is where
+        # that stays visible.
+        run: |
+          DATABASE_URL="$DATABASE_URL" \
+          WEBHOOK_SECRET_KEY="$WEBHOOK_SECRET_KEY" \
+          PORT=3919 \
+          APP_BASE_URL=http://localhost:3919 \
+          PUBLIC_BASE_URL=http://localhost:3919 \
+          NODE_ENV=development \
+          E2E_TEST=1 \
+          SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS=true \
+            pnpm --filter @ship/api exec tsx src/index.ts > /tmp/ship-l19.log 2>&1 &
+          # Poll /health until it answers. `|| true` because `shell: bash` runs
+          # with `set -e` and a failing probe is the NORMAL state of this loop —
+          # without it the first refused connection kills the step.
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:3919/health > /dev/null 2>&1; then
+              echo "Ship is up on :3919"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Ship did not answer /health on :3919 within 120 s" >&2
+          cat /tmp/ship-l19.log >&2
+          exit 1
+      - name: PF-556..580 — the real `ship` binary against a real booted Ship
+        run: scripts/assert-tests-ran.sh 19 -- pnpm --filter @ship/cli test:server
+      - name: server log
+        if: always()
+        run: cat /tmp/ship-l19.log
+
+  # L24 — `pnpm --filter @ship/browser-demo test:pkce`, likewise never in CI.
+  #
+  # This is the ONLY automated proof that Authorization Code + PKCE completes in
+  # a real browser. PRD p.5 Testing Scenario 2 and MVP-2 both rest on it, and it
+  # was running nowhere.
+  #
+  # Nearly all of the setup lives in the package's own `playwright.config.ts`: it
+  # boots Ship from its real entry point and `vite preview`s the built demo as a
+  # `webServer` pair, and registers the public OAuth app in `globalSetup`. What
+  # this job owes it is a database, a seed, and a browser.
+  browser-demo-pkce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_l24
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_l24
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+      DEMO_API_PORT: '3124'
+      DEMO_PORT: '4173'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared && pnpm --filter @ship/sdk build
+      - run: pnpm db:migrate
+      # `globalSetup` looks up dev@ship.local and fails, loudly and by name, if
+      # the seed has not run.
+      - run: pnpm db:seed
+      - run: pnpm --filter @ship/browser-demo exec playwright install --with-deps chromium
+      - name: PF-733..736 — Authorization Code + PKCE, in a real browser (p.5 TS-2, MVP-2)
+        run: scripts/assert-tests-ran.sh 7 -- pnpm --filter @ship/browser-demo test:pkce
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-demo-pkce-traces
+          # Playwright's `outputDir` is nested one level down (see
+          # `playwright.config.ts`) so its run no longer wipes PF-738's
+          # `bundle-size.json`, which lives in the parent directory.
+          path: integrations/browser-demo/test-results/playwright/
 
   type-check:
     runs-on: ubuntu-latest
@@ -489,7 +655,34 @@ jobs:
       # not an optimisation.
       - run: pnpm build:web
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
-      - run: pnpm baseline:compare
+      # PF-807 — the instrument is judged before the tree is. A/A before A/B: measure the
+      # same tree twice in separate processes and compare it to itself. If the runner's own
+      # noise is larger than the +10% budget, no verdict below means anything, including a
+      # passing one. This mirrors `regression-budget` in .gitlab-ci.yml, which is the
+      # authoritative pipeline; it was missing here. See docs/measurement-rules.md rule 1.
+      #
+      # Both sides pin the rate limiter: Part 1 caps its test ceiling at 10_000/min and this
+      # tree at 1_000_000, and above a certain sample count the Part 1 side answers 429 and
+      # the harness records the error path as route latency.
+      - run: API_RATE_LIMIT_MAX=100000000 PERF_TRIALS=25 node scripts/perf-self-check.mjs --budget 10
+      # Exit codes, and why 2 is tolerated here but 1 is not:
+      #   0 - every budget judged and met
+      #   1 - something judged is OVER budget. Fails the PR. This is PF-804's whole point.
+      #   2 - INDETERMINATE: nothing judged was over, but not every budget was judged.
+      #
+      # On this runner latency is always unjudged — the baseline is darwin-arm64 / node v26
+      # / 10 cores and this is linux-x64 / node 22 / 2-4 shared cores, so a P95 delta here
+      # describes the runner in both directions. The two deterministic metrics (bundle
+      # bytes, per-route query counts) are still enforced and still fail the PR on exit 1.
+      #
+      # Exit 2 is tolerated, NOT converted to a pass: docs/regression-report.json records
+      # `verdict: "indeterminate"`, `ok: false` and a populated `unjudged` array, and the
+      # artifact is uploaded either way. The latency half is established separately by the
+      # paired protocol — docs/regression-paired-runs.md, scripts/perf-paired-runs.sh.
+      #
+      # Do NOT replace this with `continue-on-error: true`. That swallows exit 1 as well,
+      # which removes the only thing making this job a gate.
+      - run: pnpm baseline:compare || [ $? -eq 2 ]
       - uses: actions/upload-artifact@v4
         if: always()
         with:

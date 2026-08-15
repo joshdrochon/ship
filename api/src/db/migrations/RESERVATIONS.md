@@ -291,3 +291,14 @@ which is numerically earlier, and nothing else references the column.
 F54's rule needed no action here.
 
 **076 is now the first unallocated number; ask before taking it.**
+
+**L22 was allocated 077 and took NOTHING** (2026-08-15). Recorded because an unused
+reservation looks identical to an unwritten one, and the next reader would otherwise have to
+guess whether a `077_*.sql` is in flight somewhere. The lane's slice — the developer portal's
+write surface (register app, rotate secret) — needed no DDL: L02's `oauth_apps` already carries
+every column it writes, and the one new route (`GET /api/apps/registry`) reads the in-memory
+scope registry. **077 is free for whoever the coordinator gives it to.**
+
+Note the gap this exposes: the line above says 076 is the first unallocated number, yet the
+allocation handed out 077. One of the two is wrong and it is not this lane's to correct —
+filed as **F183's neighbour F182** in `tickets/plugforge/lane-99-unassigned.md`.
