@@ -122,11 +122,14 @@ reachable rungs.
 ## p.6, p.8, p.9 — Performance targets: measured, or asserted?
 
 The question this table exists to answer is whether each number was *measured* or merely
-stated. Two of the nine are asserted.
+stated. Eleven rows: **eight measured, one partial, two asserted.** The two still asserted are
+TTFE ≤ 30 min on a clean machine and signature verification < 1 ms. The flake row moved from
+asserted to measured on 2026-08-15 (job 67859) and the count above was corrected with it — it had
+read "two of the nine" while three rows said NO.
 
 | Target | Value | Measured? | Evidence |
 |---|---|---|---|
-| TTFE ≤ 30 min on a clean machine (p.6, p.8) | — | **NO — asserted** | `--clean` unimplemented; `docs/ttfe-drill.md` says so |
+| TTFE ≤ 30 min on a clean machine, **docs only** (p.6, p.8) | — | **NO — no measurement exists, local or CI** | The clause is an AND. *"Clean machine"* is PF-590 (`--clean`), unimplemented — `scripts/ttfe/drill.mjs:71-77` exits 2. *"Following only the published docs"* is PF-601 and is **not a scripting problem**: the failure it measures is a step missing from the docs, and any script is written by someone who already knows the step. Only a human-timed run on a clean machine closes it. Decomposed in `docs/ttfe-drill.md` → *"The clause has two conjuncts"*. The fast mode's ~7 s graded / ~20 s wall clock belong to the *< 60 s in CI* row below and are not quotable here |
 | TTFE < 60 s in CI (p.6, p.8) | **56.37 s** | **YES** | GitLab job **66739**, pipeline **20237**, ref `pf/L20-ttfe-ci-docker`, finished 2026-08-15T17:51Z |
 | OAuth PKCE round-trip P95 < 3 s | measured in-suite | YES | `e2e/oauth-pkce.spec.ts` P95 block (20 iterations) |
 | OpenAPI spec parity 100% | 0 drift | YES | `specParity.ts` forward + reverse, both in CI (`openapi-freshness` green) |
@@ -134,7 +137,7 @@ stated. Two of the nine are asserted.
 | Retry success after transient 5xx: 100% | asserted by TS-7 | YES | `testingScenario7and8.test.ts` |
 | Rate-limit headers on 100% of public responses | enforced at the router | YES | `ratelimit/limiter.ts:374-378`, `api/v1/router.ts:184` |
 | Regression vs Part 1 ≤ +10% (P95 / bundle / queries) | **+4.3% / +2.72% / 0.00%** | YES | [`regression-paired-runs.md`](regression-paired-runs.md), [`regression-report.json`](regression-report.json) |
-| Drill flake rate 0% over 20 consecutive CI runs (p.9) | 1 CI run exists | **NO — asserted** | `check-series.mjs` reports `pass rate 1/1`; twenty runs have not happened |
+| Drill flake rate 0% over 20 consecutive CI runs (p.9) | **20/20 — 0% flake** | **YES** | GitLab job **67859** (`ttfe-soak`), pipeline **20338**, ref `pf/L20-flake-and-clean`, commit `93d6fe6`, 2026-08-15T23:00Z. `check-series.mjs --soak` gates it and refuses a window that is not 20 runs of exactly one commit. **Read the shape of the claim:** twenty consecutive drill runs *inside one CI job*, not twenty separate pipeline runs — an accumulated window would span twenty commits, which `--soak` rejects by design, and this runner has no shared cache to carry a series between pipelines. All 20 samples are above F80's load veto (`load-certified 0/20`), which does not weaken a flake count — contention makes flake likelier, so 20/20 under load is the stronger result — but does mean the 8500 ms P95 beside it is not a certified platform timing. `docs/ttfe-drill.md` → *"The 20-run soak"* |
 | SDK install size < 250 KB min+gzip (p.9) | **225 109 B**, budget 256 000 B | YES | `sdk/size-report.json`, measured 2026-08-15T18:50Z, `productionDependencyCount: 0` |
 | Webhook signature verification < 1 ms per call (p.8) | — | **NO — asserted** | no benchmark found |
 
@@ -259,10 +262,9 @@ answer matches `secrets.ts:122` (SHA-256, unsalted, hex); 2.3's signed-string an
 | # | Item | Why it cannot close |
 |---|---|---|
 | 1 | **Zero per-slice PRs** (p.12, third clause) | The artifact never existed. Opening ~87 retroactive PRs would fabricate a paper trail after the merges they describe. State it plainly. |
-| 2 | **TTFE ≤ 30 min on a clean machine** (p.6, p.8) | `--clean` is unimplemented and a container image would have to be built and a human-timed run performed. The CI half (< 60 s) *is* met. |
-| 3 | **0% flake over 20 consecutive CI runs** (p.9) | Needs twenty runs. One exists. The runner queue is hours deep. |
-| 4 | **Playwright regression "on main"** (p.2 item 9) | `main` is Week 5 and must stay that way; the green run is on the integration tree. The literal clause cannot be met without merging to `main`, which is out of scope. |
-| 5 | **Expired token → distinct error code** (p.2 item 3) | A seventh `ApiErrorCode` contradicts p.7's printed six-member union and breaks the SDK key-equality assertion — a three-lane change with a PRD contradiction underneath it. |
-| 6 | **Signature verification < 1 ms** (p.8) | No benchmark exists and writing one now is new work, not a correction. |
-| 7 | **Destroy-redeploy fully clean** (p.5) | The rebuild needed a manual flow-log-group clear. Re-running the drill is ~25 minutes of AWS teardown against a live graded deployment. |
-| 8 | Demo video, social post | The author's. |
+| 2 | **TTFE ≤ 30 min on a clean machine, docs only** (p.6, p.8) | Two conjuncts. `--clean` (PF-590) needs a container image built and would still only close *"clean machine"*. *"Following only the published docs"* (PF-601) cannot be closed by any script — a script cannot fail because a README omits a step — and needs one person, one clean machine and a stopwatch, roughly an hour. The CI half (< 60 s) *is* met. Not fabricated; see `docs/ttfe-drill.md`. |
+| 3 | **Playwright regression "on main"** (p.2 item 9) | `main` is Week 5 and must stay that way; the green run is on the integration tree. The literal clause cannot be met without merging to `main`, which is out of scope. |
+| 4 | **Expired token → distinct error code** (p.2 item 3) | A seventh `ApiErrorCode` contradicts p.7's printed six-member union and breaks the SDK key-equality assertion — a three-lane change with a PRD contradiction underneath it. |
+| 5 | **Signature verification < 1 ms** (p.8) | No benchmark exists and writing one now is new work, not a correction. |
+| 6 | **Destroy-redeploy fully clean** (p.5) | The rebuild needed a manual flow-log-group clear. Re-running the drill is ~25 minutes of AWS teardown against a live graded deployment. |
+| 7 | Demo video, social post | The author's. |

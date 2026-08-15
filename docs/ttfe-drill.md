@@ -132,6 +132,93 @@ declaration sits beside the JavaScript, which it does here.
 
 ---
 
+## The 20-run soak — p.9's flake target
+
+p.9: *"Drill flake rate over 20 consecutive CI runs — 0% (any flake = bug in the drill or the
+platform)."*
+
+```bash
+scripts/ttfe/soak.sh 20        # locally
+```
+
+In CI this is the **`ttfe-soak`** job. It runs the drill twenty times against one commit, each run
+provisioning its own `postgres:16` container, then gates on `check-series.mjs --soak`, which refuses
+to count anything until the window holds twenty runs of exactly **one** commit.
+
+### Why the `ttfe` job alone could never produce this number
+
+`ttfe` runs the drill once and calls `check-series.mjs`, which prints `TTFE series — 1 run(s) of the
+last 20` and can print nothing else. `test-results/ttfe-series.jsonl` is written inside the job and
+published as an artifact, so twenty pipelines make twenty one-line series and nothing joins them.
+The soak script existed before the job did; no pipeline invoked it.
+
+### What the soak is, and what it is not
+
+**It is** twenty consecutive drill runs, in CI, on one commit, no retries, no re-runs, no filtering.
+**It is not** twenty separate pipeline runs. The distinction is deliberate, and it is recorded here
+rather than left for a reader to assume away:
+
+- An accumulated window would span twenty **commits**, and `--soak` fails such a window on purpose —
+  p.9 reads a flake as *"a bug in the drill or the platform"*, which is only decidable against a
+  fixed commit. Twenty re-runs of one SHA would avoid that, at twenty times the queue.
+- There is no carrier for an accumulated series anyway. This project's runner logs *"No URL provided,
+  cache will not be uploaded to shared cache server"* in every job, so a branch-keyed `cache:` is not
+  a durable record, and an artifact chain would make run twenty's verdict depend on nineteen
+  artifact expiries.
+
+### Cost, and where it runs
+
+Measured, not estimated: job 67099 spent 20.4 s of wall clock inside `pnpm drill ttfe`, of which 7.5 s
+was the graded total and the rest container start, migrations and server boot. Twenty is ~7 minutes.
+p.15 asks for a daily CI-minute ceiling and there is one self-hosted runner, so `ttfe-soak` runs
+automatically on `main` and on scheduled pipelines and is manual elsewhere — manual but
+`allow_failure: false`, because GitLab defaults a manual job to `allow_failure: true` and a soak that
+cannot fail the pipeline is a soak nobody has to look at.
+
+### The record
+
+`test-results/ttfe-soak.json` carries the provenance: `context` (`ci` or `local`), the run and pass
+counts, the commit, and in CI the job and pipeline that produced it. p.9 grades *CI* runs, so where a
+soak ran is part of its result and not metadata about it — an artifact that does not say what produced
+it gets quoted as whichever kind of run the reader needed. The per-run series stays in
+`test-results/ttfe-series.jsonl` beside it.
+
+A failing run is **not** re-run to clear it. It stays in the series, the soak fails, and the
+diagnosis names either the drill or the platform.
+
+### Measured — job 67859
+
+**20/20, flake rate 0%.** GitLab job [**67859**](https://labs.gauntletai.com/joshrochon/ship/-/jobs/67859),
+pipeline **20338**, ref `pf/L20-flake-and-clean`, commit `93d6fe6`, 2026-08-15T22:53:41Z →
+23:00:57Z (7 min 16 s of soak inside an 8.4 min job).
+
+```
+ttfe soak: 20/20 passed
+
+TTFE series — 20 run(s) of the last 20
+  pass rate            20/20
+  totalMs P95          8500 ms  (budget 60000)
+  event→POST P95       30 ms  (budget 2000)
+  load-certified runs  0/20
+```
+
+Verified from the published artifacts rather than from the job's status badge: `ttfe-series.jsonl`
+holds 20 lines, every one `mode: fast`, every one commit `93d6fe64`, `pass` true on all 20, totals
+spanning 7358–10339 ms. `ttfe-soak.json` reads `"context": "ci"`, `"ciJobId": "67859"`.
+
+**Two caveats, neither of them small.**
+
+1. **This is twenty consecutive drill runs inside one CI job, not twenty separate pipeline runs.**
+   The reasoning is above. Anyone quoting the 0% should quote that sentence with it.
+2. **Every sample is above F80's load veto** — `load-certified 0/20`, load average 10.8–12.4 on a
+   10-core box, because three other pipelines shared the runner. This does **not** weaken the flake
+   verdict: a pass is a pass however loaded the machine, and contention makes flake *more* likely,
+   not less, so 20/20 under load is the stronger version of the result. It does mean the 8500 ms P95
+   is a measurement of a contended machine and is not quotable as a platform timing. The 7× margin
+   against the 60 s budget makes the verdict safe either way. L99 F134.
+
+---
+
 ## Clean mode (`--clean`) — not shipped
 
 `pnpm drill ttfe --clean` currently **exits 2 with a message**, and this section is the message's
@@ -146,6 +233,33 @@ every PR because at a cold store it costs minutes and p.15 asks for a daily CI-m
 What exists today: the fast mode, which is a real install of the packed artifact but from a **local
 tarball** on a machine with a warm store. That is the honest description of what has been measured,
 and the ≤ 30 min figure is therefore **unmeasured** — see *Not done*, below.
+
+### The clause has two conjuncts, and only one of them is scriptable
+
+p.8 reads *"≤ 30 min on a clean machine following only the published docs"*; p.6 writes the same
+target as *"clean machine, docs only"*. That is an AND, and the two halves fail in different ways:
+
+| Conjunct | What would satisfy it | Can a script produce it? |
+|---|---|---|
+| *"on a clean machine"* | cold container, no repo bind mount, empty pnpm store, tarball over the network | **Yes** — this is PF-590, `--clean` |
+| *"following only the published docs"* | a newcomer reaching a verified webhook using nothing but what is published | **No** — this is PF-601 |
+
+The second is the one that carries the grade, and it is not a scripting problem. The failure mode
+the 30-minute number measures is *a step that is missing from the docs*, and any script is written
+by someone who already knows the step. A harness that extracted its commands from the fenced blocks
+in the docs would come closer — an omitted command would then fail the run — but it still could not
+fail on a missing prerequisite, an ambiguous instruction, or a stated assumption a stranger does not
+share, and the author still chooses which document and which fences count. It would be a better
+artifact than nothing and it would still not be the claim on p.8.
+
+So the verdict is recorded plainly rather than narrowed until something passes:
+
+> **≤ 30 min on a clean machine, docs only — UNMET. There is no measurement of it, local or CI.**
+> The fast mode's totals (~7 s graded, ~20 s wall clock) belong to p.8's *< 60 s in CI* row and must
+> never be quoted against this one. That is why every run carries a `mode` field.
+
+Closing it needs one person, one clean machine and a stopwatch — see PF-601 below. It is roughly an
+hour of someone's time, and it is the only thing that closes it.
 
 ---
 

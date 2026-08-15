@@ -134,11 +134,23 @@ green. Two things about that are worth stating precisely, because it is easy to 
   green, failed overall — `agent-test`, `regression-budget`, `test` and `type-violations`
   failed there too, and four more jobs were canceled.
 
+**p.9's 0%-flake target is also measured now.** Job **67859** (`ttfe-soak`), pipeline **20338**,
+ref `pf/L20-flake-and-clean`, commit `93d6fe6`, finished 2026-08-15T23:00Z: **20/20, flake rate
+0%**, gated by `check-series.mjs --soak`. Stated precisely, for the same reason as above: this is
+twenty consecutive drill runs *inside one CI job* against one commit, **not** twenty separate
+pipeline runs. An accumulated window would span twenty commits, which `--soak` rejects by design
+because p.9 reads a flake as a bug in the drill or the platform and that is only decidable against
+a fixed commit; and this runner has no shared cache to carry a series between pipelines. All 20
+samples were taken under load (`load-certified 0/20`), which strengthens a flake count rather than
+weakening it but does mean the 8500 ms P95 beside it is not a certified platform timing. Full
+write-up in `docs/ttfe-drill.md` → *"The 20-run soak"*.
+
 Reproduce any of this:
 
 ```
 glab api "projects/joshrochon%2Fship/pipelines/20224/jobs?per_page=100"
 glab api "projects/joshrochon%2Fship/jobs/66739"      # ttfe, success, 56.374 s
+glab api "projects/joshrochon%2Fship/jobs/67859"      # ttfe-soak, success, 20/20
 git merge-base --is-ancestor ab3f3fa6 origin/pf/integration && echo merged
 ```
 
@@ -689,13 +701,12 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
 | # | Item | Why |
 |---|---|---|
 | 1 | **Zero per-slice PRs** (p.12, third clause) | The artifact never existed. ~87 retroactive PRs would be a paper trail written after the merges it describes. Concede it in writing (§1). |
-| 2 | **TTFE ≤ 30 min on a clean machine** (p.6, p.8) | `--clean` is unimplemented — `scripts/ttfe/drill.mjs:71-77` exits 2 saying so, and `docs/ttfe-drill.md` calls the figure unmeasured. The CI half, < 60 s, **is** met at 56.374 s. |
-| 3 | **0% flake over 20 consecutive CI runs** (p.9) | One run exists. The runner queue is hours deep and every recent integration pipeline was auto-canceled before executing. |
-| 4 | **Playwright regression "on main"** (p.2 item 9) | `main` is Week 5 and stays that way. The green 881-test run is on the integration tree at `c728c40`. |
-| 5 | **Expired token → *distinct error code*** (p.2 item 3) | The distinction ships as `details.reason: 'expired'`; the code stays `unauthorized`. A seventh code would contradict p.7's printed six-member union and break the SDK's key-equality assertion — three lanes, with a PRD self-contradiction underneath. |
-| 6 | **Signature verification < 1 ms** (p.8) | No benchmark exists. Writing one now is new work, not a correction. |
-| 7 | **Destroy-redeploy fully clean** (p.5) | The drill ran and is honestly logged, but the rebuild needed a manual flow-log-group clear. Re-running means ~25 minutes of teardown against the live graded deployment. |
-| 8 | **Demo video · social post** | Yours to record and post. |
+| 2 | **TTFE ≤ 30 min on a clean machine, docs only** (p.6, p.8) | The clause is an AND and the halves fail differently. *"Clean machine"* is `--clean`, unimplemented — `scripts/ttfe/drill.mjs:71-77` exits 2 saying so. *"Following only the published docs"* is not a scripting problem at all: the failure it measures is a step missing from the docs, and any script is written by someone who already knows the step. So the figure is **unmeasured, not estimated** — no number is offered for it. Closing it needs one person, one clean machine and a stopwatch (~1 h). Decomposed in `docs/ttfe-drill.md` → *"The clause has two conjuncts"*. The CI half, < 60 s, **is** met at 56.374 s. |
+| 3 | **Playwright regression "on main"** (p.2 item 9) | `main` is Week 5 and stays that way. The green 881-test run is on the integration tree at `c728c40`. |
+| 4 | **Expired token → *distinct error code*** (p.2 item 3) | The distinction ships as `details.reason: 'expired'`; the code stays `unauthorized`. A seventh code would contradict p.7's printed six-member union and break the SDK's key-equality assertion — three lanes, with a PRD self-contradiction underneath. |
+| 5 | **Signature verification < 1 ms** (p.8) | No benchmark exists. Writing one now is new work, not a correction. |
+| 6 | **Destroy-redeploy fully clean** (p.5) | The drill ran and is honestly logged, but the rebuild needed a manual flow-log-group clear. Re-running means ~25 minutes of teardown against the live graded deployment. |
+| 7 | **Demo video · social post** | Yours to record and post. |
 
 ---
 
