@@ -325,6 +325,23 @@ export const test = base.extend<
           // arithmetic, not flake. The alternative fix — lowering `RUNS` — would
           // shrink a graded sample to fit a harness artifact, so it is not taken.
           OAUTH_RATE_LIMIT_PER_MINUTE: '100000',
+          // L21 / L99 F91. `api/src/deps.ts` builds the subscription repository
+          // with `envSecretCipher()`, which resolves this LAZILY — so a server
+          // without it boots green, answers /health, and then throws
+          // `WebhookSecretCryptoError` out of the FIRST `POST /api/v1/webhooks`.
+          // Every webhook spec then fails as a missing element rather than as a
+          // missing variable, three layers from the cause.
+          //
+          // Generated per worker, exactly as `scripts/ttfe/harness.ts` does it:
+          // 32 random bytes, base64, the shape `secretCipher.ts` decodes. A
+          // constant would be a checked-in 32-byte AES key that greps like a
+          // real one, and a per-run value additionally proves the encryption is
+          // genuinely round-tripping within the run rather than matching a
+          // fixture someone could have pinned.
+          //
+          // Each worker owns its own database, so nothing needs the key to be
+          // the same across workers or across runs.
+          WEBHOOK_SECRET_KEY: crypto.randomBytes(32).toString('base64'),
         }),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
