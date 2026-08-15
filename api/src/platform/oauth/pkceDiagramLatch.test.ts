@@ -28,13 +28,16 @@ import type { Express } from 'express';
 import { scanTree } from '../../test/sourceScan.js';
 import { createApp } from '../../app.js';
 import { testDeps } from '../../deps.js';
+import { architectureAppendixText } from '../../test/architectureDoc.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, '..', '..', '..', '..');
-const ARCHITECTURE = join(REPO_ROOT, 'docs', 'architecture.md');
-
+// The APPENDIX, not the concatenation: this latch slices a mermaid diagram out
+// of the OAuth Flows section, and both documents carry that heading. Against the
+// concatenation the split lands on the submitted doc's table and walks to the
+// next fence, which is the appendix's Module Layout.
 function doc(): string {
-  return readFileSync(ARCHITECTURE, 'utf8');
+  return architectureAppendixText();
 }
 
 /**

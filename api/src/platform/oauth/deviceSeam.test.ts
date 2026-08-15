@@ -34,9 +34,10 @@ import {
 } from './deviceContract.js';
 import { sweepDeviceCodes, estimateLiveDeviceCodes, estimatePollsPerSecond } from './deviceSweeper.js';
 import { DEVICE_CODE_GRANT_TYPE } from './deviceGrant.js';
+import { architectureText } from '../../test/architectureDoc.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const DOC = readFileSync(join(HERE, '../../../../docs/architecture.md'), 'utf8');
+const DOC = architectureText();
 const BASE_URL = 'https://ship.test';
 
 let appsRepo: InMemoryOAuthAppRepo;

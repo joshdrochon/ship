@@ -12,6 +12,7 @@ import {
 } from './routeMetadata.js';
 import { enumerateV1Routes } from './routeFitness.js';
 import { createTestPublicApp } from './testSupport.js';
+import { architectureText } from '../../../test/architectureDoc.js';
 
 let registry: RouteMetadataRegistry;
 
@@ -189,10 +190,7 @@ describe('PF-227 — the pagination line, written down', () => {
     const here = dirname(fileURLToPath(import.meta.url));
 
     const readme = readFileSync(join(here, '..', '..', 'README.md'), 'utf8');
-    const architecture = readFileSync(
-      join(here, '..', '..', '..', '..', '..', 'docs', 'architecture.md'),
-      'utf8',
-    );
+    const architecture = architectureText();
 
     for (const [name, text] of [['platform/README.md', readme], ['docs/architecture.md', architecture]] as const) {
       expect(text, `${name} does not record the pagination line (PF-227)`).toMatch(

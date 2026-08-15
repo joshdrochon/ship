@@ -11,10 +11,10 @@ import { fileURLToPath } from 'node:url';
 import { pool } from '../../db/client.js';
 import { decodeCursor, DEFAULT_PAGE_SIZE } from '../api/v1/pagination.js';
 import { PgAuditSink, listCalls, PUBLIC_API_CALLS_RESOURCE } from './pgAuditSink.js';
+import { architectureText } from '../../test/architectureDoc.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
-const ARCHITECTURE_DOC = join(HERE, '..', '..', '..', '..', 'docs', 'architecture.md');
-const architecture = readFileSync(ARCHITECTURE_DOC, 'utf8');
+const architecture = architectureText();
 
 const BASE = Date.UTC(2026, 7, 1);
 
