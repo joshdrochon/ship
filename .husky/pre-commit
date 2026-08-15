@@ -1,3 +1,10 @@
+# Branch policy: work is authored on a slice branch, never on pf/integration or main.
+# PRD p.12 grades on "per-slice branches preserved". POLICIES.md section 1.
+# Override for a human decision: ALLOW_GRADED_BRANCH_OPS=1
+if [ -f "./scripts/check-branch-policy.sh" ]; then
+  ./scripts/check-branch-policy.sh || exit 1
+fi
+
 # Fail on empty Playwright tests (they silently pass - major footgun)
 if [ -f "./scripts/check-empty-tests.sh" ]; then
   ./scripts/check-empty-tests.sh
