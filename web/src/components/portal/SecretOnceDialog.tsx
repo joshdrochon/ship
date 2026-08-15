@@ -68,8 +68,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  */
 export type RotationPolicy = 'instant' | 'grace';
 
+/**
+ * What this dialog says about the value it REPLACED — PF-670, plus the case
+ * PF-672 exposed.
+ *
+ * `'none'` means nothing was replaced: a first issue, where there is no previous
+ * secret to have any fate at all. Before it existed, a freshly registered app
+ * was shown *"the previous secret stopped working immediately. Any integration
+ * still using it is failing now"* — a sentence about an integration that has
+ * never existed, on the screen where a developer is being told the security
+ * rules. That is the same class of defect PF-670 exists to prevent (a UI stating
+ * a model the server does not implement), arriving from the other direction.
+ */
+export type SecretIssueContext = RotationPolicy | 'none';
+
 export interface SecretOnceDialogProps {
-  /** Heading — "App registered" or "Secret rotated". */
+  /** Heading — "App registered", "Secret rotated", "Subscription created". */
   title: string;
   /** The app this secret belongs to, named so a rotation cannot be misread. */
   appName: string;
@@ -77,8 +91,23 @@ export interface SecretOnceDialogProps {
   clientId: string;
   /** The raw secret. Held by the caller in component state and nowhere else. */
   secret: string;
-  /** What the server says about the old secret's fate. Drives the warning copy. */
-  rotationPolicy: RotationPolicy;
+  /**
+   * What the server says about the old secret's fate, or `'none'` on a first
+   * issue.
+   */
+  rotationPolicy: SecretIssueContext;
+  /**
+   * Field names, for the one reuse the same component serves (PF-672).
+   *
+   * A webhook signing secret is the same CLASS of value as a `client_secret` —
+   * shown once, hashed at rest, unrecoverable — so it gets the same masking, the
+   * same copy-without-render and the same acknowledgement. What it does not
+   * share is the labels: calling a subscription's identifier `client_id` would
+   * send a developer looking for it in the wrong place. A second implementation
+   * would be a second place to leak (PF-666), so the labels are props.
+   */
+  identifierLabel?: string;
+  secretLabel?: string;
   /** `grace` only: the retiring secret's prefix and expiry, straight from the API. */
   previousSecretPrefix?: string | null;
   previousSecretExpiresAt?: string | null;
@@ -94,6 +123,8 @@ export function SecretOnceDialog({
   clientId,
   secret,
   rotationPolicy,
+  identifierLabel = 'client_id',
+  secretLabel = 'client_secret',
   previousSecretPrefix = null,
   previousSecretExpiresAt = null,
   onDismiss,
@@ -169,7 +200,9 @@ export function SecretOnceDialog({
         </p>
 
         <div className="mb-3 flex flex-col gap-1">
-          <span className="text-xs font-medium uppercase tracking-wide text-muted">client_id</span>
+          <span className="text-xs font-medium uppercase tracking-wide text-muted">
+            {identifierLabel}
+          </span>
           {/* Not a secret, and a developer has to copy it into their config. */}
           <code
             className="break-all rounded bg-border/30 p-2 font-mono text-xs text-foreground"
@@ -182,7 +215,7 @@ export function SecretOnceDialog({
         <div className="mb-4 flex flex-col gap-1">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-medium uppercase tracking-wide text-muted">
-              client_secret
+              {secretLabel}
             </span>
             <div className="flex gap-2">
               <button
@@ -249,7 +282,13 @@ export function SecretOnceDialog({
           className="mb-4 rounded border border-amber-400/40 bg-amber-400/5 p-3 text-xs text-amber-200"
           data-testid="rotation-policy-notice"
         >
-          {rotationPolicy === 'instant' ? (
+          {rotationPolicy === 'none' ? (
+            <>
+              This is the first secret for {appName}. Nothing was replaced, so no existing
+              integration is affected — but this value is the only copy, and it is stored here as a
+              hash.
+            </>
+          ) : rotationPolicy === 'instant' ? (
             <>
               The previous secret stopped working immediately. Any integration still using it is
               failing now.
