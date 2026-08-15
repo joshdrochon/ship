@@ -121,6 +121,14 @@ export SHIP_API_URL=https://d258p92d3n1ebe.cloudfront.net
 curl -s "$SHIP_API_URL/api/v1/openapi.json" | head -c 200
 ```
 
+> **`SHIP_API_URL` is for the `curl` examples on this page only — the CLI does not
+> read it.** The CLI resolves its instance as `--base-url` → **`SHIP_BASE_URL`** →
+> the SDK's built-in default, and that default is now this deployment, so
+> `ship login` with no flags reaches the right place. To be explicit, either
+> export `SHIP_BASE_URL=https://d258p92d3n1ebe.cloudfront.net` or pass
+> `--base-url` once on `login` — it is persisted to `~/.ship/config.json` and no
+> later command needs the flag.
+
 `/oauth/*` works against the same host — no second URL, no EB origin. `ship login` and
 everything under it go through CloudFront:
 
