@@ -30,8 +30,12 @@ const WEB_SRC = join(HERE, '..', '..');
 const PORTAL_DIRS = [join(WEB_SRC, 'pages', 'portal'), join(WEB_SRC, 'components', 'portal')];
 const PORTAL_FILES = [
   join(WEB_SRC, 'lib', 'portalClient.ts'),
+  join(WEB_SRC, 'lib', 'portalError.ts'),
   join(WEB_SRC, 'hooks', 'usePortalApps.ts'),
   join(WEB_SRC, 'hooks', 'usePortalDeliveries.ts'),
+  // PF-672 — the hook that returns a raw `signing_secret` from `create()`. It is
+  // under this rule for exactly that reason.
+  join(WEB_SRC, 'hooks', 'usePortalSubscriptions.ts'),
   join(WEB_SRC, 'hooks', 'usePortalRegistry.ts'),
 ];
 

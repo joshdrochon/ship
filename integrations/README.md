@@ -21,9 +21,16 @@ check.
 | 6 | Idempotency-Key end-to-end | **shipped** | `drills/idempotency` | L15/L16 build replay and key pass-through. What was missing is a **subscriber that dedupes**, and p.16 asks for the documented subscriber contract by name. Nothing else in the spine produces one. |
 | 7 | In-process plugin runtime | **cut** | — | p.8 marks it stretch and *explicitly experimental*. It needs a `document.beforeCreate` hook that does not exist: L14 publishes **after commit** by design (PF-404), so a synchronous pre-write hook is a new seam in another lane's domain layer at tier 8. And `isolated-vm` is a native addon — in `@ship/sdk` it would blow the < 250 KB budget (p.9) by itself. |
 
-**Five shipped, two cut.** The two cuts are the two the PRD ranks lowest — it
-marks neither, while marking the CLI `must-ship` and Slack `should-ship`, both of
-which are shipped.
+**Five shipped, two cut.** p.8 marks three of its seven options and leaves four
+bare: `must-ship` on the CLI, `should-ship` on Slack, `(stretch)` and *"explicitly
+experimental"* on the in-process plugin runtime. So one of the two cuts is the
+only option the PRD ranks **below** the rest, and dropping it is the PRD's own
+suggestion. The other cut, the GitHub integration, is unmarked — exactly like
+the Browser SDK demo, the refresh-token rotation drill and the Idempotency-Key
+drill, all three of which shipped. Nothing on p.8 ranks GitHub last; it was cut
+on the grounds in its row (an external App registration this lane cannot
+complete, plus an issue↔PR link model Ship's schema does not have), and that is
+the honest reason to give.
 
 ## `testkit` is not one of the seven
 
@@ -65,23 +72,77 @@ nobody re-reads.
 
 ## Running them
 
+Counts re-measured 2026-08-15 by running **all nine**, against a booted Ship and a
+database of this pass's own; `<n>` is what the run printed, not what a ticket
+claimed.
+
 ```
-pnpm --filter @ship/cli test                 # 21 · no server needed
-pnpm --filter @ship/cli test:server          # the five-line story, against a booted Ship
+pnpm --filter @ship/cli test                 # 58 · 7 files, no server needed
+pnpm --filter @ship/cli test:server          # 19 · the five-line story, against a booted Ship
 pnpm --filter @ship/browser-demo test        #  5 · bundle assertions
 pnpm --filter @ship/browser-demo test:pkce   #  7 · Playwright, PKCE in a real browser
-pnpm --filter @ship/integration-testkit test # 11 · the shared listener
-pnpm --filter @ship/slack test               # 17 · the listener, against a stubbed Slack
-pnpm slack:live                              #  5 · PF-743, the whole path, UI → Slack
+pnpm --filter @ship/integration-testkit test # 21 · the shared listener
+pnpm --filter @ship/slack test               # 19 · the listener, against a stubbed Slack
+pnpm slack:live                              # 10 · PF-743, the whole path, UI → Slack
 pnpm drill:refresh                           # 21 · rotation and family revocation
 pnpm drill:idempotency                       # 14 · dedupe, replay keys, the retry ladder
 ```
 
-Every one of those runs in CI behind `scripts/assert-tests-ran.sh <n>` (PF-720),
-so deleting a package's tests turns its job **red** rather than green. A vitest
-run that matches no files exits 0 saying "no test files found", which reads as a
-pass in a job list; the guard turns that into exit 2, which is documented as
+Two of those numbers were **wrong under a sentence claiming they had been
+measured**, which is worse than a number nobody vouched for. `@ship/slack test`
+read **17**: PF-742's two `issue.assigned` cases landed and the ledger never
+followed them. `slack:live` read **5**: PF-743's rewrite took the walk from four
+asserted hops to nine tests and the ledger never followed that either, and this
+pass added a tenth (PF-742's subscription half, which had the same one-of-two
+defect one level up). Both stale numbers were also encoded as CI floors in
+`.github/workflows/ci.yml`, so for three days each job would have gone green on a
+suite that had silently lost the cases in question. Raised with the counts.
+
+All nine run in `.github/workflows/ci.yml` behind `scripts/assert-tests-ran.sh <n>`
+(PF-720), so deleting a package's tests turns its job **red** rather than green. A
+vitest run that matches no files exits 0 saying "no test files found", which reads
+as a pass in a job list; the guard turns that into exit 2, which is documented as
 VOID rather than as a failure.
+
+Two of the nine were added to that workflow only in L24, and the sentence above
+was **false for them until then** — `grep test:server .github/workflows/*.yml`
+returned nothing, and `test:pkce` is the only automated proof that Authorization
+Code + PKCE completes in a real browser, which p.5's Testing Scenario 2 and MVP-2
+both rest on. Their jobs are `cli-server-suite` and `browser-demo-pkce`.
+
+### GitLab, which is the graded remote
+
+**Corrected 2026-08-15.** This paragraph used to say `test:server` and `test:pkce`
+were *"still absent from `.gitlab-ci.yml`"*. They are not, and have not been since
+L20 added them: `.gitlab-ci.yml:595` runs `assert-tests-ran.sh 19 -- pnpm --filter
+@ship/cli test:server` and `:643` runs `assert-tests-ran.sh 7 -- pnpm --filter
+@ship/browser-demo test:pkce`. The sentence named the two commands that were
+fixed and stayed silent about the ones that were not, which is the wrong way
+round — `.gitlab-ci.yml` is what this repo's own CI header names as authoritative
+when the two pipelines drift, and GitLab is the graded remote.
+
+What is genuinely missing from `.gitlab-ci.yml` is **five** of the nine commands
+above. `grep` for each returns nothing:
+
+| Command | GitHub job | GitLab |
+|---|---|---|
+| `pnpm --filter @ship/slack test` | `integration-tests` (matrix) | **absent** |
+| `pnpm --filter @ship/integration-testkit test` | `integration-tests` (matrix) | **absent** |
+| `pnpm slack:live` | `slack-live` | **absent** |
+| `pnpm drill:refresh` | `drill-refresh-rotation` | **absent** |
+| `pnpm drill:idempotency` | `drill-idempotency` | **absent** |
+
+So on the graded remote, Slack — the only `should-ship` integration after the CLI
+(p.8) — has **no** automated proof at all, and neither of the two drills that
+carry p.8's options 5 and 6 runs. `.gitlab-ci.yml` is not L24's file to edit;
+porting these five is the remaining half and is owned by whoever owns that
+pipeline.
+
+The counts for `slack:live`, `drill:refresh` and `drill:idempotency` used to be
+the CI minimums rather than a measurement, because those three need a booted Ship
+and a database that L24 did not have. As of 2026-08-15 all three are measured:
+`slack:live` → 10, `drill:refresh` → 21, `drill:idempotency` → 14, each against a
+Ship booted by `scripts/l24-drill-server.ts`.
 
 ## What is NOT proven anywhere here
 

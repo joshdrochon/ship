@@ -325,6 +325,23 @@ export const test = base.extend<
           // arithmetic, not flake. The alternative fix — lowering `RUNS` — would
           // shrink a graded sample to fit a harness artifact, so it is not taken.
           OAUTH_RATE_LIMIT_PER_MINUTE: '100000',
+          // L21 / L99 F91. `api/src/deps.ts` builds the subscription repository
+          // with `envSecretCipher()`, which resolves this LAZILY — so a server
+          // without it boots green, answers /health, and then throws
+          // `WebhookSecretCryptoError` out of the FIRST `POST /api/v1/webhooks`.
+          // Every webhook spec then fails as a missing element rather than as a
+          // missing variable, three layers from the cause.
+          //
+          // Generated per worker, exactly as `scripts/ttfe/harness.ts` does it:
+          // 32 random bytes, base64, the shape `secretCipher.ts` decodes. A
+          // constant would be a checked-in 32-byte AES key that greps like a
+          // real one, and a per-run value additionally proves the encryption is
+          // genuinely round-tripping within the run rather than matching a
+          // fixture someone could have pinned.
+          //
+          // Each worker owns its own database, so nothing needs the key to be
+          // the same across workers or across runs.
+          WEBHOOK_SECRET_KEY: crypto.randomBytes(32).toString('base64'),
         }),
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -1437,6 +1454,93 @@ async function waitForServer(url: string, timeout: number): Promise<void> {
   }
 
   throw new Error(`Server at ${url} did not start within ${timeout}ms. Last error: ${lastError?.message}`);
+}
+
+/**
+ * L22 PF-662 — the dead-lettered ladder Testing Scenario 8 starts from.
+ *
+ * TS-8 (p.5) begins *"a subscriber that fails 6 times"*. Driving that for real
+ * costs the retry schedule p.4 mandates — 1s, 4s, 16s, 1m, 5m — which is six and
+ * a half minutes of wall clock before the DLQ row exists, against a suite whose
+ * per-test budget is 60 s. **L16's PF-481 owns proving the ladder produces the
+ * dead letter**; the portal's half of TS-8 begins after it, so the six attempts
+ * are written straight into the log here and the browser test asserts what the
+ * portal does with them.
+ *
+ * The one property that must be real rather than convenient: all six attempts
+ * share ONE `idempotency_key` and ONE `delivery_group_id`, because "the replay
+ * carries the original idempotency key" is the half of TS-8 a naive replay
+ * loses, and a fixture that minted a fresh key per attempt would make that
+ * assertion vacuous.
+ *
+ * Lives in this module rather than in the spec because `pg` resolves here and
+ * not from `e2e/*.spec.ts` — same reason `seedFleetGraphScenario` is here.
+ *
+ * @param subscriptionId a subscription created through the real API, so its
+ *   signing secret is genuinely encrypted at rest and a replay can sign with it.
+ */
+export async function seedDeadLetteredLadder(
+  dbUrl: string,
+  subscriptionId: string
+): Promise<{ idempotencyKey: string; deliveryGroupId: string; eventId: string }> {
+  const pool = new Pool({ connectionString: dbUrl });
+  try {
+    const { rows } = await pool.query(
+      `SELECT app_id FROM webhook_subscriptions WHERE id = $1`,
+      [subscriptionId]
+    );
+    const appId = rows[0]?.app_id as string | undefined;
+    if (!appId) {
+      throw new Error(
+        `seedDeadLetteredLadder: no webhook_subscriptions row ${subscriptionId}. ` +
+          'The subscription must be created through the API first.'
+      );
+    }
+
+    const deliveryGroupId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+    const idempotencyKey = crypto.randomUUID();
+    // The bytes a replay re-sends. `raw_body` is what the deliverer stored, and
+    // replay POSTs it verbatim rather than re-deriving it from current state.
+    const body = Buffer.from(
+      JSON.stringify({ id: eventId, type: 'issue.created', data: { id: crypto.randomUUID() } })
+    );
+    const base = Date.now() - 60 * 60 * 1000;
+
+    for (let attempt = 1; attempt <= 6; attempt++) {
+      const attemptedAt = new Date(base + attempt * 60_000).toISOString();
+      await pool.query(
+        `INSERT INTO webhook_deliveries (
+           delivery_group_id, subscription_id, app_id, event_id, event_type,
+           attempt_number, status, response_status, response_excerpt, latency_ms,
+           idempotency_key, dlq_reason, attempted_at, raw_body, signature_header
+         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+        [
+          deliveryGroupId,
+          subscriptionId,
+          appId,
+          eventId,
+          'issue.created',
+          attempt,
+          attempt === 6 ? 'dead_lettered' : 'failed',
+          500,
+          '{"error":"upstream unavailable"}',
+          120 + attempt,
+          idempotencyKey,
+          // The schema's `webhook_deliveries_dlq_reason_coherent` check makes
+          // this NOT NULL exactly when the status is `dead_lettered`.
+          attempt === 6 ? 'max_attempts_exhausted' : null,
+          attemptedAt,
+          body,
+          `t=${Math.floor(new Date(attemptedAt).getTime() / 1000)},v1=seeded`,
+        ]
+      );
+    }
+
+    return { idempotencyKey, deliveryGroupId, eventId };
+  } finally {
+    await pool.end();
+  }
 }
 
 // Re-export expect for convenience

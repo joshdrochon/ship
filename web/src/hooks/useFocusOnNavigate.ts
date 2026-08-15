@@ -65,5 +65,11 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/feedback/')) return 'Feedback';
   if (pathname === '/settings/conversions') return 'Converted Documents';
   if (pathname === '/settings') return 'Settings';
+  // L22 PF-654. Both portal routes answer here rather than falling through: an
+  // app is SELECTED on `/portal/:appId`, it is not a different page, and the
+  // app's name is not known at title time without a second read whose only
+  // purpose would be the tab. `/portal` and `/portal/:appId` announcing the same
+  // title is correct; announcing "Workspace" for both was the defect.
+  if (pathname === '/portal' || pathname.startsWith('/portal/')) return 'Developer Portal';
   return 'Workspace';
 }

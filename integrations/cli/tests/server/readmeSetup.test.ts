@@ -16,12 +16,16 @@
  *     repository's tracked files: no `node_modules`, no `dist`, nothing built;
  *   ✗ …in a CONTAINER, against the DEPLOYED instance.
  *
- * The third is open and is reported open. There is no reachable deployed
- * PlugForge instance to point at (`https://ship.awsdev.treasury.gov`, the SDK's
- * `DEFAULT_BASE_URL`, answers 403 from here), and a test that ran the container
- * against localhost while the ticket says "deployed" would be a green tick a
- * grader could falsify in one curl. So this runs on the host against
+ * The third is open and is reported open. A test that ran the container against
+ * localhost while the ticket says "deployed" would be a green tick a grader
+ * could falsify in one curl. So this runs on the host against
  * `SHIP_TEST_BASE_URL`, and the ticket stays ◐.
+ *
+ * The reason it was open has changed. It used to be that no reachable deployed
+ * PlugForge instance existed to point at — the SDK's `DEFAULT_BASE_URL` was
+ * `https://ship.awsdev.treasury.gov`, Part 1's host, which answers 403. That
+ * default now points at the live deployment, so what remains open is only the
+ * containerized half.
  *
  * The grader's app is read-only (p.13, p.2), so the documented smoke command is
  * `docs ls` and not `docs create` — and that claim is asserted too, because a

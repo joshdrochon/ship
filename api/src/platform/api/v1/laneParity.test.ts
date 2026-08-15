@@ -194,12 +194,26 @@ describe('PF-295 · Testing Scenario 4 runs over a real surface, non-vacuously',
     expect(me!.scope, '/api/v1/me must declare null, not undefined').toBeNull();
     expect('scope' in me!, 'the scope key must be PRESENT and null').toBe(true);
 
-    // And every OTHER route declares a real scope — so the null is one
-    // deliberate exception rather than a pattern.
+    // And every OTHER route declares a real scope, so a null stays a named
+    // exception rather than becoming the default. This list is the gate: a new
+    // route declaring `scope: null` fails here until someone adds it explicitly
+    // and, in doing so, justifies it.
+    //
+    // F113 added the second data route to this list. `/api/v1/audit` returns the
+    // calling app's OWN call history, which is the same shape of claim `/me`
+    // makes — a token can always discover facts about itself, and no scope in
+    // p.3's seven could sensibly widen or narrow the answer. The alternatives
+    // were an eighth scope (which PF-062's exactly-seven assertion forbids) or
+    // reusing `webhooks:manage` (which would grant audit reads under a name that
+    // does not say so). See `audit/routes.ts` for the full argument.
     const nulls = enumerateV1Routes(app)
       .filter((r) => routeMetadata.get(r.method, r.path)?.scope === null)
       .map((r) => r.path);
-    expect(nulls.sort()).toEqual(['/api/v1/me', '/api/v1/openapi.json'].filter((p) => nulls.includes(p)).sort());
+    expect(nulls.sort()).toEqual(
+      ['/api/v1/audit', '/api/v1/me', '/api/v1/openapi.json']
+        .filter((p) => nulls.includes(p))
+        .sort(),
+    );
   });
 
   it('clauses (a), (c) and (d) all pass over every resource route — AUTHENTICATED', async () => {

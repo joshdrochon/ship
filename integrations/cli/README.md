@@ -35,10 +35,17 @@ node integrations/cli/dist/index.js docs ls
 ```
 
 `--base-url` is passed **once**, on `login`, and persisted — that is why the
-second line needs no flag. Pass it explicitly rather than relying on the
-default: the SDK's `DEFAULT_BASE_URL` is still Part 1's host
+second line needs no flag. It is shown explicitly here because an explicit
+instance is clearer than an implicit one, not because the default is wrong:
+the SDK's `DEFAULT_BASE_URL` now points at this deployment
+(`https://d258p92d3n1ebe.cloudfront.net`), so `ship login` with no flags
+resolves to the same place. It previously pointed at Part 1's host
 (`https://ship.awsdev.treasury.gov`), which answers `403` to an anonymous
-`/api/v1` request and is not this deployment (L99 finding F172).
+`/api/v1` request — that was L99 finding F172 and it is fixed.
+
+`SHIP_BASE_URL` in the environment sits between the two: explicit `--base-url`
+wins, then `SHIP_BASE_URL`, then the default. Note that `SHIP_API_URL`, which
+appears in the repository README's curl examples, is **not** read by the CLI.
 
 `login` prints a code and a URL; open the URL, paste the code, approve. The
 instance and the app are saved to `~/.ship/config.json`, so **no later command

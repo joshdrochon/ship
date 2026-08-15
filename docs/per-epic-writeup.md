@@ -374,8 +374,9 @@ executor, or a socket mount, or a self-hosted runner that has one) — infrastru
 not something this lane can fabricate. The local run above is offered as what *is* true, labelled
 as what it is. Ticket **PF-808 stays ◐** until a job id exists.
 
-`integrations/cli` itself is green: `pnpm --filter @ship/cli test` → **3 files, 41 tests passed**,
-exit 0.
+`integrations/cli` itself is green: `pnpm --filter @ship/cli test` → **7 files, 58 tests passed**,
+exit 0. (Re-measured 2026-08-15. The earlier "3 files, 41 tests" was true when written and had
+gone stale by four files.)
 
 ---
 

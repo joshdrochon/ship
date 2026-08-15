@@ -74,7 +74,16 @@ export function PortalAppsSidebar() {
           appName={issued.name}
           clientId={issued.client_id}
           secret={issued.client_secret}
-          rotationPolicy={issued.rotation_policy}
+          /*
+            `'none'`, not `issued.rotation_policy`. This app was created seconds
+            ago and has no previous secret, so D3's model has nothing to describe
+            here — showing "the previous secret stopped working immediately. Any
+            integration still using it is failing now" to someone registering
+            their FIRST app is the UI stating a consequence that did not happen.
+            The rotation policy is still rendered where it applies, by
+            `RotateSecretDialog` and by the rotate branch of this same dialog.
+          */
+          rotationPolicy="none"
           onDismiss={() => {
             setIssued(null);
             reload();

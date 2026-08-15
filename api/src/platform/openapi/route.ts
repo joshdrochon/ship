@@ -6,10 +6,13 @@
  *
  * ## Finding F11 — the two ways this endpoint would not have worked
  *
- * `docs/architecture.md:65` shows the composition root as
+ * The Composition Root section of `docs/architecture.md` used to show
  * `app.get('/api/v1/openapi.json', serveGeneratedSpec())` mounted AFTER
  * `app.use('/api/v1', v1)`. Both halves of that are wrong against the router L08
- * actually built, and neither failure is loud:
+ * actually built, and neither failure is loud. (Both documents now show the
+ * `mountUnauthenticated` hook instead, and cite this finding by name — cited by
+ * SECTION rather than by line, because the line numbers in this file's earlier
+ * citations all went stale the first time the document was rewritten.)
  *
  *   **404.** `createPublicRouter` ends with `notFoundHandler()` followed by
  *   `apiErrorMiddleware()`. Express matches the `/api/v1` mount first, the

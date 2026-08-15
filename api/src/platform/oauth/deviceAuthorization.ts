@@ -55,6 +55,8 @@ import { z } from 'zod';
 import type { Clock } from '../clock.js';
 import type { IOAuthAppRepo } from '../apps/repo.js';
 import { verifyClientSecret } from '../apps/repo.js';
+import type { ISecretAuthLog, SecretAuthAttemptSource } from '../apps/secret-auth-log.js';
+import { secretAuthOnAttempt } from '../apps/secret-auth-log.js';
 import type { OAuthApp } from '../apps/types.js';
 import type { ScopeRegistry } from '../scopes/registry.js';
 import { scopeRegistry, type Scope } from '../scopes/scopes.js';
@@ -137,6 +139,8 @@ export interface DeviceAuthorizationDeps {
   publicBaseUrl: string;
   /** Overridable for tests that mutate a description. Defaults to L03's. */
   registry?: ScopeRegistry<string>;
+  /** F112 — PF-050's log. Absent means record nothing; see `OAuthRouterDeps`. */
+  secretAuthLog?: ISecretAuthLog;
 }
 
 /**
@@ -176,9 +180,14 @@ async function authenticateDeviceClient(
   repo: IOAuthAppRepo,
   clientId: string,
   clientSecret: string | undefined,
+  // F112 — the second of the two client-secret verification sites. A leak drill
+  // that only covered `/oauth/token` would miss a device-flow client entirely,
+  // and `ship login` is the flow most likely to have its secret pasted into a
+  // terminal transcript.
+  onAttempt?: (source: SecretAuthAttemptSource) => void,
 ): Promise<OAuthApp | null> {
   if (clientSecret !== undefined) {
-    const outcome = await verifyClientSecret(repo, clientId, clientSecret);
+    const outcome = await verifyClientSecret(repo, clientId, clientSecret, onAttempt);
     return outcome.ok ? outcome.app : null;
   }
 
@@ -220,7 +229,17 @@ export function mountDeviceAuthorizationRoutes(
       }
       const { client_id: clientId, client_secret: clientSecret, scope } = parsed.data;
 
-      const app = await authenticateDeviceClient(deps.appsRepo, clientId, clientSecret);
+      const app = await authenticateDeviceClient(
+        deps.appsRepo,
+        clientId,
+        clientSecret,
+        secretAuthOnAttempt(
+          deps.secretAuthLog,
+          deps.clock,
+          clientId,
+          req.ip ?? req.socket?.remoteAddress ?? null,
+        ),
+      );
       if (!app) {
         // Byte-identical for unknown id / wrong secret / deactivated app.
         // PF-125's test drives all four cases and asserts one response.

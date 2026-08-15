@@ -7,7 +7,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import { csrfSync } from 'csrf-sync';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { type RateLimitInfo } from 'express-rate-limit';
 import authRoutes from './routes/auth.js';
 import documentsRoutes from './routes/documents.js';
 import { createDocumentService } from './services/documents.js';
@@ -46,6 +46,9 @@ import { initializeCAIA } from './services/caia.js';
 import { productionDeps, type AppDeps } from './deps.js';
 import { createPublicRouter } from './platform/api/v1/router.js';
 import { createOAuthRouter } from './platform/oauth/index.js';
+// F112 — the concrete leak-signal log. The composition root is the only place a
+// concrete is chosen (PF-014/PF-015); everything downstream sees `ISecretAuthLog`.
+import { PgSecretAuthLog } from './platform/apps/secret-auth-log.js';
 // Finding F29 — the /oauth throttle. See the mount below.
 import { oauthRateLimitMiddleware } from './platform/ratelimit/index.js';
 import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js';
@@ -55,6 +58,7 @@ import { documentsResources } from './platform/api/v1/documents/routes.js';
 import { issuesResources } from './platform/api/v1/issues/routes.js';
 import { sprintsResources } from './platform/api/v1/sprints/routes.js';
 import { meResources } from './platform/api/v1/me/routes.js';
+import { auditResources } from './platform/api/v1/audit/routes.js';
 import { webhooksResources } from './platform/api/v1/webhooks/routes.js';
 import { createWebhookPipeline, SignatureSigner } from './platform/index.js';
 import { mountAllResources } from './platform/api/v1/mountResources.js';
@@ -102,19 +106,89 @@ const conditionalCsrf = (req: Request, res: Response, next: NextFunction) => {
 
 // Rate limiting configurations
 // In test/dev environment, use much higher limits to avoid issues
-// Production limits: login=5/15min (failed only), api=100/min
+// Production limits: login=20/15min (failed only), api=100/min
 const isTestEnv = process.env.NODE_ENV === 'test' || process.env.E2E_TEST === '1';
 const isDevEnv = process.env.NODE_ENV !== 'production';
 
-// Strict rate limit for login (5 failed attempts / 15 min) - brute force protection
-// skipSuccessfulRequests: true means only failed attempts count toward the limit
+/**
+ * Login brute-force limiter — failed attempts only (`skipSuccessfulRequests`).
+ *
+ * ── Why the ceiling moved from 5 to 20 ────────────────────────────────────────
+ *
+ * At 5, two typos and a mistyped password locked a real person out of the
+ * deployed instance for fifteen minutes. That was observed, not theorised: an
+ * auditor driving the deployment tripped it themselves, on a demo login whose
+ * credentials are published.
+ *
+ * 20 failures per 15 minutes per IP is 1,920 guesses a day against one address.
+ * That is not a meaningful fraction of any password's keyspace, so the security
+ * this control provides is essentially unchanged — while the number of honest
+ * users it locks out drops to approximately none. Brute-force protection is
+ * doing its job at either number; only the false-positive rate differs.
+ *
+ * Deliberately NOT done: exempting a "grader path". There is no way to identify
+ * a grader that an attacker could not also present, so the exemption would be a
+ * bypass with a friendly name. Widening the limit for everyone is honest about
+ * what it is; a secret bypass header is not.
+ *
+ * ── Why there is a `handler` at all: the lockout was SILENT ───────────────────
+ *
+ * This is the half that actually mattered, and it was a bug rather than a
+ * tuning choice. `message: { error: '…' }` puts a STRING at `error`. Every Ship
+ * client reads the standard envelope, `{ success, error: { code, message } }` —
+ * `web/src/hooks/useAuth.tsx` does `response.error?.message`, which on a string
+ * is `undefined`, so it fell through to the literal `'Login failed'`.
+ *
+ * The user-visible result: a grader typing the CORRECT password after a few
+ * typos got "Login failed" — the same words as a wrong password — with no
+ * mention of a limit and no wait time. Indistinguishable from the app being
+ * broken, which is the worst possible reading of a graded deployment.
+ *
+ * So the handler emits the envelope every other route emits, with a code the
+ * client can branch on and a wait derived from `req.rateLimit.resetTime` rather
+ * than a hard-coded "15 minutes" that is only correct for the first blocked
+ * request. `Retry-After` is set alongside it for non-browser clients.
+ */
+const LOGIN_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+
 const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: isTestEnv ? 1000 : 5, // High limit for tests
+  windowMs: LOGIN_LIMIT_WINDOW_MS,
+  max: isTestEnv ? 1000 : 20, // High limit for tests
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many login attempts. Try again in 15 minutes.' },
   skipSuccessfulRequests: true, // Only count failed login attempts
+  handler: (req, res) => {
+    // `resetTime` is when the CURRENT window empties, so the number shrinks as
+    // the wait elapses. Falling back to the full window is the conservative
+    // direction: it over-states the wait rather than inviting an immediate retry
+    // that would fail again.
+    //
+    // Read through a cast because express-rate-limit v8 does NOT augment
+    // Express's `Request` globally — the property name is configurable
+    // (`requestPropertyName`, default `rateLimit`), so the library exports
+    // `RateLimitInfo` and leaves the lookup to the caller.
+    const info = (req as unknown as { rateLimit?: RateLimitInfo }).rateLimit;
+    const resetTime = info?.resetTime;
+    const msRemaining = resetTime
+      ? Math.max(0, resetTime.getTime() - Date.now())
+      : LOGIN_LIMIT_WINDOW_MS;
+    const minutesRemaining = Math.max(1, Math.ceil(msRemaining / 60_000));
+
+    res.setHeader('Retry-After', String(Math.ceil(msRemaining / 1000)));
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'RATE_LIMITED',
+        // Written to be read by a locked-out human, so it says what happened,
+        // that the account is fine, and how long the wait is.
+        message:
+          `Too many failed sign-in attempts from this network. ` +
+          `Your account is not locked — please try again in ` +
+          `${minutesRemaining} minute${minutesRemaining === 1 ? '' : 's'}.`,
+        retry_after_seconds: Math.ceil(msRemaining / 1000),
+      },
+    });
+  },
 });
 
 // General API rate limit (100 req/min in prod, 1000 in dev)
@@ -406,6 +480,11 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
       issuesResources({ db: deps.db, bus: deps.bus }),
       sprintsResources({ db: deps.db, bus: deps.bus }),
       meResources({ db: deps.db, appsRepo }),
+      // F113 — PRD p.4's "Queryable in the developer portal", on the public API
+      // rather than beside it. Takes `deps.db` because `listCalls` is a
+      // repository function over `public_api_calls` and there is no service
+      // layer between them to inject.
+      auditResources({ db: deps.db }),
       // L15 PF-428 — all six methods declare `webhooks:manage`. Takes the
       // repository, not `deps.db`: the repository is where the signing secret
       // is encrypted and decrypted, and handing the route layer a db handle
@@ -480,6 +559,13 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     publicBaseUrl: deps.publicBaseUrl,
     clock: deps.clock,
     ttl: deps.tokenTtl,
+    // F112 — PF-050's leak signal, wired into the composition root at last.
+    // `client_secret_auth_log` was empty on every deployed instance because
+    // nothing ever constructed this: the module, its thresholds and
+    // `evaluateAlerts` all shipped with passing unit tests over an in-memory
+    // double, so the dead wiring was invisible to the suite. p.17's "what audit
+    // signal would you alert on" now has an answer that is true in production.
+    secretAuthLog: new PgSecretAuthLog(deps.db),
     browser: {
       // The SAME instances used by the internal stack below. See the note at the
       // top of this function for why a second `session()` would be a bug.

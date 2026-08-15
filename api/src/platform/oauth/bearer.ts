@@ -26,12 +26,18 @@
  * an unknown reason fails a test rather than reaching a client.
  *
  * NOTE FOR AN AUDITOR: the lane file (`tickets/plugforge/lane-06-oauth-tokens.md`)
- * still names these reasons `missing_token` / `invalid_token` / `token_expired`.
- * Those strings PREDATE B14's resolution and would now fail L07's schema. The
- * enum L07 shipped is the contract; the ticket text is stale. If the audit reads
- * p.2's "distinct error code" as demanding a distinct `ApiErrorCode`, that is a
- * three-lane conversation (L06, L07, L17) and a spine note — not a local edit
- * adding a seventh member.
+ * used to name these reasons `missing_token` / `invalid_token` / `token_expired`.
+ * Those strings PREDATED B14's resolution and would fail L07's schema. The enum
+ * L07 shipped is the contract, and the ticket text has now been corrected to
+ * match it (2026-08-15, recorded on PF-161) — so the board and this file agree
+ * rather than contradicting each other. Behaviour never changed; only the ticket
+ * literals did. Note the RFC 6750 challenge on the `WWW-Authenticate` header
+ * still reads `error="invalid_token"`, which is a DIFFERENT taxonomy — the wire
+ * challenge, not `details.reason` — and is correct as it stands.
+ *
+ * If the audit reads p.2's "distinct error code" as demanding a distinct
+ * `ApiErrorCode`, that is a three-lane conversation (L06, L07, L17) and a spine
+ * note — not a local edit adding a seventh member.
  *
  * ---------------------------------------------------------------------------
  * NO SESSION FALLBACK, EVER (PF-164 / L99 F26).

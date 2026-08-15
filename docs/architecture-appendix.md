@@ -1,9 +1,12 @@
 # Architecture Appendix — PlugForge (Week 6)
 
 **This is the long form.** [`docs/architecture.md`](architecture.md) is the submitted
-Architecture Document and is held to p.13's 1–2 page cap; it carries the nine required
-sections and nothing else. Everything here is the reasoning underneath them — the rejected
-alternatives, the measured numbers, the decision records, and the five sequence diagrams.
+Architecture Document. It carries the nine sections of p.12's Section/Content table and the
+artifact each row names — the composition-root pseudo-code and its test sibling, the
+boundary, OAuth, and agent before/after diagrams, the stable / pre-1.0 SDK split, and the
+four failure modes p.12 lists by name — which is why it runs past p.13's 1–2 page cap.
+Everything here is the reasoning underneath those artifacts: the rejected alternatives, the
+measured numbers, the decision records, and the long-form diagrams.
 
 Nothing in this file is required reading to grade the Architecture Document row. It exists
 because the depth is real and deleting it to satisfy a length cap would have been the wrong
@@ -50,7 +53,7 @@ The public/internal split is enforced mechanically, not by convention: an ESLint
 
 ## Composition Root
 
-`createApp()` in `api/src/app.ts` is today the single place the app is assembled (helmet → rate limit → session/CSRF → ~30 internal routers). PlugForge extends the same function — it stays the only file that chooses concretes:
+`createApp()` in `api/src/app.ts` is today the single place the app is assembled (helmet → rate limit → session/CSRF → the internal routers — **38** `app.use('/api/…')` calls over **30** distinct path prefixes, plus the two `/api/v1` mounts). PlugForge extends the same function — it stays the only file that chooses concretes:
 
 ```ts
 export function createApp(deps = productionDeps()) {
@@ -75,15 +78,34 @@ export function createApp(deps = productionDeps()) {
     limit: rateLimitMiddleware(limiter),                       // 429 + Retry-After; X-RateLimit-* on every response
     audit: publicAuditMiddleware(auditRepo(db)),
     error: apiErrorMiddleware(),                               // every failure → { code, message, details?, request_id }
-  });
-
+    openApiDocument: generatePublicOpenAPIDocumentOrDie(),     // throws ⇒ createApp() throws (see Failure Modes)
+  });                                                          // served INSIDE the router by mountUnauthenticated,
+                                                               // above bearerAuth and above the catch-all
   app.use('/oauth', oauthRouter(appsRepo(db), tokenRepo(db), clock));  // concrete flows: authorize, token, device
   app.use('/api/v1', v1);                                      // public, versioned contract
   app.use('/api', internalRouters);                            // Part-1 surface, untouched
-  app.get('/api/v1/openapi.json', serveGeneratedSpec());       // generation failure = boot failure (see Failure Modes)
   return app;
 }
 ```
+
+**The openapi.json mount is inside the router, not below it (finding F11).** An earlier
+version of this sketch showed `app.get('/api/v1/openapi.json', serveGeneratedSpec())` mounted
+*after* `app.use('/api/v1', v1)`, and both halves of that are wrong against the router L08
+built — twice over, quietly. Express matches the `/api/v1` mount first, and the router ends
+with `notFoundHandler()` then `apiErrorMiddleware()`, so a route registered below that line is
+never consulted: it returns a well-formed `not_found` envelope that reads like a wrong URL
+rather than a wrong mount order. And `router.use(deps.bearerAuth)` blankets every path beneath
+it, so the spec MVP gate item 10 requires a grader to fetch without credentials would have
+answered 401. `mountUnauthenticated` is the seam that fixes both; the header of
+`api/src/platform/openapi/route.ts` carries the full finding.
+
+**`registerScopes` and `registerEventTypes` are the sketch's names and were never built.**
+Neither identifier exists anywhere in `api/src`. What shipped is simpler and makes the same
+Open/Closed point without a boot-time step: the scope set is the `SCOPE_DEFINITIONS` array in
+`platform/scopes/scopes.ts` and the event types are a frozen `EVENT_TYPES` in
+`platform/webhooks/events.ts`, both module-level `as const` data. `docs/architecture.md`'s
+Composition Root carries the shipped shape; this block is kept as the sketch it was, with the
+differences named here rather than silently edited into looking prescient.
 
 **What the webhook half of that sketch is called in the code, now that it exists (L15).**
 The sketch predates the build and its shapes are close but not literal; the names below are
@@ -134,7 +156,7 @@ sequenceDiagram
     INT->>SVC: create(workspaceId, input)  — same service, same publish
 ```
 
-Contract details asserted by fitness tests over every `/api/v1` route: OpenAPI entry exists, a scope is declared, failures ship the `ApiError` shape (`unauthorized | forbidden | not_found | validation_failed | rate_limited | server_error`), list endpoints paginate with opaque base64 cursors over `{id, timestamp}`.
+Contract details asserted by fitness tests over every `/api/v1` route: OpenAPI entry exists, a scope is declared, failures ship the `ApiError` shape (`unauthorized | forbidden | not_found | validation_failed | rate_limited | server_error`), list endpoints paginate with opaque base64 cursors over `{id, timestamp, resource}` — three keys, not two: `resource` binds a cursor to the collection that minted it, so a cursor replayed against another resource is a `validation_failed` rather than a plausible-looking wrong page (`decodeCursor` returns `foreign-resource`).
 
 ### Error envelope decisions
 
@@ -194,9 +216,12 @@ paginates with an opaque cursor; a collection whose cardinality is bounded by CO
 returns `{ data }` with no `next_cursor`. The test is **bounded-by-code vs.
 bounded-by-data**, not small vs. large — "small" is a judgement about today's contents
 that nothing re-checks, while a list whose length is a compile-time constant cannot grow
-into a pagination bug without someone editing this repository. `/api/v1/scopes` and
-`/api/v1/events` are `as const` arrays and declare `list: 'none'`; the document-backed
-collections declare `'cursor'`. The field is required with no default and `createApp()`
+into a pagination bug without someone editing this repository. The `as const` collections — `routeMetadata.ts` names `/api/v1/scopes` and
+`/api/v1/events` as the worked example — would declare `list: 'none'`; the document-backed
+collections declare `'cursor'`. **Neither of those two routes is mounted today**: the pair is
+the illustration the rule was written against, not shipped surface. The routes that actually
+declare `'none'` are `/api/v1/me` and `/api/v1/openapi.json` (`laneParity.test.ts` asserts
+exactly that set). The field is required with no default and `createApp()`
 throws at wiring time on a route that omits it, because "nobody thought about it" and
 "it does not paginate" must not look the same to Testing Scenario 4's clause (d).
 
@@ -409,7 +434,7 @@ PRD p.16 asks where the consent screen lives — "a route inside Ship's UI, a de
 
 The argument is structural, not aesthetic. Ship's UI is a Vite SPA that boots a router, a query client and an IndexedDB-backed cache; routing the authorize leg through it puts MVP gate item 2's own Playwright test behind SPA hydration, and `playwright.config.ts` retries failures — so hydration flake would be retried into green and the gate would stop gating. Second, this response must carry its own `frame-ancestors`, `X-Frame-Options` and cache headers, which are per-response decisions the app-wide helmet configuration does not make. Third, it keeps `/oauth/*` a single request/response chain with no dependency on the frontend build, so the flow works against a bare API container.
 
-**Rejected:** a React route, for the first reason above; and a third-party hosted login, because nothing in the stack table permits one and Ship *is* the authorization server here — which is also the answer to p.17's question about keeping OAuth Playwright tests stable. There is no external IdP to stub or containerize, so the flow's only moving parts are Ship's own session login and a page with no client-side JavaScript: no hydration wait, no network-idle heuristic, no third-party redirect.
+**Rejected:** a React route, for the first reason above; and a third-party hosted login. Not because the PRD forbids one — **p.10's stack table explicitly lists it**: *"Hand-rolled minimal IETF-correct flows (RFC 6749 + 7636 PKCE + 8628 Device Grant) for learning; alternatives include node-oauth2-server, Ory Hydra, or Auth0 fronting Ship."* An earlier draft of this paragraph said nothing in the stack table permitted one, which inverted the argument: the table permits it and names two products. The reason we did not take it is the clause p.10 attaches to the hand-rolled option — *for learning* — plus what an external IdP would cost the graded artifacts. Ship being its own authorization server is what makes the OAuth sequence diagrams p.12 asks for describe code in this repository rather than a vendor's, and it is also the answer to p.17's question about keeping OAuth Playwright tests stable. There is no external IdP to stub or containerize, so the flow's only moving parts are Ship's own session login and a page with no client-side JavaScript: no hydration wait, no network-idle heuristic, no third-party redirect.
 
 **Cost, stated:** this is the only non-React UI in the repository and somebody has to keep it looking like Ship. It is also a deviation from p.10's "the portal reuses the public API like any other client" — but p.10 says that of the *portal*, and p.17 places the consent screen *alongside* the portal rather than inside it.
 
@@ -588,7 +613,7 @@ presented, so hashing costs everything and buys nothing.
 
 ## SDK Surface
 
-`@ship/sdk` (new workspace package). **Stable for the week:** `ShipClient` with resource clients (`documents`, `issues`, `sprints`, `webhooks` — method signatures fitness-tested against the OpenAPI spec, drift fails CI); `ShipClient.authorizationCodeFlow()` and `ShipClient.deviceLogin()`; async-iterator pagination (`for await (const doc of client.documents.iterate())` — consumers never see cursors); `verifyWebhook(headers, rawBody, secret, toleranceSec = 300)` → boolean in one call; typed error union discriminated on `kind: 'auth' | 'rate_limit' | 'not_found' | 'validation' | 'server'`. **Pre-1.0 (may move):** `ITokenStore` implementations beyond in-memory/file, OAuth helper option bags, CLI internals. Install footprint budget: < 250 KB min+gzip, production deps only, enforced in CI (measured: **160.4 KB** gzipped, 0 production dependencies). `verifyWebhook` p95 **0.0137 ms** against p.8's 1 ms target, measured over 5000 iterations on a real `document.created` envelope and enforced by `pnpm --filter @ship/sdk perf:check`; both figures upload as one `sdk-budget-reports` CI artifact.
+`@ship/sdk` (new workspace package). **Stable for the week:** `ShipClient` with resource clients (`documents`, `issues`, `sprints`, `webhooks` — method signatures fitness-tested against the OpenAPI spec, drift fails CI); `ShipClient.authorizationCodeFlow()` and `ShipClient.deviceLogin()`; async-iterator pagination (`for await (const doc of client.documents.iterate())` — consumers never see cursors); `verifyWebhook(headers, rawBody, secret, toleranceSec = 300)` → boolean in one call; typed error union discriminated on `kind: 'auth' | 'rate_limit' | 'not_found' | 'validation' | 'server'`. **Pre-1.0 (may move):** `ITokenStore` implementations beyond in-memory/file, OAuth helper option bags, CLI internals. Install footprint budget: < 250 KB min+gzip, production deps only, enforced in CI — **0 production dependencies**, which is the mechanism, and **219.8 KB** gzipped (225,109 B over 169 published files, 610.5 KB raw — **87.9%** of budget), which is the proof it ran. The method is gzip of the *unminified* published files, an upper bound on min+gzip, and the "KB" the script prints is 1024 bytes, the same unit as its 250 KB budget line. `sdk/size-report.json` was regenerated on 2026-08-15 and now carries exactly these numbers, so the committed artifact, this paragraph and `PRESEARCH-PLUGFORGE.md` agree; the drift they had — 208.8 KB over 163 files — was a report that predated six published files. Because the method gzips unminified output, **doc comments count against this budget**: the ~1.4 KB between the previous 218.4 KB reading and this one is prose added to `sdk/src/stability.ts` and `sdk/src/client.ts`. Regenerating is one command, `pnpm --filter @ship/sdk build && pnpm --filter @ship/sdk size`, and it should be re-run before submission. `verifyWebhook` p95 **0.020292 ms** against p.8's 1 ms target (mean 0.015639 ms, p50 0.012583 ms — the committed `sdk/perf-report.json`; an earlier draft of this paragraph printed 0.0137 ms, which matches no field in it), measured over 5000 iterations on a real `document.created` envelope and enforced by `pnpm --filter @ship/sdk perf:check`; both figures upload as one `sdk-budget-reports` CI artifact.
 
 **The stable/pre-1.0 split above is also machine-readable and cannot drift from this paragraph** (L18 PF-548). `sdk/src/stability.ts` exports `STABLE_SURFACE` and `PRE_1_0_SURFACE`, and `surfaceStability.test.ts` asserts that every name the published barrel re-exports — types included, which needs a source parse since `import *` sees only values — appears in **exactly one** of them. There is no unclassified state and no default, so adding a surface costs one line saying what is being promised about it, which is the only reliable moment to ask. §4 of that test reads this very section and fails if the two disagree.
 
@@ -596,9 +621,9 @@ presented, so hashing costs everything and buys nothing.
 
 `client.documents` · `client.issues` · `client.sprints` · `client.webhooks` — four named classes, not one object with a namespace per resource, which is the Interface-Segregation evidence p.12 asks for. Each is `readonly` in the types **and** non-writable at runtime (`Object.defineProperty`, because `readonly` is erased by `tsc` and swapping `client.documents` for a look-alike is how a token goes somewhere it should not).
 
-**Testing Scenario 5's second half runs against all 19 spec operations.** `sdk/src/operations.ts` publishes `OPERATION_BINDINGS`: one row per `operationId`, naming the SDK method that serves it. The method path is typed against the real classes, so a binding pointing at a method that does not exist fails `pnpm type-check`; a spec operation with no binding, or a public SDK method with no operation, fails `api/src/platform/openapi/sdkSurfaceParity.test.ts` **by name**. Parity is checked at signature level — required parameters covered, no invented parameters, request-body fields equal, return type equal to the 2xx schema field-for-field — because existence-only parity passes for a method that takes `any` and returns `any`. The spec-side walk is L13's `listSpecOperations` and nothing under `sdk/` parses an OpenAPI document; the test greps for a second parser, because Scenario 5 comparing two parsers would measure their agreement rather than the spec's agreement with the SDK.
+**Testing Scenario 5's second half runs against all 22 spec operations** (14 paths; counted from the committed `docs/openapi.json`). `sdk/src/operations.ts` publishes `OPERATION_BINDINGS`: one row per `operationId`, naming the SDK method that serves it. The method path is typed against the real classes, so a binding pointing at a method that does not exist fails `pnpm type-check`; a spec operation with no binding, or a public SDK method with no operation, fails `api/src/platform/openapi/sdkSurfaceParity.test.ts` **by name**. Parity is checked at signature level — required parameters covered, no invented parameters, request-body fields equal, return type equal to the 2xx schema field-for-field — because existence-only parity passes for a method that takes `any` and returns `any`. The spec-side walk is L13's `listSpecOperations` and nothing under `sdk/` parses an OpenAPI document; the test greps for a second parser, because Scenario 5 comparing two parsers would measure their agreement rather than the spec's agreement with the SDK.
 
-**`sprints` is the public noun and Ship's internal one appears nowhere under `sdk/`** — a grep over the whole package asserts it, since a leaked internal noun in a published package cannot be taken back. The translation lives in `platform/scopes/resource-map.ts` alone.
+**`sprints` is the public noun and Ship's internal one appears nowhere under `sdk/`** — a grep over the whole package asserts it, since a leaked internal noun in a published package cannot be taken back. The translation lives in `platform/api/v1/resource-map.ts` alone.
 
 **`create()` returns the webhook signing secret once, and the type says so.** `webhooks.create()` and `.rotate()` return `WebhookSubscriptionWithSecret`; `.list()`, `.get()`, `.update()` and `.delete()` return `WebhookSubscription`, which has no `signing_secret` field at all. Two types rather than one optional field, so a consumer who reads the secret off a listed subscription fails to compile rather than handing `undefined` to `verifyWebhook` at 3am.
 
@@ -751,10 +776,11 @@ Under the flag, the agent's reads go through `@ship/sdk` → `/api/v1/*`, and a 
 |---|---|
 | `document_history` (`reworkChurn.ts`, `resolveScope.ts`) | A `GET /api/v1/issues/:id/history` route would invent a public endpoint the PRD never asks for and a scope p.3 does not register. Left on direct SQL, named and counted, rather than growing the public surface to win a sentence |
 | `users.name` (`loadImbalance.ts`, `fetchParticipants.ts`) | No public users resource this week. The display name degrades to the id, which is cosmetic in a prompt — and a client-credentials token has no user context to resolve names against anyway |
+| `document_associations` (`loadImbalance.ts`, `sprintMissRisk.ts`) | **Not a design decision — the honest state of the branch.** D13 rescues this in principle (issue→sprint and issue→project membership arrives as `issueSchema.belongs_to`), but these two detectors have not been re-pointed at it yet. Filed as **F144**. This row should shrink to nothing, not stay |
 
-Everything else was rescued rather than excepted: issue→sprint and issue→project membership arrives as `issueSchema.belongs_to` (**D13**), so `loadImbalance` and `sprintMissRisk` need no `document_associations` read.
+This table has **three** rows because `SQL_EXCEPTIONS` in `agent/src/data/citizenReader.ts` has three entries. It carried two for a while after the third was added, which made an Epic 7 claim p.13 grades look one exception cleaner than it is. If the two ever disagree again, the array is the authority.
 
-So the honest claim is **"every Ship-data read the agent makes goes through the public API, except the two rows above, which are named and asserted"** — not "every action, without qualification". A bounded claim a reader can check beats an absolute one they cannot.
+So the honest claim is **"every Ship-data read the agent makes goes through the public API, except the three rows above, which are named and asserted"** — not "every action, without qualification". A bounded claim a reader can check beats an absolute one they cannot.
 
 ## First-Party App Seeding
 
@@ -762,15 +788,15 @@ So the honest claim is **"every Ship-data read the agent makes goes through the 
 
 | App | Scopes | Why it exists |
 |---|---|---|
-| `ship_app_firstparty_fleetgraph_agent` | `documents:read`, `issues:read`, `issues:write`, `sprints:read` | Epic 7 — the agent as a platform citizen, least privilege rather than `*` |
+| `ship_app_firstparty_fleetgraph_agent` | `documents:read`, `issues:read`, `sprints:read` | Epic 7 — the agent as a platform citizen, least privilege rather than `*`; **read-only** under D5b, and `PLATFORM_APP_SEEDS` in `api/src/db/platformApps.ts` is the shipped list this row mirrors |
 | `ship_app_grader_readonly` | `documents:read`, `issues:read`, `sprints:read` | MVP gate item 10 (p.2) — a pre-registered **read-only** app for graders |
-| `ship_app_grader_demo` | `documents:read`, `documents:write` | **D12**, open — see below |
+| `ship_app_grader_demo` | `documents:read`, `documents:write`, `webhooks:manage` | **D12** — `webhooks:manage` was added by F122; without it `ship webhooks tail` exited 3 with *"Missing scope: webhooks:manage"* against the only app a grader can log in as, which is p.11's demo moment. `PLATFORM_APP_SEEDS` in `api/src/db/platformApps.ts` is the shipped list |
 
 *What guarantees it exists.* The seeding runs inside `db:migrate`, which runs on every deploy. It is deliberately **not** a numbered migration: `migrate.ts` skips any migration already recorded in `schema_migrations`, so a numbered file runs exactly once per database — a secret configured after the first deploy would never reach it, and a **rotated** secret would never be written. Migration 041 keeps only the one-time structural rows (the system owner user, the grader workspace); the app upsert is re-applied every run, idempotent via `ON CONFLICT (client_id) DO UPDATE`. This replaces `db:seed`, which does **not** run on deploy the way `db:migrate` does.
 
 *Secrets come from the environment and are never generated.* `AGENT_CLIENT_SECRET`, `GRADER_CLIENT_SECRET`, `DEMO_CLIENT_SECRET`. Absent in dev or test → no row, no failure, local development untouched. Absent in **production** → the deploy fails naming the missing variable, before any statement runs. A generated secret would be strictly worse than none: the row would exist, the health check would go green, and nobody could ever authenticate, because the plaintext was discarded the moment it was hashed. That failure — healthy boot, credential missing, symptom three layers away — is one this repo has already paid for once.
 
-*Grant-agnostic by construction.* No column and no seed field encodes a grant type, because the agent's grant is still undecided. The grant is a property of the token exchange; whichever flow ships reads this same row.
+*Grant-agnostic by construction.* No column and no seed field encodes a grant type. **The agent's grant is decided and shipped — Client Credentials, RFC 6749 §4.4** (`platform/oauth/clientCredentialsGrant.ts`; `docs/architecture.md` → OAuth Flows carries the row). The seed stays grant-agnostic anyway, because the grant is a property of the token exchange rather than of the app record, and the same row would serve a second flow if one is ever added. This paragraph previously said the grant was undecided; it was, and then it was not.
 
 *Tenancy.* The grader and demo apps belong to a dedicated **Grader Sandbox** workspace, so a token issued to either sees that workspace and no other. That is the answer to *"how do graders get an app without exposing your tenant's data"* (p.18).
 
@@ -796,7 +822,7 @@ So the honest claim is **"every Ship-data read the agent makes goes through the 
 
 *Why one hour.* An opaque access token is checked against the database on **every** `/api/v1` request, so a short TTL costs nothing in verification work — the lookup happens either way. What it buys is a bounded blast radius: a leaked access token is useful for at most an hour. This is the reason the token is opaque rather than a JWT. A JWT would let the resource server skip the lookup, and skipping the lookup is exactly the property we do not want: a self-validating token cannot be revoked before it expires without a revocation list, which is a database lookup wearing a disguise. Opaque + a lookup is the honest version of the same cost, and it is what makes D2's *"a deleted user's access cannot outlive them"* true rather than aspirational.
 
-*Why 30 days, sliding.* It makes `ship login` a once-a-month act rather than a daily one, which is the second line of the TTFE story (p.8). Sliding means an actively used credential never expires and an abandoned one dies in a month.
+*Why 30 days, sliding.* It makes `ship login` a once-a-month act rather than a daily one, which is the second line of the five-line developer story (**p.6**; restated as the demo script on p.12 — p.8 is the drill-stage table, which is a different artifact). Sliding means an actively used credential never expires and an abandoned one dies in a month.
 
 *Both are overridable at boot* through `AppDeps.tokenTtl`, never through a mutable module binding. That is the seam L24's rotation drill consumes: PF-727 requires expiry to be produced **by configuring a short TTL, never by waiting**, because p.11 rules out `setTimeout` waits and p.9 budgets zero flake over twenty runs. A test boots with a 2-second access TTL and advances an injected `FakeClock`; a grep asserts no `setTimeout` and no `Date.now()` in this lane's non-test source.
 
@@ -856,9 +882,15 @@ The honest limit: because reuse and theft are indistinguishable at the server, a
 
 **Token store corrupted (SDK side).** `ITokenStore` reads that fail or return garbage are treated as logged-out, never as a retry loop: the next call surfaces `{ kind: 'auth' }` and the helper flows re-authenticate cleanly. Corruption is a client-local event — the server sees at worst a 401'd request, and no partial credential is ever written back.
 
-**Signing secret rotated mid-flight.** Rotation takes effect at the next delivery attempt: the signer reads the subscription's current secret at send time, so in-flight failures re-sign with the new secret on retry. A subscriber that hasn't updated its env verifies against the old secret, fails, and the retry ladder (30 min tail) covers the update window; the pathological case parks in the DLQ, replayable from the portal with the original Idempotency-Key.
+**Signing secret rotated mid-flight.** Rotation takes effect at the next delivery attempt: the signer reads the subscription's current secret at send time, so in-flight failures re-sign with the new secret on retry. A subscriber that hasn't updated its env verifies against the old secret, fails, and the retry ladder covers the update window — **381 s, about 6½ minutes**, not the 30-minute tail the ladder's last rung suggests, because `MAX_ATTEMPTS = 6` consumes only the first five rungs (`LADDER_TOTAL_WAIT_SECONDS` in `platform/webhooks/retry.ts`, and the same fact the composition-root sketch above records). The pathological case parks in the DLQ, replayable from the portal with the original Idempotency-Key.
 
-**Queue deliverer crashes.** The contract is at-least-once + Idempotency-Key dedupe — never silent at-most-once. Undelivered attempts are reconstructable because the delivery log (durable, Postgres) records every attempt; on restart, incomplete deliveries are re-driven from the log/DLQ and subscribers dedupe on the key. The in-process must-ship deliverer restarts with the process; the queue-backed drop-in inherits the same recovery semantics through the log.
+**Queue deliverer crashes.** The intended contract is at-least-once + Idempotency-Key dedupe — never silent at-most-once — and what ships is the durable half of it, not the recovery half.
+
+Durable: `PgDeliveryLog` writes each attempt **before** it is sent (migration 051), so a crash mid-flight leaves a non-terminal row, and `Idempotency-Key` is persisted on the attempt-1 row so anything re-sent later carries the same key. `ResumableDelivery` in `deliveryLog.ts` is the shape a resumer would read. An interrupted delivery is therefore reconstructable from durable state rather than from process memory.
+
+Not recovered: **nothing re-drives on restart.** `RetryScheduler.pendingTimers` lives in process memory and dies with the process, and no boot handler scans the log or the DLQ. `replay.ts` states the reason at the call site — resuming an interrupted ladder needs the subscription's target URL and decrypted secret, and every read on `IWebhookSubscriptionRepo` is app-scoped by design (PF-432), so a boot handler has no app context to scope with. Closing it means projecting `app_id` onto `DeliveryRecord` or adding an unscoped `findByIdForSystem` to L15's port; each widens a boundary another lane argued for, so it is filed as **F64** rather than stubbed. A `redriveInterrupted()` returning a count and driving nothing would make PF-459's write-before-attempt design look proven when it is only half-used.
+
+So recovery today is **manual**: an operator replays from the developer portal, which drives the existing row with its original Idempotency-Key. Crash-interrupted deliveries are visible in the log as non-terminal rows and are not automatically retried. The in-process must-ship deliverer restarts with the process and loses its ladder; a queue-backed drop-in would inherit durability from the same log and would still need the boot handler that does not exist. This paragraph previously claimed the re-drive happened; it does not, and `docs/architecture.md` → Failure Modes now says the same thing.
 
 **OpenAPI generator throws at boot.** Fail fast: the process refuses to start. The spec is the contract artifact — serving traffic without it is exactly the drift the fitness test exists to prevent. In practice this never reaches production: spec generation + validation against the OpenAPI 3.1 schema runs as a unit test, and the spec↔route parity fitness test fails the PR first.
 
@@ -868,4 +900,4 @@ Live topology is AWS, from the root modules in `terraform/*.tf` — the one conf
 
 **The security groups are the blast-radius answer,** and they are a chain rather than a list: `ship-alb` takes 80/443 from `0.0.0.0/0`; `ship-eb-instance` takes 80 *only* from the ALB's group; `ship-aurora` takes 5432 *only* from the instance group. Nothing reaches the database except application instances, and the instances are not addressable from the internet. **Two IAM roles, in the two-role shape p.2 asks about under ECS's names:** `aws_iam_role.eb_instance` (`ship-eb-instance-role`, reached through `aws_iam_instance_profile.eb`) is the role the application assumes — ECS would call it the *task role*; `aws_iam_role.eb_service` (`ship-eb-service-role`, assumed by `elasticbeanstalk.amazonaws.com` under an `sts:ExternalId` condition) is the role the platform assumes on our behalf — ECS's *execution role*. Elastic Beanstalk does not use those words and no resource named `task_role` or `execution_role` exists; the mapping and its limits are written out honestly in `docs/infra/iam-least-privilege.md`.
 
-PlugForge's own must-ship surface still adds no AWS resources — OAuth apps, tokens, subscriptions, the delivery log and audit rows are Postgres tables inside Aurora, and the deliverer runs in-process. What changed with D6 is the deployment underneath them: this is an environment stood up from scratch, not env-vars added to a service that already existed, so the destroy-redeploy drill's blast radius is the whole stack — 76 resource instances in `ship/terraform.tfstate`, re-creatable from config alone. `terraform/render/` is **retained as a fallback**, pinned provider and annotated plan intact (`terraform/render/PLAN-ANNOTATED.md`); falling back means re-applying it, not switching traffic to something already running. `terraform/environments/{dev,prod,shadow}` are a second, **unapplied** configuration of the same resources — alternatives to the root, not layers on top of it; see `docs/infra/topology.md` §2–3 before applying anything there.
+PlugForge's own must-ship surface adds **six** AWS resources, all of them credential plumbing: `terraform/platform-apps.tf` declares three `random_password` and three `aws_ssm_parameter` — the `AGENT_CLIENT_SECRET`, `GRADER_CLIENT_SECRET` and `DEMO_CLIENT_SECRET` the app seeder reads, generated and stored in Parameter Store rather than pasted into an environment. Everything else PlugForge added is a Postgres table inside Aurora — OAuth apps, tokens, subscriptions, the delivery log, audit rows — and the deliverer runs in-process, so **no new compute, network or data resource**. An earlier draft of this paragraph said "no AWS resources", which was true before the seeded apps needed secrets and is not true now. What changed with D6 is the deployment underneath them: this is an environment stood up from scratch, not env-vars added to a service that already existed, so the destroy-redeploy drill's blast radius is the whole stack — 76 resource instances in `ship/terraform.tfstate`, re-creatable from config alone. `terraform/render/` is **retained as a fallback**, pinned provider and annotated plan intact (`terraform/render/PLAN-ANNOTATED.md`); falling back means re-applying it, not switching traffic to something already running. `terraform/environments/{dev,prod,shadow}` are a second, **unapplied** configuration of the same resources — alternatives to the root, not layers on top of it; see `docs/infra/topology.md` §2–3 before applying anything there.

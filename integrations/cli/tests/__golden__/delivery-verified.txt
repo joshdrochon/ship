@@ -1,0 +1,9 @@
+──────────────────────────────────────────────────────────────────────────────
+  event            document.created
+  event.id         evt_01J9Z2K5Q7R3T8V0W2X4Y6Z8A0
+  document         3f2a1c88-5d4e-4b6a-9c1f-2e7d8a0b3c5d  "Q3 launch plan"
+  idempotency-key  evt_01J9Z2K5Q7R3T8V0W2X4Y6Z8A0
+  signature t=     1786803785  (2026-08-15 14:23:05 +00:00)
+  latency          24 ms  event → arrival
+→ document.created event arrives, signature verified ✓
+──────────────────────────────────────────────────────────────────────────────

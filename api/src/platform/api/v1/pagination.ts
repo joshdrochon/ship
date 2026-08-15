@@ -22,8 +22,9 @@
  * question after a delete.
  *
  * **Immutable sort key.** `documents.position` is what the INTERNAL list sorts on
- * (`api/src/routes/documents.ts:120`, `ORDER BY position ASC, created_at DESC`)
- * and drag-reorder rewrites it. Paginating on it means a user reordering a
+ * (`DOCUMENTS_LIST_ORDER` in `api/src/services/documents.ts`, `ORDER BY position
+ * ASC, created_at DESC`, applied under `mode: 'internal'`) and drag-reorder
+ * rewrites it. Paginating on it means a user reordering a
  * sidebar corrupts a concurrent API walk — which is precisely what "cursors are
  * stable across reordering operations" forbids. The public list sorts on
  * `(created_at, id)`, which nothing rewrites. That divergence from the internal

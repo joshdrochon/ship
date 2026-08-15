@@ -24,6 +24,7 @@ import type { RateLimitStatus } from './rateLimit.js';
 import { realClock, type SdkClock } from './retry.js';
 import { ShipTransport, type Transport } from './transport.js';
 import { DocumentsClient } from './resources/documents.js';
+import { AuditClient } from './resources/audit.js';
 import { IssuesClient } from './resources/issues.js';
 import { SprintsClient } from './resources/sprints.js';
 import { WebhooksClient } from './resources/webhookSubscriptions.js';
@@ -98,14 +99,23 @@ export interface ShipClientOptions {
  * The authenticated caller: which app, which user (or none, for a
  * machine-to-machine token), and what the token is allowed to do.
  *
- * ⚑ **Hand-declared, and NOT yet asserted against the served spec.** PF-493
- * requires this shape to be checked against `GET /api/v1/me`'s response schema
- * in `docs/openapi.json` rather than against another hand-written literal — and
- * that route does not exist. `/api/v1/me` is L10's, L13 shipped `documents`
- * only, and TWO tests on the integration branch actively assert `/me` is absent
- * from the mounted route set (`documents.regression.test.ts` and
- * `scope-fitness.test.ts`). So this type is the SDK's best statement of the
- * contract and nothing more; see the lane report.
+ * **Asserted against the served spec — PF-493 is closed.** This comment used to
+ * say the opposite: that `GET /api/v1/me` did not exist, that this type was the
+ * SDK's unilateral guess, and that two tests asserted `/me` was absent from the
+ * mounted route set. All three were true when L13 shipped `documents` alone and
+ * none of them survived PF-271.
+ *
+ * What is true now: the route is mounted in `api/src/app.ts` (`meResources` from
+ * `platform/api/v1/me/routes.ts`), its response Zod lives adjacent to the handler
+ * in `me.schema.ts`, and the two tests named above no longer exist. This shape is
+ * pinned to the spec through `OPERATION_BINDINGS`' `getMe` entry
+ * (`operations.ts`, `fields: ['user', 'app', 'scopes']`), which
+ * `api/src/platform/openapi/sdkSurfaceParity.test.ts` walks against the generated
+ * document — so a field added on the server and not here fails a test rather than
+ * drifting.
+ *
+ * Kept as a note rather than deleted because a stale "not yet asserted" warning
+ * beside working code is exactly what a reader trusts and should not.
  *
  * The field names are snake_case because they are wire names — this is the
  * server's JSON, not a JS object the SDK invented.
@@ -168,6 +178,15 @@ export class ShipClient {
   readonly issues!: IssuesClient;
   readonly sprints!: SprintsClient;
   readonly webhooks!: WebhooksClient;
+  /**
+   * F113 — PRD p.4's public audit trail. List-only: there is no `GET
+   * /audit/{id}` operation, so `AuditClient` is standalone rather than a
+   * `ResourceClient` subclass that would inherit a `get()` the spec has nothing
+   * behind. Deliberately NOT in `RESOURCE_NAMES`, which p.12 cites as the four
+   * named domain resources; the audit trail is metadata ABOUT calls to those
+   * resources, not a fifth one.
+   */
+  readonly audit!: AuditClient;
 
   /** Where the base URL came from — `'option' | 'env' | 'default'`. Useful in a support log. */
   readonly baseUrlSource: BaseUrlSource;
@@ -208,6 +227,7 @@ export class ShipClient {
     defineReadonly(this, 'issues', new IssuesClient(this.transport));
     defineReadonly(this, 'sprints', new SprintsClient(this.transport));
     defineReadonly(this, 'webhooks', new WebhooksClient(this.transport));
+    defineReadonly(this, 'audit', new AuditClient(this.transport));
   }
 
   /**

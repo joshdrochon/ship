@@ -52,6 +52,15 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 10_000 },
 
+  // PF-738's artifact lives at `test-results/bundle-size.json`, written by the
+  // VITEST suite in this same package (`tests/bundle.test.ts`). Playwright's
+  // default `outputDir` is `test-results/` and Playwright CLEARS its output
+  // directory at the start of every run — so a `test:pkce` run deleted the size
+  // measurement `test` had just published, and whichever ran last decided
+  // whether the artifact existed at all. Nested one level down so Playwright
+  // only ever clears its own traces and the published number survives.
+  outputDir: './test-results/playwright',
+
   use: {
     baseURL: DEMO_BASE_URL,
     trace: 'retain-on-failure',

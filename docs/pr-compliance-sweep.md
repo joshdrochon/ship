@@ -1,10 +1,42 @@
-# PR-body compliance sweep — PF-784
+# Slice **commit-body** compliance sweep — PF-784
 
 PRD p.12: *"each PR description lists which acceptance criterion that slice advances and
 confirms the fitness test passed."*
 
-PF-026 enforces that the **sections exist** at PR time. This is the submission-time check
-that the **content is true**.
+PF-026 enforces that the **sections exist**. This is the submission-time check that the
+**content is true**.
+
+## What this document measures, and what it does not — read this first
+
+**It measures commit bodies, not PR descriptions.** The method below reads the commits in
+`P1..P2` for each merge. That is a deliberate substitution and it was previously left
+implicit, with the title and the framing both saying "PR body" while every number came
+from commit text. Relabelled 2026-08-15 rather than left to be discovered.
+
+**The substitution is necessary because there are no per-slice PRs.** Measured
+2026-08-15:
+
+| | Count |
+|---|---:|
+| `pf/*` slice branches on `origin` | 167 |
+| Merges into `pf/integration` | 180 |
+| Merge requests on GitLab **from a `pf/LNN-*` slice branch** | **0** |
+| Merge requests on GitLab from `pf/integration` → `main` (batch, not per-slice) | 3 |
+| Pull requests on GitHub from any `pf/` branch | **0** |
+
+(GitLab carries 19 MRs and GitHub 9 in total; every one not counted above belongs to Week
+5 and predates PlugForge. Reproduce with `glab mr list --repo joshrochon/ship --all` and
+`gh pr list --repo joshdrochon/ship --state all`.)
+
+**So p.12's clause is not met as literally written, and this document does not claim it
+is.** What exists is the other half of the same sentence — per-slice branches, preserved,
+each carrying the acceptance criterion and the fitness-test confirmation in its commit
+bodies. That is the artifact swept below. Whether a grader accepts a commit body in place
+of a PR description is theirs to judge; presenting one as the other is not on offer.
+
+**The headline count is stale.** The sweep covered 66 slices; 180 merges now sit on
+`pf/integration`. The 55/66 figure below describes the tree as it stood when the sweep
+ran, not the tree being submitted. Re-run before submission or cite it with that scope.
 
 ## Getting to the right unit took three attempts
 
@@ -19,7 +51,7 @@ measurements are recorded because both produced a confident, wrong number:
 3. **Merge parents** — for a merge with parents `P1 P2`, the slice's commits are exactly
    `P1..P2`. That is the number below.
 
-## Result — 55 of 66 fully compliant
+## Result — 55 of 66 slices fully compliant (as of the sweep; see the scope note above)
 
 | Standard | Count |
 |---|---:|
