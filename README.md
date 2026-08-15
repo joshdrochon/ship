@@ -58,15 +58,21 @@ the public API over TLS.
 requests the page's own assets over `https` against a port that is not there and renders
 a white screen. It is listed because one path genuinely needs it — see the warning below.
 
-> ⚠ **`/oauth/*` does not currently route through CloudFront.** Only `/api/**` and
-> `/health` are proxied to the API origin; every other path falls through to the S3 SPA.
-> So `GET /oauth/device/verify` returns the app shell instead of the server-rendered
-> consent page, and `POST /oauth/device/code` / `POST /oauth/token` return a CloudFront
-> 403 (*"the distribution supports only cachable requests"*). **`ship login` therefore
-> cannot complete against the CloudFront URL**, and the device-code response points its
-> `verification_uri` at that same CloudFront path — so the EB origin does not route
-> around it either. Fix is a CloudFront cache behaviour for `/oauth/*` on the EB origin
-> with all methods allowed. Tracked in `SUBMISSION-PLUGFORGE.md` §9 and L99 F160.
+> ✅ **`/oauth/*` routes through CloudFront. This warning used to say it did not; that
+> is fixed and re-measured.** `terraform/s3-cloudfront.tf` carries an ordered cache
+> behaviour for `/oauth/*` pointing at the EB origin with all methods allowed, so the
+> CloudFront URL is the *only* one a grader needs. Re-measured 2026-08-15 from outside
+> the project, by origin header rather than by inference:
+>
+> ```
+> POST https://d258p92d3n1ebe.cloudfront.net/oauth/device/code   → 200 application/json
+> GET  https://d258p92d3n1ebe.cloudfront.net/oauth/device/verify → 302, server: nginx
+> ```
+>
+> The `server: nginx` on the second is the point: that is the API's own response, not
+> the S3 SPA shell that used to shadow it. `ship login` completes against the CloudFront
+> host, and the `verification_uri` the device-code response hands back now resolves to a
+> working consent page. History in `SUBMISSION-PLUGFORGE.md` §9 and L99 F160.
 
 > **Read `docs/infra/grader-access.md` §6 before relying on any of these.** That
 > section carries the dated `curl` output proving what actually answers, and it is the
@@ -115,14 +121,18 @@ export SHIP_API_URL=https://d258p92d3n1ebe.cloudfront.net
 curl -s "$SHIP_API_URL/api/v1/openapi.json" | head -c 200
 ```
 
-For anything under `/oauth/*` — which today means `ship login` — point at the EB origin
-instead, and read the CloudFront warning above first:
+`/oauth/*` works against the same host — no second URL, no EB origin. `ship login` and
+everything under it go through CloudFront:
 
 ```bash
-export SHIP_OAUTH_URL=http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com
-curl -s -X POST "$SHIP_OAUTH_URL/oauth/device/code" \
+curl -s -X POST "$SHIP_API_URL/oauth/device/code" \
   -d 'client_id=ship_app_grader_demo&scope=documents:read'
 ```
+
+That returns a real `device_code`, `user_code` and `verification_uri`; open the
+`verification_uri` in a browser to approve. The EB origin
+(`http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com`) still answers and is
+kept above as a fallback, but nothing requires it any more.
 
 ### Verifying the deployment yourself
 
