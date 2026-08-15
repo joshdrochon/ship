@@ -128,3 +128,22 @@ The listener has no public URL. Every test in this package runs against
 in this repo verifies that a deployed Ship can reach a deployed listener**, and
 that is L99 **U6** — the single largest execution risk in this slice. It is a
 hosting question owned by L21/L26, not by this package.
+
+**The Slack API itself is stubbed in every test, and no real Slack workspace has
+ever installed this app.** Every assertion about `chat.postMessage` and
+`oauth.v2.access` in this repository is made against a local HTTP stub, reached
+by pointing `WebClient`'s `slackApiUrl` at it (`tests/support/harness.ts:85`, and
+the `SLACK_API_URL` knob at `src/config.ts:45`). That is a real `@slack/web-api`
+client speaking the real wire protocol, so the request this listener *builds* is
+proven — the method, the body, the auth header, and the mapping from Slack's
+error strings onto Ship's retry contract. What is **not** proven is the far end:
+no Slack app has been registered, no workspace has completed the install, no bot
+token has been issued by Slack, and no message has landed in a channel a human
+can see. PF-740's terminal clause — *"`chat.postMessage` succeeds into a channel
+the bot has joined"* — is therefore **unverified against Slack**.
+
+This is a credential and registration gap, not a design gap: closing it needs a
+Slack app registered against a workspace we control plus a public URL for the
+OAuth redirect, which is the same hosting dependency as U6 above. It is recorded
+here rather than left for a reader to infer from the test sources, because a
+disclosed gap is a smaller problem than a discovered one.

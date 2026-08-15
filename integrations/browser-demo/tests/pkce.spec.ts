@@ -313,12 +313,32 @@ test.describe('PF-736 · the browser ITokenStore finally has a consumer', () => 
       window.localStorage.setItem('ship.sdk.credentials', value);
     }, GARBAGE);
 
+    // Recording starts HERE, after the authorization that set the credential up,
+    // so every request it holds is one the corrupt read provoked.
+    const afterCorruption = recordRequests(page);
+
     await page.reload();
 
     // Logged out, and NOT a retry loop — `sdk/src/auth/tokenStore.ts` states
     // that contract in a comment and nothing in the repo exercised it until now
     // (p.12 requires the corrupted-token-store failure mode to be documented).
     await expect(page.getByTestId('screen-logged-out')).toBeVisible();
+
+    // "performs no retry loop" was PROSE until 2026-08-15: nothing in this file
+    // counted a request, so a demo that bounced straight back into
+    // `/oauth/authorize` on every corrupt read — the exact failure the phrase
+    // names — passed all three assertions around it. A retry loop is visible as
+    // a re-entry into the authorization endpoint, so that is what is counted.
+    // Zero, not "few": the contract is that a corrupt credential leaves the user
+    // logged out and waiting, and re-authorizing is something the human asks for
+    // by clicking sign-in.
+    const reauthorizations = afterCorruption.filter((r) =>
+      r.url.startsWith(`${SHIP_BASE_URL}/oauth/authorize`),
+    );
+    expect(
+      reauthorizations.map((r) => r.url),
+      'a corrupt credential sent the demo back to /oauth/authorize — that is the retry loop PF-736 forbids',
+    ).toEqual([]);
 
     // The store must NOT have overwritten the value. `clear()` is a write, the
     // contract forbids writing back on a corrupt read, and a value the SDK
