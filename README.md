@@ -44,7 +44,7 @@ checkout, a database, or a build.**
 |---|---|
 | **Start here / base URL** | `https://d258p92d3n1ebe.cloudfront.net` |
 | **OpenAPI spec** | `<base>/api/v1/openapi.json` — public, no credentials required |
-| **Health** | `<base>/health` — reports the deployed commit SHA |
+| **Health** | `<base>/health` — reports the deployed commit SHA as `revision`. **Currently returns `"unknown"`:** the SHA reaches the runtime only through `scripts/deploy.sh`, which gained the mechanism after the live environment was last deployed (PF-628). A redeploy makes this line true; until then it is `unknown`, which is the honest answer for a build that did not record a commit |
 | **Dev portal** | `<base>/portal` |
 | **Regression budget (p.2 item 9)** | [`docs/regression-paired-runs.md`](docs/regression-paired-runs.md) — P95 vs Part 1, largest +4.3% against a +10% budget |
 | **API origin (no TLS, `curl` only)** | `http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com` |

@@ -34,8 +34,22 @@ than committed.
 
 It does **not** hold for captured evidence, and this is worth stating plainly rather
 than pretending otherwise: `docs/terraform-plan-aws-20260812.txt` is a tracked file and
-renders real ARNs, so the account id is already in git at eight places (`grep -rn
-'3794…' --exclude-dir=.git .`). Redacting captured `terraform plan` and `AccessDenied`
+renders real ARNs, so the account id is already in git. Re-measured 2026-08-15:
+
+```
+$ git grep -o 379484935796 | wc -l     # 71 occurrences
+$ git grep -l 379484935796 | wc -l     # across 17 tracked files
+$ git grep -n 379484935796 -- 'terraform/*.tf' | wc -l   # 0 in the graded root
+```
+
+(This paragraph previously said "eight places". That was measured when only the
+2026-08-12 plan transcript was tracked; the figure grew with every captured artifact
+that followed — `docs/infra/plan-baseline-w6.txt` alone now carries 17 and
+`docs/infra/topology.md` 12. The count moves, so it is given with the command that
+reproduces it rather than as a number to be trusted. What has not moved is the third
+line: zero in the configuration.)
+
+Redacting captured `terraform plan` and `AccessDenied`
 output would destroy the thing that makes it evidence. So the rule this lane actually
 follows, and the one worth defending:
 
