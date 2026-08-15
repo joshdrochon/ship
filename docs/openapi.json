@@ -300,71 +300,6 @@
     "parameters": {}
   },
   "paths": {
-    "/openapi.json": {
-      "get": {
-        "operationId": "getOpenapiJson",
-        "tags": [
-          "openapi.json"
-        ],
-        "summary": "The OpenAPI 3.1 description of this API.",
-        "description": "Generated from route metadata at boot — never hand-written. Requires no credentials: a specification a consumer cannot fetch before authenticating is a specification they cannot use to authenticate.",
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "The OpenAPI 3.1 description of this API.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "openapi": {
-                      "type": "string",
-                      "enum": [
-                        "3.1.0"
-                      ]
-                    },
-                    "info": {
-                      "type": "object",
-                      "properties": {
-                        "title": {
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "title",
-                        "version"
-                      ]
-                    },
-                    "paths": {
-                      "type": "object",
-                      "additionalProperties": {}
-                    }
-                  },
-                  "required": [
-                    "openapi",
-                    "info",
-                    "paths"
-                  ]
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/documents": {
       "get": {
         "operationId": "getDocuments",
@@ -4479,6 +4414,276 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "operationId": "getAudit",
+        "tags": [
+          "audit"
+        ],
+        "summary": "List this app's public API calls, newest first.",
+        "description": "The audit trail for the app the presented token was issued to — every call it has made to /api/v1, with timestamp, route template, scope used, status and latency. Scoped to the caller by construction: there is no `client_id` parameter, and the filter is taken from the token, so an app can only ever read its own history. Requires no scope, for the same reason /api/v1/me requires none — a token can always discover what it itself did. Reading this endpoint is itself a recorded call, so it appears in the next page you fetch.",
+        "security": [
+          {
+            "shipOAuth2": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped."
+            },
+            "required": false,
+            "description": "Page size. Default 25, maximum 100. Values above the maximum are rejected with 422, not clamped.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it."
+            },
+            "required": false,
+            "description": "Opaque cursor from the previous response's `next_cursor`. Not an offset — it is base64url and is bound to the collection that minted it.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "Exact HTTP status match. `429` answers \"when was I throttled\"."
+            },
+            "required": false,
+            "description": "Exact HTTP status match. `429` answers \"when was I throttled\".",
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Exact route TEMPLATE match, e.g. `/api/v1/documents/:id`."
+            },
+            "required": false,
+            "description": "Exact route TEMPLATE match, e.g. `/api/v1/documents/:id`.",
+            "name": "route",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Inclusive lower bound on `occurred_at`, ISO 8601."
+            },
+            "required": false,
+            "description": "Inclusive lower bound on `occurred_at`, ISO 8601.",
+            "name": "from",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "description": "Exclusive upper bound on `occurred_at`, ISO 8601."
+            },
+            "required": false,
+            "description": "Exclusive upper bound on `occurred_at`, ISO 8601.",
+            "name": "to",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List this app's public API calls, newest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "request_id": {
+                            "type": "string"
+                          },
+                          "client_id": {
+                            "type": "string"
+                          },
+                          "user_id": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "method": {
+                            "type": "string"
+                          },
+                          "route": {
+                            "type": "string"
+                          },
+                          "scope_used": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "status": {
+                            "type": "integer"
+                          },
+                          "latency_ms": {
+                            "type": "integer"
+                          },
+                          "occurred_at": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "request_id",
+                          "client_id",
+                          "user_id",
+                          "method",
+                          "route",
+                          "scope_used",
+                          "status",
+                          "latency_ms",
+                          "occurred_at"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "next_cursor"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No access token, or a token that is expired or invalid. `details.reason` distinguishes `expired` / `invalid` / `missing`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The request did not validate. `details.fields[]` names each problem.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded. See `Retry-After` and the `X-RateLimit-*` headers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenapiJson",
+        "tags": [
+          "openapi.json"
+        ],
+        "summary": "The OpenAPI 3.1 description of this API.",
+        "description": "Generated from route metadata at boot — never hand-written. Requires no credentials: a specification a consumer cannot fetch before authenticating is a specification they cannot use to authenticate.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 description of this API.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "openapi": {
+                      "type": "string",
+                      "enum": [
+                        "3.1.0"
+                      ]
+                    },
+                    "info": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "version"
+                      ]
+                    },
+                    "paths": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "openapi",
+                    "info",
+                    "paths"
+                  ]
                 }
               }
             }
