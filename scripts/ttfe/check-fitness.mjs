@@ -135,6 +135,60 @@ for (const file of OWNED) {
   });
 }
 
+// ── 5. no `npx`, and the two tsx resolvers agree ────────────────────────────
+//
+// PF-608. The drill spawns four child processes and every one of them used to be
+// `npx tsx <script>`. On a clean `pnpm install --frozen-lockfile` checkout that
+// resolves to nothing — `tsx` is a devDependency of `api`, so pnpm links it into
+// `api/node_modules/.bin` and not into the root — and the harness died 127 before
+// printing its ready line on every CI run the drill has ever had. Worse is the
+// version that "works": given a reachable registry, `npx` DOWNLOADS an unpinned
+// tsx and the graded drill then measures a toolchain the lockfile does not name.
+//
+// The resolver is deliberately duplicated — `scripts/ttfe/harness.ts` may not
+// import from `integrations/` and vice versa (p.11, PF-588) — so the two copies
+// are held in step here rather than by hoping.
+for (const file of OWNED) {
+  if (file === 'scripts/ttfe/check-fitness.mjs') continue; // this file names it to forbid it
+  const source = read(file);
+  if (source === null) continue;
+  source.split('\n').forEach((line, index) => {
+    if (line.trimStart().startsWith('*') || line.trimStart().startsWith('//')) return;
+    if (/['"]npx['"]/.test(line)) {
+      problems.push(
+        `${file}:${index + 1} — spawns \`npx\`. On a clean checkout it resolves nothing and the ` +
+          'harness exits 127 before its ready line; with a registry it silently downloads an ' +
+          'unpinned tsx and the graded drill measures a toolchain the lockfile does not name. ' +
+          'Use resolveTsx() (PF-608).',
+      );
+    }
+  });
+}
+
+const RESOLVER_COPIES = ['integrations/cli/tests/ttfe/tsx.ts', 'scripts/ttfe/harness.ts'];
+const candidateLists = RESOLVER_COPIES.map((file) => {
+  const source = read(file);
+  if (source === null) return null;
+  // The candidate list, as the `join(...)` calls that build it.
+  const matches = [...source.matchAll(/join\(\s*repoRoot|join\(\s*REPO_ROOT/gi)];
+  const paths = [...source.matchAll(/'node_modules',\s*'\.bin',\s*'tsx'|'api',\s*'node_modules',\s*'\.bin',\s*'tsx'/g)].map(
+    (match) => match[0],
+  );
+  return matches.length === 0 ? null : paths.join(' | ');
+});
+if (candidateLists.some((list) => list === null)) {
+  problems.push(
+    `the tsx resolver is missing from one of ${RESOLVER_COPIES.join(' / ')}. Both need it: ` +
+      'the harness is outside `integrations/` and may not import across that fence (PF-588).',
+  );
+} else if (new Set(candidateLists).size !== 1) {
+  problems.push(
+    'the two tsx resolvers look for different paths:\n' +
+      RESOLVER_COPIES.map((file, i) => `      ${file}: ${candidateLists[i]}`).join('\n') +
+      '\n    They are duplicated only because the boundary forbids sharing; they must stay identical.',
+  );
+}
+
 // The thresholds file must exist and parse — three consumers read it.
 try {
   const parsed = JSON.parse(readFileSync(join(REPO_ROOT, 'ttfe.thresholds.json'), 'utf8'));
