@@ -65,6 +65,25 @@ export const STABLE_SURFACE = [
   'ListDeliveriesInput',
   'DELIVERY_STATUSES',
   'ResourceClient',
+  // ⚑ DEVIATION FROM p.4, deliberate and recorded here because this file is the
+  // authority on the published surface.
+  //
+  // p.4: *"Cursors handled internally; consumer code never sees them."* That is
+  // true of `iterate()` and NOT true of the surface as a whole. `ListOptions`
+  // carries `cursor?: string` and `Page` (below) carries `next_cursor`, and both
+  // are re-exported from the barrel — so a consumer CAN hold a cursor.
+  //
+  // Kept, because `list()` is a different operation from `iterate()`: the
+  // developer portal renders one page at a time and the CLI's `--limit` must not
+  // drain a collection, and neither is expressible without a cursor in and a
+  // cursor out. Pre-Search 2.4 (p.17) asks whether to expose raw cursors,
+  // iterators, or both; the answer taken is both.
+  //
+  // The cost is bounded on purpose: `cursor` is on `ListOptions` and ABSENT from
+  // `IterateOptions`, so the ergonomic path cannot see one even by accident, and
+  // `typeProofs/paginationHidesCursor.ts` pins that with `@ts-expect-error`.
+  // Read p.4's sentence as satisfied for `iterate()` and knowingly overridden for
+  // `list()`. Stated the same way in docs/architecture.md → SDK Surface.
   'ListOptions',
   'IterateOptions',
 
