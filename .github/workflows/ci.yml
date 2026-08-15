@@ -161,10 +161,11 @@ jobs:
           # `minimum` comes from a known-good local run, per assert-tests-ran's
           # own guidance. Raise it when a package grows tests; never lower it to
           # make a red job green.
+          # Re-measured 2026-08-15 against a local run of each suite.
           - package: '@ship/integration-testkit'
-            minimum: 19
-          - package: '@ship/cli'
             minimum: 21
+          - package: '@ship/cli'
+            minimum: 58
           - package: '@ship/browser-demo'
             minimum: 5
           - package: '@ship/slack'
@@ -327,6 +328,146 @@ jobs:
       - run: pnpm db:migrate
       - name: PF-743 — internal UI create → bus → matcher → signer → deliverer → Slack
         run: scripts/assert-tests-ran.sh 5 -- pnpm slack:live
+
+  # L24 — `pnpm --filter @ship/cli test:server`, which had never run in CI.
+  #
+  # `integrations/README.md` claimed for nine commands that "every one of those
+  # runs in CI behind assert-tests-ran.sh". For this one and for `test:pkce`
+  # below that was false: `grep test:server .github/workflows/*.yml` returned
+  # nothing. The suite that proves p.6's five-line story against a real booted
+  # Ship — the demo the video (p.12) is of — was laptop-only.
+  #
+  # Its own job, not a matrix row, for the same reason as the drills: it needs a
+  # database and a server. The recipe is the one documented in
+  # `docs/l19-five-line-story.md` § Reproducing it, step for step.
+  cli-server-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_l19
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_l19
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+      SHIP_TEST_BASE_URL: http://localhost:3919
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # PF-556 is a claim about the ARTIFACT: the harness spawns
+      # `integrations/cli/dist/index.js` as a child process, so the CLI must be
+      # built, not just type-checked.
+      - run: pnpm build:shared && pnpm --filter @ship/sdk build && pnpm --filter @ship/cli build
+      - run: pnpm db:migrate
+      # `scripts/l24-browser-demo-setup.ts` is not involved here, but the device
+      # consent subprocess signs in as the seeded human, so the seed is required.
+      - run: pnpm db:seed
+      - name: boot Ship on :3919
+        # SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS is PF-575's named, default-off
+        # opt-in and `ship webhooks tail --listen` cannot subscribe without it.
+        # It must never be set on a deployed instance; a job of its own is where
+        # that stays visible.
+        run: |
+          DATABASE_URL="$DATABASE_URL" \
+          WEBHOOK_SECRET_KEY="$WEBHOOK_SECRET_KEY" \
+          PORT=3919 \
+          APP_BASE_URL=http://localhost:3919 \
+          PUBLIC_BASE_URL=http://localhost:3919 \
+          NODE_ENV=development \
+          E2E_TEST=1 \
+          SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS=true \
+            pnpm --filter @ship/api exec tsx src/index.ts > /tmp/ship-l19.log 2>&1 &
+          # Poll /health until it answers. `|| true` because `shell: bash` runs
+          # with `set -e` and a failing probe is the NORMAL state of this loop —
+          # without it the first refused connection kills the step.
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:3919/health > /dev/null 2>&1; then
+              echo "Ship is up on :3919"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Ship did not answer /health on :3919 within 120 s" >&2
+          cat /tmp/ship-l19.log >&2
+          exit 1
+      - name: PF-556..580 — the real `ship` binary against a real booted Ship
+        run: scripts/assert-tests-ran.sh 19 -- pnpm --filter @ship/cli test:server
+      - name: server log
+        if: always()
+        run: cat /tmp/ship-l19.log
+
+  # L24 — `pnpm --filter @ship/browser-demo test:pkce`, likewise never in CI.
+  #
+  # This is the ONLY automated proof that Authorization Code + PKCE completes in
+  # a real browser. PRD p.5 Testing Scenario 2 and MVP-2 both rest on it, and it
+  # was running nowhere.
+  #
+  # Nearly all of the setup lives in the package's own `playwright.config.ts`: it
+  # boots Ship from its real entry point and `vite preview`s the built demo as a
+  # `webServer` pair, and registers the public OAuth app in `globalSetup`. What
+  # this job owes it is a database, a seed, and a browser.
+  browser-demo-pkce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ship
+          POSTGRES_PASSWORD: ship_dev_password
+          POSTGRES_DB: ship_l24
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s
+          --health-timeout 5s --health-retries 5
+    env:
+      DATABASE_URL: postgresql://ship:ship_dev_password@localhost:5432/ship_l24
+      WEBHOOK_SECRET_KEY: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+      AGENT_CLIENT_SECRET: ci_agent_secret_0123456789abcdef
+      GRADER_CLIENT_SECRET: ci_grader_secret_0123456789abcdef
+      DEMO_CLIENT_SECRET: ci_demo_secret_0123456789abcdef
+      DEMO_API_PORT: '3124'
+      DEMO_PORT: '4173'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build:shared && pnpm --filter @ship/sdk build
+      - run: pnpm db:migrate
+      # `globalSetup` looks up dev@ship.local and fails, loudly and by name, if
+      # the seed has not run.
+      - run: pnpm db:seed
+      - run: pnpm --filter @ship/browser-demo exec playwright install --with-deps chromium
+      - name: PF-733..736 — Authorization Code + PKCE, in a real browser (p.5 TS-2, MVP-2)
+        run: scripts/assert-tests-ran.sh 7 -- pnpm --filter @ship/browser-demo test:pkce
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-demo-pkce-traces
+          path: integrations/browser-demo/test-results/
 
   type-check:
     runs-on: ubuntu-latest

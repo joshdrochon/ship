@@ -22,6 +22,32 @@ PRD = REPO / ".claude" / "prd"
 REQUIRED_SECTIONS = ["## Tickets", "## Slices", "## Notes for the audit agent"]
 DASH = "[–—-]"  # en dash, em dash, hyphen
 
+
+def heading_re(title: str) -> re.Pattern:
+    """A heading is a LINE, not a substring.
+
+    L24 — `text.split("## Slices")` matched inside a ticket CELL. `lane-26`'s
+    PF-783 quotes the words "`## Slices` section" in its acceptance criterion
+    (line 43); the real heading is at line 154. The naive split therefore handed
+    the slice-branch rule 42 761 characters of ticket prose instead of a 2 553-
+    character table, and that lane's rule reported CLEAN having scanned the wrong
+    region entirely. Backticks are no defence — the split never sees them.
+
+    Same class, same fix, applied to every place a section is located by name:
+    `REQUIRED_SECTIONS` used `section in text`, which a lane could satisfy by
+    merely QUOTING the heading in a cell while carrying no such section.
+    """
+    return re.compile(rf"(?m)^{re.escape(title)}\s*$")
+
+
+def section_body(text: str, title: str) -> str:
+    """The text under a line-start `## <title>` heading, up to the next `## `."""
+    parts = heading_re(title).split(text, maxsplit=1)
+    if len(parts) < 2:
+        return ""
+    # The terminator is anchored too, for the same reason as the opener.
+    return re.split(r"(?m)^## ", parts[1], maxsplit=1)[0]
+
 # PF-027 — the requirement inventories, transcribed from the PRD page files.
 #
 # Before this existed the coverage report checked MVP and TS and nothing else,
@@ -98,6 +124,26 @@ REQUIREMENTS: dict[str, list[tuple[str, int]]] = {
 def norm(s: str) -> str:
     """Lowercase, collapse whitespace, drop markdown/punctuation noise."""
     return re.sub(r"\s+", " ", s.lower().replace("`", "").replace("*", "")).strip()
+
+
+def claims(term: str, tag: str) -> bool:
+    """Does `tag` claim the requirement `term`? Both already normalised.
+
+    Substring, deliberately — the boards carry `PERF:webhook delivery P95 < 2 s`
+    against p.6's "Webhook delivery latency (P95, first attempt)", and an
+    inventory that treats `< 2 s` and `< 2s` as different requirements is worse
+    than none.
+
+    The exception is a term that is a single bare word. `INT:CLI` normalises to
+    `cli`, three characters, and plain substring makes a future `INT:client sdk`
+    claim p.8's CLI row. Word boundaries cost nothing here (the two affected
+    terms are `cli` and `slack`, both still matched by every real tag on the
+    board today) and they close the only way a label this short can be claimed by
+    accident.
+    """
+    if re.fullmatch(r"[a-z0-9]+", term):
+        return re.search(rf"\b{re.escape(term)}\b", tag) is not None
+    return term in tag
 
 
 def verify_inventory_pages() -> None:
@@ -240,7 +286,9 @@ def main() -> int:
         # mean either three permanent errors or three empty ceremonial sections.
         if lane != "L99":
             for section in REQUIRED_SECTIONS:
-                if section not in text:
+                # Line-anchored: quoting `## Slices` inside a cell is not having
+                # the section. See `heading_re`.
+                if not heading_re(section).search(text):
                     err(f"{f.name}: missing required section `{section}`")
 
             if lane not in blocks:
@@ -254,8 +302,20 @@ def main() -> int:
         # PF-027 — the other four families are free text after the prefix, so the
         # whole tag is kept and matched by substring later. Splitting on `,` here
         # would cut `CTR:Drift detection & destroy-redeploy` in half.
+        #
+        # L24 — the tag runs to the cell's closing pipe OR to the next family
+        # prefix, whichever comes first. It used to be `[^|]+`, which is greedy to
+        # the pipe: a cell carrying two tags yielded ONE match whose text had
+        # swallowed the second. Two rows in this repo do that, and both were
+        # mis-read — `INT:Idempotency-Key, CTR:Replay` became a single INT tag
+        # reading `idempotency-key, ctr:replay`. Coverage did not move, because
+        # both swallowed CTR labels are claimed elsewhere too, but the swallowed
+        # text sits inside another family's tag where a substring match can reach
+        # it and claim a requirement off the wrong row.
         for _, _, _, _, adv in rows:
-            for family, tag in re.findall(r"\b(CTR|INT|PERF|SUB):([^|]+)", adv):
+            for family, tag in re.findall(
+                r"\b(CTR|INT|PERF|SUB):((?:(?!\b(?:CTR|INT|PERF|SUB):)[^|])+)", adv
+            ):
                 tagged_by_family.setdefault(family, set()).add(norm(tag))
 
         for tid, prd_col, deps_col, ln, _adv in rows:
@@ -290,8 +350,12 @@ def main() -> int:
         # another lane's branch in prose is correct; a lane DECLARING another
         # lane's branch as one of its own slices is the mistake worth catching,
         # and only the Slices table can express that.
-        slices = text.split("## Slices", 1)
-        slice_table = slices[1].split("\n## ", 1)[0] if len(slices) > 1 else ""
+        #
+        # Located by LINE-START heading, not by substring. `text.split("## Slices")`
+        # landed on lane-26's PF-783 cell (line 43), which quotes the heading, and
+        # scanned 42 761 characters of ticket prose instead of the real 2 553-
+        # character table at line 154 — a rule reporting CLEAN over the wrong region.
+        slice_table = section_body(text, "## Slices")
         for slug in re.findall(r"`pf/(L\d{2})-[\w-]+`", slice_table):
             if slug != lane:
                 err(f"{f.name}: slice branch `pf/{slug}-…` does not match lane {lane}")
@@ -331,7 +395,7 @@ def main() -> int:
         unclaimed = []
         for label, page, *rest in inventory:
             terms = [norm(label)] + [norm(a) for a in (rest[0] if rest else [])]
-            if not any(term in tag for term in terms for tag in tags):
+            if not any(claims(term, tag) for term in terms for tag in tags):
                 unclaimed.append(f"{label} (p.{page})")
         print(f"coverage   : {family} {len(inventory) - len(unclaimed)}/{len(inventory)}")
         if unclaimed:
