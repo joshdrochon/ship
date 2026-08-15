@@ -308,8 +308,7 @@ shape was already in the same file two lines down — `baseline:measure` uses
 `integrations/README.md` claims *"Every one of those runs in CI behind
 `scripts/assert-tests-ran.sh <n>`"* for nine commands, and `.gitlab-ci.yml` ran **zero**.
 p.8's "at least five integrations" ships exactly five with no margin, so on the graded remote
-nothing verified any of them. Eight now run, each verified on a clean `--frozen-lockfile`
-install first: cli 58 · cli test:server 19 · slack 17 · slack:live 5 · browser-demo 5 ·
+nothing verified any of them. Eight now run, in six jobs, each verified on a clean `--frozen-lockfile` install first: cli 58 · cli test:server 19 · slack 17 · slack:live 5 · browser-demo 5 ·
 browser-demo test:pkce 7 · drill:refresh 21 · drill:idempotency 14.
 
 The ninth, `@ship/integration-testkit test`, is **red on this tree** and deliberately has no

@@ -520,11 +520,11 @@ ttfe-controls:
 #   @ship/cli test                  58  integration-units
 #   @ship/cli test:server           19  cli-server-suite
 #   @ship/slack test                17  integration-units
-#   slack:live                       5  integration-drills
+#   slack:live                       5  slack-live
 #   @ship/browser-demo test          5  integration-units
 #   @ship/browser-demo test:pkce     7  browser-demo-pkce
-#   drill:refresh                   21  integration-drills
-#   drill:idempotency               14  integration-drills
+#   drill:refresh                   21  drill-refresh
+#   drill:idempotency               14  drill-idempotency
 #   @ship/integration-testkit test   —  NOT RUN — see below
 #
 # `@ship/integration-testkit test` is the one held back, and NOT for an environmental
@@ -582,6 +582,17 @@ cli-server-suite:
     # Generated per job rather than written down: a literal here would be a committed
     # secret-shaped string for no benefit. `secretCipher.ts` wants base64 of 32 bytes.
     - export WEBHOOK_SECRET_KEY="$(head -c 32 /dev/urandom | base64)"
+    # PF-057's three platform apps — including `ship_app_grader_demo`, the app every
+    # device login below authenticates as — are seeded ONLY when these are set.
+    # Measured on jobs 67101 and 67104: without them `oauth_apps` is EMPTY after a
+    # migrate + seed, and every `ship login` answers
+    # `Requesting a device code failed (invalid_client)`. The suite then reports a
+    # perfectly explicable auth failure that is really a missing row. Throwaway values on
+    # a throwaway database, generated per job so nothing secret-shaped is committed; the
+    # TTFE harness does the same thing for the same reason.
+    - export AGENT_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - export GRADER_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - export DEMO_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
     - pnpm --filter @ship/api exec tsx src/db/migrate.ts
     - pnpm db:seed
     # `dist/index.js` is what the suite spawns — it drives the built binary, never a
@@ -684,6 +695,12 @@ integration-units:
   stage: verify
   needs: ['build']
   script:
+    # `build` publishes shared/agent/api/web/sdk dist and nothing under integrations/.
+    # `@ship/slack`'s listener test imports `@ship/integration-testkit` at runtime, so
+    # without this it dies at collection with "Failed to resolve entry for package
+    # @ship/integration-testkit" and reports zero tests — which assert-tests-ran correctly
+    # calls a SHORT RUN rather than a failure. Measured on job 67103.
+    - pnpm --filter @ship/integration-testkit build
     - scripts/assert-tests-ran.sh 58 -- pnpm --filter @ship/cli test
     - scripts/assert-tests-ran.sh 17 -- pnpm --filter @ship/slack test
     - scripts/assert-tests-ran.sh 5 -- pnpm --filter @ship/browser-demo test
@@ -691,35 +708,70 @@ integration-units:
 
 # The three commands that boot a Ship through `scripts/l24-drill-server.ts` — it
 # provisions the instance, exports SHIP_DRILL_BASE_URL / SHIP_DRILL_CLIENT_ID, runs the
-# package's suite, and tears the instance down. Grouped for the same reason as above; each
-# still boots and destroys its own server, sequentially.
+# package's suite, and tears the instance down.
 #
-# `slack:live` is a misleading name and it cost this job a round trip to establish: it
-# needs NO Slack credentials. "Live" means a live Ship — the suite drives a real webhook
-# delivery into the Slack integration's own handler over a socket. `tests/live/**` is
-# excluded from `@ship/slack test`'s default config, which is why it needs its own line
-# here rather than coming along for free.
+# THREE JOBS, NOT ONE, AND THAT COST A PIPELINE TO LEARN. Run back to back against a
+# single database (job 67104) the second drill fails with
+#
+#   [webhooks] could not resolve subscriptions for document.created … NOTHING was
+#   delivered … WebhookSecretCryptoError: Webhook signing secret failed to decrypt
+#
+# because each drill leaves its subscriptions behind and a signing secret is encrypted at
+# rest under WEBHOOK_SECRET_KEY. Seeding does not truncate them, so drill two inherits
+# drill one's rows. Ordering the lines "correctly" would hide that rather than fix it: it
+# would leave a suite that passes only because of what ran before it, which is the shape
+# of flake p.9 sets at zero. A job per drill means a `postgres:16` service container per
+# drill, which is a genuinely fresh database and needs no extra machinery.
+#
+# `slack:live` is a misleading name and it cost a round trip to establish: it needs NO
+# Slack credentials. "Live" means a live Ship — the suite drives a real webhook delivery
+# into the Slack integration's own handler over a socket. `tests/live/**` is excluded from
+# `@ship/slack test`'s default config, which is why it needs its own invocation.
 #
 # `drill:refresh` boots TWO instances (PF-727: the expired-token case comes from a second
-# process with SHIP_REFRESH_TOKEN_TTL_SECONDS=0, never from waiting), so it is the slowest
-# line here at ~17 s.
-integration-drills:
+# process with SHIP_REFRESH_TOKEN_TTL_SECONDS=0, never from waiting).
+.drill-job: &drill-job
   stage: verify
   needs: ['build']
   services:
     - name: postgres:16
       alias: postgres
-  script:
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.27.0 --activate
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
     - export WEBHOOK_SECRET_KEY="$(head -c 32 /dev/urandom | base64)"
+    # PF-057's three platform apps — including `ship_app_grader_demo`, the app every
+    # device login authenticates as — are seeded ONLY when these are set. Measured on
+    # jobs 67101 and 67104: without them `oauth_apps` is EMPTY after migrate + seed and
+    # every `ship login` answers `Requesting a device code failed (invalid_client)`, so
+    # the suite reports a plausible auth failure that is really a missing row.
+    # Throwaway values on a throwaway database, generated per job so nothing
+    # secret-shaped is committed. The TTFE harness does the same, for the same reason.
+    - export AGENT_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - export GRADER_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
+    - export DEMO_CLIENT_SECRET="$(head -c 16 /dev/urandom | base64)"
     - pnpm --filter @ship/api exec tsx src/db/migrate.ts
     # For `dev@ship.local`, whom `scripts/l19-device-approve.ts` signs in as.
     - pnpm db:seed
-    # Minimums are the whole suite in each case, counted from a run on a clean install:
-    # refresh 21, idempotency 14, slack live 5.
-    - scripts/assert-tests-ran.sh 21 -- pnpm drill:refresh
-    - scripts/assert-tests-ran.sh 14 -- pnpm drill:idempotency
-    - scripts/assert-tests-ran.sh 5 -- pnpm slack:live
   allow_failure: false
+
+# Minimums are the whole suite in each case, counted from a run on a clean install.
+drill-refresh:
+  <<: *drill-job
+  script:
+    - scripts/assert-tests-ran.sh 21 -- pnpm drill:refresh
+
+drill-idempotency:
+  <<: *drill-job
+  script:
+    - scripts/assert-tests-ran.sh 14 -- pnpm drill:idempotency
+
+slack-live:
+  <<: *drill-job
+  script:
+    - scripts/assert-tests-ran.sh 5 -- pnpm slack:live
 
 coverage:
   stage: verify
