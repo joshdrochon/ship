@@ -42,6 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { StageFailure, StageRecorder } from './ttfe/recorder.js';
 import { packAndInstallSdk, exec, type InstalledSdk } from './ttfe/install.js';
 import { READY_PREFIX } from './ttfe/shipInstance.js';
+import { resolveTsx } from './ttfe/tsx.js';
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const REPO_ROOT = dirname(dirname(PACKAGE_ROOT));
@@ -163,7 +164,12 @@ describe('PF-587 — the drill provisions what it tests, and destroys it', () =>
 function runHarness(extraEnv: NodeJS.ProcessEnv): Promise<{ code: number; all: string }> {
   return new Promise((resolve, reject) => {
     const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv };
-    const child = spawn('npx', ['tsx', join('scripts', 'ttfe', 'harness.ts')], {
+    // `resolveTsx`, not `npx tsx` (PF-608, see ttfe/tsx.ts). It matters most
+    // HERE: this control asserts a non-zero exit, and `npx` failing to find tsx
+    // is also a non-zero exit. The following assertions on the error's text are
+    // what kept that from reading as a pass, and resolving the binary removes
+    // the ambiguity rather than relying on them to catch it.
+    const child = spawn(resolveTsx(REPO_ROOT), [join('scripts', 'ttfe', 'harness.ts')], {
       cwd: REPO_ROOT,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
