@@ -26,15 +26,15 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 | 5 | **OpenAPI Spec** | L13 | live `…/api/v1/openapi.json` + [`docs/openapi.json`](docs/openapi.json) | ✅ **Ready**, one caveat — see §5 |
 | 6 | **AI Cost Analysis** | L26 | *no Week 6 document exists* | ⛔ **Not ready** — see §6 |
 | 7 | **Per-Epic Write-up** | L26 | `docs/per-epic-writeup.md` — **absent** | ⛔ **Not ready** |
-| 8 | **Three Discoveries** | L26 | `docs/three-discoveries.md` — **absent** | ⛔ **Not ready** |
+| 8 | **Three Discoveries** | L26 | [`docs/three-discoveries.md`](docs/three-discoveries.md) | ✅ **Ready** |
 | 9 | **Deployed Application** | L21 | `https://d258p92d3n1ebe.cloudfront.net/` | ✅ **Ready** — see §9 |
 | 10 | **Social Post** | L26 | not posted | ⚠ **Not ready** |
 
-**4 of 10 Ready, 1 Ready-with-caveat, 5 open.** Recounted 2026-08-14 evening, after the
+**5 of 10 Ready, 1 Ready-with-caveat, 4 open.** Recounted 2026-08-14 evening, after the
 branch push, the redeploy and the `/oauth/*` CloudFront fix. The five still open are rows
-2 (demo video), 4 (architecture length), 6 (cost analysis), 7 (per-epic write-up),
-8 (three discoveries) and 10 (social post) — of which 6, 7 and 8 are documents nobody has
-written yet and 2 and 10 are yours to record and post.
+2 (demo video), 4 (architecture length), 6 (cost analysis), 7 (per-epic write-up) and
+10 (social post) — of which 6 and 7 are documents nobody has written yet and 2 and 10 are
+yours to record and post.
 
 ---
 
