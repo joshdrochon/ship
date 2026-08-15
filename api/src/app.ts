@@ -46,6 +46,9 @@ import { initializeCAIA } from './services/caia.js';
 import { productionDeps, type AppDeps } from './deps.js';
 import { createPublicRouter } from './platform/api/v1/router.js';
 import { createOAuthRouter } from './platform/oauth/index.js';
+// F112 — the concrete leak-signal log. The composition root is the only place a
+// concrete is chosen (PF-014/PF-015); everything downstream sees `ISecretAuthLog`.
+import { PgSecretAuthLog } from './platform/apps/secret-auth-log.js';
 // Finding F29 — the /oauth throttle. See the mount below.
 import { oauthRateLimitMiddleware } from './platform/ratelimit/index.js';
 import { assertEveryRouteDeclaresList } from './platform/api/v1/routeMetadata.js';
@@ -55,6 +58,7 @@ import { documentsResources } from './platform/api/v1/documents/routes.js';
 import { issuesResources } from './platform/api/v1/issues/routes.js';
 import { sprintsResources } from './platform/api/v1/sprints/routes.js';
 import { meResources } from './platform/api/v1/me/routes.js';
+import { auditResources } from './platform/api/v1/audit/routes.js';
 import { webhooksResources } from './platform/api/v1/webhooks/routes.js';
 import { createWebhookPipeline, SignatureSigner } from './platform/index.js';
 import { mountAllResources } from './platform/api/v1/mountResources.js';
@@ -476,6 +480,11 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
       issuesResources({ db: deps.db, bus: deps.bus }),
       sprintsResources({ db: deps.db, bus: deps.bus }),
       meResources({ db: deps.db, appsRepo }),
+      // F113 — PRD p.4's "Queryable in the developer portal", on the public API
+      // rather than beside it. Takes `deps.db` because `listCalls` is a
+      // repository function over `public_api_calls` and there is no service
+      // layer between them to inject.
+      auditResources({ db: deps.db }),
       // L15 PF-428 — all six methods declare `webhooks:manage`. Takes the
       // repository, not `deps.db`: the repository is where the signing secret
       // is encrypted and decrypted, and handing the route layer a db handle
@@ -550,6 +559,13 @@ export function createApp(deps: AppDeps = productionDeps()): express.Express {
     publicBaseUrl: deps.publicBaseUrl,
     clock: deps.clock,
     ttl: deps.tokenTtl,
+    // F112 — PF-050's leak signal, wired into the composition root at last.
+    // `client_secret_auth_log` was empty on every deployed instance because
+    // nothing ever constructed this: the module, its thresholds and
+    // `evaluateAlerts` all shipped with passing unit tests over an in-memory
+    // double, so the dead wiring was invisible to the suite. p.17's "what audit
+    // signal would you alert on" now has an answer that is true in production.
+    secretAuthLog: new PgSecretAuthLog(deps.db),
     browser: {
       // The SAME instances used by the internal stack below. See the note at the
       // top of this function for why a second `session()` would be a bug.

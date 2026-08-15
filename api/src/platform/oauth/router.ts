@@ -36,8 +36,11 @@
 import { Router, urlencoded } from 'express';
 import type { Request } from 'express';
 import type { Clock } from '../clock.js';
+import { SystemClock } from '../clock.js';
 import type { IOAuthAppRepo } from '../apps/repo.js';
 import { verifyClientSecret } from '../apps/repo.js';
+import type { ISecretAuthLog } from '../apps/secret-auth-log.js';
+import { secretAuthOnAttempt } from '../apps/secret-auth-log.js';
 import type { OAuthApp } from '../apps/types.js';
 import type { Scope } from '../scopes/scopes.js';
 import { scopeRegistry } from '../scopes/scopes.js';
@@ -120,6 +123,26 @@ export interface OAuthRouterDeps {
   deviceThrottle?: UserCodeAttemptThrottle;
   /** Overridable scope registry, for PF-095's mutated-description test. */
   scopeRegistry?: ScopeRegistry<string>;
+  /**
+   * F112 — PF-050's `client_secret_auth_log`, the leaked-secret alert signal.
+   *
+   * Optional, and its absence means "record nothing" rather than "record to a
+   * stub". Two reasons it is not required:
+   *
+   *   1. The existing suite builds dozens of routers with `InMemoryOAuthAppRepo`
+   *      and no database. Making this required would force every one of them to
+   *      construct a log to exercise a grant that has nothing to do with
+   *      alerting.
+   *   2. Recording is observability, not authorization. A server that cannot
+   *      write the log must still be able to authenticate a client — the
+   *      opposite choice fails an OAuth flow closed on an alerting table.
+   *
+   * The production wiring is asserted separately: `secretAuthWiring.test.ts`
+   * drives `createApp()`'s real `/oauth/token` and reads rows back out, so a
+   * composition root that forgot this fails there rather than silently logging
+   * nothing — which is exactly how this went undetected before F112.
+   */
+  secretAuthLog?: ISecretAuthLog;
 }
 
 /** What a grant handler returns: a token response, or an RFC 6749 error. */
@@ -319,6 +342,10 @@ async function authenticateClient(
   repo: IOAuthAppRepo,
   req: Request,
   params: Record<string, string>,
+  // F112 — PF-050's recording hook, finally connected. Optional so that every
+  // test building a router without a log keeps its current behaviour exactly.
+  secretAuthLog?: ISecretAuthLog,
+  clock: Clock = new SystemClock(),
 ): Promise<OAuthApp | null> {
   let clientId = params.client_id;
   let clientSecret = params.client_secret;
@@ -343,8 +370,37 @@ async function authenticateClient(
     return app;
   }
 
-  const outcome = await verifyClientSecret(repo, clientId, clientSecret);
+  // F112 — every attempt lands in `client_secret_auth_log`, successes included:
+  // two of the three alert conditions are about SUCCESSFUL verifications from
+  // new source IPs and about attempts against deactivated apps.
+  //
+  // The callback is invoked synchronously inside `verifyClientSecret`, but the
+  // INSERT it starts is never awaited (`recordSecretAuthSafely`). That is what
+  // keeps PF-036's constant-time property: this function must take the same time
+  // for an unknown client as for a wrong secret, and awaiting a write whose row
+  // differs between those two cases would reintroduce the timing oracle the
+  // `ABSENT_APP_DIGEST` comparison exists to remove.
+  const outcome = await verifyClientSecret(
+    repo,
+    clientId,
+    clientSecret,
+    secretAuthOnAttempt(secretAuthLog, clock, clientId, sourceIpOf(req)),
+  );
   return outcome.ok ? outcome.app : null;
+}
+
+/**
+ * The caller's address, or `null` when there isn't a meaningful one.
+ *
+ * `null` rather than the string `'unknown'` that `limiter.ts` uses: alert
+ * condition (b) counts DISTINCT source IPs, and a literal `'unknown'` would be
+ * counted as a distinct address — so a handful of socket-less internal calls
+ * would trip the "one secret in use from more places than an integration should
+ * have" alarm on their own. Migration 040 makes the column nullable for exactly
+ * this, and `countDistinctSuccessIps` filters `IS NOT NULL`.
+ */
+function sourceIpOf(req: Request): string | null {
+  return req.ip ?? req.socket?.remoteAddress ?? null;
 }
 
 export function createOAuthRouter(deps: OAuthRouterDeps): Router {
@@ -380,6 +436,8 @@ export function createOAuthRouter(deps: OAuthRouterDeps): Router {
       clock: deps.clock,
       publicBaseUrl: deps.publicBaseUrl,
       ...(deps.scopeRegistry ? { registry: deps.scopeRegistry } : {}),
+      // F112 — the device flow verifies secrets too, so it records too.
+      ...(deps.secretAuthLog ? { secretAuthLog: deps.secretAuthLog } : {}),
     });
 
     // L05 PF-129/PF-130 — the human-facing half. Needs the same browser
@@ -456,7 +514,13 @@ export function createOAuthRouter(deps: OAuthRouterDeps): Router {
 
       // Client authentication happens BEFORE the grant runs, for every grant.
       // Doing it per-handler would make it something a new grant could forget.
-      const app = await authenticateClient(deps.appsRepo, req, params);
+      const app = await authenticateClient(
+        deps.appsRepo,
+        req,
+        params,
+        deps.secretAuthLog,
+        deps.clock,
+      );
       if (!app) {
         res.setHeader('WWW-Authenticate', 'Basic realm="oauth"');
         res

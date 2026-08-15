@@ -106,6 +106,140 @@ export async function evaluateAlerts(
   return fired;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// F112 — the RECORDING path. Until this existed the table was empty in
+// production and all three conditions above were unreachable.
+//
+// `ALERT_THRESHOLDS` and `evaluateAlerts` shipped with unit tests over an
+// in-memory double, so they passed while nothing ever called `record()`. p.17
+// asks what audit signal you would alert on; the answer was only true of the
+// test suite. The two functions below are what the `/oauth` client-secret
+// verification sites call.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The shape `verifyClientSecret`'s `onAttempt` hook hands back.
+ *
+ * Structural rather than an import of `VerifyFailureReason`/`OAuthApp` from
+ * `repo.ts`: this module is the one place that knows what may be written to the
+ * log, and depending on the credential store to describe an attempt would put
+ * `clientSecretHash` one property access away from the recording path. The only
+ * field read off the app is `secretPrefix`.
+ */
+export interface SecretAuthAttemptSource {
+  ok: boolean;
+  reason?: SecretAuthOutcome | undefined;
+  app: { secretPrefix: string } | null;
+}
+
+/**
+ * Builds the row from one verification attempt.
+ *
+ * **`secretPrefix` is the APP's stored prefix (PF-035), never a slice of what
+ * the caller presented.** The distinction is the whole security property of
+ * this table:
+ *
+ *   * `oauth_apps.secret_prefix` is a public identifier — it is already returned
+ *     by `GET /api/apps` and shown in the portal, and it names a secret without
+ *     being one.
+ *   * The PRESENTED value is attacker-controlled on exactly the rows that matter
+ *     most (`bad_secret`, `unknown_client`). Storing even eight characters of it
+ *     would put fragments of real credentials into an alerting table that is
+ *     read more widely than the credential store — and a probe sweeping a
+ *     stolen secret across client_ids would seed the log with the live prefix of
+ *     some OTHER app.
+ *
+ * So on a failed match the prefix recorded is the one belonging to the app that
+ * was addressed, and when no app matched it is `null` — migration 040's
+ * "there is no app whose secret it could have been a prefix of".
+ *
+ * Never the secret and never its hash: `hashClientSecret` is not imported here,
+ * and `oauth/secretAuthWiring.test.ts` greps this module's IMPORT lines to keep
+ * that true.
+ */
+export function secretAuthAttemptFrom(
+  clientId: string,
+  sourceIp: string | null,
+  occurredAt: Date,
+  source: SecretAuthAttemptSource,
+): SecretAuthAttempt {
+  return {
+    clientId,
+    secretPrefix: source.app ? source.app.secretPrefix : null,
+    outcome: source.ok ? 'success' : (source.reason ?? 'bad_secret'),
+    occurredAt,
+    sourceIp,
+  };
+}
+
+/**
+ * Records an attempt so that recording can never change the auth outcome.
+ *
+ * FIRE-AND-FORGET, the same contract as L12's `recordSafely` and for a sharper
+ * reason. `verifyClientSecret` does constant work on every path — the presented
+ * secret is hashed and compared even when no app was found — precisely so that
+ * "no such app" is not measurably faster than "wrong secret". **Awaiting an
+ * INSERT here would hand that oracle straight back**: a row against a known app
+ * carries a `secret_prefix` and one against an unknown client does not, and the
+ * two writes do not take the same time. So the promise is deliberately not
+ * awaited and its rejection is caught rather than propagated.
+ *
+ * Both failure shapes are handled for `recordSafely`'s reason: a synchronous
+ * throw here would surface as an `uncaughtException` inside a credential path,
+ * and an unhandled rejection is fatal on Node 15+. Losing an alert row is bad;
+ * failing an OAuth token request because the alert table is unavailable is
+ * worse, and it fails closed on the wrong thing.
+ */
+export function recordSecretAuthSafely(log: ISecretAuthLog, attempt: SecretAuthAttempt): void {
+  try {
+    const result = log.record(attempt);
+    if (result && typeof result.catch === 'function') {
+      result.catch((err: unknown) => logSecretAuthFailure(attempt, err));
+    }
+  } catch (err) {
+    logSecretAuthFailure(attempt, err);
+  }
+}
+
+/**
+ * The ONE seam both `/oauth` secret-verification sites use.
+ *
+ * `verifyClientSecret` takes an `onAttempt` callback; this builds it. Returning
+ * `undefined` when no log is wired is deliberate — `verifyClientSecret` then
+ * calls nothing at all, so a composition root without a log (every unit test
+ * that predates this) behaves exactly as it did before rather than recording
+ * into a stub.
+ *
+ * Time comes from the injected `Clock`, never `new Date()`: all three alert
+ * conditions are windowed, and a `FakeClock` is what lets their tests assert a
+ * 15-minute window without sleeping (PRD p.11).
+ */
+export function secretAuthOnAttempt(
+  log: ISecretAuthLog | undefined,
+  clock: { nowMs(): number },
+  clientId: string,
+  sourceIp: string | null,
+): ((source: SecretAuthAttemptSource) => void) | undefined {
+  if (!log) return undefined;
+  return (source: SecretAuthAttemptSource): void => {
+    recordSecretAuthSafely(
+      log,
+      secretAuthAttemptFrom(clientId, sourceIp, new Date(clock.nowMs()), source),
+    );
+  };
+}
+
+function logSecretAuthFailure(attempt: SecretAuthAttempt, err: unknown): void {
+  // `client_id` and `outcome` only. The prefix is not logged even though it is
+  // not a secret: stdout goes somewhere with a different retention policy than
+  // the table, and there is no question this line answers that needs it.
+  console.error(
+    `[oauth] client-secret auth log failed (client_id=${attempt.clientId}, ` +
+      `outcome=${attempt.outcome}):`,
+    err,
+  );
+}
+
 /** Postgres-backed log. Constructed in the composition root only. */
 export class PgSecretAuthLog implements ISecretAuthLog {
   constructor(private db: QueryRunner) {}

@@ -62,6 +62,9 @@ describe('PF-265 · documents is the only resource mounted', () => {
 
     expect(routes).toEqual([
       'DELETE /api/v1/webhooks/:id',
+      // ADDED BY F113 — PRD p.4's audit trail, on the public API so the portal
+      // can read it the same way any other client would (p.10).
+      'GET /api/v1/audit',
       'GET /api/v1/documents',
       'GET /api/v1/documents/:id',
       'GET /api/v1/issues',

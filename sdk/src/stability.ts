@@ -64,6 +64,15 @@ export const STABLE_SURFACE = [
   'DeliveryStatus',
   'ListDeliveriesInput',
   'DELIVERY_STATUSES',
+  // F113 — p.4's "Public Audit Trail" row, which names the trail and requires it
+  // queryable. That is the membership rule above satisfied directly: the PRD
+  // asks for this by name, so it is stable rather than pre-1.0. `AuditClient` is
+  // standalone (no `get()`) because there is no `GET /audit/{id}` operation.
+  'AuditClient',
+  'AuditCall',
+  'ListAuditCallsInput',
+  'IterateAuditCallsInput',
+  'AUDIT_CALL_FIELDS',
   'ResourceClient',
   // ⚑ DEVIATION FROM p.4, deliberate and recorded here because this file is the
   // authority on the published surface.

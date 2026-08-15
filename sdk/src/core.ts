@@ -169,6 +169,14 @@ export type {
   ListDeliveriesInput,
 } from './resources/webhookDeliveries.js';
 
+// F113 — PRD p.4's public audit trail.
+export { AuditClient, AUDIT_CALL_FIELDS } from './resources/audit.js';
+export type {
+  AuditCall,
+  ListAuditCallsInput,
+  IterateAuditCallsInput,
+} from './resources/audit.js';
+
 // ── spec parity binding (PF-528 – PF-532) ───────────────────────────────────
 export {
   OPERATION_BINDINGS,
