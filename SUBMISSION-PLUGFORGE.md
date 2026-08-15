@@ -198,7 +198,7 @@ concrete values checked 2026-08-15; each row names the file and line a reader ca
 | 2 | Secret entropy | 32 bytes from `crypto.randomBytes` (`appendix:785`) | `CLIENT_SECRET_ENTROPY_BYTES = 32` | `platform/apps/secrets.ts:73` | ✅ |
 | 3 | Retry ladder | `1s · 4s · 16s · 1m · 5m · 30m` (`architecture.md:105`) | `RETRY_SCHEDULE_SECONDS = [1, 4, 16, 60, 300, 1800]` | `platform/webhooks/retry.ts:62` | ✅ |
 | 4 | Jitter | "with jitter" | ±10 %, bounded so it cannot reorder the ladder | `webhooks/retry.ts:77` | ✅ |
-| 5 | Signed string | `t + "." + rawBody` (`architecture.md:101`) | `Buffer.concat([Buffer.from(`${t}.`), rawBody])` | `webhooks/signer.ts:91-93` | ✅ |
+| 5 | Signed string | `t + "." + rawBody` (`architecture.md:101`) | ``Buffer.concat([Buffer.from(`${t}.`), rawBody])`` | `webhooks/signer.ts:91-93` | ✅ |
 | 6 | Header format | `Ship-Signature: t=<unix>,v1=<hex>` | `SIGNATURE_HEADER = 'Ship-Signature'`; `/^t=\d+,v1=[0-9a-f]{64}$/` | `webhooks/signer.ts:67`, `:88` | ✅ |
 | 7 | Signature tolerance | 300 s (`architecture.md:104`) | `DEFAULT_TOLERANCE_SECONDS = 300` on **both** sides of the wire | `webhooks/signer.ts:79` · `sdk/src/webhooks.ts:50` | ✅ |
 | 8 | Error-union members | five: `auth · rate_limit · not_found · validation · server` | same five, same order | `sdk/src/errors.ts:45-51` | ✅ |
