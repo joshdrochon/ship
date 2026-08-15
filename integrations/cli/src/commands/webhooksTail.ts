@@ -351,6 +351,20 @@ async function runPoll(
         if (delivered >= max) break;
       }
 
+      if (first) {
+        // The end of the priming pass, announced.
+        //
+        // Two readers need it. A human, because a tail that prints nothing for
+        // two seconds is indistinguishable from a tail that is broken — and
+        // `--poll` against a busy instance skips history silently, which is
+        // surprising unless it says so. And PF-576's test, which cannot publish
+        // an event until it knows the priming pass is over: an event published
+        // into that window lands in "history" and is skipped, so without this
+        // line the test would be a race with a two-second period.
+        context.sink.err(
+          `ship: ${seen.size} delivery(ies) already logged and skipped — tailing from now on.`,
+        );
+      }
       first = false;
       if (stopped || delivered >= max) break;
       // F121 — the stop signal RACES the sleep. `realClock.sleep` holds the

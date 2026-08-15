@@ -34,6 +34,17 @@ const RULE_OK = '─'.repeat(78);
 /** The rule under and over a block that failed verification. Deliberately different. */
 const RULE_BAD = '═'.repeat(78);
 
+/**
+ * The rule for a delivery whose signature could not be CHECKED — `--poll`.
+ *
+ * A third shape, and not `RULE_BAD`, because "we did not check this" and "this
+ * failed the check" are different facts and a greyscale screenshot has to carry
+ * the difference. Reusing the failure rule would make a routine log tail look
+ * like a terminal full of forgeries; reusing the verified rule would imply a
+ * check that never happened, which PF-576 forbids in as many words.
+ */
+const RULE_UNVERIFIABLE = '┈'.repeat(78);
+
 /** Label column width. Every field name below fits. */
 const LABEL_WIDTH = 17;
 
@@ -196,7 +207,8 @@ function subjectOf(data: unknown): string | null {
 export function renderDeliveryBlock(input: DeliveryBlockInput): string[] {
   const { event, verification } = input;
   const ok = verification.verified;
-  const rule = ok ? RULE_OK : RULE_BAD;
+  const rule =
+    input.unverifiable === true ? RULE_UNVERIFIABLE : ok ? RULE_OK : RULE_BAD;
 
   const lines: string[] = [rule];
   lines.push(field('event', event.type));
