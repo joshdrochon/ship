@@ -40,6 +40,7 @@ import { getPortalClient, invalidatePortalClient } from '@/lib/portalClient';
 import { DeliveryDetailPanel } from '@/components/portal/DeliveryDetailPanel';
 import { AppRecordPanel } from '@/components/portal/AppRecordPanel';
 import { SubscriptionsPanel } from '@/components/portal/SubscriptionsPanel';
+import { AuditPanel } from '@/components/portal/AuditPanel';
 
 /** The status pill's colour is information, not decoration. */
 function statusClass(status: DeliveryStatus): string {
@@ -189,6 +190,14 @@ export function PortalPage() {
     get in the way.
   */
   const isSubscriptionsView = searchParams.get('view') === 'subscriptions';
+  /*
+    F113 — the audit trail is a third PEER view, added the same way subscriptions
+    was and for the same reason: PRD p.4 requires the trail "queryable in the
+    developer portal", and p.12's demo script (login → /portal → select app → DLQ
+    → Replay) must still cost exactly the clicks it did. The delivery log stays
+    the default; this tab is asked for, never imposed.
+  */
+  const isAuditView = searchParams.get('view') === 'audit';
 
   const tabs = (
     <div className="flex items-center gap-1 border-b border-border px-4 pt-2" role="tablist">
@@ -196,9 +205,13 @@ export function PortalPage() {
         [
           ['deliveries', 'Delivery log'],
           ['subscriptions', 'Subscriptions'],
+          ['audit', 'Audit trail'],
         ] as const
       ).map(([value, label]) => {
-        const active = (value === 'subscriptions') === isSubscriptionsView;
+        // Which tab is lit is derived from the URL, so a deep link and a click
+        // cannot disagree about it.
+        const current = isAuditView ? 'audit' : isSubscriptionsView ? 'subscriptions' : 'deliveries';
+        const active = value === current;
         return (
           <button
             key={value}
@@ -206,7 +219,7 @@ export function PortalPage() {
             role="tab"
             aria-selected={active}
             data-testid={`portal-tab-${value}`}
-            onClick={() => setParam('view', value === 'subscriptions' ? 'subscriptions' : null)}
+            onClick={() => setParam('view', value === 'deliveries' ? null : value)}
             className={cn(
               '-mb-px rounded-t border border-b-0 px-3 py-1 text-xs transition-colors',
               active
@@ -220,6 +233,42 @@ export function PortalPage() {
       })}
     </div>
   );
+
+  if (isAuditView) {
+    // F113 — PRD p.4's audit trail. Same four-panel frame as the other two
+    // views: the app record on top, the tab strip, the panel, and panel 4 kept
+    // populated (PF-654) so the layout does not collapse to three.
+    const statusFilter = Number.parseInt(searchParams.get('status') ?? '', 10);
+    const routeFilter = searchParams.get('route');
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {app && (
+          <AppRecordPanel
+            app={app}
+            scopeRegistry={scopes}
+            rotationPolicy={rotationPolicy}
+            onRotated={reloadApp}
+          />
+        )}
+        {tabs}
+        <AuditPanel
+          appId={appId}
+          filters={{
+            ...(Number.isFinite(statusFilter) ? { status: statusFilter } : {}),
+            ...(routeFilter ? { route: routeFilter } : {}),
+          }}
+          onFilterChange={(key, value) => setParam(key, value)}
+        />
+        <DeliveryDetailPanel
+          delivery={null}
+          onSelectDelivery={() => {}}
+          onReplay={() => {}}
+          replaying={false}
+          replayError={null}
+        />
+      </div>
+    );
+  }
 
   if (isSubscriptionsView) {
     return (

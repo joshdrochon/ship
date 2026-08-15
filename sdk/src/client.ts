@@ -24,6 +24,7 @@ import type { RateLimitStatus } from './rateLimit.js';
 import { realClock, type SdkClock } from './retry.js';
 import { ShipTransport, type Transport } from './transport.js';
 import { DocumentsClient } from './resources/documents.js';
+import { AuditClient } from './resources/audit.js';
 import { IssuesClient } from './resources/issues.js';
 import { SprintsClient } from './resources/sprints.js';
 import { WebhooksClient } from './resources/webhookSubscriptions.js';
@@ -168,6 +169,15 @@ export class ShipClient {
   readonly issues!: IssuesClient;
   readonly sprints!: SprintsClient;
   readonly webhooks!: WebhooksClient;
+  /**
+   * F113 — PRD p.4's public audit trail. List-only: there is no `GET
+   * /audit/{id}` operation, so `AuditClient` is standalone rather than a
+   * `ResourceClient` subclass that would inherit a `get()` the spec has nothing
+   * behind. Deliberately NOT in `RESOURCE_NAMES`, which p.12 cites as the four
+   * named domain resources; the audit trail is metadata ABOUT calls to those
+   * resources, not a fifth one.
+   */
+  readonly audit!: AuditClient;
 
   /** Where the base URL came from — `'option' | 'env' | 'default'`. Useful in a support log. */
   readonly baseUrlSource: BaseUrlSource;
@@ -208,6 +218,7 @@ export class ShipClient {
     defineReadonly(this, 'issues', new IssuesClient(this.transport));
     defineReadonly(this, 'sprints', new SprintsClient(this.transport));
     defineReadonly(this, 'webhooks', new WebhooksClient(this.transport));
+    defineReadonly(this, 'audit', new AuditClient(this.transport));
   }
 
   /**
