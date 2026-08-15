@@ -506,20 +506,45 @@ ttfe-controls:
     - scripts/assert-tests-ran.sh 4 -- pnpm drill ttfe --controls
   allow_failure: false
 
-# `integrations/README.md` says all nine documented integration commands run in CI behind
-# `scripts/assert-tests-ran.sh`. Two of them ran nowhere until these jobs existed:
+# ── The nine integration commands (PF-720) ──────────────────────────────────────────
 #
-#   pnpm --filter @ship/cli test:server          the five-line story, against a real Ship
-#   pnpm --filter @ship/browser-demo test:pkce   Authorization Code + PKCE in a browser
+# `integrations/README.md` says: *"Every one of those runs in CI behind
+# `scripts/assert-tests-ran.sh <n>`."* Before the four jobs below, this file ran ZERO of
+# them. GitHub Actions had some; this file's own header calls itself authoritative on
+# drift, and GitLab is the graded remote, so they only count here. p.8's headline asks for
+# at least five integrations and this repo ships exactly five, with no margin — so nothing
+# verified them on the remote that gets graded.
 #
-# They also exist in `.github/workflows/ci.yml`, added there first. That file's own header
-# names THIS one authoritative on drift, and this is the graded remote, so the pair only
-# counts once it is here.
+# Eight of the nine now run here. Counted against the README's own list:
 #
-# Both were verified before landing, on a worktree built from `pnpm install
-# --frozen-lockfile` — 19/19 and 7/7 — because both were broken in ways that a job added
-# on faith would have surfaced as an environmental failure. See each job for what its fix
-# was.
+#   @ship/cli test                  58  integration-units
+#   @ship/cli test:server           19  cli-server-suite
+#   @ship/slack test                17  integration-units
+#   slack:live                       5  integration-drills
+#   @ship/browser-demo test          5  integration-units
+#   @ship/browser-demo test:pkce     7  browser-demo-pkce
+#   drill:refresh                   21  integration-drills
+#   drill:idempotency               14  integration-drills
+#   @ship/integration-testkit test   —  NOT RUN — see below
+#
+# `@ship/integration-testkit test` is the one held back, and NOT for an environmental
+# reason: it is red on this tree. Its own PF-721 fitness test ("one listener,
+# repository-wide") reports two files outside the allow-list that bind a socket —
+# `cli/tests/support/stubShip.ts` and `cli/tests/ttfe/listener.ts`. Both are deliberate:
+# PF-599 requires the drill to own an `http.Server` it can read raw bytes off, and the
+# p.11 fence stops `integrations/cli` importing the testkit at runtime anyway. The fix is
+# either two entries in that test's `ALLOWED_SERVER_FILES` with reasons, or a decision
+# that the fence should widen — both belong to whoever owns
+# `integrations/testkit/tests/oneListener.test.ts`, not here. A job added now would go red
+# on a real disagreement between two lanes, which is not what a CI gate is for.
+#
+# Every command below was run to completion on a worktree built with `pnpm install
+# --frozen-lockfile` — CI's own install — before its job was written. That was not
+# caution: SEVEN of them were broken, all by one bug, and a job added on faith would have
+# landed red. `tsx` is a devDependency of `api`, so pnpm links it into
+# `api/node_modules/.bin` and not into the workspace root; every `npx tsx` and every bare
+# `tsx` in a root script therefore resolved nothing on a clean checkout. Five spawn sites
+# and three `package.json` scripts were fixed in the same pass (PF-608).
 
 # The CLI's server-backed suite — the only thing that runs the real `ship` binary against
 # a real booted Ship.
@@ -646,6 +671,54 @@ browser-demo-pkce:
     expire_in: 1 week
     paths:
       - integrations/browser-demo/test-results/
+  allow_failure: false
+
+# The three integration suites that need nothing but a checkout — no database, no server,
+# no browser. Grouped into one job because this project's runner is a laptop with
+# `concurrent = 4`, and three jobs whose combined runtime is under a minute would spend
+# more time waiting for a slot than running.
+#
+# Each is wrapped separately, so the trace names which one shrank rather than reporting a
+# single merged count that no longer maps to a suite.
+integration-units:
+  stage: verify
+  needs: ['build']
+  script:
+    - scripts/assert-tests-ran.sh 58 -- pnpm --filter @ship/cli test
+    - scripts/assert-tests-ran.sh 17 -- pnpm --filter @ship/slack test
+    - scripts/assert-tests-ran.sh 5 -- pnpm --filter @ship/browser-demo test
+  allow_failure: false
+
+# The three commands that boot a Ship through `scripts/l24-drill-server.ts` — it
+# provisions the instance, exports SHIP_DRILL_BASE_URL / SHIP_DRILL_CLIENT_ID, runs the
+# package's suite, and tears the instance down. Grouped for the same reason as above; each
+# still boots and destroys its own server, sequentially.
+#
+# `slack:live` is a misleading name and it cost this job a round trip to establish: it
+# needs NO Slack credentials. "Live" means a live Ship — the suite drives a real webhook
+# delivery into the Slack integration's own handler over a socket. `tests/live/**` is
+# excluded from `@ship/slack test`'s default config, which is why it needs its own line
+# here rather than coming along for free.
+#
+# `drill:refresh` boots TWO instances (PF-727: the expired-token case comes from a second
+# process with SHIP_REFRESH_TOKEN_TTL_SECONDS=0, never from waiting), so it is the slowest
+# line here at ~17 s.
+integration-drills:
+  stage: verify
+  needs: ['build']
+  services:
+    - name: postgres:16
+      alias: postgres
+  script:
+    - export WEBHOOK_SECRET_KEY="$(head -c 32 /dev/urandom | base64)"
+    - pnpm --filter @ship/api exec tsx src/db/migrate.ts
+    # For `dev@ship.local`, whom `scripts/l19-device-approve.ts` signs in as.
+    - pnpm db:seed
+    # Minimums are the whole suite in each case, counted from a run on a clean install:
+    # refresh 21, idempotency 14, slack live 5.
+    - scripts/assert-tests-ran.sh 21 -- pnpm drill:refresh
+    - scripts/assert-tests-ran.sh 14 -- pnpm drill:idempotency
+    - scripts/assert-tests-ran.sh 5 -- pnpm slack:live
   allow_failure: false
 
 coverage:

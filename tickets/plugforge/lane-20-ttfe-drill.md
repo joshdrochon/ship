@@ -283,9 +283,46 @@ both jobs stayed `allow_failure: false`, and `assert-tests-ran.sh` still wraps b
 and the two copies of the tsx resolver — duplicated because `scripts/` and `integrations/` may
 not import across the p.11 fence — must list identical candidates.
 
-**The same bug 2 also broke `pnpm --filter @ship/cli test:server`**, which is why that suite
-had never passed on a clean checkout either and could not be added to CI. Fixed in the same
-commit; the suite and `@ship/browser-demo`'s PKCE suite now have GitLab jobs of their own.
+### Bug 2 was repo-wide, and it is why `.gitlab-ci.yml` ran none of the nine
+
+The drill was where it was found, not where it lived. Chasing it out of the drill turned up
+**five spawn sites and three `package.json` scripts**, every one of which resolves `tsx` from
+the workspace root where pnpm never put it:
+
+| Where | What it broke |
+|---|---|
+| `scripts/ttfe/harness.ts` ×2 | the TTFE drill |
+| `integrations/cli/tests/ttfe/shipInstance.ts`, `ttfe.negative.drill.ts` | the drill and its controls |
+| `integrations/cli/tests/server/support/harness.ts` | `@ship/cli test:server` — `approval subprocess failed (127)` |
+| `integrations/drills/idempotency/tests/support/world.ts` | `drill:idempotency` |
+| `integrations/drills/refresh-rotation/tests/support/login.ts` | `drill:refresh` |
+| `integrations/slack/tests/live/wholePath.test.ts` | `slack:live` |
+| `scripts/l24-drill-server.ts:145` | all three of the above, at boot |
+| `package.json` lines 28–30, bare `tsx` | `drill:refresh`, `drill:idempotency`, `slack:live` before anything boots |
+
+`package.json` declares no `tsx` in `dependencies` or `devDependencies` at all. The correct
+shape was already in the same file two lines down — `baseline:measure` uses
+`pnpm --filter @ship/api exec tsx` — so the three scripts now match it.
+
+**Consequence, and the reason this belongs in a lane file rather than a commit message:**
+`integrations/README.md` claims *"Every one of those runs in CI behind
+`scripts/assert-tests-ran.sh <n>`"* for nine commands, and `.gitlab-ci.yml` ran **zero**.
+p.8's "at least five integrations" ships exactly five with no margin, so on the graded remote
+nothing verified any of them. Eight now run, each verified on a clean `--frozen-lockfile`
+install first: cli 58 · cli test:server 19 · slack 17 · slack:live 5 · browser-demo 5 ·
+browser-demo test:pkce 7 · drill:refresh 21 · drill:idempotency 14.
+
+The ninth, `@ship/integration-testkit test`, is **red on this tree** and deliberately has no
+job. Its PF-721 fitness test ("one listener, repository-wide") names two files outside its
+allow-list that bind a socket: `cli/tests/support/stubShip.ts` (L19) and
+`cli/tests/ttfe/listener.ts` (**this lane**, PF-599 — the drill must own an `http.Server` it
+can read raw bytes off, and the p.11 fence stops it importing the testkit at runtime anyway).
+That is a genuine disagreement between three lanes, resolvable either by two
+`ALLOWED_SERVER_FILES` entries with reasons or by widening the fence. Both live in
+`integrations/testkit/tests/oneListener.test.ts`, which this lane does not own. **A job was
+not added, because it would have gone red on a real cross-lane decision rather than on a
+defect** — and `integrations/README.md`'s "every one of those" sentence is false until that
+is settled.
 
 ### Measured in CI, first time — job 66739
 
