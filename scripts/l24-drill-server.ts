@@ -24,11 +24,42 @@
  *       [--expired-instance] [--allow-loopback-webhooks]
  */
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+
+/**
+ * PF-608 — the fourth copy of this, and the reason is the same every time.
+ *
+ * `tsx` is a devDependency of `api`, so pnpm links it into
+ * `api/node_modules/.bin` and NOT into the workspace root. `npx tsx` from the
+ * root resolves nothing on a clean `pnpm install --frozen-lockfile` checkout —
+ * which is what CI gets — and the boot dies 127 before the drill sees a server.
+ * Given a reachable registry it is worse: `npx` downloads an unpinned tsx and
+ * the drill measures a toolchain the lockfile does not name.
+ *
+ * The long form is in `integrations/cli/tests/ttfe/tsx.ts`. This file cannot
+ * import it: `integrations/` imports only `@ship/sdk` (p.11), and the fence runs
+ * both ways.
+ */
+function resolveTsx(): string {
+  const candidates = [
+    join(REPO_ROOT, 'node_modules', '.bin', 'tsx'),
+    join(REPO_ROOT, 'api', 'node_modules', '.bin', 'tsx'),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (found === undefined) {
+    throw new Error(
+      'l24-drill-server: no `tsx` binary found. Looked at:\n' +
+        candidates.map((candidate) => `  · ${candidate}`).join('\n') +
+        '\n\nRun `pnpm install --frozen-lockfile` from the repo root.',
+    );
+  }
+  return found;
+}
 
 /**
  * The seeded demo app (PF-057 / D12), reused rather than provisioned.
@@ -142,7 +173,7 @@ async function boot(
   const port = await freePort();
   const url = `http://127.0.0.1:${port}`;
 
-  const child = spawn('npx', ['tsx', 'api/src/index.ts'], {
+  const child = spawn(resolveTsx(), ['api/src/index.ts'], {
     cwd: REPO_ROOT,
     env: {
       ...process.env,

@@ -24,6 +24,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -46,6 +47,30 @@ const SIGNATURE_SHAPE = /^t=(\d+),v1=[0-9a-f]{64}$/;
 const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const REPO_ROOT = dirname(dirname(PACKAGE_ROOT));
 
+/**
+ * PF-608 — `tsx` is a devDependency of `api`, so pnpm links it into
+ * `api/node_modules/.bin` and NOT into the workspace root. `npx tsx` from the
+ * root resolves nothing on a clean `pnpm install --frozen-lockfile` checkout.
+ * Duplicated rather than imported: `integrations/` imports only `@ship/sdk`
+ * (p.11). Long form in `integrations/cli/tests/ttfe/tsx.ts`.
+ */
+function resolveTsx(): string {
+  const candidates = [
+    join(REPO_ROOT, 'node_modules', '.bin', 'tsx'),
+    join(REPO_ROOT, 'api', 'node_modules', '.bin', 'tsx'),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (found === undefined) {
+    throw new Error(
+      'no `tsx` binary found. Looked at:\n' +
+        candidates.map((candidate) => `  \u00b7 ${candidate}`).join('\n') +
+        '\n\nRun `pnpm install --frozen-lockfile` from the repo root.',
+    );
+  }
+  return found;
+}
+
+
 function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required by the Slack live suite. Run \`pnpm slack:live\`.`);
@@ -54,7 +79,7 @@ function required(name: string): string {
 
 function run(script: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('npx', ['tsx', join(REPO_ROOT, 'scripts', script), ...args], {
+    const child = spawn(resolveTsx(), [join(REPO_ROOT, 'scripts', script), ...args], {
       env: { ...process.env },
       cwd: REPO_ROOT,
     });

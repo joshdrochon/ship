@@ -7,6 +7,7 @@
  * L19's harness does it, so this package holds no credential of its own.
  */
 import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ShipClient, runDeviceLogin, type WebhookSubscriptionWithSecret } from '@ship/sdk';
@@ -15,6 +16,36 @@ import { createDedupeSubscriber, type DedupeSubscriber } from '../../src/subscri
 
 const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
 const REPO_ROOT = dirname(dirname(dirname(PACKAGE_ROOT)));
+
+/**
+ * PF-608 — `tsx` is a devDependency of `api`, so pnpm links it into
+ * `api/node_modules/.bin` and NOT into the workspace root. `npx tsx` from the
+ * root therefore resolves nothing on a clean `pnpm install --frozen-lockfile`
+ * checkout, and every test in this drill that logs in died with
+ * `approval subprocess exited 127: sh: tsx: command not found`. Given a
+ * reachable registry it is worse: `npx` downloads an unpinned tsx and the drill
+ * measures a toolchain the lockfile does not name.
+ *
+ * Duplicated rather than imported — `integrations/` imports only `@ship/sdk`
+ * (p.11) and the fence runs both ways. The long form lives in
+ * `integrations/cli/tests/ttfe/tsx.ts`.
+ */
+function resolveTsx(): string {
+  const candidates = [
+    join(REPO_ROOT, 'node_modules', '.bin', 'tsx'),
+    join(REPO_ROOT, 'api', 'node_modules', '.bin', 'tsx'),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (found === undefined) {
+    throw new Error(
+      'no `tsx` binary found. Looked at:\n' +
+        candidates.map((candidate) => `  \u00b7 ${candidate}`).join('\n') +
+        '\n\nRun `pnpm install --frozen-lockfile` from the repo root.',
+    );
+  }
+  return found;
+}
+
 
 function required(name: string, why: string): string {
   const value = process.env[name];
@@ -42,8 +73,8 @@ export const SCOPES = ['documents:read', 'documents:write', 'webhooks:manage'];
 function approve(userCode: string, url: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(
-      'npx',
-      ['tsx', join(REPO_ROOT, 'scripts', 'l19-device-approve.ts'), '--user-code', userCode, '--base-url', url, '--decision', 'allow'],
+      resolveTsx(),
+      [join(REPO_ROOT, 'scripts', 'l19-device-approve.ts'), '--user-code', userCode, '--base-url', url, '--decision', 'allow'],
       { env: { ...process.env }, cwd: REPO_ROOT },
     );
     let output = '';

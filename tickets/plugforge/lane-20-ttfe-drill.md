@@ -283,9 +283,75 @@ both jobs stayed `allow_failure: false`, and `assert-tests-ran.sh` still wraps b
 and the two copies of the tsx resolver — duplicated because `scripts/` and `integrations/` may
 not import across the p.11 fence — must list identical candidates.
 
-**The same bug 2 also broke `pnpm --filter @ship/cli test:server`**, which is why that suite
-had never passed on a clean checkout either and could not be added to CI. Fixed in the same
-commit; the suite and `@ship/browser-demo`'s PKCE suite now have GitLab jobs of their own.
+### Bug 2 was repo-wide, and it is why `.gitlab-ci.yml` ran none of the nine
+
+The drill was where it was found, not where it lived. Chasing it out of the drill turned up
+**five spawn sites and three `package.json` scripts**, every one of which resolves `tsx` from
+the workspace root where pnpm never put it:
+
+| Where | What it broke |
+|---|---|
+| `scripts/ttfe/harness.ts` ×2 | the TTFE drill |
+| `integrations/cli/tests/ttfe/shipInstance.ts`, `ttfe.negative.drill.ts` | the drill and its controls |
+| `integrations/cli/tests/server/support/harness.ts` | `@ship/cli test:server` — `approval subprocess failed (127)` |
+| `integrations/drills/idempotency/tests/support/world.ts` | `drill:idempotency` |
+| `integrations/drills/refresh-rotation/tests/support/login.ts` | `drill:refresh` |
+| `integrations/slack/tests/live/wholePath.test.ts` | `slack:live` |
+| `scripts/l24-drill-server.ts:145` | all three of the above, at boot |
+| `package.json` lines 28–30, bare `tsx` | `drill:refresh`, `drill:idempotency`, `slack:live` before anything boots |
+
+`package.json` declares no `tsx` in `dependencies` or `devDependencies` at all. The correct
+shape was already in the same file two lines down — `baseline:measure` uses
+`pnpm --filter @ship/api exec tsx` — so the three scripts now match it.
+
+**Consequence, and the reason this belongs in a lane file rather than a commit message:**
+`integrations/README.md` claims *"Every one of those runs in CI behind
+`scripts/assert-tests-ran.sh <n>`"* for nine commands, and `.gitlab-ci.yml` ran **zero**.
+p.8's "at least five integrations" ships exactly five with no margin, so on the graded remote
+nothing verified any of them. Slack — the PRD's only `should-ship` after the CLI — had no
+automated proof at all.
+
+**All nine now run, in six jobs**, every count re-measured on this tree after merging
+`pf/integration`:
+
+| Command | Tests | Job |
+|---|---|---|
+| `@ship/cli test` | 83 | `integration-units` |
+| `@ship/slack test` | 19 | `integration-units` |
+| `@ship/browser-demo test` | 5 | `integration-units` |
+| `@ship/integration-testkit test` | 21 | `integration-units` |
+| `@ship/cli test:server` | 19 | `cli-server-suite` |
+| `@ship/browser-demo test:pkce` | 7 | `browser-demo-pkce` |
+| `drill:refresh` | 21 | `drill-refresh` |
+| `drill:idempotency` | 14 | `drill-idempotency` |
+| `slack:live` | 10 | `slack-live` |
+
+Three of those counts had drifted while this branch was open — cli 58→83, slack 17→19,
+`slack:live` 5→10 — so the guards are floors measured here, not inherited. `slack:live` is a
+misleading name and it cost a round trip: it needs **no Slack credentials**; "live" means a
+live Ship.
+
+`@ship/integration-testkit test` was the last to land and was held back for one pipeline
+because it was **red**, not because of the environment: PF-721's "one listener,
+repository-wide" named `cli/tests/support/stubShip.ts` (L19) and `cli/tests/ttfe/listener.ts`
+(**this lane**, PF-599) as unlisted socket binders. L24 has since allow-listed both with
+reasons and it passes 21/21.
+
+**Three environment facts these jobs paid for, in pipelines rather than in review:**
+
+1. The `build` artifact carries `shared/agent/api/web/sdk` dist and **nothing under
+   `integrations/`**. `@ship/slack test` imports `@ship/integration-testkit` at runtime, so
+   without an explicit testkit build it collects zero tests and `assert-tests-ran.sh`
+   correctly calls a SHORT RUN (job 67103).
+2. `oauth_apps` is **empty** after migrate + seed unless `AGENT_/GRADER_/DEMO_CLIENT_SECRET`
+   are set — verified directly: 0 rows without, 3 with. Every device login then answers
+   `invalid_client`, so a missing row presents as a plausible auth failure (jobs 67101,
+   67104).
+3. The drills **cannot share a database**. Each leaves subscriptions behind and a signing
+   secret is encrypted at rest under `WEBHOOK_SECRET_KEY`, so the second drill dies with
+   `WebhookSecretCryptoError … NOTHING was delivered`. Ordering the lines would have gone
+   green while leaving a suite that passes because of what ran before it — the shape p.9 sets
+   at zero. One job per drill gets one `postgres:16` service per drill.
 
 ### Measured in CI, first time — job 66739
 
