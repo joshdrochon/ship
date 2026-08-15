@@ -162,10 +162,16 @@ async function main() {
     for (const [t, n] of Object.entries(counts)) console.log(`  ${String(t).padEnd(28)} ${n}`);
 
     if (opts.mode === 'deactivate') {
+      // `admin_action`, not `owner_deleted`: the owner is not deleted, an
+      // operator is tidying up. 039_oauth_apps.sql documents both tags and puts
+      // no CHECK on the value, so the wrong one would be accepted silently and
+      // would misreport why these rows died. The table's CHECK constraint does
+      // require `deactivated_at IS NOT NULL` whenever `active` is false, which
+      // is why both columns are set in one statement.
       const res = await client.query(
         `UPDATE oauth_apps
             SET active = false, deactivated_at = now(),
-                deactivation_reason = 'owner_deleted', updated_at = now()
+                deactivation_reason = 'admin_action', updated_at = now()
           WHERE id = ANY($1::uuid[]) AND active
           RETURNING id`,
         [ids],
