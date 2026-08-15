@@ -15,6 +15,14 @@
  * only, so the move turned **57 tests across 13 files** red at once, none of
  * them describing a real defect.
  *
+ * Those numbers are the history, not the current state. `docs/architecture.md`
+ * has since grown well past 149 lines, because p.12 requires nine named sections
+ * with specific content and satisfying that contract costs more lines than the
+ * p.13 cap allows. Where the two collide, p.12's content contract wins and the
+ * overrun is stated rather than hidden. Do not re-trim the document to chase 149
+ * — that is what caused the incident this seam exists to absorb. `wc -l` is the
+ * authority on its length; no comment or submission table should carry a copy.
+ *
  * The latches were not wrong. Their target simply became two files, and this is
  * the seam that says so in one place instead of thirteen. A future move between
  * the two documents is now invisible to every test that only cares that the

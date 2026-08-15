@@ -19,10 +19,10 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 
 | # | Deliverable (verbatim, p.12–p.13) | Lane | Where it resolves | State |
 |---|---|---|---|:--|
-| 1 | **GitHub Repository** | L26 | **GitLab `labs.gauntletai.com/joshrochon/ship`** holds all 147 `pf/*` branches but is **not public** · `github.com/joshdrochon/ship` **is** public but holds **0** of them | ⚠ **Not ready** — see §1 |
+| 1 | **GitHub Repository** | L26 | `github.com/joshdrochon/ship` is **public** and now carries **165** `pf/*` branches; GitLab `origin` carries **161**. p.12's third clause — a PR description per slice — has **no artifact**: no per-slice PR or MR was ever opened | ⚠ **Not ready** — see §1 |
 | 2 | **Demo Video (3–5 min)** | L26 | not recorded; script is [`docs/l19-five-line-story.md`](docs/l19-five-line-story.md) | ⚠ **Not ready** |
 | 3 | **Pre-Search Document** | L25 | [`PRESEARCH-PLUGFORGE.md`](PRESEARCH-PLUGFORGE.md) + [`docs/presearch-conversation.md`](docs/presearch-conversation.md) | ✅ **Ready** |
-| 4 | **Architecture Document** | L26 | [`docs/architecture.md`](docs/architecture.md) — 149 lines, nine sections; depth moved to [`docs/architecture-appendix.md`](docs/architecture-appendix.md) | ✅ **Ready** — see §4 |
+| 4 | **Architecture Document** | L26 | [`docs/architecture.md`](docs/architecture.md) — all nine p.12 sections, each carrying the artifact its row asks for; over p.13's 1–2 page cap, knowingly (see §4). Reasoning in [`docs/architecture-appendix.md`](docs/architecture-appendix.md) | ✅ **Ready** — see §4 |
 | 5 | **OpenAPI Spec** | L13 | live `…/api/v1/openapi.json` + [`docs/openapi.json`](docs/openapi.json) | ✅ **Ready**, one caveat — see §5 |
 | 6 | **AI Cost Analysis** | L26 | [`docs/ai-cost-analysis-plugforge.md`](docs/ai-cost-analysis-plugforge.md) | ✅ **Ready** — see §6 |
 | 7 | **Per-Epic Write-up** | L26 | [`docs/per-epic-writeup.md`](docs/per-epic-writeup.md) — seven epics, `before → fix → after → proof`; Epic 7's audit rows are a live capture, Epic 6's CI proof is recorded **unmet** | ✅ **Ready** — see §7 |
@@ -37,13 +37,15 @@ and the repo re-measurement.
 - **Ready with a caveat (2):** row 5 — spec is live, set-equal and **schema-validated**
   (exit 0), but not byte-identical to the committed copy; row 9 — every surface reachable,
   but the grader `client_secret` is behind an `aws ssm` command a grader cannot run.
-- **Open (3):** row 1 — **regressed this pass**, and correctly: the public remote has none of
-  the 147 per-slice branches and the remote that has them is not public (§1); rows 2 and 10
-  are yours to record and post.
+- **Open (3):** row 1 — the public remote now carries the branches, so two of p.12's three
+  clauses hold; the third has no artifact at all (§1); rows 2 and 10 are yours to record
+  and post.
 
-Row 1 previously read Ready on the strength of *"reachable by anyone with a GauntletAI
-account."* p.12 says **Public**. A 302 to a sign-in page is not public, and the row is now
-counted the way a grader would count it.
+Row 1's history in one line: it read Ready on *"reachable by anyone with a GauntletAI
+account"* (p.12 says **Public**; a 302 to a sign-in page is not public), then Not-ready on
+*"the public remote has none of the branches"* — which is no longer true, the `pf/*`
+branches are on GitHub. It stays Not-ready on the clause that never had an artifact: no
+per-slice PR or MR exists on either remote.
 
 ---
 
@@ -73,56 +75,86 @@ above, not when someone decides which page looks more authoritative.
 ## MVP gate item 9 — regression budget (p.2, p.6)
 
 Full evidence, every number and exit code: [`docs/mvp-gate-item-9.md`](docs/mvp-gate-item-9.md).
+**The bundle and query figures below are read out of the newer generated
+[`docs/regression-report.json`](docs/regression-report.json) / `.md` (compared 2026-08-14
+21:50Z), not out of `mvp-gate-item-9.md`, whose bundle line still reports the 2026-08-13 run
+at −0.00%.** Both runs pass; only the newer one describes the tree being submitted. Routed
+to whoever owns `mvp-gate-item-9.md` — this lane does not.
 
 | Half | Result |
 |---|---|
-| Bundle size vs Part 1 baseline | **−0.00%** — within +10% ✅ |
-| Per-route query counts (six routes, reported per route, never aggregated) | **0.00%** on all six ✅ |
+| Bundle size vs Part 1 baseline | **+1.69%** — 747 644 B → 760 294 B, within +10% ✅ ([`docs/regression-report.md`](docs/regression-report.md), run of 2026-08-14) |
+| Per-route query counts (six routes, reported per route, never aggregated) | **0.00%** on all six ✅ — bit-identical, 0/3/4/5/5/7 both sides |
 | P95 latency | **within budget, largest regression +4.3%** against +10% — [`docs/regression-paired-runs.md`](docs/regression-paired-runs.md). Re-measured after review: the old baseline was not Part 1, and the harness was timing its own server binds |
 | Playwright regression suite passes | **881 passed, 0 failed, exit 0** on the integration tree at `c728c40`, 2026-08-14 ✅ — see §11 |
 
 ---
 
-## §1 · GitHub Repository — what is actually wrong
+## §1 · GitHub Repository — two clauses of three
 
 p.12 grades three things: *"Public; per-slice branches preserved; each PR description lists
 which acceptance criterion that slice advances and confirms the fitness test passed."*
 
 | Check | Re-measured 2026-08-15 | Verdict |
 |---|---|---|
-| Public | `github.com/joshdrochon/ship` → **200** logged-out · `labs.gauntletai.com/joshrochon/ship` → **302 → `/users/sign_in`** | ⚠ split |
-| Per-slice branches preserved | **147 local · 147 on GitLab `origin`** · **0 on GitHub** | ⚠ split |
-| PR bodies compliant | swept — 55 of 66 slices fully resolvable, 11 unresolved (PF-784) | ◐ |
+| Public | `github.com/joshdrochon/ship` → **200** logged-out · `labs.gauntletai.com/joshrochon/ship` → **302 → `/users/sign_in`** | ✅ on GitHub |
+| Per-slice branches preserved | **165 on GitHub** · **161 on GitLab `origin`** · **172 local** | ✅ on both remotes |
+| PR descriptions naming criterion + fitness test | **no per-slice PR or MR exists.** GitLab has 19 MRs, 3 of them `pf/integration → main`; GitHub has 9 PRs, all Week 5. Neither remote has a single MR or PR whose source is a `pf/L*` branch | ✗ |
 
-### The problem, stated plainly
+### Stated plainly
 
-**p.12's two words are satisfied by two different remotes, and by neither one alone.**
+**The first two clauses are satisfied, and on the public remote.** `git ls-remote --heads
+github 'refs/heads/pf/*'` returns **165**; the same command against `origin` returns 161.
+GitHub still carries Week 5 on `main` (`5455f4e`), untouched, so the Week 5 Render
+deployment is not replaced.
 
-- `origin` (GitLab, the graded remote) has **every one of the 147 `pf/*` branches** — set
-  difference between `git branch --list 'pf/*'` and `git ls-remote --heads origin 'pf/*'` is
-  empty in both directions. But a logged-out `curl` gets **302 to a sign-in page**. The 200
-  you see if you follow redirects *is* the sign-in page. It is not public.
-- `github.com/joshdrochon/ship` is genuinely public — **200**, no redirect. But
-  `git ls-remote --heads github 'pf/*'` returns **0**. That is not an auth failure: the same
-  command without the filter succeeds and returns 7 heads, none of them `pf/*`. GitHub still
-  carries Week 5 (`main` at `5455f4e`), left there deliberately so the Week 5 Render
-  deployment is not replaced.
+The two remotes are not identical and the difference is small and known:
 
-So a grader who can only see the public repo sees no per-slice branches, and the repo that
-preserves all 147 needs an account to open.
+| Direction | Count | Which |
+|---|---|---|
+| On GitHub, not on GitLab | 5 | `pf/L00-hook-probe`, `pf/L21-webhook-secret-key`, `pf/L22-pf673-criteria`, `pf/L24-tooling-defects`, `pf/integration-probe` |
+| On GitLab, not on GitHub | 1 | `pf/L17-default-base-url` |
 
-**This needs a decision and it is not a measurement.** Three options, none free:
+Four of the five GitHub-only branches are already merged into `pf/integration`
+(`git merge-base --is-ancestor` against `origin/pf/integration`); the exception is
+`pf/integration-probe`, a probe branch. No slice's work is missing from either remote —
+only the ref is.
+
+**The clause with no artifact.** p.12's third requirement is *"each PR description lists
+which acceptance criterion that slice advances and confirms the fitness test passed."*
+**Per-slice merge requests were not opened.** Work moved by merging the slice branch into
+`pf/integration` locally and pushing; the only MRs that exist are three
+`pf/integration → main` batches (`!17`, `!18`, `!19`) plus Week 5's. There is no way to
+read this as satisfied, and the honest statement is that the artifact p.12 names does not
+exist for any slice.
+
+What does exist is the same information one layer down, in the slice's own commit bodies —
+which is what [`docs/pr-compliance-sweep.md`](docs/pr-compliance-sweep.md) measured, and its
+own methodology says so: *"for a merge with parents `P1 P2`, the slice's commits are exactly
+`P1..P2`."* That is a commit-body sweep, not a PR-description sweep, and the row above is
+labelled accordingly.
+
+**The sweep is also stale.** It reported 55 of 66. Re-counted 2026-08-15, `pf/integration`
+carries **88** slice merges, **23** of them landed after the sweep commit (`94f083e`) and
+were never swept. Of those 23, **20** name at least one `PF-` ticket somewhere in their
+commit bodies and **3** name none:
+`pf/L21-branch-policy-enforcement`, `pf/L26-e2e-runner-fixes`, `pf/L26-e2e-safe-runner`.
+Re-running the sweep over all 88 is the fix; nobody has.
+
+**This still needs a decision, and it is a smaller one than it was.** Options:
 
 | Option | Cost |
 |---|---|
-| Make the GitLab project public in its settings | Cheapest if the platform permits it; check whether the course requires sign-in |
-| `git push github 'refs/heads/pf/*:refs/heads/pf/*'` | ~147 branches onto the public remote; makes both halves true on one remote. Does **not** replace `main`, so Week 5 stays intact |
-| Tell the grader which remote holds what | Free, and concedes the row reads as half-satisfied |
+| Tell the grader plainly that per-slice PRs were not opened, and point at the commit bodies | Free, honest, concedes one of three clauses. **Lean: this one** — the alternatives fabricate a paper trail after the fact |
+| Open ~88 retroactive PRs on GitHub | Days of work, and every description would be written after the merge it describes |
+| Push the one GitLab-only branch to GitHub and the five GitHub-only ones to GitLab | Minutes; makes the two remotes set-equal. Does not touch the third clause |
 
 **Superseded numbers, kept so the drift is visible.** This row has read *119 local / 11
-GitLab / 5 GitHub*, then *127 / 127*, and now *147 / 147 / 0*. The first was taken before
-the branches were pushed; the second before the last twenty slices landed. Only the
-2026-08-15 figures are current.
+GitLab / 5 GitHub*, then *127 / 127*, then *147 / 147 / 0*. The last of those is the one to
+distrust hardest: it was taken before the `pf/*` branches were pushed to GitHub, and it is
+what made this row read worse than it was. Only the 2026-08-15 figures are current, and
+they move — branches are still being pushed, so re-run the three `ls-remote` counts rather
+than quoting these.
 
 > ⚠ **Still do not run `repo-cleanup`, `git branch -d`, or enable auto-delete-head-branch.**
 > The branches are preserved *because* nobody has deleted them, not because anything would
@@ -130,55 +162,71 @@ the branches were pushed; the second before the last twenty slices landed. Only 
 
 ### §1b · Branch ↔ slice mapping (PF-785) — measured, not bijective
 
-All counts from `origin`. **147** remote branches; **146** match `pf/LNN-<slug>`, the
-exception being `pf/integration`, the trunk. `LNN` spans L00–L26; **`L00` resolves to no
-lane file** and two branches use it (`pf/L00-guard-verification`, `pf/L00-protection-probe`).
+All counts from `origin`, re-measured 2026-08-15. **161** remote branches; **160** match
+`pf/LNN-<slug>`, the exception being `pf/integration`, the trunk. `LNN` spans L00–L26;
+**`L00` resolves to no lane file** and two branches use it (`pf/L00-guard-verification`,
+`pf/L00-protection-probe`).
 
 | Direction | Count |
 |---|---|
-| Slice rows declared across all lane files | 139 |
+| Slice rows declared across the 26 lane files | 143 |
 | Unique declared branch names | **135** |
-| Declared → has a branch on `origin` | **112** |
-| Declared → no branch anywhere | **23** |
-| `origin` branch → not a declared slice (orphan) | **35** |
+| Declared → has a branch on `origin` | **113** |
+| Declared → no branch anywhere | **22** |
+| `origin` branch → not a declared slice (orphan) | **47** |
 
-The 139→135 gap is `lane-05-oauth-device.md`, which has two tables under `## Slices` — a
-*Landed* table plus the original planning table — double-declaring S1–S4.
+The 143→135 gap is eight double-declared rows in two lane files:
+`lane-05-oauth-device.md` and `lane-24-integrations-extra.md` each carry a *Landed* table
+under `## Slices` alongside the original planning table, so four slices in each are counted
+twice.
 
-The 23-with-no-branch concentrate in two lanes (L20: 5 of 6; L22: 4 of 5) plus this lane's
-own four `pf/L26-*` planning names, which shipped under different branch names. Several of
-the 35 orphans are renames the lane file never caught up with — `pf/L24-browser-pkce` vs
-declared `pf/L24-browser-pkce-demo`, `pf/L16-ceilings` vs declared
-`pf/L16-scenarios-and-ceilings`. **Separate those from the genuine misses before anyone
-reads this as 58 problems**; a rename is a one-line lane-file edit, a missing branch is not.
+The 22-with-no-branch concentrate in four lanes — **L20: 6 of 6 declared, L19: 4 of 5,
+L26: 4 of 6, L22: 3 of 5** — the L26 four being this lane's own planning names, which
+shipped under different branch names. The orphan count grew from 35 to 47 purely because
+`origin` grew; the mismatch is not new work going undeclared so much as the lane files never
+being edited after a rename — `pf/L24-browser-pkce` vs declared `pf/L24-browser-pkce-demo`,
+`pf/L16-ceilings` vs declared `pf/L16-scenarios-and-ceilings`. **Separate the renames from
+the genuine misses before anyone reads this as 69 problems**; a rename is a one-line
+lane-file edit, a missing branch is not.
 
 ---
 
-## §4 · Architecture Document — cut to the cap, depth preserved
+## §4 · Architecture Document — the cap is knowingly overridden
 
-p.13 requires *"1–2 pages following the Section/Content table above."*
+p.13 requires *"1–2 pages following the Section/Content table above."* The table it points at
+is the nine-row Section/Content contract on **p.12** — Module Layout, SOLID Rationale,
+Composition Root, Public/Internal Boundary, OAuth Flows, Webhook Pipeline, SDK Surface,
+Agent-as-Citizen, Failure Modes.
 
-**859 lines → 149**, with all nine required headings present and correctly named. The cut was
-a move, not a deletion: the five sequence diagrams, the rejected alternatives, the decision
-records and the measured numbers are in
-[`docs/architecture-appendix.md`](docs/architecture-appendix.md), which the main document
-links from its first paragraph. Deleting that reasoning to satisfy a length cap would have
-been the wrong way to meet the cap.
+**The two requirements cannot both hold, and the content contract wins.** p.12 asks for a
+module tree with one sentence per module, one paragraph per SOLID principle with a file
+path, annotated composition-root pseudo-code *plus* a sibling test-wiring diagram, four
+sequence/flow diagrams, and one paragraph per failure mode. That does not fit in two pages.
+`docs/architecture.md` is **well over the cap — 445 lines when measured 2026-08-15**, and
+still growing as the last p.12 artifacts land, so re-run `wc -l` rather than quoting that
+figure. All nine headings are present and correctly named, each carrying the artifact its
+p.12 row asks for. The file states the override in its own opening paragraph rather than
+leaving a grader to notice.
+
+The reasoning underneath — rejected alternatives, decision records, measured numbers — is in
+[`docs/architecture-appendix.md`](docs/architecture-appendix.md), linked from the main
+document's first paragraph. Deleting that reasoning to buy length would have been the wrong
+way to meet the cap; so would deleting a p.12 artifact.
 
 Reconciliations resolved in the same pass:
 
 | Gap | Resolution |
 |---|---|
 | **G1** — "claims the agent's app is seeded by migration" | **Not a defect.** The doc said seeded by `db:migrate`, and deliberately *not* by a numbered migration. Verified: `api/src/db/migrate.ts:125` calls `seedPlatformApps`. Kept, now stated in one line. |
-| **G2** — `request_id` missing from the audit-field list | **Moot.** No audit-field list survives in the trimmed document; `request_id` is listed in the appendix's `audit/` module line. |
-| **G4** — the agent's grant type is never named | **Fixed.** Agent-as-Citizen now names Client Credentials, cites RFC 6749 §4.4, and states why Device Grant and Auth Code were rejected. |
+| **G2** — `request_id` missing from the audit-field list | **Fixed.** The list is in the Module Layout `audit/` line and reads *timestamp, app client_id, user_id, route, scope, status, latency, request_id*. An earlier version of this row said no such list survived the trim — that was wrong; it survived and it carries the field. |
+| **G4** — the agent's grant type is never named | **Fixed.** The OAuth Flows table and Agent-as-Citizen both name **Client Credentials, RFC 6749 §4.4**, and Agent-as-Citizen states why Device Grant and Auth Code were rejected. Verified against code: `api/src/platform/oauth/clientCredentialsGrant.ts` exports `CLIENT_CREDENTIALS_GRANT_TYPE = 'client_credentials'`, and `oauthSurface.test.ts` asserts the token endpoint's handler keys are exactly `['client_credentials', 'refresh_token']`. |
 
 **G3** is L21's and remains verification-only. Re-verified 2026-08-15: the env-group defect
 is gone (`grep -rn render_env_group terraform/` → zero hits; Render's env vars are still an
 inline `env_vars = merge(…)` at `terraform/render/main.tf:237`), and the Deployment Topology
-paragraph now describes the applied AWS stack. **One thing beside it did not come out:**
-`docs/architecture-appendix.md:871` still says *"PlugForge's own must-ship surface still adds
-no AWS resources."* Neither p.5 nor p.2 — the only PRD pages naming Terraform — contains that
+paragraph now describes the applied AWS stack. **One thing beside it did not come out:** the
+appendix's Deployment Topology section still says *"PlugForge's own must-ship surface still
+adds no AWS resources."* Neither p.5 nor p.2 — the only PRD pages naming Terraform — contains that
 claim, so it is ours; and `terraform/platform-apps.tf` declares six resources that exist only
 for PlugForge (`random_password` ×3 at `:41,:46,:51`; `aws_ssm_parameter` ×3 at
 `:56,:67,:78`). Lane-21's PF-647 said the claim *"is now false and comes out with it"*; the
@@ -189,52 +237,58 @@ sentence is still in the file. One-sentence fix, routed to L21.
 ## §4b · As-built sweep (PF-793) — every asserted value against shipped code
 
 The architecture doc's direction of travel is toward the code, not away from it. Sixteen
-concrete values checked 2026-08-15; each row names the file and line a reader can open.
-**Twelve match. Four diverge. One is imprecise rather than wrong.**
+concrete values re-checked against the current tree on 2026-08-15. Doc rows are cited by
+**section name**, not line number — both documents are under active edit and any line number
+written here would be wrong by the time it is read. **All sixteen match.**
 
-| # | Value | What the doc asserts | What the code does | Source line | |
+| # | Value | What the doc asserts | What the code does | Source | |
 |---|---|---|---|---|:--|
-| 1 | Client-secret hash | SHA-256, unsalted, hex (`appendix:21`, `:783`) | `crypto.createHash('sha256').update(raw).digest('hex')`, one hashing site | `api/src/platform/apps/secrets.ts:122` | ✅ |
-| 2 | Secret entropy | 32 bytes from `crypto.randomBytes` (`appendix:785`) | `CLIENT_SECRET_ENTROPY_BYTES = 32` | `platform/apps/secrets.ts:73` | ✅ |
-| 3 | Retry ladder | `1s · 4s · 16s · 1m · 5m · 30m` (`architecture.md:105`) | `RETRY_SCHEDULE_SECONDS = [1, 4, 16, 60, 300, 1800]` | `platform/webhooks/retry.ts:62` | ✅ |
-| 4 | Jitter | "with jitter" | ±10 %, bounded so it cannot reorder the ladder | `webhooks/retry.ts:77` | ✅ |
-| 5 | Signed string | `t + "." + rawBody` (`architecture.md:101`) | ``Buffer.concat([Buffer.from(`${t}.`), rawBody])`` | `webhooks/signer.ts:91-93` | ✅ |
+| 1 | Client-secret hash | SHA-256, unsalted, hex (appendix, *Apps & secrets*) | `crypto.createHash('sha256').update(raw).digest('hex')`, one hashing site | `api/src/platform/apps/secrets.ts:122` | ✅ |
+| 2 | Secret entropy | 32 bytes from `crypto.randomBytes` | `CLIENT_SECRET_ENTROPY_BYTES = 32` | `platform/apps/secrets.ts:73` | ✅ |
+| 3 | Retry ladder | `1s · 4s · 16s · 1m · 5m · 30m` (*Webhook Pipeline*) | `RETRY_SCHEDULE_SECONDS = [1, 4, 16, 60, 300, 1800]` | `platform/webhooks/retry.ts:62` | ✅ |
+| 4 | Jitter | ±10 %, bounded so it cannot reorder the ladder | `JITTER_FRACTION = 0.1`, applied as `1 − f + jitter()·2f` | `webhooks/retry.ts:78,137` | ✅ |
+| 5 | Signed string | `t + "." + rawBody` (*Webhook Pipeline*) | ``Buffer.concat([Buffer.from(`${t}.`), rawBody])`` | `webhooks/signer.ts:91-93` | ✅ |
 | 6 | Header format | `Ship-Signature: t=<unix>,v1=<hex>` | `SIGNATURE_HEADER = 'Ship-Signature'`; `/^t=\d+,v1=[0-9a-f]{64}$/` | `webhooks/signer.ts:67`, `:88` | ✅ |
-| 7 | Signature tolerance | 300 s (`architecture.md:104`) | `DEFAULT_TOLERANCE_SECONDS = 300` on **both** sides of the wire | `webhooks/signer.ts:79` · `sdk/src/webhooks.ts:50` | ✅ |
-| 8 | Error-union members | five: `auth · rate_limit · not_found · validation · server` | same five, same order | `sdk/src/errors.ts:45-51` | ✅ |
-| 9 | Wire error codes | six (`appendix:137`) | `unauthorized, forbidden, not_found, validation_failed, rate_limited, server_error` | `sdk/src/errors.ts:65-72` | ✅ |
-| 10 | Agent scopes | `documents:read`, `issues:read`, `sprints:read` — read-only (`architecture.md:132`) | exactly those three seeded | `api/src/db/platformApps.ts:117` | ✅ |
-| 11 | Idempotency-Key | derived from `event_id` **and** `subscription_id`, persisted then read back | `` `${eventId}:${subscriptionId}` ``; replay reuses `original.idempotency_key` | `webhooks/pipeline.ts:180-182` · `webhooks/replay.ts:112` | ✅ |
-| 12 | Token-store mode | `~/.ship/credentials.json`, 0600 (`architecture.md:122`) | `CREDENTIAL_FILE_MODE = 0o600`, atomic write | `sdk/src/auth/fileTokenStore.ts:39` | ✅ |
-| 13 | **Cursor envelope** | `{id, timestamp}` (`architecture.md:77`, `appendix:137`) | **three** keys — `{id, timestamp, resource}` | `platform/api/v1/pagination.ts:83-98`, minted `:296` | ❌ |
-| 14 | **SDK footprint** | *"measured: 160.4 KB gzipped"* (`appendix:591`) | **213 786 B = 208.8 KiB**, budget 256 000 B | `sdk/size-report.json` · `sdk/src/installSize.test.ts:22` | ❌ |
-| 15 | **Agent scopes, second telling** | `issues:write` included (`appendix:765`) | no write scope is seeded | `api/src/db/platformApps.ts:117` | ❌ |
-| 16 | **Demo-app scopes** | `documents:read`, `documents:write` (`appendix:767`) | also `webhooks:manage` | `platformApps.ts:184` · registered `scopes.ts:64` | ❌ |
+| 7 | Signature tolerance | 300 s (*Webhook Pipeline*) | `DEFAULT_TOLERANCE_SECONDS = 300` on **both** sides of the wire | `webhooks/signer.ts:79` · `sdk/src/webhooks.ts:50` | ✅ |
+| 8 | Error-union members | five: `auth · rate_limit · not_found · validation · server` (*SDK Surface*) | same five, same order | `sdk/src/errors.ts:46-50` | ✅ |
+| 9 | Wire error codes | six (appendix, *Contract details*) | `unauthorized, forbidden, not_found, validation_failed, rate_limited, server_error` | `sdk/src/errors.ts:65-72` | ✅ |
+| 10 | Agent scopes | `documents:read`, `issues:read`, `sprints:read` — read-only (*Agent-as-Citizen*) | exactly those three seeded | `api/src/db/platformApps.ts:117` | ✅ |
+| 11 | Idempotency-Key | derived from `event_id` **and** `subscription_id`, persisted then read back | `idempotencyKeyFor()` returns `` `${eventId}:${subscriptionId}` ``; replay reuses `original.idempotency_key` | `webhooks/pipeline.ts:180-182` · `webhooks/replay.ts:112` | ✅ |
+| 12 | Token-store mode | `~/.ship/credentials.json`, 0600, atomic (*SDK Surface*) | `CREDENTIAL_FILE_MODE = 0o600`, temp-file + `rename` | `sdk/src/auth/fileTokenStore.ts:39,101-106` | ✅ |
+| 13 | Cursor envelope | **three** keys `{id, timestamp, resource}`, both documents | `resource` is a required field and `decodeCursor` returns `foreign-resource` on mismatch | `platform/api/v1/pagination.ts:96,160,174` | ✅ |
+| 14 | Retry-ladder reachability | six rungs, `MAX_ATTEMPTS` 6, waits sit between attempts so only **five** are consumed and 30 m is unreachable; `LADDER_TOTAL_WAIT_SECONDS` 381 s (*Webhook Pipeline*) | `MAX_ATTEMPTS = 6`, `WAITS_CONSUMED = MAX_ATTEMPTS - 1`, `LADDER_TOTAL_WAIT_SECONDS = 381` | `webhooks/retry.ts:72,75,90` | ✅ |
+| 15 | Agent scopes, second telling | appendix seeded-apps table says `documents:read`, `issues:read`, `sprints:read`, **read-only**, and records that the agent carried `issues:write` until 2026-08-12 | no write scope is seeded | `api/src/db/platformApps.ts:117` | ✅ |
+| 16 | Demo-app scopes | appendix seeded-apps table: `documents:read`, `documents:write`, `webhooks:manage` | same three seeded | `platformApps.ts:184` · registered `scopes.ts:64` | ✅ |
 
-**Why the four matter, in order of how much.**
+**What changed since the previous run of this sweep.** It advertised four divergences plus
+one imprecision. All five are closed on the current tree and this section no longer claims
+them:
 
-- **15 is the one to fix first.** Our own two documents contradict each other about whether
-  the agent can write. `architecture.md:132` says read-only and is right;
-  `appendix:765` lists `issues:write`. A grader reading the appendix would take PF-809's
-  read-only proof — the `403` on `POST /api/v1/documents` in the audit rows — as
-  contradicted by our own architecture document.
-- **13 is not cosmetic.** The third cursor key is load-bearing: it is what turns a
-  `/documents` cursor replayed against `/issues` into a `validation_failed` rather than a
-  plausible wrong page nobody notices (`pagination.ts:92-97`). A doc that describes a
-  two-key envelope describes a weaker system than the one that shipped.
-- **14** is a stale number, not a broken budget — still inside 256 000 B, but off by ~48 KB
-  and re-measurable in one command (`pnpm --filter @ship/sdk size`).
-- **16** omits a scope the code both seeds and registers.
+- **Cursor envelope (was #13).** Both documents now describe three keys and say why the third
+  one exists. It was the load-bearing one — `resource` is what turns a `/documents` cursor
+  replayed against `/issues` into a `validation_failed` instead of a plausible wrong page.
+- **Agent scopes, second telling (was #15).** The appendix's seeded-apps table reads
+  read-only and no longer lists `issues:write`; it now records the removal and names the
+  test (`agentAppCitizen.test.ts`) that asserts the list is exactly those three.
+- **Retry-ladder reachability (was flagged as an imprecision).** The main document now
+  carries the five-waits / 381 s / unreachable-30 m explanation itself, rather than leaving
+  it only in the appendix.
+- **SDK footprint (was #14, *"160.4 KB"*).** That number is gone. The appendix now reports
+  **218.4 KB** gzipped over 169 published files from a fresh `pnpm --filter @ship/sdk size`,
+  and discloses in the same sentence that the committed `sdk/size-report.json` predates it
+  and reads **213 786 B = 208.8 KB** over 163 files. Both are inside the 256 000 B budget
+  (`withinBudget: true` in the report). A disclosed staleness with the regeneration command
+  next to it is not a divergence, so it is not counted as one — but regenerating the report
+  would close it for free.
 
-**One imprecision, flagged rather than counted as a divergence.** `architecture.md:105`
-lists all six retry rungs. `MAX_ATTEMPTS = 6` consumes only **five** waits — intervals sit
-between attempts and attempt 1 is immediate, which p.5's Testing Scenario 7 requires — so
-the 30 m rung is unreachable (`webhooks/retry.ts:72,75`). `appendix:64-69` says this; the
-main document does not.
+- **Demo-app scopes (was #16).** The appendix's seeded-apps row for
+  `ship_app_grader_demo` now reads `documents:read`, `documents:write`, `webhooks:manage`,
+  matching `PLATFORM_APP_SEEDS`. That third scope is what lets a grader run
+  `ship webhooks tail`, the last step of p.11's five-line story.
 
-**All four fixes land in `docs/architecture.md` / `docs/architecture-appendix.md`, which
-this lane did not own on this pass.** They are named and routed, not silently corrected —
-which is why PF-793 is ◐ and not ☑.
+**Nothing is outstanding on this row.** Both documents are still being edited, so the
+standing instruction is to re-run this sweep rather than trust the ✅ column: every row above
+names a file and a symbol, and each check is one `grep`.
 
 ---
 
@@ -303,7 +357,7 @@ there even if scheduled. Total AWS spend for the window is −$0.0000031 net of 
 That number is only interesting because of what it proves: the platform does zero AI work,
 which p.9 and p.11 both require. The document opens with that as a runnable command rather
 than a sentence — `grep -rlE "@langchain|anthropic|openai" api/src/platform/ | wc -l`
-returns **0**, against **10** for `agent/src`.
+returns **0**, against **11** for `agent/src` (re-run 2026-08-15).
 
 The projections are explicitly a model, not a measurement — the service is days old and has
 no production traffic. Every constant in the arithmetic is read out of the code and cited
@@ -370,9 +424,9 @@ write. See [`docs/demo-runbook.md`](docs/demo-runbook.md).
 
 ### Credentials in the README
 
-`README.md` publishes both `client_id` values (`ship_app_grader_readonly` at `README:87`,
-`ship_app_grader_demo` at `:88`) and their scopes. The `client_secret` values are **not** in
-the README — `:98-106` gives an `aws ssm get-parameter` command instead, which needs AWS
+`README.md` publishes both `client_id` values (`ship_app_grader_readonly` at `README:93`,
+`ship_app_grader_demo` at `:94`) and their scopes. The `client_secret` values are **not** in
+the README — `:109` and `:111` give `aws ssm get-parameter` commands instead, which need AWS
 credentials for account `379484935796`. A grader has none, so for them that command is not a
 credential. p.13 says *"credentials in the README"*.
 
@@ -463,11 +517,18 @@ fleet. Both belong to L99 F80's warning about timing anything on this hardware.
 - [ ] PF-782's deadline answered by a grader and recorded, and the submission is before it.
 - [ ] A clean clone plus the URLs in this file reproduces every deliverable, with no
       reference to the author's working tree.
-- [ ] **No merged-branch pruning has occurred.** All 147 `pf/*` branches are on `origin`
-      (verified 2026-08-15, set-difference empty both ways). The open question is no longer
-      *pushed?* but *pushed where a grader can see them?* — §1.
-- [ ] Row 1's public/branches split resolved one of the three ways in §1.
-- [ ] The four as-built divergences in §4b landed in `docs/architecture.md` /
-      `docs/architecture-appendix.md` — **#15 first**, the agent-scopes contradiction.
+- [ ] **No merged-branch pruning has occurred.** Verified 2026-08-15 by `ls-remote`: **165**
+      `pf/*` on GitHub, **161** on GitLab `origin`, **172** local. The set difference is
+      **not** empty — five branches are on GitHub only and one on GitLab only, listed in §1.
+      Re-run the counts before submitting; they move.
+- [ ] Row 1's third clause conceded in writing to the grader — no per-slice PR or MR exists
+      (§1). The two-remote branch delta closed or explained.
+- [ ] `docs/pr-compliance-sweep.md` re-run over all **88** slice merges, or its 55-of-66
+      headline dated so a reader knows 23 slices postdate it (§1).
+- [ ] §4b's sixteen as-built rows re-run against the final tree — they were all green on
+      2026-08-15, but both architecture documents were still being edited that day.
+- [ ] `sdk/size-report.json` regenerated so it and the appendix report the same footprint.
+- [ ] `docs/mvp-gate-item-9.md`'s bundle line updated from −0.00% to the +1.69% of the
+      2026-08-14 run.
 - [ ] Decision taken on the grader `client_secret` (§9) and on PF-813's byte-identity
       clause (§5).

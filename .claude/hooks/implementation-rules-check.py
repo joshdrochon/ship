@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
 """PostToolUse hook on Write|Edit — re-assert the Implementation Rules after a code change.
 
-Phase 2 has 11 non-negotiable Implementation Rules (brief p.8-9, reproduced verbatim
-in docs/audit/implementation-rules.md). The failure this guards against is finishing a
-code change and reporting it done without checking it against them — most often rule 1
-(no before/after measurement), rule 2 (tests not actually run), rule 3 (no regression
-test) or rule 9 (no reasoning written down).
+Week 6 PlugForge's rules live on PRD p.11 as eight Build Strategy priority rules plus
+six Critical Guidance bullets, reproduced in docs/audit/implementation-rules.md. The
+failure this guards against is finishing a code change and reporting it done without
+checking it against them — most often A2 (a cross-import that should have been fenced),
+A4 (a route added without regenerating the spec) and A8 (Epic 7 reported as proven when
+no CI job runs the flag matrix).
+
+The rule text below is DUPLICATED from that markdown file rather than read from it, so
+the two drift. They did: this block once carried a flat 1-12 list that had silently
+dropped five of p.11's eight priority rules. If you edit one, edit both, and keep the
+8 + 6 shape so an omission is countable.
+
+The previous docstring described Week 4 ShipShape's 11 measure-and-improve rules; those
+are archived at docs/audit/archive/implementation-rules-week4-shipshape.md.
 
 Python, not bash: `jq` is not installed on this machine. The first version of this hook
 was written around jq and exited 0 with no output on every single invocation — a hook
@@ -26,33 +35,69 @@ SOURCE_SUFFIXES = (
     '.sql', '.sh', '.py', '.tf', '.yml', '.yaml',
 )
 
+# Mirrors docs/audit/implementation-rules.md. PRD p.11 is 8 + 6 — eight Build
+# Strategy priority rules, then six Critical Guidance bullets — and this block
+# keeps that shape. The previous version flattened both into one 1-12 list, which
+# dropped priority rules 1, 5, 6, 7 and 8 without leaving a countable hole; A8's
+# feature-flag matrix, the one requirement with no CI evidence, was among them.
+# Keep A1-A8 numbered A, keep B1-B6 numbered B, and keep C separate: a reader has
+# to be able to count eight and six.
 RULES = """\
-Contract integrity
- 1. Public/internal split is a ONE-WAY DOOR. No /api/v1/ import from api/src/routes/
-    or internal middleware. Lint rule ships before there is anything to lint. (p.11)
- 2. Generate the OpenAPI spec from Zod adjacent to the handler — never hand-write it. (p.11)
- 3. Every /api/v1 route: OpenAPI entry + declared scope + ApiError shape on failures
-    + cursor pagination if it is a list endpoint. Fitness-tested. (p.5)
- 4. integrations/ imports ONLY @ship/sdk, never api/src/. (p.11)
+A — Build Strategy, the eight priority rules (p.11). All eight.
+ A1. OAuth foundation FIRST — Auth Code + PKCE end-to-end Day 1, negative tests
+     (wrong verifier rejected) included. Device grant the same day.
+ A2. Public/internal boundary Day 1 — /api/v1/ is a fresh router sharing NO
+     middleware with the internal API. The lint rule ships before the first
+     cross-import exists.
+ A3. Error shape and ApiError class BEFORE any resource endpoint. The fitness
+     test that enumerates routes and asserts the shape is the E2 TODO list.
+ A4. OpenAPI generated from route metadata, never hand-written. One resource
+     (documents) end-to-end before issues, sprints, me.
+ A5. Webhooks end-to-end Day 4, seven slices: event registry -> event bus ->
+     subscriptions -> signer -> queue deliverer -> delivery log -> replay. The
+     signer has its own suite: positive, negative, replay, tamper.
+ A6. SDK skeleton + one resource client + auth helpers next, with the CLI
+     consuming it as it is built.
+ A7. CLI reference integration is MUST-SHIP — ship login, ship docs create,
+     ship webhooks tail. It is the proof the platform works.
+ A8. Developer portal + agent rewire (Epic 7) behind a feature flag, so Part 2's
+     tests pass with the flag ON or OFF.
+     ^ Weakest evidence in the repo. SHIP_AGENT_VIA_SDK exists and
+       docs/l23-flag-matrix.md inventories it, but NO CI job runs both states.
+       Do not report Epic 7 as proven on this clause.
 
-Test discipline
- 5. No setTimeout waits in webhook/retry tests — deterministic clock injection. (p.11)
- 6. Negative cases mandatory: wrong code_verifier -> invalid_grant; tampered body
-    fails verify; expired timestamp fails. (p.5)
- 7. TTFE drill runs in CI from Day 5. Target flake rate over 20 runs: 0%. (p.8, p.11)
+B — Critical Guidance, the six bullets (p.11). All six.
+ B1. The public/internal split is a one-way door. The lint rule is not optional.
+ B2. Generate the OpenAPI spec from Zod adjacent to the handler; hand-written
+     specs lie within a week.
+ B3. In-memory deliverer resolves synchronously; the queue-backed one is tested
+     with deterministic clock injection. No setTimeout waits — timing-based
+     webhook tests are flaky tests.
+ B4. One LLM call per agent turn, period. The platform never invokes the LLM;
+     wanting platform-layer AI features is scope creep.
+ B5. integrations/ imports ONLY @ship/sdk, never api/src/. This is what makes
+     "the agent is a platform citizen" true rather than aspirational.
+ B6. TTFE drill in CI from Day 5 onward.
 
-Budgets — numbers, not aspirations
- 8. Regression vs Part 1 baseline <= +10% on P95, bundle size, query counts. (p.2, p.6)
- 9. SDK < 250 KB min+gzip · webhook delivery P95 < 2s · PKCE round-trip P95 < 3s
-    · TTFE drill < 60s in CI. (p.6, p.8)
-10. The platform does ZERO AI work. One LLM call per agent turn, user-initiated only.
-    Wanting platform-layer AI features is scope creep. (p.11)
-
-Secrets and evidence
-11. Secrets hashed at rest, shown EXACTLY ONCE (client_secret, webhook signing secret).
-    Not recoverable — capture at creation or the flow is dead. (p.2)
-12. Per-slice branches preserved under pf/LNN-<slug>; PR names the acceptance criterion
-    and confirms the fitness test passed. Never prune before Final. (p.12)"""
+C — derived from other pages. NOT p.11 text.
+ C1. Every /api/v1 route: OpenAPI entry + declared scope + ApiError shape on
+     failure paths + cursor pagination if it is a list endpoint. (p.5)
+ C2. Regression vs the Part 1 baseline <= +10% on P95, bundle size, per-route
+     query counts. (p.2, p.6)
+ C3. PKCE round-trip P95 < 3s · webhook delivery P95 < 2s first attempt · TTFE
+     < 60s in CI, <= 30 min clean machine (p.6). SDK < 250 KB min+gzip and 0%
+     drill flake over 20 CI runs (p.9 — NOT p.8). verifyWebhook < 1 ms (p.8).
+ C4. Negative cases are mandatory, not optional: wrong code_verifier ->
+     invalid_grant (p.5); tampered body fails, timestamp > 5 min fails (p.8).
+ C5. Secrets shown EXACTLY ONCE and never recoverable (p.2). client_secret is
+     hashed at rest; webhook signing secrets are ENCRYPTED, not hashed — a
+     knowing departure from p.3, recorded as C3 in docs/architecture.md.
+ C6. Expired tokens return 401 with a distinct error code (p.2 MVP gate item 3).
+     Shipped as details.reason + a per-reason RFC 6750 challenge, not a distinct
+     ApiErrorCode. The argument is in docs/architecture.md -> Failure Modes.
+ C7. Per-slice branches preserved under pf/LNN-<slug>; the PR description names
+     the acceptance criterion and confirms the fitness test passed (p.12).
+     Never pruned before Final. See POLICIES.md §1 for what was NOT satisfied."""
 
 
 def main() -> int:
