@@ -1,9 +1,12 @@
 # Architecture Appendix — PlugForge (Week 6)
 
 **This is the long form.** [`docs/architecture.md`](architecture.md) is the submitted
-Architecture Document and is held to p.13's 1–2 page cap; it carries the nine required
-sections and nothing else. Everything here is the reasoning underneath them — the rejected
-alternatives, the measured numbers, the decision records, and the five sequence diagrams.
+Architecture Document. It carries the nine sections of p.12's Section/Content table and the
+artifact each row names — the composition-root pseudo-code and its test sibling, the
+boundary, OAuth, and agent before/after diagrams, the stable / pre-1.0 SDK split, and the
+four failure modes p.12 lists by name — which is why it runs past p.13's 1–2 page cap.
+Everything here is the reasoning underneath those artifacts: the rejected alternatives, the
+measured numbers, the decision records, and the long-form diagrams.
 
 Nothing in this file is required reading to grade the Architecture Document row. It exists
 because the depth is real and deleting it to satisfy a length cap would have been the wrong
@@ -75,15 +78,26 @@ export function createApp(deps = productionDeps()) {
     limit: rateLimitMiddleware(limiter),                       // 429 + Retry-After; X-RateLimit-* on every response
     audit: publicAuditMiddleware(auditRepo(db)),
     error: apiErrorMiddleware(),                               // every failure → { code, message, details?, request_id }
-  });
-
+    openApiDocument: generatePublicOpenAPIDocumentOrDie(),     // throws ⇒ createApp() throws (see Failure Modes)
+  });                                                          // served INSIDE the router by mountUnauthenticated,
+                                                               // above bearerAuth and above the catch-all
   app.use('/oauth', oauthRouter(appsRepo(db), tokenRepo(db), clock));  // concrete flows: authorize, token, device
   app.use('/api/v1', v1);                                      // public, versioned contract
   app.use('/api', internalRouters);                            // Part-1 surface, untouched
-  app.get('/api/v1/openapi.json', serveGeneratedSpec());       // generation failure = boot failure (see Failure Modes)
   return app;
 }
 ```
+
+**The openapi.json mount is inside the router, not below it (finding F11).** An earlier
+version of this sketch showed `app.get('/api/v1/openapi.json', serveGeneratedSpec())` mounted
+*after* `app.use('/api/v1', v1)`, and both halves of that are wrong against the router L08
+built — twice over, quietly. Express matches the `/api/v1` mount first, and the router ends
+with `notFoundHandler()` then `apiErrorMiddleware()`, so a route registered below that line is
+never consulted: it returns a well-formed `not_found` envelope that reads like a wrong URL
+rather than a wrong mount order. And `router.use(deps.bearerAuth)` blankets every path beneath
+it, so the spec MVP gate item 10 requires a grader to fetch without credentials would have
+answered 401. `mountUnauthenticated` is the seam that fixes both; the header of
+`api/src/platform/openapi/route.ts` carries the full finding.
 
 **What the webhook half of that sketch is called in the code, now that it exists (L15).**
 The sketch predates the build and its shapes are close but not literal; the names below are
@@ -134,7 +148,7 @@ sequenceDiagram
     INT->>SVC: create(workspaceId, input)  — same service, same publish
 ```
 
-Contract details asserted by fitness tests over every `/api/v1` route: OpenAPI entry exists, a scope is declared, failures ship the `ApiError` shape (`unauthorized | forbidden | not_found | validation_failed | rate_limited | server_error`), list endpoints paginate with opaque base64 cursors over `{id, timestamp}`.
+Contract details asserted by fitness tests over every `/api/v1` route: OpenAPI entry exists, a scope is declared, failures ship the `ApiError` shape (`unauthorized | forbidden | not_found | validation_failed | rate_limited | server_error`), list endpoints paginate with opaque base64 cursors over `{id, timestamp, resource}` — three keys, not two: `resource` binds a cursor to the collection that minted it, so a cursor replayed against another resource is a `validation_failed` rather than a plausible-looking wrong page (`decodeCursor` returns `foreign-resource`).
 
 ### Error envelope decisions
 
@@ -588,7 +602,7 @@ presented, so hashing costs everything and buys nothing.
 
 ## SDK Surface
 
-`@ship/sdk` (new workspace package). **Stable for the week:** `ShipClient` with resource clients (`documents`, `issues`, `sprints`, `webhooks` — method signatures fitness-tested against the OpenAPI spec, drift fails CI); `ShipClient.authorizationCodeFlow()` and `ShipClient.deviceLogin()`; async-iterator pagination (`for await (const doc of client.documents.iterate())` — consumers never see cursors); `verifyWebhook(headers, rawBody, secret, toleranceSec = 300)` → boolean in one call; typed error union discriminated on `kind: 'auth' | 'rate_limit' | 'not_found' | 'validation' | 'server'`. **Pre-1.0 (may move):** `ITokenStore` implementations beyond in-memory/file, OAuth helper option bags, CLI internals. Install footprint budget: < 250 KB min+gzip, production deps only, enforced in CI (measured: **160.4 KB** gzipped, 0 production dependencies). `verifyWebhook` p95 **0.0137 ms** against p.8's 1 ms target, measured over 5000 iterations on a real `document.created` envelope and enforced by `pnpm --filter @ship/sdk perf:check`; both figures upload as one `sdk-budget-reports` CI artifact.
+`@ship/sdk` (new workspace package). **Stable for the week:** `ShipClient` with resource clients (`documents`, `issues`, `sprints`, `webhooks` — method signatures fitness-tested against the OpenAPI spec, drift fails CI); `ShipClient.authorizationCodeFlow()` and `ShipClient.deviceLogin()`; async-iterator pagination (`for await (const doc of client.documents.iterate())` — consumers never see cursors); `verifyWebhook(headers, rawBody, secret, toleranceSec = 300)` → boolean in one call; typed error union discriminated on `kind: 'auth' | 'rate_limit' | 'not_found' | 'validation' | 'server'`. **Pre-1.0 (may move):** `ITokenStore` implementations beyond in-memory/file, OAuth helper option bags, CLI internals. Install footprint budget: < 250 KB min+gzip, production deps only, enforced in CI — **0 production dependencies**, which is the mechanism, and **218.4 KB** gzipped, which is the proof it ran. That figure is a fresh `pnpm --filter @ship/sdk build && pnpm --filter @ship/sdk size` over the current source (169 published files); the method is gzip of the *unminified* published files, an upper bound on min+gzip, and the "KB" the script prints is 1024 bytes, the same unit as its 250 KB budget line. The committed `sdk/size-report.json` predates the most recent source additions and reads 208.8 KB over 163 files — regenerating it is how the two agree again, and the command above is the whole regeneration. `verifyWebhook` p95 **0.0137 ms** against p.8's 1 ms target, measured over 5000 iterations on a real `document.created` envelope and enforced by `pnpm --filter @ship/sdk perf:check`; both figures upload as one `sdk-budget-reports` CI artifact.
 
 **The stable/pre-1.0 split above is also machine-readable and cannot drift from this paragraph** (L18 PF-548). `sdk/src/stability.ts` exports `STABLE_SURFACE` and `PRE_1_0_SURFACE`, and `surfaceStability.test.ts` asserts that every name the published barrel re-exports — types included, which needs a source parse since `import *` sees only values — appears in **exactly one** of them. There is no unclassified state and no default, so adding a surface costs one line saying what is being promised about it, which is the only reliable moment to ask. §4 of that test reads this very section and fails if the two disagree.
 
@@ -762,7 +776,7 @@ So the honest claim is **"every Ship-data read the agent makes goes through the 
 
 | App | Scopes | Why it exists |
 |---|---|---|
-| `ship_app_firstparty_fleetgraph_agent` | `documents:read`, `issues:read`, `issues:write`, `sprints:read` | Epic 7 — the agent as a platform citizen, least privilege rather than `*` |
+| `ship_app_firstparty_fleetgraph_agent` | `documents:read`, `issues:read`, `sprints:read` | Epic 7 — the agent as a platform citizen, least privilege rather than `*`; **read-only** under D5b, and `PLATFORM_APP_SEEDS` in `api/src/db/platformApps.ts` is the shipped list this row mirrors |
 | `ship_app_grader_readonly` | `documents:read`, `issues:read`, `sprints:read` | MVP gate item 10 (p.2) — a pre-registered **read-only** app for graders |
 | `ship_app_grader_demo` | `documents:read`, `documents:write` | **D12**, open — see below |
 
