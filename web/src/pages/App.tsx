@@ -59,7 +59,6 @@ export function AppLayout() {
   const [workspaceSwitcherOpen, setWorkspaceSwitcherOpen] = useState(false);
   const [projectSetupWizardOpen, setProjectSetupWizardOpen] = useState(false);
   const [actionItemsModalOpen, setActionItemsModalOpen] = useState(false);
-  const [actionItemsModalShownOnLoad, setActionItemsModalShownOnLoad] = useState(false);
 
   // Session timeout handling
   const handleSessionTimeout = useCallback(() => {
@@ -79,9 +78,10 @@ export function AppLayout() {
   const { data: standupStatus } = useStandupStatusQuery();
   const standupDue = standupStatus?.due ?? false;
 
-  // Check if user has pending action items (accountability tasks)
+  // Check if user has pending action items (accountability tasks).
+  // The count feeds the banner; there is no longer a `hasActionItems` boolean
+  // because its only reader was the modal auto-open that this file removed.
   const { data: actionItemsData } = useActionItemsQuery();
-  const hasActionItems = (actionItemsData?.items?.length ?? 0) > 0;
   const queryClient = useQueryClient();
 
   // Celebration state for when user completes an accountability item
@@ -118,15 +118,29 @@ export function AppLayout() {
     };
   }, []);
 
-  // Show action items modal on initial load if there are pending items
-  // Disabled when localStorage flag is set (used by E2E tests to avoid blocking interactions)
-  useEffect(() => {
-    if (localStorage.getItem('ship:disableActionItemsModal') === 'true') return;
-    if (!actionItemsModalShownOnLoad && hasActionItems && actionItemsData?.items) {
-      setActionItemsModalOpen(true);
-      setActionItemsModalShownOnLoad(true);
-    }
-  }, [actionItemsModalShownOnLoad, hasActionItems, actionItemsData?.items]);
+  // The Action Items modal NO LONGER OPENS BY ITSELF.
+  //
+  // It used to auto-open on first load whenever the user had pending
+  // accountability items — on whatever route they had navigated to. Landing on
+  // `/portal` therefore meant landing on a modal covering the portal, including
+  // the delivery list and the Replay control that PRD p.12's demo ends on. It
+  // did the same to `/my-week` and `/docs`; `/portal` is just where it was
+  // noticed, so suppressing it for that one route would have left the defect in
+  // place everywhere else and rotted the moment another route was added.
+  //
+  // The modal itself is a real feature and is untouched — the accountability
+  // banner sits at the top of every page, states the count and the urgency, and
+  // opens this modal on click (`onBannerClick` below). That is a nudge the user
+  // chooses to follow, which is what the banner was always for; the auto-open
+  // was a second, involuntary copy of the same nudge.
+  //
+  // The strongest argument for this change is that the codebase had already
+  // reached it: `e2e/fixtures/isolated-env.ts` and
+  // `docs/audit/scripts/measure-title-durability.mjs` both set
+  // `ship:disableActionItemsModal` before doing anything, because a modal over
+  // the page blocks interaction. Every automated consumer had opted out. The
+  // flag is now unnecessary — reading it here would be dead code — but writers
+  // of it are harmless and are left alone.
 
   // Persist sidebar state
   useEffect(() => {
@@ -602,7 +616,7 @@ export function AppLayout() {
       {/* Upload Navigation Warning Modal */}
       <UploadNavigationWarning />
 
-      {/* Action Items Modal - shows on login when user has pending accountability tasks */}
+      {/* Action Items Modal - opened from the accountability banner, never on its own */}
       <ActionItemsModal
         open={actionItemsModalOpen}
         onClose={() => setActionItemsModalOpen(false)}
