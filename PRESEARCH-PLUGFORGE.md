@@ -5,7 +5,7 @@ completed with written answers; saved AI conversation attached as a reference ar
 
 **Reference artifact (the second half of that row):** [`docs/presearch-conversation.md`](docs/presearch-conversation.md).
 
-**Scope of this document.** The appendix on PRD p.15–p.18 is **58 bullets across 14
+**Scope of this document.** The appendix on PRD p.15–p.18 is **58 bullets across 16
 subsections**. Counted by subsection, not estimated:
 
 | Phase | Subsections | Bullets |
@@ -58,12 +58,12 @@ will not.
 | # | Verified fact | Where | Consequence for the answers |
 |---|---|---|---|
 | G-1 | Existing API tokens are stored as unsalted `sha256(token)` hex | `api/src/middleware/auth.ts:84` | Q12 inherits a precedent rather than inventing one. The platform copy is *duplicated deliberately* — the boundary fence forbids `platform/**` importing internal middleware |
-| G-2 | `DELETE /api/documents/:id` is a **hard** delete — the row is gone | `api/src/routes/documents.ts:1081` | Q14: an ids-only `document.deleted` payload is unresolvable *forever*. This single fact disproves any universal "ids only" rule (F10) |
+| G-2 | `DELETE /api/documents/:id` is a **hard** delete — the row is gone | route `router.delete('/:id')` in `api/src/routes/documents.ts`; the `DELETE FROM documents … RETURNING id` is in `DocumentService.delete` (`api/src/services/documents.ts`) | Q14: an ids-only `document.deleted` payload is unresolvable *forever*. This single fact disproves any universal "ids only" rule (F10) |
 | G-3 | `documents.created_at` is nullable | `api/src/db/schema.sql` | A row-comparison keyset `(created_at, id) < ($1,$2)` is NULL for such a row, so it is **invisible on every page**. Q26's pagination answer needs the NOT NULL constraint, not just the index (F15) |
-| G-4 | The internal list sorts by `position`, a column drag-reorder rewrites | `api/src/routes/documents.ts:120` | Q26 cannot reuse the internal sort key: p.3 requires cursors stable across reordering (F3) |
+| G-4 | The internal list sorts by `position`, a column drag-reorder rewrites | `DOCUMENTS_LIST_ORDER` (`ORDER BY position ASC, created_at DESC`) in `api/src/services/documents.ts` | Q26 cannot reuse the internal sort key: p.3 requires cursors stable across reordering (F3) |
 | G-5 | `playwright.config.ts` sets `retries: process.env.CI ? 2 : 1` | `playwright.config.ts:60` | Two answers turn on this. Q21 keeps the consent screen out of the SPA, and Q47 keeps the TTFE drill out of Playwright — a retry converts flake into green and the gate stops gating (F27) |
 | G-6 | The web app persists the React Query cache to **IndexedDB**, surviving reload and logout | `web/src/lib/queryClient.ts:2,13,102` | Q15 has a **fourth** leakage channel the PRD's three (screenshot, log, back-button) do not name. Measured, not inferred (F25) |
-| G-7 | `app.ts` skips CSRF on any `Authorization: Bearer` header | `api/src/app.ts:81–86` | Q46's answer cannot lean on the app-wide stack; the consent/decision route closes this locally (F26) |
+| G-7 | `app.ts` skips CSRF on any `Authorization: Bearer` header | `conditionalCsrf` in `api/src/app.ts` | Q46's answer cannot lean on the app-wide stack; the consent/decision route closes this locally (F26) |
 | G-8 | The FleetGraph agent's three action types are `comment`, `history_note`, `notify` | `agent/src/actions/act.ts:74,77,83` | Q41: the first two reach Ship through routes the **public API does not expose** and no registered scope covers, which is what forces the read-only + recommendation answer (B12) |
 | G-9 | There is **no** `/metrics` endpoint and no notifier anywhere in the build | absence, `api/src` | Q56 answers "logs and a query", and Q45's alert conditions are queryable and tested but **not paged**. Stated as a limit rather than dressed up |
 | G-10 | The deliverer is in-process; there is no queue, no worker, no broker | `api/src/platform/webhooks/` | Q1/Q2 fanout arithmetic is bounded by one Node process, and Q8's cost ceiling has to be a code-level circuit breaker, not a queue-depth alarm |
@@ -89,17 +89,18 @@ commands per second, and the CLI does not parallelise. 5 req/s is the honest sus
 the 20 req/s peak is a paginated walk of a large collection, which is the only thing in the
 story that issues requests in a tight loop.
 
-*What that is measured against.* `docs/baseline-part1.json` (60 samples/route, 15 warmup,
-nearest-rank) puts the **worst** route p95 at **6.93 ms** (`GET /api/dashboard/my-work`, 7
-queries) and the flagship list at **3.63 ms** (`GET /api/documents`, 3 queries). That is
-in-process supertest with no TCP, so it is an upper bound on capacity rather than a
-prediction — but even discounting it heavily, 20 req/s against a 6.93 ms p95 is under 15% of
-one core. **The API request rate is not the constraint this week. The fanout is.**
+*What that is measured against.* `docs/baseline-part1.json` (60 samples/route, 25 trials, 15
+warmup, nearest-rank, median across trials) puts the **worst** route p95 at **7.84 ms**
+(`GET /api/dashboard/my-work`, 7 queries) and the flagship list at **2.69 ms**
+(`GET /api/documents`, 3 queries). That is one `app.listen(0)` over a kept-alive loopback
+socket, so it is an upper bound on capacity rather than a prediction — but even discounting it
+heavily, 20 req/s against a 7.84 ms p95 is 15.7% of one core. **The API request rate is not
+the constraint this week. The fanout is.**
 
 *The fanout arithmetic, and why it is the real number.* One `document.created` matched by N
 active subscriptions produces N deliveries. Each delivery carries the retry ladder
-`[1, 4, 16, 60, 300, 1800]` seconds (`api/src/platform/webhooks/retry.ts:13`) with
-`MAX_ATTEMPTS = 6` (line 14). So a single event against N subscriptions costs **N** outbound
+`[1, 4, 16, 60, 300, 1800]` seconds (`RETRY_SCHEDULE_SECONDS` in
+`api/src/platform/webhooks/retry.ts`) with `MAX_ATTEMPTS = 6` in the same file. So a single event against N subscriptions costs **N** outbound
 requests if every subscriber is healthy and **6N** if none are. The multiplier is on the
 *outbound* side, which is the side with no rate limit and no budget.
 
@@ -126,32 +127,39 @@ much lower — N ≈ 1.**
 | `ship_app_grader_readonly` | `documents:read`, `issues:read`, `sprints:read` | MVP gate item 10, p.2 — the pre-registered read-only app |
 | `ship_app_grader_demo` | `documents:read`, `documents:write` | **D12**, open — p.6's headline command is `ship docs create`, which a read-only app cannot run |
 
-The apps are shipped, not merely decided — `PLATFORM_APP_SEEDS` in `api/src/db/platformApps.ts:87`,
+The apps are shipped, not merely decided — `PLATFORM_APP_SEEDS` in `api/src/db/platformApps.ts`,
 applied by migration `041_seed_platform_apps.sql`, secrets read from `AGENT_CLIENT_SECRET` /
 `GRADER_CLIENT_SECRET` / `DEMO_CLIENT_SECRET`.
 
 Zero subscriptions are seeded, and the honest reason is two-layered. The **design** reason is
 that a subscription's target URL is the grader's own listener and we cannot know it — creating
-one is the first thing `ship webhooks tail` does. The **as-built** reason is that
-**`webhook_subscriptions` does not exist yet**: the migration series runs to `067` with no
-webhook table, and L16's 34 tickets are all open. There is nothing to seed into.
+one is the first thing `ship webhooks tail` does. When this was written there was also an
+as-built reason — no webhook tables existed. That reason has since expired:
+`webhook_subscriptions` is migration `047` and `webhook_deliveries` is `051`, in a series that
+now runs to `075`. **The design reason is the whole reason now**, and it is the one that was
+load-bearing anyway.
 
-*The breakpoint, with the assumption stated.* The must-ship deliverer is in-process and
-synchronous (`InMemoryDeliverer`; `docs/architecture.md` Composition Root). Fanout is
-therefore serial: P95 delivery latency ≈ `N × per-delivery latency`. At an assumed **50 ms**
-per POST to a listener on the same continent, the < 2 s P95 target (p.6) is missed at
-**N ≈ 40**. That 50 ms is an assumption, not a measurement — it is the one number here I have
-not taken, and it is listed in Open Items.
+*The breakpoint, with the assumption stated.* The must-ship deliverer is in-process. If fanout
+were serial, P95 delivery latency ≈ `N × per-delivery latency`; at an assumed **50 ms** per POST
+to a listener on the same continent, the < 2 s P95 target (p.6) is missed at **N ≈ 40**. That
+50 ms is an assumption, not a measurement — it is the one number here I have not taken, and it
+is listed in Open Items.
 
 *The breakpoint that matters is not that one.* Dispute **B4/B2** in
 `tickets/plugforge/lane-99-unassigned.md`: if `publish()` is awaited on the request path, the
 outbound POST lands **inside** the API request that triggered it. MVP gate item 9's budget is
-+10% on the Part 1 baseline, and the flagship list's baseline p95 is **3.63 ms** — so the
-budget is **3.99 ms**. A *single* 50 ms outbound delivery overruns it by more than 12×. The
-useful statement of the breakpoint is therefore: **the in-memory deliverer is under the 2 s
-delivery target until N ≈ 40, and over the +10% API regression budget at N = 1** unless
-delivery is off the request path. Those are two different targets and only one of them is
-generous.
++10% on the Part 1 baseline, and the flagship list's baseline p95 is **2.69 ms** — so the
+budget is **2.96 ms**. A *single* 50 ms outbound delivery overruns it by more than 16×. The
+useful statement of the breakpoint is therefore: **under the 2 s delivery target until N ≈ 40,
+and over the +10% API regression budget at N = 1** unless delivery is off the request path.
+Those are two different targets and only one of them is generous.
+
+*As-built, and the dispute resolved the way this argument pointed.* L16 PF-441 took delivery off
+the request path. `deliverPipeline` matches, serialises, signs and **enqueues**, then returns;
+`IDeliveryQueue.enqueue()` returns `void` and the bus handler must not await it
+(`api/src/platform/webhooks/pipeline.ts`). So the N = 1 budget breach above never materialised —
+it is the reason the design is what it is, not a live risk. The N ≈ 40 delivery-latency
+breakpoint still stands as an unmeasured estimate.
 
 ### Q3
 > How many concurrent CLI sessions will run device flow during a demo, and does your polling-rate response (`slow_down` semantics) handle them correctly?
@@ -245,8 +253,8 @@ non-zero delta means a detector's inputs changed shape — a bug in PF-694/PF-69
 rather than a cost finding."* That is the right framing. A rewire that silently changed what
 the model sees would show up here first.
 
-*Status, honestly.* The method is specified; **no before/after figure has been taken** — L23 is
-0/34. Open Items carries it.
+*Status, honestly.* The method is specified; **no before/after figure has been taken.** L23 is
+26/28 tickets closed and this is not one of them. Open Items carries it.
 
 ### Q6
 > What is your daily ceiling on CI minutes given that every PR runs the TTFE drill plus the OAuth Playwright flow plus the full regression suite?
@@ -254,9 +262,10 @@ the model sees would show up here first.
 **Ceiling: 500 CI-minutes/day. Measured cost per PR is ~85 minutes today, and one job accounts
 for 47% of it.**
 
-*The measured denominator, not an estimate.* `.gitlab-ci.yml:387` records **three clean `e2e`
-runs at 78.9, 81.7 and 79.7 minutes** at `PLAYWRIGHT_WORKERS: 1`, with the job timeout set to
-150 m for headroom. The breakdown at `:390–393` is the useful part:
+*The measured denominator, not an estimate.* The `e2e` job's own header comment in
+`.gitlab-ci.yml` records **three clean `e2e` runs at 78.9, 81.7 and 79.7 minutes** at
+`PLAYWRIGHT_WORKERS: 1`, with the job timeout set to 150 m for headroom. The per-spec breakdown
+in that same comment is the useful part:
 
 | Component | Wall clock | Share |
 |---|---:|---:|
@@ -266,9 +275,9 @@ runs at 78.9, 81.7 and 79.7 minutes** at `PLAYWRIGHT_WORKERS: 1`, with the job t
 | **`e2e` total** | **~80 min** | |
 
 Everything else is small by comparison: `boundary-lint` is *"under a minute… before the
-150-minute e2e job has begun"* (`:130`), and `agent-test` is capped at 30 m
-(`.github/workflows/ci.yml:311`). GitHub runs Playwright at 2 workers — 43.5 min — so the
-two providers are not the same bill.
+150-minute e2e job has begun"* (`.gitlab-ci.yml:130`), and `agent-test` is capped at
+`timeout-minutes: 30` in `.github/workflows/ci.yml`. GitHub runs Playwright at 2 workers —
+43.5 min — so the two providers are not the same bill.
 
 *Against that, the ceiling.* At ~85 min/PR, **500 min/day funds ~6 PRs/day**, which is the
 real constraint on a 26-lane board. Two things follow, and both are decisions rather than
@@ -295,33 +304,40 @@ step (L20 PF-604, L26 PF-796 are the tickets; both open). The 85 min figure is m
 ### Q7
 > What is the SDK install footprint budget you're committing to — production deps only, gzipped — and how will you enforce it (bundle analyzer, CI size check)?
 
-**Budget < 250 KB gzipped, production deps only. Measured 120,305 bytes = 117.5 KB — 47% of
-budget, with 0 production dependencies. Enforced by a blocking CI size check.**
+**Budget < 250 KB gzipped, production deps only. Measured 225,109 bytes = 219.8 KB — 87.9% of
+budget, with 0 production dependencies. Enforced by a size check on GitHub Actions only; the
+graded GitLab pipeline does not enforce it.**
 
 | | |
 |---|---:|
-| Budget (`sdk/scripts/measure-install-size.mjs:45`, `SIZE_BUDGET_BYTES`) | 256,000 B (250 KB) |
-| Measured (`sdk/size-report.json`, `totalGzippedBytes`) | **120,305 B (117.5 KB)** |
-| Headroom | 135,695 B — **53%** |
+| Budget (`SIZE_BUDGET_BYTES` in `sdk/scripts/measure-install-size.mjs`) | 256,000 B (250 KB) |
+| Measured (`sdk/size-report.json`, `totalGzippedBytes`) | **225,109 B (219.8 KB)** |
+| Headroom | 30,891 B — **12.1%** |
 | Production dependency count | **0** |
-| Raw (ungzipped) dist | 306,436 B across 121 files |
+| Raw (ungzipped) dist | 625,114 B across 169 files |
 
-*Enforcement point.* `pnpm --filter @ship/sdk size:check` at
-`.github/workflows/ci.yml:273`, blocking, with `sdk/size-report.json` uploaded as an artifact
-so the number is inspectable rather than asserted. This is a **CI size check, not a bundle
-analyzer** — an analyzer tells you where the bytes went, which is a debugging tool; a check
-fails the PR, which is a budget.
+*Enforcement point, stated precisely because "CI-enforced" is the kind of claim that is either
+true of the graded pipeline or worth nothing.* `pnpm --filter @ship/sdk size:check` runs in the
+`test` job of `.github/workflows/ci.yml` — blocking there, with `sdk/size-report.json` uploaded
+as an artifact so the number is inspectable rather than asserted. **`size:check` does not appear
+in `.gitlab-ci.yml`**, which is the graded remote's pipeline, so the budget is enforced on the
+mirror and not on the pipeline a grader reads. That is a real gap and it is in Open Items, not
+buried. What the check *is*, where it runs, is a **size check, not a bundle analyzer** — an
+analyzer tells you where the bytes went, which is a debugging tool; a check fails the PR, which
+is a budget.
 
-*Two caveats I would rather state than have found.* First, the measurement is **gzip of the
-unminified published files**, which the script itself describes as *"an upper bound on
-min+gzip"* — the argument being that `gzip(raw) < 250 KB` implies `gzip(minified) < 250 KB`.
-That is sound, and it means 117.5 KB is pessimistic, not optimistic. Second, **`size:check`
-appears in `.github/workflows/ci.yml` and not in `.gitlab-ci.yml`** — the budget is enforced
-on one of the two CI providers this repo runs. That is a gap in enforcement, not in the
-number.
+*Headroom is now thin, and that is the finding.* 87.9% of budget with 12.1% left is not the
+comfortable position the first draft of this answer recorded. The next feature that adds ~30 KB
+gzipped to `dist` fails the check.
 
-*What buys the headroom.* Zero production dependencies. The SDK ships its own retry, its own
-pagination iterator and its own HMAC verification against `node:crypto`; nothing is vendored.
+*The caveat I would rather state than have found.* The measurement is **gzip of the unminified
+published files**, which the script itself describes as *"an upper bound on min+gzip"* — the
+argument being that `gzip(raw) < 250 KB` implies `gzip(minified) < 250 KB`. That is sound, and it
+means 219.8 KB is pessimistic, not optimistic. It also means the thin headroom above is the
+pessimistic reading of it: the real min+gzip figure is smaller, and unmeasured.
+
+*What buys what headroom there is.* Zero production dependencies. The SDK ships its own retry,
+its own pagination iterator and its own HMAC verification against `node:crypto`; nothing is vendored.
 The one place that nearly cost the budget was **F14** — the package root re-exported
 `verifyWebhook`, whose module top-level-imports `node:crypto`, so a browser bundler either
 failed to resolve or silently polyfilled crypto into every consumer's bundle. Fixed by a
@@ -359,13 +375,21 @@ reusing the existing `shared/src/circuitBreaker.ts` adapted onto L01's injected 
 `dlq_reason = 'circuit_open'`**. Writing a second breaker implementation is forbidden and a
 grep fitness test asserts no breaker class exists under `platform/`.
 
-*Where my numbers come from, and their status.* `failureThreshold` and `cooldownMs` are the
-breaker's own options (`shared/src/circuitBreaker.ts:22,24`). **L16 chose no values.** The
-`5 / 60_000` above is the in-repo precedent — `BREAKER_FAILURE_THRESHOLD = 5`,
-`BREAKER_COOLDOWN_MS = 60_000` at `agent/src/actions/client.ts:126–127` — and adopting it is
-my recommendation, not a recorded decision. **Nothing is shipped:** there is no scheduler, no
-HTTP deliverer, no DLQ table and no webhook breaker; L16 is 0/34. The ceiling is designed and
-costed, not enforced. Open Items carries it.
+*Where my numbers come from.* `failureThreshold` and `cooldownMs` are the breaker's own options
+(`shared/src/circuitBreaker.ts:22,24`). At the time this answer was written **L16 had chosen no
+values**, and the `5 / 60_000` above was offered as the in-repo precedent —
+`BREAKER_FAILURE_THRESHOLD = 5`, `BREAKER_COOLDOWN_MS = 60_000` at
+`agent/src/actions/client.ts:126–127` — a recommendation rather than a recorded decision.
+
+*Status, as-built.* **The recommendation was adopted and the mechanism shipped.**
+`SubscriptionCircuits` (`api/src/platform/webhooks/subscriptionCircuit.ts`) wraps one shared
+`CircuitBreaker` per `subscription_id` with `DEFAULT_FAILURE_THRESHOLD = 5` and
+`DEFAULT_COOLDOWN_MS = 60_000`, and exports the ceiling as a number —
+`ATTEMPTS_PER_HOUR_CEILING = 3_600_000 / DEFAULT_COOLDOWN_MS`, i.e. **60 attempts/hour per
+broken subscriber**. An open circuit sends the delivery straight to the DLQ with
+`dlq_reason = 'circuit_open'`, which is a value in migration `051`'s `CHECK` constraint rather
+than a convention. `ceilings.test.ts` covers all of it, including the grep fitness test that no
+second breaker class exists under `platform/`. The ceiling is now enforced, not merely costed.
 
 ## 1.3 — Timeline & Scope Reality *(p.15)*
 
@@ -473,12 +497,16 @@ rotation UI → subscription management → audit-trail panel. Everything on tha
 `curl` equivalent against the public API; the delivery log does not, because reading it is
 what the portal is *for*.
 
-*The dependency that makes this criterion fragile, and it is worth naming.* **The read-only
-delivery-log viewer has no data source yet.** `webhook_deliveries` does not exist — L16 is
-0/34 — so the "minimum viable portal" currently renders an empty state by construction. The
-real kill criterion is therefore upstream: **if L16's delivery log is not merged, the portal's
-floor is not a smaller portal, it is no portal.** That is a sharper statement than the PRD's
-question anticipates and it is the one that would actually fire.
+*The dependency that made this criterion fragile, and it is worth naming.* Written before L16
+landed, this answer's real point was upstream of the portal: **if L16's delivery log is not
+merged, the portal's floor is not a smaller portal, it is no portal** — the read-only viewer
+would render an empty state by construction. That is a sharper statement than the PRD's question
+anticipates and it is the one that would actually have fired.
+
+*As-built.* It did not fire. `webhook_deliveries` exists (migration `051`), the log has both a
+Postgres and an in-memory implementation (`pgDeliveryLog.ts`, `deliveryLog.ts`), and the viewer
+has a data source. L16 is **33/34** — the single open ticket is PF-484, the boot re-drive, which
+does not affect whether the portal has rows to show.
 
 ## 1.4 — Security & Data Sensitivity *(p.15)*
 
@@ -534,7 +562,7 @@ fresh pair. Yes to family revocation, and it takes the live access token with it
 
 Both are single exported constants, so the config and the behaviour cannot drift:
 `ACCESS_TOKEN_TTL_SECONDS = 3600` and `REFRESH_TOKEN_TTL_SECONDS = 2592000` in
-`api/src/platform/oauth/tokens.ts:222,225`, bundled as an injectable `DEFAULT_TOKEN_TTL` — a
+`api/src/platform/oauth/tokens.ts`, bundled there as an injectable `DEFAULT_TOKEN_TTL` — a
 test asserts each number appears exactly once in the lane.
 
 *Why one hour.* An opaque access token is checked against the database on **every** `/api/v1`
@@ -548,7 +576,8 @@ cost, and it is what makes D2's *"a deleted user's access cannot outlive them"* 
 than aspirational.
 
 *Why 30 days, sliding.* It makes `ship login` a monthly act rather than a daily one, which is
-the second line of the TTFE story (p.8). Sliding means an actively used credential never
+the second line of the five-line developer story (**p.6**, restated as the demo on p.12; p.8
+carries the drill's stage table, not the story). Sliding means an actively used credential never
 expires and an abandoned one dies in a month.
 
 *Stolen-refresh-token detection — yes, and the mechanism is one SQL statement.* Every token
@@ -581,7 +610,8 @@ rather than an accident.** Full defense block in the [Defended-Tradeoff Sweep](#
 
 | Option | Subscriber convenience | Exposure surface | The thing that kills it |
 |---|---|---|---|
-| **ids only** | worst — every subscriber round-trips for every event | smallest | **F10**: `DELETE /api/documents/:id` is a **hard delete** (`api/src/routes/documents.ts:1081`). An ids-only `document.deleted` is unresolvable **forever** — the row is gone before the subscriber can fetch it |
+| **ids only** | worst — every subscriber round-trips for every event | smallest | **F10**: `DELETE /api/documents/:id` is a **hard delete** (`router.delete('/:id')` in `api/src/routes/documents.ts`, `DELETE FROM documents` in
+`api/src/services/documents.ts`). An ids-only `document.deleted` is unresolvable **forever** — the row is gone before the subscriber can fetch it |
 | **ids + `title`** (shipped) | good — a Slack message or a `tail` line renders without a fetch | `title` is user content by any honest reading | needs PF-410 (suppress `title` when `visibility='private'`) to patch it, which is the tell that it was not designed |
 | **full object** (Stripe's model) | best | largest — every subscriber's logs hold every document body, at every retry, forever | multiplies exposure by the retry ladder: one leak becomes 6 copies in the subscriber's log |
 
@@ -695,7 +725,7 @@ meta-schemas so there is no network at test time.
 *Where the fallback lives.* Three layers, in order of how much they cost to fall back to:
 
 1. **`docs/openapi.json`** — a committed artifact regenerated by `pnpm openapi:public`, with CI
-   running `git diff --exit-code` on it (`openapi-freshness`, `.github/workflows/ci.yml:154`).
+   running `git diff --exit-code` on it (job `openapi-freshness` in `.github/workflows/ci.yml`).
    If generation breaks on Saturday, the last good spec is **already committed** and p.13's
    static-copy requirement is met without a working generator.
 2. **Hand-maintain that file** for the remaining days, with the parity fitness test downgraded
@@ -834,9 +864,16 @@ make; and keeping `/oauth/*` a single request/response chain with no dependency 
 build means the flow works against a bare API container.
 
 *Rejected, with reasons:* a **React route**, for the first argument above; and a **third-party
-hosted login**, because nothing in p.10's stack table permits one and **Ship *is* the
-authorization server here** — which is also the answer to Q48, since there is no external IdP
-to stub or containerize.
+hosted login**. The second rejection is a choice, not a constraint, and this document had it
+wrong the other way round: p.10's stack table **explicitly permits** an external IdP —
+*"alternatives include node-oauth2-server, Ory Hydra, or Auth0 fronting Ship."* We declined it,
+for the reason p.10 gives in the same row: the hand-rolled path is there *"for learning"*, and
+p.2's gate items are written against **our** endpoints (`/oauth/authorize` → consent →
+`/oauth/token`, `code_verifier` required, mismatched verifier rejected). Fronting Ship with
+Auth0 would satisfy the *product* and forfeit the *graded* work, and it would move the consent
+screen — the thing this question is about — outside the repository entirely. So **Ship *is* the
+authorization server here** by decision, and the consequence carries into Q48: there is no
+external IdP to stub or containerize because we chose not to introduce one.
 
 *Cost, stated rather than hidden.* This is the only non-React UI in the repository and somebody
 has to keep it looking like Ship. It is also a deviation from p.10's *"the portal reuses the
@@ -859,7 +896,7 @@ test pins. That was measured, not assumed.
 
 *How it is asserted, which is the part that makes the claim survive.* Three tests, and the
 second is the one that matters: `consent.test.ts:156` asserts the headers on both GET and POST;
-`oauthBoundary.test.ts:104` asserts them **positively** and `:112` is a **negative control** —
+`oauthBoundary.test.ts:112` asserts them **positively** and `:118` is a **negative control** —
 a non-consent route must *not* carry them. A header assertion without a negative control passes
 happily if someone sets the header globally, which is exactly the change that would make the
 test meaningless while keeping it green. The headers are additionally asserted **inside a real
@@ -1120,13 +1157,14 @@ rawBody, secret)` signature printed on p.7.
 `Clock`/`SystemClock`/`FakeClock`, injected through `AppDeps` at the composition root, and
 tests advance `FakeClock` rather than sleeping.**
 
-Shipped constants at `api/src/platform/webhooks/retry.ts:13–14`; jitter is `0.9 + jitter() * 0.2`
-in `delayBeforeAttemptMs`.
+Shipped as `RETRY_SCHEDULE_SECONDS` and `MAX_ATTEMPTS` in
+`api/src/platform/webhooks/retry.ts`; jitter is `0.9 + jitter() * 0.2` in `delayBeforeAttemptMs`.
 
 *The arithmetic that shows the ladder is 6 attempts and 5 waits.* `MAX_ATTEMPTS = 6` is an
 **independent constant**, not `SCHEDULE.length` read twice: `delayBeforeAttemptMs(1)` returns
 `null` (the first attempt is immediate) and attempts 2–6 read `SCHEDULE[k-2]`. So the waits are
-`1 + 4 + 16 + 60 + 300 = 386 s ± jitter`, and **`1800` is never passed to the clock** — the
+`1 + 4 + 16 + 60 + 300 = 381 s ± jitter` (the file's own
+`LADDER_TOTAL_WAIT_SECONDS`), and **`1800` is never passed to the clock** — the
 30-minute rung is in the array and never fires. That is worth knowing rather than discovering:
 anyone reasoning "the ladder tails out to 30 minutes so a subscriber has half an hour to
 recover" is wrong by a factor of five. L16 PF-452 asserts it directly.
@@ -1145,10 +1183,11 @@ than a convention. The same seam serves the token-expiry drill: L24 PF-727 produ
 token by **configuring a 2-second TTL and advancing the clock**, never by waiting, because p.9
 budgets **0% flake over 20 runs** and a real wait is a race with the CI machine's load.
 
-*Status.* The ladder, the jitter, `MAX_ATTEMPTS` and the clock are shipped. `RetryScheduler`
-itself is a `TODO` at `retry.ts:31` and `HttpDeliverer` at `deliverer.ts:57` — **only
-`InMemoryDeliverer`, a test double, exists.** L16 is 0/34. The schedule is decided and
-constant-tested; it has not driven a real delivery.
+*Status, as-built (this answer was written when both classes were `TODO`).* The ladder, the
+jitter, `MAX_ATTEMPTS` and the clock shipped first; **`RetryScheduler` (`retry.ts`) and
+`HttpDeliverer` (`deliverer.ts`) have since shipped too**, and both are constructed in the
+composition root (`api/src/deps.ts`) rather than only in tests. `InMemoryDeliverer` remains, as
+the test double it always was, beside the real one. The schedule now drives real deliveries.
 
 ### Q29
 > How does your deliverer know a subscriber is permanently broken vs transiently? Is 4xx always permanent, 5xx always transient, or is the answer more nuanced (e.g. 410 Gone permanent, 429 transient)?
@@ -1178,7 +1217,7 @@ reason rather than rediscovering the question.
 
 *The DLQ terms.* Two reasons only — `max_attempts_exhausted` and `permanent_status` — with a
 third, `circuit_open`, added by the cost ceiling in Q8. A permanent 4xx dead-letters on attempt
-**1**, not after the ladder: retrying a 404 five times is five identical failures and 386
+**1**, not after the ladder: retrying a 404 five times is five identical failures and 381
 seconds of pretending.
 
 ### Q30
@@ -1586,7 +1625,7 @@ whichever flow ships reads the same row. So closing D5a required no schema chang
 
 **By `db:migrate`, on every invocation — and deliberately *not* as a numbered migration.**
 
-Three apps are upserted by `PLATFORM_APP_SEEDS` (`api/src/db/platformApps.ts:87`), applied
+Three apps are upserted by `PLATFORM_APP_SEEDS` (`api/src/db/platformApps.ts`), applied
 through `041_seed_platform_apps.sql`, idempotent via `ON CONFLICT (client_id) DO UPDATE`.
 
 *What guarantees it exists in deployed environments.* The seeding runs inside `db:migrate`,
@@ -1653,12 +1692,13 @@ both worth stating:
    `document_history` to `public_api_calls` + `fleetgraph_notifications`, and
    `docs/architecture.md` must say so.
 
-*⚠ As-built divergence, and it is a live defect.* **The seeded scopes do not match this
-decision.** `api/src/db/platformApps.ts:93` seeds
-`['documents:read', 'issues:read', 'issues:write', 'sprints:read']` — **four scopes including a
-write** — under a comment that still reads "Least privilege, not `*`". L23 PF-690's assertion
-("any write scope on that app fails by name") would fail today. The seed predates D5b and has
-not been narrowed. Recorded in Open Items and in the as-built reconciliation.
+*⚠ As-built divergence — now closed.* This answer recorded a live defect: the agent seed carried
+`['documents:read', 'issues:read', 'issues:write', 'sprints:read']` — four scopes including a
+write — under a comment reading "Least privilege, not `*`", so L23 PF-690 ("any write scope on
+that app fails by name") would have failed. **The seed has since been narrowed.**
+`PLATFORM_APP_SEEDS` in `api/src/db/platformApps.ts` now requests
+`['documents:read', 'issues:read', 'sprints:read']` — three scopes, read-only — and the seed's
+own comment records the removal date and the reason. Decision and code now agree.
 
 *A second, related open item.* **D13**: three of five detectors plus two graph fetch nodes read
 `document_associations` and `document_history`, which have **no `/api/v1` surface and no scope
@@ -1704,8 +1744,8 @@ in both states at the suite level, with one assertion forked and named"* rather 
 byte-for-byte parity, because byte-for-byte parity would require the read-only decision to have
 had no effect, and the whole point of D5b is that it has one.
 
-*Status.* Specified, not built — L23 is 0/34, and today's `agent-test` job
-(`.github/workflows/ci.yml:308`) has **no flag matrix**. The exact job name for the matrix is
+*Status.* Specified, not built — L23 is 26/28 and this is one of the two open, and today's `agent-test` job
+(job `agent-test` in `.github/workflows/ci.yml`) has **no flag matrix**. The exact job name for the matrix is
 not yet chosen by any lane.
 
 ---
@@ -1770,11 +1810,16 @@ response never seen" — so it is re-driven, and the subscriber may receive it t
 the at-least-once guarantee doing exactly what it says**, and it is the reason the contract is
 published rather than assumed.
 
-*Status.* The contract is decided and the durability argument depends on a table that does not
-exist yet — `webhook_deliveries` is unwritten, L16 is 0/34. **Today's deliverer is
-`InMemoryDeliverer`, a test double, and its real failure mode is at-most-once**, because there
-is no log to recover from. The gap between the answer and the tree is recorded in the as-built
-reconciliation rather than papered over.
+*Status, as-built (written when the table did not exist; corrected, and the correction is only
+partial).* `webhook_deliveries` now exists (migration `051`) with a row per attempt, `raw_body`
+on each, and the `(subscription_id, event_id, attempt_number)` uniqueness that makes resumption
+safe. `HttpDeliverer` is the production deliverer; `InMemoryDeliverer` is the test double beside
+it. **The half that is still open is the one this answer turns on:** L16 PF-484 — re-driving
+`in_flight` deliveries from the log at `createApp()` boot — is the lane's single unclosed ticket
+(33/34), and it was deliberately not stubbed. `findResumable()` exists and
+`RetryScheduler.driveExisting()` exists; the boot handler that joins them does not. So the
+durable log is there, and **a process killed mid-ladder still does not resume on its own.** The
+contract is at-least-once by design and by table; it is not yet at-least-once across a crash.
 
 ### Q45
 > How do you detect and respond to a leaked `client_secret` — automatic rotation, manual rotation by the owner, or admin-driven force-rotate? What's the audit signal you'd alert on?
@@ -1841,7 +1886,7 @@ maddening to diagnose and would very plausibly be "fixed" by disabling CSRF on t
 **Injecting one synchroniser is a correctness decision before it is a security one.**
 
 *The local hardening, and the measured reason for it.* **F26:** `conditionalCsrf` in
-`api/src/app.ts:81–86` **skips CSRF whenever an `Authorization: Bearer` header is present.**
+`api/src/app.ts` **skips CSRF whenever an `Authorization: Bearer` header is present.**
 That is safe *today* only because `api/src/middleware/auth.ts:135` does **not** fall back to
 session auth on an invalid bearer — a forged bearer gets 401 rather than riding the session.
 **Nothing pins that coupling.** If the fallback is ever added, the CSRF skip becomes a bypass on
@@ -1920,20 +1965,28 @@ signature**, with stages plus gaps reconciling to the total within 1 ms. Every t
 60,000 ms total, per-stage budgets, the P95 window size — lives in **exactly one committed
 file**, with a grep banning a second `60_000` literal.
 
-*Status.* Fully specified, **never run.** L20 is 0/24 and `test-results/` does not exist. The
+*Status.* Fully specified, **never run.** L20 is 21/32 and `test-results/` does not exist. The
 measured TTFE figure is the single most conspicuous missing number in this document.
 
 ### Q48
 > How will OAuth Playwright tests stay stable — do you stub Keycloak/external IdPs, or run a containerized auth server? What does the trade cost in CI minutes?
 
-**Neither — and this is the rare case where the question's premise doesn't apply. Ship *is* the
-authorization server. There is no external IdP to stub or containerize.**
+**Neither, because of a choice made upstream of the question. Ship *is* the authorization server,
+so there is no external IdP to stub or containerize.**
 
 *The premise check first, because answering "we stub it" would have been a fluent wrong answer.*
 The PRD offers stub-vs-container as the axis. Both presume an IdP **outside** the system under
 test. Here, `/oauth/authorize`, `/oauth/token`, `/oauth/device/*` are routes in the same Express
 app the tests already boot. Adding Keycloak would mean **containerizing a dependency in order to
-test something we wrote ourselves**, and nothing in p.10's stack table permits an external IdP.
+test something we wrote ourselves**.
+
+*And the choice that made it so, stated rather than smuggled in as a constraint.* p.10's stack
+table **does** permit an external IdP — *"alternatives include node-oauth2-server, Ory Hydra, or
+Auth0 fronting Ship"* — so "the PRD forbids it" would be false. It was declined at Q21 for the
+reason p.10 attaches to the hand-rolled row (*"for learning"*) and because p.2's gate items grade
+our own `/oauth/*` endpoints. The testing consequence below is downstream of that decision, and
+it is a real saving rather than a lucky one: **had we taken Auth0, this answer would be
+"containerize", with the CI-minute bill that implies.**
 
 *What actually keeps these tests stable,* which is the real answer to "how":
 
@@ -1945,7 +1998,7 @@ test something we wrote ourselves**, and nothing in p.10's stack table permits a
    and advancing `FakeClock`**, never by waiting (Q28). A real wait is a race with the CI
    machine's load, and p.9 budgets 0% flake over 20 runs.
 3. **Assertions are on the response, with negative controls.** The clickjacking headers are
-   asserted positively at `oauthBoundary.test.ts:104` **and negatively at `:112`** — a
+   asserted positively at `oauthBoundary.test.ts:112` **and negatively at `:118`** — a
    non-consent route must not carry them.
 
 *The CI-minute cost, priced against Q6's ceiling.* A containerized Keycloak would add image
@@ -1993,7 +2046,7 @@ source to forget about.
 **a grep that fails on fixed-duration sleeps**, rather than a convention that someone will
 violate on a Friday. A rule that is only in a document is not a rule.
 
-*What it buys, concretely.* The full ladder — `1 + 4 + 16 + 60 + 300 = 386 s` of waiting — is
+*What it buys, concretely.* The full ladder — `1 + 4 + 16 + 60 + 300 = 381 s` of waiting — is
 exercised in **milliseconds of wall clock**, deterministically, with no jitter-induced
 flakiness (the ±10% jitter is applied to a value the test reads, not to a value the test waits
 out). The same seam drives L24's token-rotation drill (PF-727), which produces an expired token
@@ -2079,7 +2132,7 @@ is about what may change *within* v1 — the two are easy to conflate and they p
 | Gate | What it catches | Where |
 |---|---|---|
 | **Parity + validation** — every route has a spec entry, every spec entry has a route, the document validates against OpenAPI 3.1 | the server and the spec disagreeing | blocking required check; a fixture PR adding an unregistered route is confirmed **red** |
-| **Freshness** — regenerate and `git diff --exit-code docs/openapi.json` | the committed static copy going stale against the generator | job `openapi-freshness`, `.github/workflows/ci.yml:154` |
+| **Freshness** — regenerate and `git diff --exit-code docs/openapi.json` | the committed static copy going stale against the generator | job `openapi-freshness` in `.github/workflows/ci.yml` |
 
 The second gate is what makes p.13's static-copy requirement self-maintaining, and it is also
 Q17's fallback: because the file is always current in the repo, a generator that breaks late in
@@ -2099,21 +2152,22 @@ meta-schemas, so there is no network at test time.
 on a missing denominator rather than passing vacuously.**
 
 *The baseline.* `docs/baseline-part1.json`, generated by `api/src/scripts/measure-baseline.ts`
-(`pnpm baseline:measure`), captured at `2026-08-12T20:31:10.713Z` against
-`b639059`. It is machine-written and marked *"do not hand-edit — re-run the script"*, because a
+(`pnpm baseline:measure`), captured at `2026-08-14T19:39:12.340Z` against
+`5455f4e`. It is machine-written and marked *"do not hand-edit — re-run the script"*, because a
 denominator anyone can edit is not a denominator.
 
-*Its method, stated because a benchmark without one is a number without units:* in-process
-supertest (**no TCP** — explicitly *"a before/after pair, not a production SLO"*), 60 samples per
-route, 15 warmup, **nearest-rank** percentile, 25 fixture documents, node v26.5.0,
-darwin-arm64, 10 CPUs.
+*Its method, stated because a benchmark without one is a number without units:* one
+`app.listen(0)` for the run over a single kept-alive loopback socket (explicitly *"a before/after
+pair, not a production SLO"*, and explicitly **not** comparable to the earlier per-request
+supertest bind), 60 samples per route across 25 trials, 15 warmup, **nearest-rank** percentile
+taken as the median across trials, 25 fixture documents, node v26.5.0, darwin-arm64, 10 CPUs.
 
 *Three metrics, not one* (`budget.appliesTo`), each at **+10%**:
 
 | Metric | Baseline | Budget |
 |---|---:|---:|
-| `latencyMs.p95` **per route** (6 routes; worst is `/api/dashboard/my-work`) | 6.93 ms | 7.62 ms |
-| the flagship list `/api/documents` | 3.63 ms | **3.99 ms** |
+| `latencyMs.p95` **per route** (6 routes; worst is `/api/dashboard/my-work`) | 7.84 ms | 8.62 ms |
+| the flagship list `/api/documents` | 2.69 ms | **2.96 ms** |
 | `bundle.totalGzipBytes` | 747,644 B | 822,408 B |
 | `queriesPerRequest` per route (24 total across 6) | — | per-route, **never aggregated** |
 
@@ -2137,10 +2191,13 @@ nobody knows works.
 file, sourced there to **PRD p.2 (MVP gate item 9)** and **p.6 (Performance Targets)** — one
 constant, one citation, read by the comparator rather than restated in it.
 
-*Status.* The baseline is captured and committed (L01 PF-020, done). **The comparator is not
-built** — L26 PF-802–805 are open, and no comparator script or `baseline-part1` reference exists
-under `scripts/`, `.github/` or `.gitlab-ci.yml`. **The denominator exists; the division does
-not.** Open Items.
+*Status, as-built (this paragraph was written before L26 landed and has been corrected rather
+than left standing).* The baseline is captured and committed (L01 PF-020), **and the comparator
+is now built and wired**: `api/src/scripts/compare-baseline.ts` behind `pnpm baseline:compare`,
+run by the `regression-budget` job in **both** pipelines — `.gitlab-ci.yml` and
+`.github/workflows/ci.yml` — after an A/A self-check (`scripts/perf-self-check.mjs --budget 10`)
+that refuses to report a verdict when the runner's own noise exceeds the budget. The denominator
+and the division both exist.
 
 ## 3.4 — Deployment & Hosting *(p.18)*
 
@@ -2259,19 +2316,22 @@ consumes **no** rate-limit bucket. Only the limiter is bypassed, because the buc
 ### Q55
 > If a grader wants to install the CLI from your repo and run it against your deployed instance, what is the one-command setup, and where does it live in the README?
 
-**Heading: `### One command`, under `## For graders — the deployed instance` (`README.md:81`,
-nested under `:29`). ⚠ What is there today is a `curl` smoke test, not a CLI install — the
-owning tickets are not yet satisfied.**
+**Heading: `### One command`, nested under `## For graders — the deployed instance (Week 6)` in
+`README.md`. ⚠ What is there today is a `curl` smoke test, not a CLI install — the owning
+tickets are not yet satisfied.**
 
-*What the README contains today* (`README.md:85–88`):
+*What the README contains today,* under that heading:
 
 ```bash
-export SHIP_API_URL=http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com
+export SHIP_API_URL=https://d258p92d3n1ebe.cloudfront.net
 curl -s "$SHIP_API_URL/api/v1/openapi.json" | head -c 200
 ```
 
-That proves the instance is up and the spec resolves. **It does not install the CLI and it does
-not authenticate**, so it does not answer the question as asked.
+followed by a `curl` against `POST /oauth/device/code` with `client_id=ship_app_grader_demo`.
+That proves the instance is up, the spec resolves and the device flow answers. **It does not
+install the CLI and it does not complete authentication**, so it does not answer the question as
+asked. (The host moved to CloudFront; the Elastic Beanstalk origin is kept as a documented
+fallback.)
 
 *What the answer must become,* per the owning tickets — L19 PF-580, L21 PF-631, L26 PF-814: a
 **single documented command, executed verbatim from a clean container**, reaching an
@@ -2292,9 +2352,10 @@ makes the terminal screenshot the Social Post. The grader's app is **read-only b
 The lean is the second app, and it is **the user's decision to close, not a lane's.**
 
 *What else is already in that README section,* since "where does it live" is half the question:
-the grader app table with `client_id`s and scopes (`:57–62`), the two-app D12 explanation
-(`:64–72`), SSM secret retrieval (`:77–80`), and `scripts/verify-deployment.sh "$SHIP_API_URL"`
-(`:96–100`) — carrying an explicit warning that **Elastic Beanstalk's sample app returns HTTP 200
+the grader app table with `client_id`s and scopes and the two-app D12 explanation (both under
+`### Pre-registered OAuth apps`), SSM secret retrieval in the same subsection, and
+`scripts/verify-deployment.sh "$SHIP_API_URL"` under `### Verifying the deployment yourself` —
+carrying an explicit warning that **Elastic Beanstalk's sample app returns HTTP 200
 on every path**, so status codes alone prove nothing. That warning is the difference between a
 verification script and a placebo.
 
@@ -2505,7 +2566,7 @@ the payload carries.
 
 - **Ids only.** Rejected as a *universal* rule because it is **impossible**, not because it is
   inconvenient. **F10**: `DELETE /api/documents/:id` is a hard delete
-  (`api/src/routes/documents.ts:1081`), so an ids-only `document.deleted` is unresolvable
+  (`router.delete('/:id')` in `api/src/routes/documents.ts`), so an ids-only `document.deleted` is unresolvable
   **forever** — the row is gone before the subscriber can fetch it. Any ids-only policy needs a
   `document.deleted` exception, at which point it is not a rule.
 - **Full object (Stripe's model).** Rejected on **exposure multiplied by the retry ladder**:
@@ -2720,15 +2781,17 @@ construction**, not by diligence.
 **The cost, stated, because it is a real behaviour change and not a refactor.** The agent stops
 commenting. L23 PF-700 records the loss explicitly: no `document_history` row, so the agent's
 trail moves from `document_history` to `public_api_calls` + `fleetgraph_notifications`, and
-`docs/architecture.md:178` — which currently says "the scopes its detectors and actions need"
-without naming them — must be reconciled to read-only. It also means Part 2's suite does **not**
+`docs/architecture.md`'s Agent-as-Citizen section — which said "the scopes its detectors and
+actions need" without naming them — had to be reconciled to read-only. **It since was:** that
+section now enumerates `documents:read`, `issues:read`, `sprints:read` and cites D5b. It also
+means Part 2's suite does **not**
 pass byte-for-byte in both flag states: one assertion is forked and named (Q42).
 
-**⚠ As-built divergence.** `api/src/db/platformApps.ts:93` currently seeds
-`['documents:read', 'issues:read', 'issues:write', 'sprints:read']` — **four scopes, including a
-write** — under a comment reading "Least privilege, not `*`". **The seed predates D5b and
-contradicts it.** L23 PF-690's assertion would fail today. This is the single most consequential
-gap between this document and the tree.
+**⚠ As-built divergence — closed.** The agent seed in `api/src/db/platformApps.ts` carried
+`['documents:read', 'issues:read', 'issues:write', 'sprints:read']` — four scopes, including a
+write — under a comment reading "Least privilege, not `*`", contradicting D5b. It now requests
+`['documents:read', 'issues:read', 'sprints:read']`. This was the single most consequential gap
+between this document and the tree; it is no longer one.
 
 ---
 
@@ -2737,9 +2800,9 @@ gap between this document and the tree.
 <!-- PF-772 -->
 
 **Mechanical check.** `grep -c '^### Q' PRESEARCH-PLUGFORGE.md` → **58**, matching the count
-derived in the header. No answer is `TBD`, `see above`, or a placeholder. The one occurrence of
-the string `TODO` in this document is a citation of a code comment (`retry.ts:31`), not an unmet
-answer.
+derived in the header. No answer is `TBD`, `see above`, or a placeholder. The string `TODO`
+appears only where an answer records what a class *used to be* before it shipped, and in the
+dated amendment that recorded it — never as an unmet answer.
 
 **Status vocabulary.** **Answered** — a decision is stated and defended. **Answered · open** —
 the question is answered by *stating the range, the lean and why it is not yet closed*, which is
@@ -2754,7 +2817,7 @@ genuinely live. **There are no unanswered bullets.**
 | 4 | 1.1 | 15 | ~1 row/attempt; audit retention D10 (30 d + rollup), **delivery-log retention undecided** | Answered · open |
 | 5 | 1.2 | 15 | $75/wk vs Week 5's metered $67; expected token delta **zero**, verified by paired fixture runs | Answered |
 | 6 | 1.2 | 15 | 500 min/day ≈ 6 PRs; measured e2e 78.9/81.7/79.7 min, half of it one timeout constant | Answered |
-| 7 | 1.2 | 15 | <250 KB budget, **120,305 B measured**, 0 prod deps, blocking `size:check` | Answered |
+| 7 | 1.2 | 15 | <250 KB budget, **225,109 B measured (87.9%)**, 0 prod deps, `size:check` blocking on GitHub only | Answered |
 | 8 | 1.2 | 15 | Per-subscription circuit breaker, **not** the DLQ; 30,000 → ~1,440 req/day for a dead subscriber | Answered · open (values unchosen) |
 | 9 | 1.3 | 15 | E1–E4, E6, E7 must-ship; E5 should-ship; CLI over Slack on U6 | Answered |
 | 10 | 1.3 | 15 | 6–8 h/day of **coordination**; plan is dependency tiers, measured against 81 commits/day | Answered |
@@ -2775,7 +2838,7 @@ genuinely live. **There are no unanswered bullets.**
 | 25 | 2.2 | 16 | Additive-only in v1, `/v2/` for breaks, no sunset headers; limit stated | Answered |
 | 26 | 2.2 | 16 | bounded-by-**code** vs bounded-by-**data**; `createApp()` throws on an undeclared route | Answered |
 | 27 | 2.3 | 16 | `HMAC-SHA256(secret, t + "." + rawBody)`; `v1=` in the header so a v2 migration is additive | Answered |
-| 28 | 2.3 | 16 | `[1,4,16,60,300,1800]` ±10%; **6 attempts, 5 waits, 386 s — the 1800 rung never fires** | Answered |
+| 28 | 2.3 | 16 | `[1,4,16,60,300,1800]` ±10%; **6 attempts, 5 waits, 381 s — the 1800 rung never fires** | Answered |
 | 29 | 2.3 | 16 | 408/425/429 transient, other 4xx permanent (D9) — resolves p.4 vs p.16 | Answered |
 | 30 | 2.3 | 16 | Derived at first delivery, stored, replay POSTs the **stored** key; contract published | Answered |
 | 31 | 2.4 | 16 | Hand-written + parity test, with the four mechanisms that buy back drift-freedom | Answered |
@@ -2830,28 +2893,27 @@ direction and both documents are edited** — never left to diverge.
 | `ApiError` codes | six, closed, printed on p.7 | same | ✅ agree |
 | SDK `kind` union | five: `auth \| rate_limit \| not_found \| validation \| server` | same | ✅ agree |
 | Scope names | seven, `{documents,issues,sprints}×{read,write}` + `webhooks:manage` | same | ✅ agree |
-| SDK footprint budget | < 250 KB min+gzip, production deps only, CI-enforced | same, **plus** the measured 120,305 B and the two caveats | ✅ agree, refined |
+| SDK footprint budget | < 250 KB min+gzip, production deps only, CI-enforced | same, **plus** the measured 225,109 B (87.9% of budget) and the caveat that "CI-enforced" means GitHub only | ✅ agree, refined |
 | Pagination | `limit`, 25 / 100, newest-first, `(created_at, id)`, reject-not-clamp | same | ✅ agree |
 | Deployment | AWS, EB + Aurora + NAT, `terraform/render/` retained as fallback | same | ✅ agree |
 | Consent screen | server-rendered, `frame-ancestors 'none'` + `X-Frame-Options: DENY` | same | ✅ agree |
 | Scope upgrades | re-consent with union | same | ✅ agree |
 | `ITokenStore` | both tokens, single-flight, process-scoped, D14 open | same | ✅ agree |
 | Rotation | instant, `ROTATION_POLICY` constant, Stripe departure documented | same | ✅ agree |
-| **Audit field list** | omits `request_id` (**G2**) | includes it — nine fields | ⚠ **architecture.md is wrong.** The *type* carries `requestId`; the doc's prose list does not. **The doc moves.** Owned by L12 PF-327, which also extends L01's PF-022 fitness test to compare the documented list against the type's keys so it cannot recur |
-| **Agent grant type** | never named (**G4**) | Client Credentials §4.4 (D5a) | ⚠ **architecture.md is silent.** The doc gains the grant. Owned by L26 PF-791 |
-| **Agent scopes** | *"the scopes its detectors and actions need"*, unnamed | three read scopes, enumerated (D5b) | ⚠ **architecture.md is vague and the seed contradicts both.** The doc gains the list; the seed narrows. Owned by L23 PF-712 |
+| **Audit field list** | **now lists `request_id`** — the `audit/` line under Module Layout reads timestamp, app `client_id`, `user_id`, route, scope, status, latency, `request_id` | includes it — nine fields | ✅ **G2 closed.** The doc moved, as this document said it should. L12 PF-327's fitness test compares the documented list against the type's keys so it cannot recur |
+| **Agent grant type** | **now named** — *"a first-party confidential OAuth app using Client Credentials (RFC 6749 §4.4)"* under Agent-as-Citizen (Epic 7) | Client Credentials §4.4 (D5a) | ✅ **G4 closed.** The doc gained the grant (L26 PF-791) |
+| **Agent scopes** | **now enumerated** — *"`documents:read`, `issues:read`, `sprints:read` — read-only (decision D5b)"* | three read scopes, enumerated (D5b) | ✅ **B12 closed on both sides.** The doc gained the list (L23 PF-712) and the seed narrowed to match |
 | **App seeding** | *"seeded by `db:migrate`"* | same — and this is now **true**, via `platformApps.ts` + migration 041 | ✅ agree. **G1 is closed**: it was filed when the repo still seeded via `seed.ts` |
 
-**Which document moved, recorded as PF-773 requires.** Three edits land in
-`docs/architecture.md`, not here: the audit-field list gains `request_id` (G2), the
-Agent-as-Citizen section gains the grant type (G4), and the scopes sentence at
-`architecture.md:178` is reconciled to read-only (B12). **This document is correct on all three
-and does not move.**
+**Which document moved, recorded as PF-773 requires.** Three edits were owed by
+`docs/architecture.md`, not by this one: the audit-field list gains `request_id` (G2), the
+Agent-as-Citizen section gains the grant type (G4), and the scopes sentence is reconciled to
+read-only (B12). **This document was correct on all three and did not move. All three have since
+landed in `docs/architecture.md`.**
 
-**⚠ Sequencing hazard, already flagged as B13.** All three edits touch
-`docs/architecture.md:178` — the same paragraph, three owners (L26 PF-788, L26 PF-791, L23
-PF-712). **Sequence them or land all three in one PR**, or the last writer silently reverts the
-other two in a graded document.
+**⚠ Sequencing hazard, flagged as B13 — did not fire.** All three edits touched the same
+Agent-as-Citizen paragraph with three owners (L26 PF-788, L26 PF-791, L23 PF-712). They landed
+together rather than serially, which is what the hazard asked for.
 
 ---
 
@@ -2880,7 +2942,7 @@ and `HttpDeliverer` (`deliverer.ts:57`) are `TODO`. **L16 is 0/34.** The answer 
 designed contract and this amendment states the shipped one.
 
 **A-3 · Q55 — the README's "One command" is a `curl` smoke test, not a CLI install.**
-`README.md:85–88` exports `SHIP_API_URL` and curls the spec. It proves the instance is up; it
+`README.md`'s `### One command` exports `SHIP_API_URL` and curls the spec. It proves the instance is up; it
 does not install the CLI and does not authenticate. The owning tickets (L19 PF-580, L21 PF-631,
 L26 PF-814) require a single command from a **clean container** reaching an authenticated
 `ship docs ls`. Not yet satisfied.
@@ -2930,6 +2992,45 @@ files carry `☑` rows, totalling **246**. L21 produced real artifacts (`docs/in
 `topology.md`, `iam-least-privilege.md`, `grader-access.md`) with **zero ticked boxes** — so its
 work merged and its board state did not. Not a defect in the work; a defect in the record.
 
+### Amendments — 2026-08-15
+
+Re-measured against `pf/L26-doc-truth-pass`. **Five of the 2026-08-12 amendments have expired:
+the tree moved and this document had not.** Recorded here, and the affected answers above now
+carry an *as-built* paragraph rather than the stale one.
+
+**B-1 · supersedes A-1 — the agent seed is narrowed.** `PLATFORM_APP_SEEDS` requests
+`['documents:read', 'issues:read', 'sprints:read']`. Decision and code agree. **A-1 closed.**
+
+**B-2 · supersedes A-2 and A-4 — L16 shipped, at 33/34.** `webhook_deliveries` is migration
+`051` (a row per attempt, `raw_body`, `dlq_reason` with a `CHECK`, a partial DLQ index);
+`HttpDeliverer` and `RetryScheduler` are real classes constructed in `api/src/deps.ts`;
+`SubscriptionCircuits` ships `DEFAULT_FAILURE_THRESHOLD = 5` / `DEFAULT_COOLDOWN_MS = 60_000` and
+exports `ATTEMPTS_PER_HOUR_CEILING`. **The one ticket still open is PF-484**, the boot re-drive of
+`in_flight` deliveries, deliberately not stubbed — so the at-least-once contract holds within a
+process and **not across a crash**. That residue is the only part of A-2 that survives.
+
+**B-3 · supersedes A-5 — the comparator exists.** `api/src/scripts/compare-baseline.ts` behind
+`pnpm baseline:compare`, run by the `regression-budget` job in both `.gitlab-ci.yml` and
+`.github/workflows/ci.yml`, preceded by an A/A self-check that refuses to report a verdict when
+runner noise exceeds the budget. **A-5 closed.**
+
+**B-4 · the baseline itself was re-captured, and the old numbers inverted a budget.** This
+document carried a worst-route p95 of 6.93 ms and a derived budget of 7.62 ms.
+`docs/baseline-part1.json` now reads **7.84 ms** (`GET /api/dashboard/my-work`), captured
+`2026-08-14T19:39:12.340Z` at `5455f4e` under a different transport (one `app.listen(0)` over a
+kept-alive socket, 25 trials). The stale pair made the *budget lower than the baseline it gates*.
+Corrected throughout: budget **8.62 ms**, flagship list **2.69 → 2.96 ms**.
+
+**B-5 · the SDK footprint moved 78% and the enforcement claim was overstated.**
+`sdk/size-report.json` reads **225,109 B** (219.8 KB, 169 files, 87.9% of the 256,000 B budget),
+not the 120,305 B this document carried. `size:check` runs in `.github/workflows/ci.yml` and
+**nowhere in `.gitlab-ci.yml`**, so "blocking CI size check" was true of the mirror and not of
+the graded pipeline. Both corrected in Q7; the enforcement gap is now O-22.
+
+**B-6 · three `docs/architecture.md` edits this document was owed have landed.** The audit-field
+list carries `request_id`, the Agent-as-Citizen section names Client Credentials §4.4, and the
+agent's scopes are enumerated read-only. G2, G4 and B12 are closed and B13 did not fire.
+
 ### Claims from the lane brief that verification did not support
 
 Recorded because inherited numbers are suspect until re-measured, and four of these would have
@@ -2940,7 +3041,7 @@ appeared in this document as facts:
 | NAT gateway ~$1/day | **no such figure is recorded anywhere.** `INFRASTRUCTURE_SUMMARY.md:205` has `$33` monthly (≈$1.10/day), which is what Q53 cites |
 | Terraform apply 9m19s + 5m00s, Aurora 8m23s | present, and `docs/infra/apply-timing.md` **labels it "Unverified… not observed by me"** |
 | 1568 api tests | **unverifiable** — the string appears nowhere. Static count under `api/src`: 1415 `it(`/`test(` call sites across 98 files. Not used as a claim in this document |
-| SDK 117.5 KB gzipped | correct (120,305 B) — but it is gzip of **unminified** files, an upper bound on min+gzip, and `size:check` runs on GitHub Actions **only**, not GitLab |
+| SDK 117.5 KB gzipped | **stale by 78%** — `sdk/size-report.json` now reads 225,109 B (219.8 KB, 169 files, 87.9% of budget). It is gzip of **unminified** files, an upper bound on min+gzip, and `size:check` runs on GitHub Actions **only**, not GitLab |
 | Six SDK error kinds | **five** |
 
 ---
@@ -2959,22 +3060,24 @@ evidence of a real Pre-Search than 58 confident answers.**
 | O-3 | Q4 | Delivery-log retention window | **Undecided** — D10 covers only the audit log; L16 PF-483 requires a window and does not choose one. Lean: 90 d raw, no rollup | a decision, plus a prune path that never deletes an unreplayed `dead_lettered` row |
 | O-4 | Q5 | Epic 7 before/after token delta | **Designed** — L23 PF-711 specifies the method; no figure taken | run the fixture prompt set flag-off and flag-on. A **non-zero** delta is a bug in the equivalence, not a cost finding |
 | O-5 | Q6 | Per-PR CI actuals for the drill and OpenAPI generation | **Unproven** — only `e2e` is measured | L20 PF-604, L26 PF-796 |
-| O-6 | Q8 | Circuit-breaker `failureThreshold` / `cooldownMs`, and the attempts/hour/subscription ceiling | **Undecided** — L16 chose no values. Lean: `5 / 60_000`, the in-repo precedent | L16 PF-482 picking values, or adopting the precedent explicitly |
+| O-6 | Q8 | Circuit-breaker `failureThreshold` / `cooldownMs`, and the attempts/hour/subscription ceiling | **Closed** — `DEFAULT_FAILURE_THRESHOLD = 5`, `DEFAULT_COOLDOWN_MS = 60_000` and `ATTEMPTS_PER_HOUR_CEILING = 60` shipped in `subscriptionCircuit.ts` | — |
 | O-7 | Q14 | **D7** — webhook payload contents | **Open**, being re-litigated by L14 | pick an end of the range, or write the middle as a rule that does not need PF-410's patch |
 | O-8 | Q34 | **D14** — cross-process refresh | **Open**; strict shipped, one line from flipping, both behaviours table-tested | a decision on the 10 s window, **plus** L19's lockfile beside `~/.ship/credentials.json`, which is the real fix either way |
 | O-9 | Q41 | **D13** — three detectors read tables with no public route | **Open**; lean (a)+(c) | L10 accepting the `issueSchema` flattening, or the exception list growing from one entry to three |
-| O-10 | Q41 | Agent seed ships `issues:write` | **Divergent** — decision correct, code stale | narrow `platformApps.ts:93` to the three read scopes |
+| O-10 | Q41 | Agent seed ships `issues:write` | **Closed** — `PLATFORM_APP_SEEDS` now requests the three read scopes only | — |
 | O-11 | Q43 | Owner-deletion → app-deactivation cascade | **Designed** — D2 decided; no lane has wired the trigger | an owner lane, plus a test that a deleted owner's tokens stop validating |
 | O-12 | Q45 | The three alert conditions are queryable, **not paged** | **Verified as signals, unproven as alerts** | an alerting surface. Related: **F30**, no token-revocation endpoint exposes the *revoke* half of the playbook |
-| O-13 | Q47 | TTFE drill has never run | **Designed** — 0/24 | run it; commit `test-results/ttfe.json` |
+| O-13 | Q47 | TTFE drill has never run | **Designed** — L20 is 21/32; `test-results/` does not exist | run it; commit `test-results/ttfe.json` |
 | O-14 | Q48 | PKCE p50/p95 live only in `docs/architecture.md` prose | **Verified once, not archived** | emit a committed artifact the way the TTFE drill does |
-| O-15 | Q52 | +10% comparator | **Designed** — baseline captured, comparator absent | L26 PF-802–805, including the three seeded-regression proofs |
+| O-15 | Q52 | +10% comparator | **Closed** — `compare-baseline.ts` behind `pnpm baseline:compare`, run by the `regression-budget` job in both pipelines | — |
 | O-16 | Q53 | Grader-tenant isolation | **Designed and partly verified** — the Grader Sandbox workspace exists and F43's cross-workspace minting bug is closed | a test that a grader token cannot read the primary workspace, asserted from outside |
 | O-17 | Q55 | **D12** — the grader cannot run `ship docs create` | **Open**; second write-scoped app shipped flagged. **The user's decision to close** | close D12, then satisfy PF-580's clean-container command |
 | O-18 | — | **U6** — nothing gives an externally-hosted webhook listener a public URL | **Open and unowned.** The largest execution risk in two lanes | L21 or L26 claiming it: local listener + tunnel, a relay, or long-poll against the delivery log |
 | O-19 | Q16–18 | The 1.5 answers are author-attested | **Unverifiable from the tree, by nature** | author confirmation before submission |
 | O-20 | Q54 | **F46** — `pnpm test` rewrites the committed `docs/openapi.json`, dropping any route absent from one test file's import list | **Divergent** — the artifact can regress with a green suite | L13 writing to a temp path and comparing, instead of writing the real file |
 | O-21 | Q6 | **F47** — `pf/integration` does not build from a clean checkout | **Open and unowned.** MVP gate item 9 is "regression suite passes" | a documented build order in CI before the test job, or a `prepare` script |
+| O-22 | Q7 | `size:check` runs on GitHub Actions only; the **graded** GitLab pipeline does not enforce the SDK size budget | **Open** — measured this pass: `size:check` appears in `.github/workflows/ci.yml` and in no job in `.gitlab-ci.yml` | add the step to a `.gitlab-ci.yml` job, or state in the submission that the budget is enforced on the mirror |
+| O-23 | Q44 | **PF-484** — `in_flight` deliveries are not re-driven at boot | **Open**, L16's single unclosed ticket. `findResumable()` and `driveExisting()` exist; the boot handler does not | the `createApp()` boot handler, plus the kill-mid-ladder / reconstruct / advance-clock test |
 
 ---
 
