@@ -175,6 +175,61 @@ describe('PF-741 — the Ship signature is verified first, over the RAW body', (
 });
 
 describe('PF-742 — exactly two event types post, and a third posts nothing', () => {
+  // ── the SECOND of the two, which nothing exercised until 2026-08-15 ──────
+  //
+  // "Exactly two event types post" was asserted for one of them. Every test in
+  // this block and in `tests/live/` used `document.created`; `issue.assigned`
+  // appeared only in `POSTED_EVENT_TYPES` and in the README. So the half of the
+  // claim that says issue.assigned POSTS was carried entirely by the constant
+  // it was supposed to be evidence for — remove `'issue.assigned'` from that
+  // tuple and the whole suite stayed green while the integration silently
+  // dropped one of the two event types p.8 names.
+  it('issue.assigned reaches the listener and DOES post — the second of the two', async () => {
+    world = await bootSlackWorld();
+    const body = Buffer.from(
+      JSON.stringify({
+        id: 'evt_2',
+        type: 'issue.assigned',
+        created_at: new Date().toISOString(),
+        workspace_id: 'ws_1',
+        data: { id: 'iss_7', title: 'Ship the SDK' },
+      }),
+      'utf8',
+    );
+    const response = await deliver(world.webhookUrl, body, signShipDelivery(body));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ posted: true });
+    expect(world.slackCalls.filter((c) => c.url.includes('chat.postMessage'))).toHaveLength(1);
+
+    // Its own headline, so this is not `document.created` answering for it.
+    const text = world.log.posts[0]?.text ?? '';
+    expect(text).toContain('Issue assigned in Ship');
+    expect(text).toContain('Ship the SDK');
+    expect(text).toContain('iss_7');
+  });
+
+  // The title rule (L14's payload decision) holds for this type too, not just
+  // for documents — a private resource arrives with no title on either.
+  it('issue.assigned with no title degrades to id-and-link, same as documents', async () => {
+    world = await bootSlackWorld();
+    const body = Buffer.from(
+      JSON.stringify({
+        id: 'evt_3',
+        type: 'issue.assigned',
+        created_at: new Date().toISOString(),
+        workspace_id: 'ws_1',
+        data: { id: 'iss_8' },
+      }),
+      'utf8',
+    );
+    await deliver(world.webhookUrl, body, signShipDelivery(body));
+
+    const text = world.log.posts[0]?.text ?? '';
+    expect(text).toContain('iss_8');
+    expect(text, 'the renderer printed a null title into the channel').not.toContain('null');
+  });
+
   it('document.updated reaches the listener and produces ZERO Slack calls', async () => {
     world = await bootSlackWorld();
     const body = Buffer.from(
