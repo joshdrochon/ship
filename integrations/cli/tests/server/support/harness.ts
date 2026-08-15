@@ -31,6 +31,16 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// PF-608. Same package, same test tree, no fence crossed — see that file for the
+// long form. Short version: `tsx` is a devDependency of `api`, so pnpm links it
+// into `api/node_modules/.bin` and NOT into the workspace root, and `npx tsx`
+// from the root finds nothing on a clean `--frozen-lockfile` checkout. This
+// suite's `approveDeviceGrant` was spawning `npx tsx` and every test that logs
+// in died with `approval subprocess failed (127): sh: tsx: command not found`.
+// The suite has therefore never passed on a clean checkout, which is also why it
+// could not be added to CI.
+import { resolveTsx } from '../../ttfe/tsx.js';
+
 export const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))));
 /** The monorepo root. PF-580's test copies its tracked files into a clean directory. */
 export const REPO_ROOT = dirname(dirname(PACKAGE_ROOT));
@@ -205,9 +215,8 @@ export function approveDeviceGrant(
 ): Promise<RunResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(
-      'npx',
+      resolveTsx(REPO_ROOT),
       [
-        'tsx',
         join(REPO_ROOT, 'scripts', 'l19-device-approve.ts'),
         '--user-code',
         userCode,

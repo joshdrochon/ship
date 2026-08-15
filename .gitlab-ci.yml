@@ -506,6 +506,148 @@ ttfe-controls:
     - scripts/assert-tests-ran.sh 4 -- pnpm drill ttfe --controls
   allow_failure: false
 
+# `integrations/README.md` says all nine documented integration commands run in CI behind
+# `scripts/assert-tests-ran.sh`. Two of them ran nowhere until these jobs existed:
+#
+#   pnpm --filter @ship/cli test:server          the five-line story, against a real Ship
+#   pnpm --filter @ship/browser-demo test:pkce   Authorization Code + PKCE in a browser
+#
+# They also exist in `.github/workflows/ci.yml`, added there first. That file's own header
+# names THIS one authoritative on drift, and this is the graded remote, so the pair only
+# counts once it is here.
+#
+# Both were verified before landing, on a worktree built from `pnpm install
+# --frozen-lockfile` — 19/19 and 7/7 — because both were broken in ways that a job added
+# on faith would have surfaced as an environmental failure. See each job for what its fix
+# was.
+
+# The CLI's server-backed suite — the only thing that runs the real `ship` binary against
+# a real booted Ship.
+#
+# Two things had to be true before this job could exist, and neither was:
+#
+#  (a) `tests/server/support/harness.ts` spawned `npx tsx scripts/l19-device-approve.ts`.
+#      `tsx` is a devDependency of `api`, so a clean `--frozen-lockfile` checkout has no
+#      `tsx` at the workspace root and every test that logs in died with
+#      `approval subprocess failed (127): sh: tsx: command not found`. Same root cause as
+#      the TTFE drill's, found the same way, fixed the same way (PF-608).
+#
+#  (b) `OAUTH_RATE_LIMIT_PER_MINUTE` defaults to 30 per client IP (deps.ts, finding F29).
+#      Nineteen tests that each complete a device grant blow through that, and the run
+#      fails with `slow_down` — a failure about the harness, not about the CLI. Raised
+#      here on the throwaway server this job boots, exactly as `browser-demo`'s own
+#      playwright.config.ts sets `E2E_TEST: '1'` to lift the login limiter for the same
+#      reason. It changes no assertion in the suite; the suite tests the CLI.
+#
+# The boot sequence is the one `integrations/cli/README.md` documents, not an invention —
+# migrate, seed, build the binary, start `api/src/index.ts`, wait for `/health`. The wait
+# is a bounded poll rather than a sleep: a fixed sleep is either too short on a loaded
+# runner or wasted on an idle one, and it fails as a timeout that names nothing.
+cli-server-suite:
+  stage: verify
+  needs: ['build']
+  services:
+    - name: postgres:16
+      alias: postgres
+  variables:
+    SHIP_TEST_BASE_URL: 'http://127.0.0.1:3919'
+    # See (b). Throwaway server, one job, no traffic but this suite's.
+    OAUTH_RATE_LIMIT_PER_MINUTE: '100000'
+  script:
+    # Generated per job rather than written down: a literal here would be a committed
+    # secret-shaped string for no benefit. `secretCipher.ts` wants base64 of 32 bytes.
+    - export WEBHOOK_SECRET_KEY="$(head -c 32 /dev/urandom | base64)"
+    - pnpm --filter @ship/api exec tsx src/db/migrate.ts
+    - pnpm db:seed
+    # `dist/index.js` is what the suite spawns — it drives the built binary, never a
+    # command function, so the build is part of what this job proves.
+    - pnpm --filter @ship/cli build
+    - |
+      set -eu
+      # PF-575's opt-in: `ship webhooks tail` subscribes a loopback target_url, which the
+      # deployed instance refuses by default and must keep refusing.
+      PORT=3919 \
+      APP_BASE_URL="$SHIP_TEST_BASE_URL" \
+      SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS=true \
+      NODE_ENV=development \
+        api/node_modules/.bin/tsx api/src/index.ts > ship-server.log 2>&1 &
+      echo "$!" > ship-server.pid
+    - |
+      set -eu
+      deadline=$(( $(date +%s) + 120 ))
+      until curl -sf "$SHIP_TEST_BASE_URL/health" > /dev/null; do
+        if ! kill -0 "$(cat ship-server.pid)" 2>/dev/null; then
+          echo "the Ship this job booted exited before answering /health:" >&2
+          cat ship-server.log >&2
+          exit 1
+        fi
+        if [ "$(date +%s)" -gt "$deadline" ]; then
+          echo "no answer from $SHIP_TEST_BASE_URL/health within 120 s:" >&2
+          cat ship-server.log >&2
+          exit 1
+        fi
+        sleep 1
+      done
+      echo "ship up at $SHIP_TEST_BASE_URL"
+    # 19 is the whole suite: story 11, deviceScenario 4, readmeSetup 2, tailModes 2.
+    # Counted from the files, so a spec that stops being collected exits 2 rather than
+    # reading as a pass.
+    - scripts/assert-tests-ran.sh 19 -- pnpm --filter @ship/cli test:server
+  after_script:
+    - test -f ship-server.pid && kill "$(cat ship-server.pid)" 2>/dev/null || true
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - ship-server.log
+  allow_failure: false
+
+# Authorization Code + PKCE, driven through a real Chromium against a real Ship.
+#
+# This is the only automated proof of that flow in a browser, and p.5's Testing Scenario 2
+# rests on it. `integrations/browser-demo/playwright.config.ts` already does the hard part:
+# it boots `api/src/index.ts` and `vite preview` as its own `webServer`s and registers the
+# public OAuth app in `globalSetup`. So all this job supplies is a database with the seed
+# user in it — `dev@ship.local`, whom the consent screen signs in as.
+#
+# `retries: 0` in that config, not the root's `process.env.CI ? 2 : 1`. Nothing here
+# overrides it, for the reason the drill does not either.
+#
+# Chromium is installed rather than baked in via a Playwright image, matching `e2e`: the
+# image tag would have to track @playwright/test by hand and a mismatch fails at runtime.
+browser-demo-pkce:
+  stage: verify
+  needs: ['build']
+  services:
+    - name: postgres:16
+      alias: postgres
+  variables:
+    # Not the config's 3124 default — nothing else in this job uses that port, but pinning
+    # it here keeps the number visible next to the job that depends on it. DEMO_PORT is
+    # NOT settable: `scripts/l24-browser-demo-setup.ts` registers the redirect URI as the
+    # constant `http://localhost:4173/` and vite inlines it at build time, so the two
+    # would drift into an `invalid_grant` nobody could read.
+    DEMO_API_PORT: '3124'
+  before_script:
+    - corepack enable
+    - corepack prepare pnpm@10.27.0 --activate
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+    - pnpm exec playwright install --with-deps chromium
+  script:
+    - export WEBHOOK_SECRET_KEY="$(head -c 32 /dev/urandom | base64)"
+    - pnpm --filter @ship/api exec tsx src/db/migrate.ts
+    # For `dev@ship.local` / `admin123`. globalSetup fails by name without that user.
+    - pnpm db:seed
+    # 7 is the whole spec file: 4 for PF-734, 1 for PF-735's negative case, 2 for PF-736.
+    - scripts/assert-tests-ran.sh 7 -- pnpm --filter @ship/browser-demo test:pkce
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - integrations/browser-demo/test-results/
+  allow_failure: false
+
 coverage:
   stage: verify
   needs: ['build']
