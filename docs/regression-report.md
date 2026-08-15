@@ -5,23 +5,23 @@
 
 PRD p.2 gate item 9: *"Existing Playwright regression suite passes on main; P95 latency, bundle size, and per-route query counts within +10% of the Part 1 baseline."* Budget restated on p.6.
 
-**Result: WITHIN BUDGET** — budget is +10% on each metric.
+**Result: INDETERMINATE — this run does NOT establish that the budget is met.** 6 of 13 metrics were measured but not judged against the +10% budget, so this report is not evidence of a pass. Nothing that *was* judged exceeded its budget.
 
 | | |
 |---|---|
 | Baseline captured | 2026-08-14T19:39:12.340Z |
 | Baseline git ref | `5455f4ef0e971cc083468fb209ab890ed505239b` |
-| Compared at | 2026-08-14T21:50:53.139Z |
-| Current git ref | `a67a500707ae8cd040a52615007b53ef63f41006` |
+| Compared at | 2026-08-15T18:57:41.226Z |
+| Current git ref | `dbfb46de4e28b2f2d254b7dc8ce9c8c35e77aef0` |
 | Database state | purpose-built fixture (1 workspace, 1 user, 25 documents) created and destroyed by this run |
 | Environment | baseline darwin-arm64, node v26.5.0, 10 cpu · current darwin-arm64, node v26.5.0, 10 cpu |
-| Machine load during run | 8.92 over 10 cores (ratio 0.89, limit 0.8) |
+| Machine load during run | 17.15 over 10 cores (ratio 1.71, limit 0.8) |
 | Latency budget | advisory only |
 
 > **Latency deltas below are advisory on this run**, for the reason(s) below. Bundle size and
 > query counts are deterministic — same tree, same numbers, any machine — and stay enforced.
 >
-> *Machine too busy to time on:* machine under load: 1-minute load average 8.92 across 10 cores (ratio 0.89, limit 0.8). In-process latency measured on a contended machine describes the contention.
+> *Machine too busy to time on:* machine under load: 1-minute load average 17.15 across 10 cores (ratio 1.71, limit 0.8). In-process latency measured on a contended machine describes the contention.
 >
 > A fingerprint match says "same box"; it does not say "the box was idle enough to time
 > anything on". Measured 2026-08-13: at load ratio 1.33, three consecutive runs of one
@@ -29,22 +29,36 @@ PRD p.2 gate item 9: *"Existing Playwright regression suite passes on main; P95 
 >
 > Re-run on an idle machine matching the baseline to get an enforceable latency verdict.
 
+## Not judged on this run (6)
+
+These metrics were measured, but the measurement was not trustworthy enough to compare
+against the budget, so **no verdict was reached on them** — neither pass nor fail. The
+numbers are printed below for information only. Do not read them as a result in either
+direction.
+
+- P95 latency · GET /health: 1.67 ms vs baseline 0.21 ms (+695.24%) — **not judged**
+- P95 latency · GET /api/documents: 12.3 ms vs baseline 2.69 ms (+357.25%) — **not judged**
+- P95 latency · GET /api/documents/:id: 12.33 ms vs baseline 3.89 ms (+216.97%) — **not judged**
+- P95 latency · GET /api/issues: 10.46 ms vs baseline 4.9 ms (+113.47%) — **not judged**
+- P95 latency · GET /api/weeks: 33.94 ms vs baseline 5.72 ms (+493.36%) — **not judged**
+- P95 latency · GET /api/dashboard/my-work: 25.98 ms vs baseline 7.84 ms (+231.38%) — **not judged**
+
 ## P95 latency, per route
 
 | Route | Baseline (ms) | Current (ms) | Delta | Status |
 |---|---:|---:|---:|---|
-| GET /health | 0.21 | 0.24 | +14.29% | advisory |
-| GET /api/documents | 2.69 | 4.27 | +58.74% | advisory |
-| GET /api/documents/:id | 3.89 | 4.52 | +16.20% | advisory |
-| GET /api/issues | 4.9 | 7.58 | +54.69% | advisory |
-| GET /api/weeks | 5.72 | 9.63 | +68.36% | advisory |
-| GET /api/dashboard/my-work | 7.84 | 11.74 | +49.74% | advisory |
+| GET /health | 0.21 | 1.67 | +695.24% | advisory |
+| GET /api/documents | 2.69 | 12.3 | +357.25% | advisory |
+| GET /api/documents/:id | 3.89 | 12.33 | +216.97% | advisory |
+| GET /api/issues | 4.9 | 10.46 | +113.47% | advisory |
+| GET /api/weeks | 5.72 | 33.94 | +493.36% | advisory |
+| GET /api/dashboard/my-work | 7.84 | 25.98 | +231.38% | advisory |
 
 ## Bundle size
 
 | Route | Baseline (bytes) | Current (bytes) | Delta | Status |
 |---|---:|---:|---:|---|
-| total (gzipped) | 747644 | 760294 | +1.69% | pass |
+| total (gzipped) | 747644 | 767960 | +2.72% | pass |
 
 ## Queries per request, per route
 
@@ -61,10 +75,15 @@ PRD p.2 gate item 9: *"Existing Playwright regression suite passes on main; P95 
 
 Both sides run the same code — `api/src/scripts/lib/perf-measure.ts` — so the route list, sample
 counts, percentile rule, fixture and bundle glob cannot drift between the denominator and the
-numerator. In-process through the Express app via supertest, no TCP: these are a before/after
-pair for this repo against itself, not a production SLO. Each route gets 15 discarded warm-up
-requests then 60 counted samples, nearest-rank percentile. Query counts come from one clean
-request with the pool instrumented, so a statement issued inside a transaction is still counted.
+numerator. The app is bound once with `app.listen(0)` and every sample reuses one kept-alive
+loopback socket (PF-806) — so the bind/accept/close cost is outside the timed region, but a real
+loopback TCP hop is inside it. These are a before/after pair for this repo against itself, not a
+production SLO, and they are not comparable to any baseline captured through the older
+per-request supertest bind. Each route gets 15 discarded warm-up requests, then `PERF_TRIALS`
+independent passes of 60 counted samples; the reported p95 is the nearest-rank p95 of each pass,
+taken as the median across passes — pooling samples lets one bad pass pull the combined tail up
+and look exactly like a regression. Query counts come from one clean request with the pool
+instrumented, so a statement issued inside a transaction is still counted.
 
 Routes are measured against a purpose-built fixture (one workspace, one user, 25 documents)
 created and destroyed by the run, not against seed or developer data — so the numbers do not

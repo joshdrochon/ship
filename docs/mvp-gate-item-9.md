@@ -11,14 +11,25 @@
 > PR?"* Answer: **a perf job that fails the PR.** `regression-budget` in both pipelines.
 
 The gate item is two claims. They are recorded separately below because they are
-separately true, and one of them is **not yet fully established**.
+separately true, and one of them is **still not established**.
 
 | Half | Status |
 |---|---|
 | Playwright regression suite passes on main | Passing as of 2026-08-12 on the L01 tree — **not re-run on the integration tree**, see below |
-| P95 latency ≤ +10% | **Not established.** Machine too contended to measure; see *The latency half* |
-| Bundle size ≤ +10% | **PASS** — −0.00% (32 bytes smaller) |
+| P95 latency ≤ +10% | **PASS** — worst route +4.3%. Established by the paired protocol, not by a single run; see *The latency half* |
+| Bundle size ≤ +10% | **PASS** — +2.72% (747,644 → 767,960 B gzipped), integration tree `dbfb46d`, 2026-08-15 |
 | Per-route query counts ≤ +10% | **PASS** — 0.00% on all six routes, bit-identical |
+
+> **Superseded 2026-08-14.** Until then this table read *"P95 latency — Not established.
+> Machine too contended to measure"*, and the Mechanism table below pointed at a baseline
+> captured at `b639059`. Both statements were written on 2026-08-13 and both were
+> overtaken the next day by `b6177e4`, which re-captured the baseline at the real Part 1
+> commit and produced the paired-run evidence. `b639059` is **three commits after Week 5's
+> `main`** (`5455f4e`) and already contains `api/src/platform/`, the OAuth router and the
+> SDK — so the "before" picture had much of the "after" already in it, which is
+> `docs/measurement-rules.md` rule 2. The settling evidence is
+> **`docs/regression-paired-runs.md`**, ten alternating pairs against a baseline captured
+> at `5455f4e`, raw samples in `docs/perf-paired-runs.txt`.
 
 ---
 
@@ -26,13 +37,16 @@ separately true, and one of them is **not yet fully established**.
 
 | Piece | Path |
 |---|---|
-| Baseline (denominator) | `docs/baseline-part1.json` — captured 2026-08-12, gitRef `b639059` |
+| Baseline (denominator) | `docs/baseline-part1.json` — captured 2026-08-14, gitRef `5455f4e` (Week 5 `main`, the actual Part 1 tree) |
+| Latency evidence | `docs/regression-paired-runs.md` + raw samples in `docs/perf-paired-runs.txt` |
 | Schema, cited by both sides | `docs/baseline-schema.md` |
 | Shared measurement | `api/src/scripts/lib/perf-measure.ts` |
 | Comparison logic | `api/src/scripts/lib/perf-compare.ts` |
 | Producer CLI | `api/src/scripts/measure-baseline.ts` → `pnpm baseline:measure` |
 | Consumer CLI | `api/src/scripts/compare-baseline.ts` → `pnpm baseline:compare` |
-| Tests | `api/src/scripts/lib/perf-compare.test.ts` — 36 tests |
+| A/A self-check (runs first) | `scripts/perf-self-check.mjs` |
+| Paired A/B protocol | `scripts/perf-paired-runs.sh` |
+| Tests | `api/src/scripts/lib/perf-compare.test.ts` — 43 tests |
 | CI job | `regression-budget` in `.gitlab-ci.yml` (authoritative) and `.github/workflows/ci.yml` |
 
 Both sides import the same measurement module, so the route list, sample counts,
@@ -114,8 +128,12 @@ Query counts, three consecutive runs, `pf/L26-regression-budget`:
 
 Bit-identical across every run. **PASS.**
 
-Bundle, gzipped total: baseline **747,644 B** → current **747,612 B**, **−0.00%** (32
-bytes smaller). **PASS.**
+Bundle, gzipped total: baseline **747,644 B** → current **767,960 B**, **+2.72%**. **PASS.**
+
+*(The −0.00% / 747,612 B figure previously recorded here was measured on the L26 tree alone,
+before the other lanes landed. Re-measured 2026-08-15 on the integration tree `dbfb46d`. The
+budget is +10% and the current figure is +2.72%, so the verdict is unchanged; the number is
+not. Re-measure this row before submission — it moves with every lane that lands.)*
 
 **Database state:** freshly migrated `ship_l26` (58 migrations, no seed). The routes are
 driven against a fixture the script creates and destroys — one workspace, one user, 25
@@ -151,13 +169,39 @@ is deterministic and enforced unconditionally.
 
 ---
 
-## The latency half — not established, and why
+## The latency half — established, by the paired protocol
 
-**This is the one part of gate item 9 this lane cannot currently certify.**
+**Result: within budget. Worst route +4.3%, against a +10% budget.**
 
-The comparator is correct and the CI job is real. The obstacle is measurement, not code.
+| Route | Part 1 p95 (ms) | Current p95 (ms) | Delta |
+|---|---:|---:|---:|
+| `GET /health` *(control)* | 0.26 | 0.24 | −5.8% |
+| `GET /api/documents` | 3.10 | 3.18 | +2.6% |
+| `GET /api/documents/:id` | 4.21 | 4.21 | −0.1% |
+| `GET /api/issues` | 5.36 | 5.59 | **+4.3%** |
+| `GET /api/weeks` | 6.42 | 6.44 | +0.4% |
+| `GET /api/dashboard/my-work` | 8.06 | 8.11 | +0.6% |
 
-Three consecutive runs of the **same commit on the same machine**, minutes apart:
+Ten alternating pairs per side, 25 trials of 60 samples per route per run, both sides
+running byte-identical measurement code against a baseline captured at `5455f4e` — Week
+5's `main`, the actual Part 1 tree. Full method and the three defects this replaced:
+`docs/regression-paired-runs.md`. Raw per-run samples: `docs/perf-paired-runs.txt`.
+Reproduce with `scripts/perf-paired-runs.sh <part1-worktree> 10`.
+
+`GET /health` is the control — it runs no query and touches no database, so it cannot
+regress. It moved −5.8%, well inside the run-to-run floor, which is what says the
+instrument was working. When that control moves a lot, the run is void, not the tree.
+
+**Why the paired protocol and not a single `pnpm baseline:compare`:** a single run on this
+hardware is not deterministic — four consecutive comparisons of the same tree against the
+same baseline gave WITHIN / OVER / WITHIN / WITHIN. Publishing whichever one passed would
+be picking the answer. Alternating both sides in one session makes machine drift land on
+both sides instead of on whichever was measured while something else woke up.
+
+### What this replaced — the single-run attempt that could not resolve the budget
+
+Kept because it is why the protocol above exists. Three consecutive runs of the **same
+commit on the same machine**, minutes apart:
 
 | Route | Baseline | Run 1 | Run 2 | Run 3 | Spread |
 |---|---:|---:|---:|---:|---:|
@@ -201,18 +245,26 @@ claim.
 
 Logged as **F80** in `lane-99-unassigned.md`.
 
-### What is needed to close it
+### How it was closed
 
-Run on an idle machine matching the baseline fingerprint:
+Not by waiting for a quiet machine — that wait never ended. By re-measuring **both** sides
+alternately in one session, so the machine's drift lands on both and cancels:
 
 ```bash
-pnpm build:web
-pnpm baseline:compare -- --strict-latency
+scripts/perf-paired-runs.sh <part1-worktree> 10
 ```
 
-The load line in the report must read a ratio at or under 0.8. If the three deltas come in
-at or under +10%, paste the report into `SUBMISSION-PLUGFORGE.md` and this half is closed.
-Everything needed to do that is landed; only a quiet machine is missing.
+Ten pairs, exit 0, worst route +4.3%. That is the evidence for the latency half, and
+`docs/regression-paired-runs.md` is where it lives.
+
+**A single-run `pnpm baseline:compare -- --strict-latency` is *not* an acceptable
+substitute on this hardware,** and the earlier version of this section was wrong to offer
+it as the closing move. `--strict-latency` overrides the load guard that exists to catch
+exactly the condition this machine is in, which is `docs/measurement-rules.md` rule 7. The
+flag is not the problem; reaching for it to turn a run green is. If the machine is quiet
+enough for a single run — load ratio at or under 0.8, reported in the artifact — the plain
+`pnpm baseline:compare` establishes it without the flag, and the flag is unnecessary. If it
+is not quiet, the flag does not make the number true.
 
 ---
 
@@ -227,6 +279,130 @@ slower box.
 So the CI job enforces the two deterministic metrics unconditionally and reports latency
 as advisory, naming the reason in the artifact on every run. The latency half is enforced
 on a machine matching the baseline and recorded here.
+
+**What that must NOT mean: a green artifact.** See the next section.
+
+---
+
+## An unjudged budget is not a passed budget
+
+`docs/regression-report.json` used to emit this combination:
+
+```json
+"latencyEnforced": false,
+"failures": [],
+"ok": true
+```
+
+on a run whose six P95 rows read **+14.29% to +68.36%** against a +10% budget. The rows
+were `"status": "advisory"` because `loadRatio` 0.89 exceeded the 0.8 limit and latency
+enforcement was vetoed. The veto was correct — refusing to judge latency on a contended
+machine is the whole discipline of `docs/measurement-rules.md`. Emitting `ok: true` and an
+empty `failures` array as the result of that refusal was not. A grader opening that file to
+check gate item 9 saw a clean pass on a metric nothing had judged.
+
+The report now distinguishes the two:
+
+| Field | Meaning |
+|---|---|
+| `verdict: "pass"` | every budget was judged, and met |
+| `verdict: "fail"` | something judged exceeded its budget |
+| `verdict: "indeterminate"` | nothing judged exceeded its budget, but not every budget was judged |
+| `unjudged: [...]` | the metrics that were measured but not judged — mirrors `failures` |
+| `ok` | `true` only when `verdict === "pass"` |
+
+`ok` stays a **boolean** deliberately. A tri-state string there would be truthy in every
+naive `if (report.ok)` consumer, so `"indeterminate"` would read as success in precisely
+the code paths the field exists to protect. `false` is the value that is safe for a
+consumer that has never heard of `verdict`.
+
+`compare-baseline` exits **2** on an indeterminate run — the code it already used for "the
+instrument could not answer" — keeping exit 1 to mean a real, measured breach. The two must
+stay distinguishable: a pipeline that tolerates "could not measure" must **not** thereby
+tolerate "measured, and over budget".
+
+Covered by `api/src/scripts/lib/perf-compare.test.ts`, which reconstructs the exact shape
+of the committed artifact and asserts it is no longer a pass, and — anti-vacuity — that a
+clean run on a quiet matching machine still reports a plain `pass`.
+
+### The committed report, and the conditions it was taken under
+
+`docs/regression-report.json` was regenerated on **2026-08-15** against the integration tree
+`dbfb46d`, baseline `5455f4e`, on a dedicated database (`ship_l26int`, 61 migrations, no
+seed; routes driven against the fixture the script creates and destroys).
+
+**It is `verdict: "indeterminate"`, and that is the honest result, not a placeholder.**
+
+The A/A self-check was run first, as `docs/measurement-rules.md` rule 1 requires, and it
+failed:
+
+```
+$ API_RATE_LIMIT_MAX=100000000 PERF_TRIALS=25 node scripts/perf-self-check.mjs --budget 10
+
+  route                                 A        B     diff
+  GET /api/issues                   46.87    14.89    68.2%
+  GET /health                        2.48     1.20    51.6%
+  GET /api/dashboard/my-work        19.18    27.97    45.8%
+  ...
+  TOO NOISY — GET /api/issues moved 68.2% between two runs of identical code.
+```
+
+**The control moved.** `GET /health` runs no query and touches no database, and it read
+51.6% apart across two runs of identical code — and in the comparison itself, 1.67 ms
+against a 0.21 ms baseline. A route that does nothing cannot regress by 695%. That is the
+machine, and by rule 1 it voids any latency verdict from this run, including a passing one.
+
+Machine state during the run: 1-minute load average **17.15 across 10 cores (ratio 1.71)**,
+against a limit of 0.8 — eight to nine GitLab runner containers building concurrently and a
+Docker VM holding ~600% CPU. Load was sampled every 30 s for the preceding half hour and
+never came near the threshold; it was rising, not falling. No quiet window was available,
+so none was claimed.
+
+**The latency numbers printed in that artifact are contention, not code.** They are marked
+`"status": "advisory"` and listed under `unjudged`, the verdict is `indeterminate`, and `ok`
+is `false`. Read them as nothing at all. The latency half of gate item 9 is established by
+`docs/regression-paired-runs.md`, whose protocol is designed for exactly this machine.
+
+---
+
+## Wiring the credible measurement into CI
+
+`scripts/perf-paired-runs.sh` produces the only latency evidence in this repo that survives
+its own noise, and **no CI job runs it.** The good number is manual; the weaker single-run
+comparison is the one in the pipeline. That is backwards, and it is why the stale "not
+established" line survived a day longer than the evidence that refuted it.
+
+It does not belong in the per-MR pipeline: ten alternating pairs at `PERF_TRIALS=25` is
+roughly 20 restarts of the measurement across two worktrees, far too slow to sit in front
+of every merge, and it needs a Week 5 worktree checked out at `5455f4e` with the current
+harness copied in — which is state a normal MR job should not be building.
+
+**Proposed job — `perf-paired-latency`.** `.gitlab-ci.yml` is owned by another lane right
+now, so this is a description rather than an edit:
+
+| Field | Value |
+|---|---|
+| Stage | `verify` |
+| Trigger | `rules: - if: $CI_PIPELINE_SOURCE == "schedule"` plus a manual `when: manual` entry, **not** on every MR |
+| Setup | worktree at `5455f4e`, current `api/src/scripts/lib/perf-measure.ts` copied in — both sides must run identical measurement code |
+| Env | `API_RATE_LIMIT_MAX` pinned identically on both sides; two databases, `BASELINE_DATABASE_URL` (Part 1 schema) and `CURRENT_DATABASE_URL` |
+| Script | `scripts/perf-self-check.mjs --budget 10` first, then `scripts/perf-paired-runs.sh $PART1_WT 10` |
+| Exit | the script already exits 1 when any route exceeds +10%; exit 2 from the self-check means the runner is too noisy and the run is void, not passing |
+| Artifacts | `docs/perf-paired-runs.txt`, `when: always` |
+| Caveat | the runner must restore `docs/baseline-part1.json` afterwards — `measure-baseline.ts` rewrites it in whichever tree it runs in |
+
+The per-MR `regression-budget` job stays as it is: the two deterministic metrics enforced
+on every change, latency reported and marked unjudged. That job answers "did this diff
+change the bundle or the query count", which it can do honestly on any runner. This one
+answers "is the latency budget met", which needs the paired protocol.
+
+**Pipeline note for the new exit code.** With latency unjudged on a linux runner,
+`regression-budget` now exits 2 rather than 0. GitLab expresses the right tolerance
+directly — `allow_failure: exit_codes: [2]` — which keeps exit 1 (a real, measured breach)
+failing the MR while an unmeasurable latency half shows as a warning rather than a false
+green. GitHub Actions has no equivalent, so its step needs an explicit
+`|| [ $? -eq 2 ]` wrapper. Do **not** reach for a blanket `allow_failure: true`: that
+swallows exit 1 as well and removes the thing PF-804 exists to provide.
 
 This is a judgment call and it is the softest one in the slice. The alternative readings
 are: enforce latency in CI anyway (produces red builds unrelated to the diff — the fastest

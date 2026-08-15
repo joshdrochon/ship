@@ -500,10 +500,17 @@ describe('a machine too busy to time on cannot produce an enforceable latency ve
     expect(report.deltas.find((d) => d.kind === 'p95')!.status).toBe('advisory');
     expect(report.load.reason).toMatch(/under load/);
 
-    // The deterministic metrics are untouched by load and stay enforced.
-    expect(report.ok).toBe(true);
+    // The deterministic metrics are untouched by load and stay enforced — but the
+    // run as a whole is NOT a pass, because a third of gate item 9 went unjudged.
+    expect(report.verdict).toBe('indeterminate');
+    expect(report.ok).toBe(false);
+    expect(report.failures).toEqual([]);
+    expect(report.unjudged.every((d) => d.kind === 'p95')).toBe(true);
+
     c.routes['GET /api/documents']!.queriesPerRequest += 2;
-    expect(compare(b, c).ok).toBe(false);
+    const withQueryRegression = compare(b, c);
+    expect(withQueryRegression.verdict).toBe('fail');
+    expect(withQueryRegression.ok).toBe(false);
   });
 
   it('a measurement with no recorded load average cannot be trusted for latency', () => {
@@ -541,5 +548,105 @@ describe('a machine too busy to time on cannot produce an enforceable latency ve
     const over = makeCurrent(b);
     over.method = { ...METHOD, loadAvg1: MAX_LOAD_RATIO * 10 + 1, loadRatio: MAX_LOAD_RATIO + 0.1 };
     expect(checkLoad(over).acceptable).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// an unjudged budget is not a passed budget
+// ---------------------------------------------------------------------------
+
+describe('a run that did not judge a metric cannot report success on it', () => {
+  /**
+   * The committed `docs/regression-report.json`, reconstructed.
+   *
+   * That artifact carried `"ok": true` and `"failures": []` while all six P95 rows
+   * sat between +14.29% and +68.36% against a +10% budget — advisory, because
+   * loadRatio 0.89 vetoed latency enforcement. The veto was right. Reporting the
+   * result of it as a pass was not, and it is the artifact a grader opens to check
+   * gate item 9.
+   */
+  const contendedRun = () => {
+    const b = makeBaseline();
+    const c = makeCurrent(b);
+    c.method = { ...METHOD, loadAvg1: 8.92, loadRatio: 0.89 };
+    for (const id of Object.keys(c.routes)) c.routes[id]!.latencyMs.p95 *= 1.6;
+    return { b, c };
+  };
+
+  it('the exact shape that reached the artifact is no longer a pass', () => {
+    const { b, c } = contendedRun();
+    const report = compare(b, c);
+
+    expect(report.latencyEnforced).toBe(false);
+    expect(report.failures).toEqual([]); // nothing judged was over...
+    expect(report.ok).toBe(false); // ...and it is still not a pass
+    expect(report.verdict).toBe('indeterminate');
+  });
+
+  it('`ok` stays a boolean, so a consumer that never heard of `verdict` still reads false', () => {
+    // A tri-state string would be truthy in `if (report.ok)` and would report the
+    // indeterminate case as success in precisely the consumers this protects.
+    const { b, c } = contendedRun();
+    const report = compare(b, c);
+    expect(typeof report.ok).toBe('boolean');
+    expect(report.ok ? 'pass' : 'not-a-pass').toBe('not-a-pass');
+  });
+
+  it('every unjudged metric is listed in `unjudged`, mirroring `failures`', () => {
+    const { b, c } = contendedRun();
+    const report = compare(b, c);
+
+    expect(report.unjudged).toHaveLength(Object.keys(b.routes).length);
+    expect(report.unjudged.every((d) => d.kind === 'p95')).toBe(true);
+    expect(report.unjudged.every((d) => d.status === 'advisory')).toBe(true);
+    expect(report.unjudged.every((d) => (d.advisoryReason ?? '').includes('under load'))).toBe(true);
+    // `unjudged` and `failures` are disjoint and together cover everything not passing.
+    expect(report.deltas.filter((d) => d.status === 'pass')).toHaveLength(
+      report.deltas.length - report.unjudged.length - report.failures.length,
+    );
+  });
+
+  it('the markdown a grader reads says INDETERMINATE, not WITHIN BUDGET', () => {
+    const { b, c } = contendedRun();
+    const md = renderMarkdown(compare(b, c));
+
+    expect(md).toContain('INDETERMINATE');
+    expect(md).toContain('does NOT establish that the budget is met');
+    expect(md).toContain('Not judged on this run');
+    expect(md).not.toContain('WITHIN BUDGET');
+  });
+
+  it('a measured breach outranks an unjudged metric — the verdict is fail, not indeterminate', () => {
+    const { b, c } = contendedRun();
+    c.bundle.totalGzipBytes = Math.round(b.bundle.totalGzipBytes * 1.11);
+
+    const report = compare(b, c);
+    expect(report.verdict).toBe('fail');
+    expect(report.ok).toBe(false);
+    expect(report.unjudged.length).toBeGreaterThan(0);
+    expect(renderMarkdown(report)).toContain('OVER BUDGET');
+  });
+
+  it('a clean run on a quiet matching machine is still a plain pass', () => {
+    // Anti-vacuity: a verdict that can only ever be non-pass is no better than one
+    // that can only ever be pass.
+    const b = makeBaseline();
+    const report = compare(b, makeCurrent(b));
+
+    expect(report.verdict).toBe('pass');
+    expect(report.ok).toBe(true);
+    expect(report.unjudged).toEqual([]);
+    expect(report.failures).toEqual([]);
+    expect(renderMarkdown(report)).toContain('WITHIN BUDGET');
+  });
+
+  it('--strict-latency does not manufacture a pass — it makes latency judgeable, and it can fail', () => {
+    const { b, c } = contendedRun();
+    const report = compare(b, c, { strictLatency: true });
+
+    // 1.6x is well over +10%, so forcing enforcement produces failures, not a green.
+    expect(report.verdict).toBe('fail');
+    expect(report.unjudged).toEqual([]);
+    expect(report.failures.some((f) => f.kind === 'p95')).toBe(true);
   });
 });

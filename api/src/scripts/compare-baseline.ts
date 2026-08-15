@@ -305,11 +305,37 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
-  if (report.ok) {
-    const enforced = report.deltas.filter((d) => d.status !== 'advisory').length;
-    console.log(`  WITHIN BUDGET — ${enforced} enforced metric(s) at or under +${report.budgetPercent}%.`);
+  if (report.verdict === 'pass') {
+    console.log(`  WITHIN BUDGET — all ${report.deltas.length} metric(s) judged, all at or under +${report.budgetPercent}%.`);
     await pool.end();
     process.exit(0);
+  }
+
+  // An unjudged budget is not a passed budget.
+  //
+  // This used to exit 0. `latencyEnforced: false` downgraded the six P95 rows to
+  // advisory, `failures` came back empty, and the run reported success on a gate
+  // item whose latency half it had not evaluated at all — with P95 deltas as high
+  // as +68% sitting in the artifact underneath the green. Exit 2 is the code this
+  // script already uses for "the instrument could not answer", which is exactly
+  // what this is.
+  if (report.verdict === 'indeterminate') {
+    console.error(
+      `  INDETERMINATE — ${report.unjudged.length} of ${report.deltas.length} metric(s) were not ` +
+        `judged against the +${report.budgetPercent}% budget:\n`,
+    );
+    for (const d of report.unjudged) {
+      console.error(`    ${d.label}: ${d.current} ${d.unit} vs baseline ${d.baseline} ${d.unit} — NOT JUDGED`);
+    }
+    console.error('');
+    console.error(
+      `  Everything that was judged is within budget, but this run does NOT establish\n` +
+        `  MVP gate item 9 (PRD p.2). Re-run where the unjudged metrics can be measured;\n` +
+        `  scripts/perf-paired-runs.sh is the protocol for a machine that will not go quiet.\n` +
+        `  See ${outPath}.`,
+    );
+    await pool.end();
+    process.exit(2);
   }
 
   console.error(`  OVER BUDGET — ${report.failures.length} metric(s) above +${report.budgetPercent}%:\n`);
