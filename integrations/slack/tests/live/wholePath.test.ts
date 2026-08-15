@@ -75,6 +75,8 @@ let signingSecret: string;
 let createdTitle: string;
 let createdId: string;
 let subscriptionId: string;
+/** PF-742's other half — the second of the two event types p.8 names. */
+let issueSubscriptionId: string;
 /** The platform's own record of the attempt — hops 2, 3 and 5 read it. */
 let deliveryRow: WebhookDelivery | undefined;
 
@@ -121,6 +123,20 @@ beforeAll(async () => {
   subscriptionId = subscription.id;
   world.setSigningSecret(signingSecret);
 
+  // PF-742's OTHER event type. Until 2026-08-15 this live path created exactly
+  // one subscription, so `grep -rn "event: '" integrations/` returned
+  // `document.created` and nothing else — the same defect species as the one
+  // closed in `listener.test.ts`, one level up: the criterion names TWO event
+  // types and the whole-path proof exercised one. Created here so the walk runs
+  // with both subscriptions live, which also strengthens hop 3 — the matcher
+  // now has two rows to choose between and must still produce exactly one
+  // delivery for a `document.created` event.
+  const issueSubscription = await client.webhooks.create({
+    event: 'issue.assigned',
+    target_url: world.webhookUrl,
+  });
+  issueSubscriptionId = issueSubscription.id;
+
   // ── hop 1: the INTERNAL route, with a session cookie ───────────────────
   createdTitle = `PF-743 — ${Date.now()}`;
   const created = JSON.parse(
@@ -134,8 +150,30 @@ beforeAll(async () => {
   // The platform's own record of the attempt, fetched once. Hops 2, 3 and 5
   // assert against it; fetching per-test would make four calls that could
   // legitimately disagree with each other as retries advance the row.
-  const page = await client.webhooks.deliveries.list({ subscription_id: subscriptionId });
-  deliveryRow = page.data.find((d) => d.event_type === 'document.created');
+  //
+  // ── and fetched only once the row is TERMINAL ────────────────────────────
+  // `waitForDelivery()` resolves the instant the LISTENER has answered, and the
+  // deliverer writes the outcome to its row strictly after that — so reading
+  // the row here raced the writer. Observed losing once in six runs, as
+  // `expected 'in_flight' to be 'delivered'` out of hop 5. p.9 sets drill flake
+  // at zero over twenty runs, so once in six is a defect and not bad luck.
+  //
+  // POLLED ON THE CONDITION, never slept: p.11 forbids waiting a guessed
+  // interval for an outcome, and each iteration's pace is set by the `list()`
+  // round trip itself. The attempt ceiling is a FAILURE bound — it exists so a
+  // deliverer that never records an outcome fails hop 5 against the real status
+  // instead of hanging, and it is low enough that the loop can never approach
+  // the per-token rate limit.
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const page = await client.webhooks.deliveries.list({ subscription_id: subscriptionId });
+    const row = page.data.find((d) => d.event_type === 'document.created');
+    if (row !== undefined) {
+      // Kept on every pass, so an exhausted loop still hands hop 5 the real row
+      // to fail against rather than `undefined`.
+      deliveryRow = row;
+      if (row.status !== 'in_flight') break;
+    }
+  }
 }, 180_000);
 
 afterAll(async () => {
@@ -252,6 +290,22 @@ describe('PF-743 — every boundary the walk crosses, in order', () => {
     const posted = world.slackCalls.filter((c) => c.url.includes('chat.postMessage'));
     expect(posted.length).toBeGreaterThanOrEqual(1);
     expect(world.log.posts[0]?.text ?? '').toContain(createdTitle);
+  });
+
+  // PF-742's subscription half, asserted where the subscriptions are actually
+  // created. `POSTED_EVENT_TYPES` in `src/render.ts` says which events the
+  // listener will post; it says nothing about whether Ship was ever asked to
+  // send them. This reads the platform's own subscription list back.
+  it('PF-742 — subscriptions exist for BOTH event types p.8 names, not just one', async () => {
+    const mine = new Map<string, string>();
+    for await (const sub of client.webhooks.iterate()) {
+      if (sub.id === subscriptionId || sub.id === issueSubscriptionId) mine.set(sub.id, sub.event);
+    }
+    expect(
+      [...mine.values()].sort(),
+      'the platform does not list a subscription for each of the two event types this run created',
+    ).toEqual(['document.created', 'issue.assigned']);
+    expect(mine.get(issueSubscriptionId)).toBe('issue.assigned');
   });
 
   it('the delivery log agrees with the wire', async () => {
