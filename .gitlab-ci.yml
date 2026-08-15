@@ -430,6 +430,25 @@ agent-test:
 #      10 of 20 spec files in `beforeAll`. The runner mounts the host socket, so containers
 #      this job starts are SIBLINGS and publish on the Docker host.
 #
+#      That reasoning was right and the job still never ran. Every pipeline from 19893 to
+#      20223 — 35 of them, unbroken since this job landed — exited 127 on a `docker pull
+#      postgres:16` line that used to sit below, three lines before `pnpm drill ttfe`:
+#
+#          $ docker pull postgres:16
+#          /usr/bin/bash: line 196: docker: command not found
+#
+#      The mounted socket is real; the `docker` CLI is not. `node:22-bookworm` ships no
+#      docker binary, and testcontainers never wanted one — it speaks the Engine API over
+#      /var/run/docker.sock through dockerode. `agent-test` sits ten lines above with the
+#      same image, the same two TESTCONTAINERS_ vars and no CLI call, and starts a Postgres
+#      per spec file across 24 files without complaint (job 65909, 228 tests, 36.9 s).
+#
+#      So the pre-pull is deleted rather than replaced. Nothing else needed changing: no
+#      dind service, no `postgres:16` service container, and no touching PF-587's refusal.
+#      The image pull now happens inside `provisionContainer()`, which runs in `beforeAll`
+#      and is recorded as `setupMs` — outside the total p.8 grades, by the same rule that
+#      already excludes the migrations and the server boot.
+#
 #  (c) `scripts/assert-tests-ran.sh 3 --` so a drill that executes zero stages exits 2 —
 #      VOID RUN — rather than reading as a pass. Three is the whole drill file: the loop,
 #      PF-602's benchmark link, and PF-611's CLI path.
@@ -454,7 +473,6 @@ ttfe:
     - pnpm --filter @ship/cli exec tsc -p tsconfig.drill.json
     # PF-605 / PF-609: no sleeps, `retry: 0`, not a Playwright spec, one thresholds file.
     - node scripts/ttfe/check-fitness.mjs
-    - docker pull postgres:16
     - scripts/assert-tests-ran.sh 3 -- pnpm drill ttfe
     # PF-600 / PF-603: the two gates no single run can produce. Reads the same
     # test-results/ttfe-series.jsonl the soak does.
@@ -483,7 +501,8 @@ ttfe-controls:
     TESTCONTAINERS_RYUK_DISABLED: 'true'
     DATABASE_URL: ''
   script:
-    - docker pull postgres:16
+    # No `docker pull` here either — same reason as `ttfe` above: the socket is mounted,
+    # the CLI is not, and testcontainers needs only the socket.
     - scripts/assert-tests-ran.sh 4 -- pnpm drill ttfe --controls
   allow_failure: false
 
