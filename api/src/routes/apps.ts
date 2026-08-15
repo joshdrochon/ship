@@ -48,6 +48,7 @@ import { authMiddleware, requireAuth } from '../middleware/auth.js';
 import { logAuditEvent } from '../services/audit.js';
 import { pool } from '../db/client.js';
 import { listCalls } from '../platform/audit/pgAuditSink.js';
+import { scopeRegistry } from '../platform/scopes/scopes.js';
 import {
   createAppRequestSchema,
   reactivateRequestSchema,
@@ -257,6 +258,64 @@ export function createAppsRouter(repo: IOAuthAppRepo): RouterType {
         error: { code: ERROR_CODES.INTERNAL_ERROR, message: 'Failed to list apps' },
       });
     }
+  });
+
+  /**
+   * PF-664 / PF-670 — the two facts the register form and the rotate
+   * confirmation cannot invent for themselves: the scope registry, and D3's
+   * rotation policy.
+   *
+   * ## Scopes (PF-664)
+   *
+   * L03's Open/Closed claim (PF-066) is that adding a scope is an edit to
+   * `platform/scopes/scopes.ts` and nowhere else. A hard-coded checkbox list in
+   * React would be the first place that claim went false, and it would go false
+   * silently: the form would keep rendering seven of eight scopes and the eighth
+   * would simply be un-requestable, with no test failing anywhere.
+   *
+   * Read through `scopeRegistry.list()` rather than by importing
+   * `SCOPE_DEFINITIONS`, so the response is the registry's contents at runtime —
+   * the same object `createAppRequestSchema` validates against. A scope the form
+   * can offer is therefore, by construction, one registration will accept.
+   *
+   * ## `rotation_policy` (PF-670)
+   *
+   * D3 is unresolved and is L02's to land. `ROTATION_POLICY` above is the single
+   * place it exists, and the portal renders whichever value arrives here, so a
+   * flip is a data change and not a UI rewrite. Served on THIS route rather than
+   * added to `toPublicApp`, for two reasons: that projection is PF-038's strict
+   * allowlist and adding a field to it changes a published contract, and the
+   * policy is a property of the SERVER rather than of any one app — publishing
+   * it per-app would imply apps can differ, which they cannot.
+   *
+   * ## Why it is registered BEFORE `/:id`
+   *
+   * Express matches in declaration order. Below `/:id` this path would be read
+   * as an app id, fail the UUID parse inside `findOwnedApp`, and return PF-043's
+   * not-found body — a 404 on a route that exists, which is the kind of bug that
+   * gets debugged in the browser instead of in the router.
+   *
+   * ## Why the session gate, on data that is not secret
+   *
+   * The seven scope names are published in the PRD and in the public OpenAPI
+   * document, so this is not confidentiality. It is that `/api/apps` is one
+   * surface with one auth rule (`rejectBearerAuth` + `authMiddleware`), and a
+   * route that opted out would be the exception someone later copies onto a
+   * route where it does matter.
+   */
+  router.get('/registry', authMiddleware, (_req: Request, res: Response): void => {
+    res.json({
+      success: true,
+      data: {
+        scopes: scopeRegistry.list().map((def) => ({
+          scope: def.scope,
+          resource: def.resource,
+          action: def.action,
+          description: def.description,
+        })),
+        rotation_policy: ROTATION_POLICY,
+      },
+    });
   });
 
   /** PF-044 + PF-043 — single read, owner-scoped, no ownership oracle. */
