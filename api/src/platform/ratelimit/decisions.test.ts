@@ -17,13 +17,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PUBLIC_RATE_LIMIT_DEFAULTS } from '../../deps.js';
+import { architectureText } from '../../test/architectureDoc.js';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PLATFORM_README = join(HERE, '..', 'README.md');
-const ARCHITECTURE_DOC = join(HERE, '..', '..', '..', '..', 'docs', 'architecture.md');
-
 const readme = readFileSync(PLATFORM_README, 'utf8');
-const architecture = readFileSync(ARCHITECTURE_DOC, 'utf8');
+const architecture = architectureText();
 
 describe('PF-307 — the Reset decision is recorded with its rejected options', () => {
   it('platform/README.md states both branches and names what was rejected', () => {

@@ -10,6 +10,7 @@
  * the SDK's union declares. That is what these tests pin.
  */
 import { describe, it, expect } from 'vitest';
+import { architectureText } from '../../../test/architectureDoc.js';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -127,7 +128,7 @@ describe('PF-188 — code → HTTP status, exhaustive over the union', () => {
   it('pins validation_failed → 422 (our call, recorded in docs/architecture.md)', () => {
     expect(STATUS_BY_CODE.validation_failed).toBe(422);
 
-    const doc = readFileSync(join(HERE, '..', '..', '..', '..', '..', 'docs', 'architecture.md'), 'utf8');
+    const doc = architectureText();
     expect(
       doc,
       'the 422 decision is ours, not the PRD\'s — it must be defended in docs/architecture.md',

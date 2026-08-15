@@ -17,7 +17,7 @@ api/src/platform/     everything public-facing; imports domain services, never r
                       IWebhookDeliverer, retry scheduler, delivery log, DLQ + replay
   api/v1/             the ONLY public router — ApiError envelope, opaque cursor pagination
   openapi/            OpenAPI 3.1 generated from route metadata, served at /api/v1/openapi.json
-  audit/              public API call log, queryable in the dev portal
+  audit/              public API call log — timestamp, app client_id, user_id, route, scope, status, latency, request_id; queryable in the dev portal
   clock.ts            Clock / SystemClock / FakeClock — retry, buckets and expiry all read it
 sdk/                  @ship/sdk workspace package
 integrations/cli/     reference integration; imports ONLY @ship/sdk

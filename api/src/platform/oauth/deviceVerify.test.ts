@@ -33,6 +33,7 @@ import {
 } from './deviceCodes.js';
 import { UserCodeAttemptThrottle } from './deviceThrottle.js';
 import { DEVICE_VERIFY_MESSAGES } from './deviceVerify.js';
+import { architectureText } from '../../test/architectureDoc.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const LOGIN_PATH = '/login';
@@ -325,7 +326,7 @@ describe('PF-128: the decision is recorded in the graded document', () => {
   // p.16 asked an open question, and PRD p.12 requires the architecture document
   // as a submission deliverable. A decision that lives only in a code comment is
   // not an answer to a question the graders ask about the document.
-  const doc = readFileSync(join(HERE, '../../../../docs/architecture.md'), 'utf8');
+  const doc = architectureText();
 
   it('states the choice', () => {
     expect(doc).toMatch(/device verification UX/i);
