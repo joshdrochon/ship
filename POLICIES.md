@@ -28,6 +28,27 @@ branching rationale, `docs/measurement-rules.md` the measurement rules, and
 Override for a genuine **human** decision is `ALLOW_GRADED_BRANCH_OPS=1`. It is not for an
 agent working around a guard.
 
+### The hooks must actually run — check this in a new worktree
+
+`core.hooksPath` was `.husky/_`, and **`.husky/_` is gitignored**. So every commit made
+from a `git worktree` ran *zero* hooks — no branch check, no empty-test check, no API
+coverage check — and said nothing about it. Silent, and it had been true the whole time.
+
+Two changes make it hold: `core.hooksPath` is now `.husky`, whose `pre-commit` and
+`pre-push` are tracked, and both carry the executable bit in the index (`pre-commit` was
+`100644`, which git skips with only a hint).
+
+**`core.hooksPath` is local git config, not a committed file.** A fresh clone, or a
+`husky` reinstall that resets it, brings the hole back. In a new checkout, verify:
+
+```
+git config core.hooksPath        # expect .husky, not .husky/_
+git ls-files -s .husky/pre-commit  # expect mode 100755
+```
+
+`comply` is not installed on this machine, so the pre-commit secret scan is skipped with
+a warning on every commit here. That is a real gap, not a passing check.
+
 **Merges into `pf/integration` are allowed** — that is what the branch is for. The block is
 on *authoring* work there.
 
