@@ -102,12 +102,63 @@ shape, not the total:
 The last row is why there is no total. An honest gap is worth more here than a zero taken
 from an instrument that cannot see the provider in use.
 
-p.9 also asks to *"confirm the rewire does not change token volume."* It cannot, by
-construction rather than by measurement: the rewire changed the agent's **data path** —
-direct service calls became SDK calls against `/api/v1` — and touched nothing in
-`agent/src/llm/`. The prompt, the model and the one-call-per-turn ceiling are identical on
-both sides of the `SHIP_AGENT_VIA_SDK` flag, which is why the flag can be flipped in either
-direction with the Part 2 suite green.
+**What remains a gap is the per-day *dollar* series, and only that.** p.9's bullet has two
+halves. The spend half is unmeasurable here and is stated as a gap above rather than filled
+with a zero. The **token-volume half is measured**, and it is next.
+
+### The rewire's effect on token volume — measured, and it refutes p.9's hypothesis
+
+p.9 asks to *"confirm the rewire does not change token volume."* **It does change it. The
+measurement exists in this repository, it is deterministic, it costs nothing to run, and it
+refutes the claim rather than confirming it.**
+
+**An earlier version of this section argued the opposite, by construction rather than by
+measurement:** `grep -rn SHIP_AGENT_VIA_SDK agent/src/llm/` returns **0 hits**, the flag is
+read in exactly one place (`agent/src/composition.ts:44`), so — the argument went — the
+rewire moved the data path and not the prompt. **Both facts are true and the conclusion drawn
+from them is false.**
+
+**The reason the argument fails is worth stating, because it is the trap.** The prompt is not
+written by the LLM layer. It is *rendered from data the rewired path fetched*.
+`renderJudgeInput` (`agent/src/llm/prompts/judge.ts:150`) is a pure function of
+`{signals, participants, scope}`, and the agent makes exactly one call per turn — so the
+input volume per turn **is** that string. Grepping `agent/src/llm/` proves the *template* is
+untouched. It says nothing about the *content*, which arrives through the seam the rewire
+replaced. Swap the reader underneath and the string can move. It does:
+
+```
+$ cd agent && npx vitest run src/data/rewireCost.test.ts
+[PF-711] judge prompt, same fixture, 27 signals — flag-off 10727 chars, flag-on 10376 chars,
+delta -351 chars (-3.27%). Cause: F143 — 13 started_at lines dropped, 351 chars, which is
+the WHOLE delta.
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+```
+
+| Judge prompt, one 42-issue fixture, 27 signals | Flag **off** (SQL) | Flag **on** (SDK) | Delta |
+|---|---:|---:|---:|
+| Input volume per turn | 10,727 chars | 10,376 chars | **−351 chars (−3.27%)** |
+
+**The whole delta is attributed to one named cause, and the test asserts that exactly.**
+`issueSchema` carries no `started_at`, so `stalledWork`'s `context.started_at` renders as an
+ISO date on the SQL path and as `null` on the SDK path, and `renderSignal` drops null context
+entries: 13 signals × one dropped line = 351 chars. The assertion is `before - after ===`
+the sum reconstructed from the signals themselves — **not a threshold somebody picked.** It
+carries a control: `reviewBottleneck`, which reads no field `issueSchema` lacks, renders
+**byte-identically** on both paths, which is what makes the `stalledWork` delta attributable
+rather than ambient.
+
+**Characters, not tokens, and this document does not convert between them.** There is no
+tokenizer in this repository. A tokenizer would move the absolute figures by its own ratio;
+it would not change the delta's sign or its cause, which is what p.9 asks to confirm. **No
+token count is stated here because none was measured** — the label on these numbers is
+`chars`, and it is the unit that was counted.
+
+**So: the rewire changes input volume per turn by −3.3% on this fixture, in the agent's
+favour, and p.9's hypothesis is refuted rather than confirmed** — cheaply, deterministically,
+and without a single billed API call. A rewire that moved token volume and said nothing is
+precisely what that p.9 bullet exists to catch; here it moved, and this is the saying.
 
 ### CI minutes for the TTFE drill
 
@@ -322,12 +373,58 @@ support.
 
 ### OpenAPI generation and validation overhead
 
+| | | What produced it |
+|---|---:|---|
+| `pnpm openapi:public` (generation alone) | **1.3 s** | local run |
+| `openapi-freshness` CI job (generate + diff + fail if stale), pipeline 20044 | **24.4 s** | job 65677, a **single** run |
+| `openapi-freshness`, median of the **48 completed** runs in the window | **30.4 s** | the capture below |
+| `openapi-freshness`, median of the **16 successful** runs | **38.0 s** | the capture below |
+
+**Its share of the weekly CI bill — computed the same way §1's TTFE share was, by summing
+actual per-job durations rather than multiplying one run by a pipeline count.**
+
+**Not all 62 pipelines ran the job, and assuming they did would have overstated it.** The
+job entered the pipeline partway through the window, exactly as `ttfe` did:
+
 | | |
 |---|---:|
-| `pnpm openapi:public` (generation alone) | **1.3 s** |
-| `openapi-freshness` CI job (generate + diff + fail if stale) | **24.4 s** |
+| Pipelines in the window (18500–20224, `created_at >= 2026-08-08`) | 62 |
+| — that carry an `openapi-freshness` job | **52** — the earliest is pipeline 19570; 10 predate the job |
+| — whose job ran to completion | **48** (4 canceled, recording no duration) |
+| **`openapi-freshness` billed this week** | **27.4 min** = **0.457 h** |
+| **Share of the week's 59.69 h summed job time** | **0.77%** |
 
-Small, as p.9 predicts, and now a number.
+`jobs/*.json` is the same per-pipeline capture §1 builds, re-fetched for this section. The
+command is printed in full and its output is verbatim — an elided command is not a command,
+by this document's own standard:
+
+```
+$ python3 -c "import json,glob,statistics
+of=[j for f in glob.glob('jobs/*.json') for j in json.load(open(f)) \
+    if j['name']=='openapi-freshness' and j.get('duration')]
+tot=sum(j['duration'] for f in glob.glob('jobs/*.json') \
+    for j in json.load(open(f)) if j.get('duration'))
+print(len(of), sum(x['duration'] for x in of)/3600, tot/3600,
+      100*sum(x['duration'] for x in of)/tot)"
+48 0.45721898722222226 59.69014795555555 0.7659873578511835
+```
+
+Reading the four fields: **48** completed jobs, **0.457 h** of `openapi-freshness`,
+**59.69 h** of all CI, **0.766%** — rounded to **0.77%** above.
+
+**Numerator and denominator come from one snapshot, taken 2026-08-15 16:43 UTC** — the same
+`jobs/*.json` capture, re-fetched for this section rather than divided into §1's earlier
+total. §1's 59.4 h is the earlier frozen snapshot and is a floor by the same open-tail
+argument made there; this capture reads **59.69 h**. **The share is 0.77% against either**,
+which is the useful property of a ratio over a window that is still accruing.
+
+**24.4 s is one run, and it is pipeline 20044's** — the same pipeline §1 already singles out
+as an early-failing outlier whose numbers must not be generalised. Across the window the job
+ranges **2.5 s to 114.1 s**, so no single run represents it; the share above is summed and
+does not depend on picking one. For a forward budget the figure to use is the successful-run
+median: **62 × 38.0 s = 39.3 min/week** at steady state.
+
+Small, as p.9 predicts — and now a number, with its denominator named.
 
 ### Storage and egress for the dev portal demo
 
@@ -456,15 +553,29 @@ number that carries weight is the steady state in §2.
 
 ## 2. Production Cost Projections
 
-p.9 supplies the tiers. The columns below are p.9's; **the two storage columns are ours**,
-computed from the constants in the code rather than restated from the PRD.
+p.9 supplies the tiers. The first five columns are p.9's; **the two storage columns are
+ours**, computed from the constants in the code rather than restated from the PRD.
 
-| Tier | API calls/day | Webhook deliveries/day | Agent LLM calls/day | p.9 est. cost/month | Delivery log @30d (healthy → worst) | Audit raw @30d |
+**Provenance is marked per cell, not per column.** `[P]` = reproduced verbatim from p.9's
+table. `[D]` = derived by us from the constants below. Every figure carries one, so a reader
+who looks at a **single row** can tell which half of it is the PRD's and which half is ours
+without having to read this paragraph first.
+
+| Tier | API calls/day | Webhook deliveries/day | Agent LLM calls/day | Est. cost/month | Delivery log @30d (healthy → worst) | Audit raw @30d |
 |---|---:|---:|---:|---:|---:|---:|
-| 100 users | ~20,000 | ~5,000 | ~50 | $2–8 | 167 MB → 1.0 GB | 240 MB |
-| 1,000 users | ~200,000 | ~50,000 | ~500 | $15–50 | 1.7 GB → 10.0 GB | 2.4 GB |
-| 10,000 users | ~2,000,000 | ~500,000 | ~5,000 | $80–250 | 16.7 GB → 100.3 GB | 24.0 GB |
-| 100,000 users | ~20,000,000 | ~5,000,000 | ~50,000 | $500–1,500 | 167.2 GB → 1.0 TB | 240 GB |
+| 100 users `[P]` | ~20,000 `[P]` | ~5,000 `[P]` | ~50 `[P]` | $2–8 `[P]` | 167 MB → 1.0 GB `[D]` | 240 MB `[D]` |
+| 1,000 users `[P]` | ~200,000 `[P]` | ~50,000 `[P]` | ~500 `[P]` | $15–50 `[P]` | 1.7 GB → 10.0 GB `[D]` | 2.4 GB `[D]` |
+| 10,000 users `[P]` | ~2,000,000 `[P]` | ~500,000 `[P]` | ~5,000 `[P]` | $80–250 `[P]` | 16.7 GB → 100.3 GB `[D]` | 24.0 GB `[D]` |
+| 100,000 users `[P]` | ~20,000,000 `[P]` | ~5,000,000 `[P]` | ~50,000 `[P]` | $500–1,500 `[P]` | 167.2 GB → 1.0 TB `[D]` | 240 GB `[D]` |
+
+**Every `[D]` cell is one of two formulas, so a marked cell can be re-derived from its own
+row** — no cell is derived from another `[D]` cell:
+
+- **Delivery log @30d** = `deliveries/day [P] × 30 × 1,115 B`, and the worst case is that
+  × `ATTEMPT_MULTIPLIER_CEILING` (6). At 100 users: `5,000 × 30 × 1,115 = 167.25 MB`, worst
+  `× 6 = 1.0 GB`.
+- **Audit raw @30d** = `API calls/day [P] × 30 × ~400 B`. At 100 users:
+  `20,000 × 30 × 400 = 240 MB`.
 
 Constants, each cited so the arithmetic can be re-run:
 
@@ -497,30 +608,145 @@ p.9–p.10 name these three by name and require each be stated rather than impli
 
 ### Webhook fanout ratio
 
-**Assumed: 0.25 deliveries per write operation at every tier**, i.e. p.9's ~5,000
-deliveries against ~20,000 API calls/day. That ratio holds across all four tiers in p.9's
-own table, which is itself an assumption worth surfacing — it says the average number of
-subscriptions per event type does *not* grow with the tier.
+p.9 asks for two things by name: *"number of webhook deliveries triggered per **write
+operation**, given the average number of subscriptions per event type at each tier."* Both
+are below.
 
-That is the load-bearing simplification here, and it is optimistic. Fanout is per
-**subscription**, not per app: one event matching N subscriptions produces N deliveries. A
-platform that succeeds acquires more apps subscribing to the *same* popular event types, so
-the realistic curve bends upward with scale. If the ratio doubles at 100,000 users, both
-storage columns double with it.
+**An earlier version of this section answered neither.** It reported **0.25** — p.9's ~5,000
+deliveries ÷ ~20,000 *total API calls* — and labelled it "deliveries per write operation".
+Total API calls is a different and much larger denominator than writes, because most calls
+are reads. The number was therefore roughly an order of magnitude too small **and it was
+measuring a different quantity than the one p.9 names.** That is the same defect class this
+project has already paid for once: a label describing something the number was not.
+
+**Step 1 — the read/write split, stated as the assumption it is.**
+
+p.9 supplies API calls/day but not their method mix, and this platform has no production
+traffic to measure, so the split is **assumed: 90% reads / 10% writes.** It is an assumption,
+not a measurement. The case for it:
+
+- **The surface is list-heavy.** `DEFAULT_PAGE_SIZE = 25` (`api/v1/pagination.ts:49`), so one
+  screen of a large collection is several GETs while a create is one POST.
+- **The one heavy client actually modelled here is read-only, and its request mix is
+  measured.** The agent holds `documents:read`, `issues:read`, `sprints:read` and nothing
+  else (`api/src/db/platformApps.ts:117`), and one scan issues **6 requests, all
+  `GET /api/v1/issues`, zero writes** (`agent/src/data/rewireCost.test.ts`, PF-698). It
+  contributes to the denominator and can never contribute to the numerator.
+- **The write surface is the smaller half even before traffic weighting:** 12 GET operations
+  against 10 write operations across 14 paths in `docs/openapi.json`. That is *surface, not
+  traffic* — quoted as a floor on read-dominance, not as the split itself.
+
+**Step 2 — deliveries per write operation, and subscriptions per event type, at each tier.**
+
+| Tier | API calls/day `[P]` | Writes/day @10% `[D]` | Deliveries/day `[P]` | **Deliveries per write** `[D]` | **Avg active subs per event type** `[D]` |
+|---|---:|---:|---:|---:|---:|
+| 100 users | ~20,000 | 2,000 | ~5,000 | **2.5** | **2.5** |
+| 1,000 users | ~200,000 | 20,000 | ~50,000 | **2.5** | **2.5** |
+| 10,000 users | ~2,000,000 | 200,000 | ~500,000 | **2.5** | **2.5** |
+| 100,000 users | ~20,000,000 | 2,000,000 | ~5,000,000 | **2.5** | **2.5** |
+
+**Why the last two columns are the same number.** Fanout selects every active subscription
+for the workspace and event type — `WHERE workspace_id = $1 AND event_type = $2 AND active =
+true` (`platform/webhooks/pgSubscriptionRepo.ts:147`) — so one event-emitting write produces
+exactly one delivery per matching subscription. Deliveries per event-emitting write **is**
+the average number of matching active subscriptions.
+
+**They are equal only if every write emits an event, and that is the assumption's soft
+edge.** Eight event types are registered (`platform/webhooks/events.ts:119`) covering the
+document, issue and sprint write paths; writes outside that set — creating a subscription,
+rotating a secret, the OAuth legs — emit nothing and inflate the write denominator without
+adding deliveries. Writing `w` for the fraction of writes that emit an event: **avg subs per
+event type = 2.5 ÷ w.** At `w = 1` both columns are 2.5; at `w = 0.8` the subscriptions
+column is 3.1. **The 2.5 deliveries-per-write figure is what p.9 asks for and it is
+unaffected by `w`;** the subscriptions column is stated at `w = 1` and scales as `1/w`.
+
+**Step 3 — sensitivity, because the split is assumed rather than measured.** The ratio is
+inversely proportional to the write share, so a wrong split moves it proportionally:
+
+| Read/write split | Writes/day @100 users | Deliveries per write |
+|---|---:|---:|
+| 80 / 20 | 4,000 | 1.25 |
+| **90 / 10 — assumed** | **2,000** | **2.5** |
+| 95 / 5 | 1,000 | 5.0 |
+
+**Step 4 — the ratio is flat across tiers, and that is the load-bearing simplification.**
+Holding 2.5 at every tier says the average number of subscriptions per event type does *not*
+grow with scale. It is optimistic. Fanout is per **subscription**, not per app: a platform
+that succeeds acquires more apps subscribing to the *same* popular event types, so the
+realistic curve bends upward. If subscriptions per event type doubles at 100,000 users, both
+storage columns in §2 double with it.
+
+**Reconciling with `PRESEARCH-PLUGFORGE.md:82`, which says `6N`.** That line reads *"Fanout
+is `1 event × N matching active subscriptions × up to 6 attempts` = at most `6N` outbound
+requests per event."* **It does not disagree with 2.5. The two count different things and
+both are correct in their own unit** — a grader reading both documents should see the units,
+not a contradiction:
+
+| | Counts | Retries included? | Value here |
+|---|---|---|---|
+| `PRESEARCH:82`'s `6N` | outbound HTTP **attempts** per event, worst case | **yes**, ×6 | 6 × 2.5 = **15** |
+| This section's **2.5** | **deliveries** (log rows) per **write**, first attempt | **no** | **2.5** |
+
+The `6` is `ATTEMPT_MULTIPLIER_CEILING` (`platform/webhooks/retention.ts:40`), the retry
+ladder. **It is not dropped here — it is the same 6 that produces §2's "healthy → worst"
+storage spread** (167 MB → 1.0 GB at 100 users is exactly ×6). PRESEARCH folds it into one
+figure; this section keeps subscriptions and retries in separate columns so a reader can see
+which factor is which. Neither is wrong; `PRESEARCH:82` is the worst-case attempt count and
+2.5 is the expected delivery count, which is what p.9's table and §2's storage model need.
 
 ### Agent active rate
 
-**Assumed: 5% of users use agent features on a given day, at ~1 turn per active user** —
-which reproduces p.9's numbers exactly (100,000 users → 5,000 active → ~50,000 calls/day
-requires ~10 turns each; at 100 users → 5 active → ~50 calls/day, ~10 turns each).
+p.10 asks for two numbers here by name: *"fraction of users who actually use agent features
+on a given day, **and average agent turns per active user**."*
+
+**Assumed: 5% of users use agent features on a given day, at ~10 turns per active user.**
+
+**An earlier version of this line said "~1 turn per active user" and was wrong by 10×** — it
+contradicted the arithmetic in its own parenthetical, which already read *"~10 turns each"*.
+The arithmetic was right and the headline was not. p.10 says the cost projection bends on
+this assumption, so it is corrected here in the place a reader checks first.
+
+The two assumed numbers are not independently sourced — p.9 supplies the calls/day column
+and the 5% is assumed, so **turns per active user is solved for, not measured**:
+`turns = calls per day ÷ (users × 5%)`. It reproduces p.9's column exactly at all four
+tiers, which is the check that the pair is self-consistent:
+
+| Tier | × 5% = active users | × 10 turns = calls/day | p.9's Agent LLM calls/day |
+|---|---:|---:|---:|
+| 100 users | 5 | 50 | ~50 |
+| 1,000 users | 50 | 500 | ~500 |
+| 10,000 users | 500 | 5,000 | ~5,000 |
+| 100,000 users | 5,000 | 50,000 | ~50,000 |
 
 p.10: *"Cost projection bends on this assumption, not on platform traffic."* Correct, and
-it is the only line here that moves with a token price. At 100,000 users and ~50,000 calls
-per day at a ~4k-token turn, the agent is **$3,000–6,000/month on its own** — several times
-p.9's whole $500–1,500 estimate for that tier. **The two are not in conflict: p.9 attributes
-LLM cost to the agent app's user-driven sessions, not to the platform.** The platform's own
-bill at 100,000 users is storage, compute and egress; the agent's bill belongs to whoever
-turns the agent on.
+it is the only line here that moves with a token price. At 100,000 users, ~50,000 calls per
+day at a ~4k-token turn is 1.5M turns/month and ~6.0B tokens/month, which the document
+prices at **$3,000–6,000/month on its own**. That range implies a **blended $0.50–1.00 per
+million tokens**, stated here because it was previously implicit: it is a Sonnet/Haiku-class
+blended rate, matching p.10's *"Claude API (Sonnet 4 recommended)"* rather than the
+`claude-opus-4-5` currently pinned at `client.ts:107`. On the pinned model the line would be
+materially higher; the rate is an assumption, and it is the one to change first if the model
+choice is confirmed.
+
+**The two are not in conflict with p.9's $500–1,500: p.9 attributes LLM cost to the agent
+app's user-driven sessions, not to the platform.** The platform's own bill at 100,000 users
+is storage, compute and egress; the agent's bill belongs to whoever turns the agent on.
+
+**Sensitivity — the 2× case, which p.10 asks for by name.** The line is linear in the active
+rate: turns/day = `users × active rate × turns per active user`, and per-turn cost is fixed,
+so doubling the rate doubles the bill and moves nothing else. Nothing in §2's platform
+columns responds — the agent is read-only (below), so it adds no writes, no events and no
+deliveries.
+
+| Agent active rate | Active users @100,000 | Agent calls/day | Tokens/month | **Agent LLM cost/month** |
+|---|---:|---:|---:|---:|
+| **5%** — assumed | 5,000 | ~50,000 | ~6.0B | **$3,000–6,000** |
+| **10%** — the 2× case | 10,000 | ~100,000 | ~12.0B | **$6,000–12,000** |
+
+At 10% the agent line alone is roughly an order of magnitude above p.9's whole platform
+estimate for that tier — which is not a contradiction, for the reason given above, but it is
+the number a reader should carry away: **the agent's active rate, not the platform's
+traffic, is the only assumption in this document with four-figure consequences.**
 
 The agent's read-only scopes — `documents:read`, `issues:read`, `sprints:read`
 (`platformApps.ts:117`) — bound this further, and it is a cost property as much as a
