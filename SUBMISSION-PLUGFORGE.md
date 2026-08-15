@@ -25,29 +25,30 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 
 | # | Deliverable (verbatim, p.12–p.13) | Lane | Where it resolves | State |
 |---|---|---|---|:--|
-| 1 | **GitHub Repository** | L26 | `github.com/joshdrochon/ship` is **public** and carries **165** `pf/*` branches; GitLab `origin` carries **170**. p.12's third clause — a PR description per slice — has **no artifact**: no per-slice PR or MR was ever opened | ⚠ **Not ready** — see §1 |
+| 1 | **GitHub Repository** | L26 | `github.com/joshdrochon/ship` is **public** and carries **177** `pf/*` branches; GitLab `origin` carries **182** (re-counted 2026-08-15 after fetching both remotes). p.12's third clause — a PR description per slice — is **partly met, not absent**: **4** MRs do have a `pf/L<NN>-*` slice branch as their source (!21–!24) and **3 of the 4** name the acceptance criterion and confirm the fitness test. Against 177+ slices that is not *"each"* | ⚠ **Not ready** — see §1 |
 | 2 | **Demo Video (3–5 min)** | L26 | not recorded; script is [`docs/l19-five-line-story.md`](docs/l19-five-line-story.md) | ⚠ **Not ready** |
 | 3 | **Pre-Search Document** | L25 | [`PRESEARCH-PLUGFORGE.md`](PRESEARCH-PLUGFORGE.md) + [`docs/presearch-conversation.md`](docs/presearch-conversation.md) | ✅ **Ready** |
 | 4 | **Architecture Document** | L26 | [`docs/architecture.md`](docs/architecture.md) — all nine p.12 sections, each carrying the artifact its row asks for; over p.13's 1–2 page cap, knowingly (see §4). Reasoning in [`docs/architecture-appendix.md`](docs/architecture-appendix.md) | ✅ **Ready** — see §4 |
 | 5 | **OpenAPI Spec** | L13 | live `…/api/v1/openapi.json` + [`docs/openapi.json`](docs/openapi.json) | ✅ **Ready**, one caveat — see §5 |
 | 6 | **AI Cost Analysis** | L26 | [`docs/ai-cost-analysis-plugforge.md`](docs/ai-cost-analysis-plugforge.md) | ✅ **Ready** — see §6 |
-| 7 | **Per-Epic Write-up** | L26 | [`docs/per-epic-writeup.md`](docs/per-epic-writeup.md) — seven epics, `before → fix → after → proof`; Epic 7's audit rows are a live capture. **Epic 6's proof section is now stale in the safe direction**: it records the CI proof as unmet, and the drill has since gone green — see §7 | ⚠ **Stale** — see §7 |
+| 7 | **Per-Epic Write-up** | L26 | [`docs/per-epic-writeup.md`](docs/per-epic-writeup.md) — seven epics, `before → fix → after → proof`; Epic 7's audit rows are a live capture. **Epic 6's proof section has been corrected and is no longer stale**: it now cites pipeline **20237** / job **66739**, `success`, **56.374 s** — see §7 | ✅ **Ready** — see §7 |
 | 8 | **Three Discoveries** | L26 | [`docs/three-discoveries.md`](docs/three-discoveries.md) | ✅ **Ready** |
 | 9 | **Deployed Application** | L21 | `https://d258p92d3n1ebe.cloudfront.net/` — all four surfaces 200 · README carries `client_id`s and scopes but **no `client_secret` value** | ✅ **Ready**, one decision — see §9 |
 | 10 | **Social Post** | L26 | not posted | ⚠ **Not ready** |
 
-**4 Ready · 3 Ready-with-a-caveat · 3 open.** Recounted 2026-08-15 in the final
-due-diligence pass, every number re-measured rather than carried forward.
+**5 Ready · 2 Ready-with-a-caveat · 3 open.** Recounted 2026-08-15 in the final
+due-diligence pass, every number re-measured rather than carried forward. Row 7 moved from
+caveat to Ready in that pass, when Epic 6's proof section was corrected.
 
-- **Ready (4):** rows 3, 4, 6, 8.
-- **Ready with a caveat (3):** row 5 — spec is live, set-equal and **schema-validated**
-  (exit 0), but not byte-identical to the committed copy; row 7 — all seven epics are
-  written, but Epic 6's proof section still says the CI proof does not exist and it now
-  does (§7); row 9 — every surface reachable, but the grader `client_secret` is behind an
-  `aws ssm` command a grader cannot run.
+- **Ready (5):** rows 3, 4, 6, 7, 8.
+- **Ready with a caveat (2):** row 5 — spec is live, **equal to the committed copy as parsed
+  JSON** and schema-validated (exit 0), but not byte-identical (the served document is
+  minified, 67 311 B, against the pretty-printed 155 439 B in git); row 9 — every surface
+  reachable, but the grader `client_secret` is behind an `aws ssm` command a grader cannot
+  run.
 - **Open (3):** row 1 — the public remote carries the branches, so two of p.12's three
-  clauses hold; the third has no artifact at all (§1); rows 2 and 10 are yours to record
-  and post.
+  clauses hold; the third is **partly** met — 4 slice-branch MRs, 3 of them compliant,
+  against 177+ slices (§1); rows 2 and 10 are yours to record and post.
 
 Row 7 moved from Ready to Ready-with-a-caveat in this pass. Nothing about it got worse —
 the TTFE drill went green and the document that grades it has not been told.
@@ -198,13 +199,13 @@ which acceptance criterion that slice advances and confirms the fitness test pas
 | Check | Re-measured 2026-08-15 | Verdict |
 |---|---|---|
 | Public | `github.com/joshdrochon/ship` → **200** logged-out · `labs.gauntletai.com/joshrochon/ship` → **302 → `/users/sign_in`** | ✅ on GitHub |
-| Per-slice branches preserved | **165 on GitHub** · **170 on GitLab `origin`** · **177 local** | ✅ on both remotes |
-| PR descriptions naming criterion + fitness test | **no per-slice PR or MR exists.** GitLab has **19** MRs, 3 of them `pf/integration → main`, and **zero** whose source is a `pf/L*` branch; GitHub has **9** PRs, all Week 5, likewise zero | ✗ |
+| Per-slice branches preserved | **177 on GitHub** · **183 on GitLab `origin`** · **186 local** | ✅ on both remotes |
+| PR descriptions naming criterion + fitness test | **partly met.** GitLab has **24** MRs; **4** have a `pf/L<NN>-*` slice branch as their source (!21–!24) and **3 of those 4** name the acceptance criterion and confirm the fitness test — !21 (p.13 spec parity), !23 (p.9 flake target, job 67859), !24 (p.11 Rule 4). !22 does neither. GitHub has **9** PRs, all Week 5, none per-slice. Against 177+ preserved slices, 4 MRs is not *"each"* | ✗ on *"each"* |
 
 ### Stated plainly
 
 **The first two clauses are satisfied, and on the public remote.** `git ls-remote --heads
-github 'refs/heads/pf/*'` returns **165**; the same command against `origin` returns **170**.
+github 'refs/heads/pf/*'` returns **177**; the same command against `origin` returns **183**.
 GitHub still carries Week 5 on `main` (`5455f4e`), untouched, so the Week 5 Render
 deployment is not replaced.
 
@@ -264,11 +265,11 @@ pushed, so re-run the three `ls-remote` counts rather than quoting these.
 ### §1b · Branch ↔ slice mapping (PF-785) — measured, not bijective
 
 > ⚠ **The table below was measured against a 161-branch snapshot of `origin`. `origin` now
-> carries 170.** Re-confirmed 2026-08-15 evening: **169 of the 170** match
-> `pf/LNN-<slug>`, the exception being `pf/integration`, the trunk — so the shape of the
-> finding holds. The five derived counts have **not** been re-run with the original
-> row-counting method and are stale by roughly nine branches. Treat them as the order of
-> magnitude, not the figure. `LNN` spans L00–L26; **`L00` resolves to no lane file**.
+> carries 183.** Re-measured 2026-08-15 late: **181 of the 183** match `pf/LNN-<slug>`, the
+> two exceptions being `pf/integration` (the trunk) and `pf/integration-probe` — so the shape
+> of the finding holds. The five derived counts have **not** been re-run with the original
+> row-counting method and are stale by roughly twenty-two branches. Treat them as the order
+> of magnitude, not the figure. `LNN` spans L00–L26; **`L00` resolves to no lane file**.
 
 | Direction | Count (against the 161-branch snapshot) |
 |---|---|
@@ -406,14 +407,19 @@ names a file and a symbol, and each check is one `grep`.
 `before → fix → after → proof` shape. Epic 7's proof is a live capture of audit-log rows
 showing the agent authenticating as an OAuth app, which is exactly what p.13 names.
 
-**Epic 6's proof section is out of date and says the project is worse than it is.** It
-currently reads:
+**Epic 6's proof section was out of date and said the project was worse than it is. It has
+since been corrected — this note records the correction rather than the defect.** It used to
+read:
 
 > *"The local run passes; **the CI proof p.13 asks for does not exist.**"* … *"`ttfe` job
 > runs found on GitLab: 30+ … Passing runs: **zero**"* … *"Epic 6's graded proof is
 > therefore UNMET."*
 
-That was true when written. It stopped being true at 2026-08-15T17:51Z, when job **66739**
+None of those strings survives in the file: `grep -n "does not exist\|Passing runs"
+docs/per-epic-writeup.md` returns nothing, and §Epic 6's Proof now opens *"The drill passes
+in CI."* over pipeline 20237 / job 66739 / 56.374 s.
+
+That earlier text was true when written. It stopped being true at 2026-08-15T17:51Z, when job **66739**
 on pipeline **20237** ran `ttfe` to **success in 56.374 s** — inside p.8's < 60 s target —
 with `ttfe-controls` (job 66740) green beside it. The producing commit `ab3f3fa6` is merged
 into `pf/integration` and the `ttfe` job definition there is unchanged from the one that
@@ -687,9 +693,9 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
 
 | # | Item | Smallest closing action | Owner |
 |---|---|---|---|
-| 1 | Per-epic write-up says Epic 6's CI proof does not exist; it does | Swap the *"Passing runs: zero"* table for job **66739** / pipeline **20237** / 56.374 s; PF-808 ◐ → ☑ | per-epic lane |
+| 1 | ~~Per-epic write-up says Epic 6's CI proof does not exist~~ | **DONE 2026-08-15.** §Epic 6's Proof now opens *"The drill passes in CI."* and cites pipeline **20237** / job **66739** / 56.374 s, with `ttfe-controls` 66740 beside it. `grep "does not exist\|Passing runs" docs/per-epic-writeup.md` returns nothing | per-epic lane |
 | 2 | Nine failing jobs on the graded pipeline | Two are near-free: `type-violations` (ceiling 742, actual 1714 — raise it with the reason, as its own error message instructs) and `terraform-verify` (its audit finds *no* `required_providers` at all; the pins exist, the glob is wrong) | CI / L21 |
-| 3 | `e2e/portal-replay-ts8.spec.ts` has never been executed — TS-8's portal half | Run it once. It already passed for L21 as the `WEBHOOK_SECRET_KEY` proof (1 passed, 0 failed) | L22 |
+| 3 | ~~`e2e/portal-replay-ts8.spec.ts` has never been executed — TS-8's portal half~~ | **DONE 2026-08-15.** Executed against `origin/main` at `94a6905`: `1 passed (42.4s)`. TS-8 and the p.3–p.4 DLQ row are now SATISFIED in the matrix. The spec's own `:39-45` header and PF-662's ◐ are the last places still saying "never executed" | L22 |
 | 4 | Ten branches on GitLab absent from GitHub, five the reverse | `git push` ×15; makes the remotes set-equal | L26 |
 | 5 | `docs/architecture-appendix.md` still reports the SDK footprint as 218.4 KB | One line → **225 109 B** from the regenerated `sdk/size-report.json` | arch lane |
 | 6 | `docs/pr-compliance-sweep.md` reports 55 of 66; integration carries **87** slice merges | Re-run it, or date the headline | L26 |
@@ -716,12 +722,14 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
 - [ ] PF-782's deadline answered by a grader and recorded, and the submission is before it.
 - [ ] A clean clone plus the URLs in this file reproduces every deliverable, with no
       reference to the author's working tree.
-- [ ] **No merged-branch pruning has occurred.** Verified 2026-08-15 evening by `ls-remote`:
-      **165** `pf/*` on GitHub, **170** on GitLab `origin`, **177** local. The set difference
-      is **not** empty — five branches are GitHub-only, ten GitLab-only, all listed in §1.
+- [ ] **No merged-branch pruning has occurred.** Re-measured 2026-08-15 late by `ls-remote`:
+      **177** `pf/*` on GitHub, **183** on GitLab `origin`, **186** local. The delta has
+      narrowed in the right direction — **GitHub-only is now 0** (was five) and **GitLab-only
+      is 6** (was ten), so nothing on the public remote is missing from the graded one.
       Re-run the counts before submitting; they move hourly.
-- [ ] Row 1's third clause conceded in writing to the grader — no per-slice PR or MR exists
-      (§1). The two-remote branch delta closed or explained.
+- [ ] Row 1's third clause stated accurately to the grader — **not** "no per-slice MR
+      exists" (that is no longer true) but "4 slice-branch MRs, 3 of them compliant, against
+      177+ slices" (§1). The remaining six GitLab-only branches pushed to GitHub or explained.
 - [ ] `docs/pr-compliance-sweep.md` re-run over all **87** slice merges, or its 55-of-66
       headline dated so a reader knows ~22 slices postdate it (§1).
 - [ ] §4b's sixteen as-built rows re-run against the final tree — they were all green on
