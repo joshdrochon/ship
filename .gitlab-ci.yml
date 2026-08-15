@@ -506,6 +506,84 @@ ttfe-controls:
     - scripts/assert-tests-ran.sh 4 -- pnpm drill ttfe --controls
   allow_failure: false
 
+# PF-606 — the 20-run soak, in CI, where p.9 puts it.
+#
+# p.9's metric is "Drill flake rate over 20 consecutive CI runs — 0% (any flake = bug in
+# the drill or the platform)". The `ttfe` job above runs the drill once and then calls
+# `check-series.mjs`, which reports `TTFE series — 1 run(s) of the last 20` and can never
+# report anything else: `test-results/ttfe-series.jsonl` is written inside the job and
+# published as an artifact, so twenty pipelines produce twenty one-line series and nothing
+# joins them. The number p.9 asks for had no producer at all.
+#
+# ── Why twenty runs in ONE job, and not a series accumulated across twenty pipelines ──
+# The accumulating version is the obvious reading of "20 consecutive CI runs" and it was
+# rejected on two counts, both of which come from this repository rather than from taste:
+#
+#  (a) It contradicts the check it would feed. `check-series.mjs --soak` fails a window
+#      spanning more than one commit, because p.9 reads a flake as "a bug in the drill or
+#      the platform" and that is only decidable against a fixed commit. Twenty pipelines
+#      are twenty commits unless the same SHA is re-run twenty times, so an accumulated
+#      window measures twenty different programs and calls the spread flake.
+#
+#  (b) The carrier does not exist. This project's cache is local to the one runner —
+#      "No URL provided, cache will not be uploaded to shared cache server" appears in
+#      every job's trace — so a `cache:` keyed on the branch is not a durable record, and
+#      a job that downloads its predecessor's artifact makes the twentieth run's verdict
+#      depend on nineteen artifact expiries.
+#
+# Twenty consecutive drill runs, in CI, against one commit, each provisioning its own
+# `postgres:16` container, is the same claim with a decidable subject. It costs one job
+# instead of twenty pipelines. **What it is not: twenty separate pipeline runs.** That
+# difference is stated here, in `docs/ttfe-drill.md`, and in the coverage matrix row,
+# because it is exactly the kind of gap a reader assumes away.
+#
+# ── Cost, and why this is not on every branch pipeline ─────────────────────
+# Measured, not estimated: job 67099 spent 20.4 s of wall clock inside `pnpm drill ttfe`
+# (7.5 s of it the graded total, the rest container start, migrations and server boot).
+# Twenty of those is ~7 minutes on top of the ~1 minute install. p.15 asks for a daily
+# CI-minute ceiling and there is one self-hosted runner, so this runs automatically on
+# `main` and on scheduled pipelines, and is available on demand everywhere else. Manual,
+# NOT optional: `allow_failure: false` is set on that rule too, because GitLab defaults a
+# manual job to `allow_failure: true` and a soak that cannot fail the pipeline is a soak
+# nobody has to look at.
+#
+# No retry wrapper here either, and `soak.sh` never re-invokes a failed run (PF-605). A
+# failing run stays in the series, the soak fails, and the diagnosis names the drill or
+# the platform. Re-running to clear it is the one move that makes this number a lie.
+ttfe-soak:
+  stage: verify
+  needs: ['build']
+  # A soak is deliberate; a push to the same ref must not silently kill the evidence run
+  # in flight. This is the one job in this file that opts out of the default.
+  interruptible: false
+  timeout: 45m
+  variables:
+    TESTCONTAINERS_HOST_OVERRIDE: 'host.docker.internal'
+    TESTCONTAINERS_RYUK_DISABLED: 'true'
+    # Same reason as `ttfe`: the harness provisions and DROPS its own database and
+    # refuses to adopt an inherited URL (PF-587).
+    DATABASE_URL: ''
+  script:
+    # 20 runs, then `check-series.mjs --soak`, which asserts the window is 20 runs of
+    # exactly ONE commit before it counts a pass rate.
+    - scripts/ttfe/soak.sh 20
+  artifacts:
+    when: always
+    expire_in: 1 month
+    paths:
+      # The series IS the record — an unrecorded soak is indistinguishable from a soak
+      # nobody ran. `ttfe-soak.json` carries the provenance: context ci/local, the job
+      # and pipeline that produced it, and the commit.
+      - test-results/ttfe-series.jsonl
+      - test-results/ttfe-soak.json
+      - test-results/ttfe.json
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: manual
+      allow_failure: false
+  allow_failure: false
+
 # ── The nine integration commands (PF-720) ──────────────────────────────────────────
 #
 # `integrations/README.md` says: *"Every one of those runs in CI behind
