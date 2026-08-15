@@ -300,71 +300,6 @@
     "parameters": {}
   },
   "paths": {
-    "/openapi.json": {
-      "get": {
-        "operationId": "getOpenapiJson",
-        "tags": [
-          "openapi.json"
-        ],
-        "summary": "The OpenAPI 3.1 description of this API.",
-        "description": "Generated from route metadata at boot — never hand-written. Requires no credentials: a specification a consumer cannot fetch before authenticating is a specification they cannot use to authenticate.",
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "The OpenAPI 3.1 description of this API.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "openapi": {
-                      "type": "string",
-                      "enum": [
-                        "3.1.0"
-                      ]
-                    },
-                    "info": {
-                      "type": "object",
-                      "properties": {
-                        "title": {
-                          "type": "string"
-                        },
-                        "version": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "title",
-                        "version"
-                      ]
-                    },
-                    "paths": {
-                      "type": "object",
-                      "additionalProperties": {}
-                    }
-                  },
-                  "required": [
-                    "openapi",
-                    "info",
-                    "paths"
-                  ]
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Unexpected server error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/documents": {
       "get": {
         "operationId": "getDocuments",
@@ -4479,6 +4414,71 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenapiJson",
+        "tags": [
+          "openapi.json"
+        ],
+        "summary": "The OpenAPI 3.1 description of this API.",
+        "description": "Generated from route metadata at boot — never hand-written. Requires no credentials: a specification a consumer cannot fetch before authenticating is a specification they cannot use to authenticate.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "The OpenAPI 3.1 description of this API.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "openapi": {
+                      "type": "string",
+                      "enum": [
+                        "3.1.0"
+                      ]
+                    },
+                    "info": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "version"
+                      ]
+                    },
+                    "paths": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "openapi",
+                    "info",
+                    "paths"
+                  ]
                 }
               }
             }
