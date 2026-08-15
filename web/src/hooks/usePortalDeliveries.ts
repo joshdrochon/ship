@@ -24,7 +24,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WebhookDelivery, DeliveryStatus } from '@ship/sdk';
 import { ShipError } from '@ship/sdk';
-import { getPortalClient, invalidatePortalClient, PortalTokenError } from '@/lib/portalClient';
+import { getPortalClient, invalidatePortalClient } from '@/lib/portalClient';
+import { toPortalError, type PortalError } from '@/lib/portalError';
 
 /**
  * The three filters PF-464 puts on L08's strict allowlist, and no fourth.
@@ -38,13 +39,13 @@ export interface DeliveryFilters {
   event_type?: string;
 }
 
-/** What the UI renders instead of guessing. Exactly one of these is non-null. */
-export interface PortalError {
-  message: string;
-  requestId: string | null;
-  /** Seconds to wait, when the failure was a 429. */
-  retryAfterSeconds: number | null;
-}
+/**
+ * Re-exported so existing importers keep their path. The definition moved to
+ * `lib/portalError.ts` when `usePortalSubscriptions` needed the same mapping —
+ * two hooks each mapping errors their own way is how one screen ends up showing
+ * `request_id` and its neighbour showing a bare "something went wrong".
+ */
+export type { PortalError };
 
 export interface UsePortalDeliveriesResult {
   deliveries: WebhookDelivery[] | null;
@@ -60,24 +61,6 @@ export interface UsePortalDeliveriesResult {
 }
 
 const PAGE_SIZE = 25;
-
-function toPortalError(e: unknown): PortalError {
-  if (e instanceof ShipError) {
-    return {
-      message: e.message,
-      requestId: e.requestId ?? null,
-      retryAfterSeconds: e.kind === 'rate_limit' ? (e.retryAfterSeconds ?? null) : null,
-    };
-  }
-  if (e instanceof PortalTokenError) {
-    return { message: e.message, requestId: null, retryAfterSeconds: null };
-  }
-  return {
-    message: e instanceof Error ? e.message : 'The delivery log could not be loaded.',
-    requestId: null,
-    retryAfterSeconds: null,
-  };
-}
 
 export function usePortalDeliveries(
   appId: string | null,
@@ -154,7 +137,7 @@ export function usePortalDeliveries(
         setNextCursor(page.next_cursor ?? null);
       } catch (e) {
         if (cancelled) return;
-        setError(toPortalError(e));
+        setError(toPortalError(e, 'The delivery log could not be loaded.'));
         setDeliveries(null);
       } finally {
         if (!cancelled) setLoading(false);
