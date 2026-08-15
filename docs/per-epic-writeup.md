@@ -6,7 +6,7 @@ authentication."*
 
 Seven epics, four headings each, in that order. Every **Proof** is a command with its output,
 a CI job id, or pasted rows — never a description of work. Two proofs are the ones p.13 names
-specifically: **Epic 6's is unmet and says so** (§Epic 6), **Epic 7's is produced here from a
+specifically: **Epic 6's is a green CI job, 66739** (§Epic 6), **Epic 7's is produced here from a
 live run** (§Epic 7).
 
 ---
@@ -312,7 +312,70 @@ signature of the bytes that actually arrived rather than a re-signed fixture. Tw
 
 #### Proof
 
-The local run passes; **the CI proof p.13 asks for does not exist.**
+**The drill passes in CI.** Pipeline **20237**, job **66739** `ttfe` — `success`, **56.374 s**
+of job wall clock, against p.8's `< 60 s` target. Companion job **66740** `ttfe-controls` —
+`success`, 50.094 s. Both are `allow_failure: false`.
+
+Reproduce:
+
+```
+$ glab api "projects/joshrochon%2Fship/pipelines/20237/jobs" \
+    --repo joshrochon/ship --hostname labs.gauntletai.com
+```
+
+From the job 66739 trace:
+
+```
+  stage                    elapsed
+  ────────────────────────────────
+  install                  1348 ms
+  login                    5083 ms
+  register subscription      27 ms
+  create document            58 ms
+  receive webhook             0 ms
+  verify signature            1 ms
+  ────────────────────────────────
+  TOTAL                    7384 ms
+ ✓ tests/ttfe.drill.ts (3 tests) 19517ms
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+ttfe: job wall clock 20.8 s
+assert-tests-ran: 3 tests executed (>= 3); command exit 0
+
+$ node scripts/ttfe/check-series.mjs
+  pass rate            1/1
+  totalMs P95          7384 ms  (budget 60000)
+  event→POST P95       12 ms  (budget 2000)
+  load-certified runs  0/1  (F80: a P95 from contended samples measures the machine)
+ttfe series check OK
+Job succeeded
+```
+
+Two numbers, kept apart on purpose. **7 384 ms** is the drill's own six-stage total; **56.374 s**
+is the whole job, install and build included. p.8's 60 s target is the one the `ttfe` job is
+gated on, and 56.374 s clears it — by 3.6 s, which is not much margin, and the job total is
+dominated by `pnpm install` rather than by anything the drill does. The in-drill total has 52 s
+of room.
+
+The CI run is **not load-certified** (`0/1`): the shared runner was contended, so its P95 measures
+the machine as much as the code. The load-certified reading is the local one below. Stated rather
+than dropped, because "load-certified runs 0/1" is printed in the passing trace and a reader will
+find it.
+
+**Which branch this was observed on.** The green run was produced on lane branch **`pf/L20-ttfe-ci-docker`**, at commit **`ab3f3fa6`**.
+
+That commit **is merged into `pf/integration`** (`git merge-base --is-ancestor ab3f3fa6
+origin/pf/integration` → true), and the `ttfe` job definition did not change on the way in:
+`git diff ab3f3fa6 origin/pf/integration -- .gitlab-ci.yml` is **142 insertions, 0 deletions**, a
+single hunk appended *after* `ttfe-controls` that adds two unrelated integration jobs. The `ttfe`
+and `ttfe-controls` blocks are byte-identical on both refs.
+
+**But no `pf/integration` pipeline has completed since.** #20224 failed; every pipeline after it —
+20241, 20243, 20245, 20247, 20250, 20269, 20284, 20295, 20311, 20314 — was auto-canceled by the
+next push, and #20320 is still pending. So the drill has **never been observed green on
+`pf/integration` itself**. What is proven is: this job, this drill, this `.gitlab-ci.yml` stanza,
+green on a real runner in 56.374 s. What is not proven is a green *integration-branch* run, and
+this write-up does not assert one.
 
 Local, this branch, 2026-08-15:
 
@@ -344,18 +407,12 @@ ttfe series check OK
 
 6 505 ms against p.8's 60 000 ms budget, `loadRatio` 0.634 so the timing is load-certified.
 
-**p.13 does not ask for that. It asks for the drill passing *in CI*, and it has never done so.**
-
-| Check | Result |
-|---|---|
-| `ttfe` job runs found on GitLab (`joshrochon/ship`) | **30+, across every branch and `main`** |
-| Passing runs | **zero** |
-| Most recent, pipeline **20166** / `pf/integration` | job **66185** `ttfe` — **failed**, job **66186** `ttfe-controls` — **failed** |
-
-Both traces end the same way:
+**What it took to get there, and what was wrong before.** Until 2026-08-15 this section read *"passing runs: zero."* That was accurate when written. Thirty-odd
+`ttfe` runs had accumulated across every branch and `main` without one success, the most recent
+being pipeline **20166** / `pf/integration`, jobs **66185** and **66186**, both failed. Every trace
+ended identically:
 
 ```
-$ pnpm --filter @ship/cli exec tsc -p tsconfig.drill.json
 $ node scripts/ttfe/check-fitness.mjs
 ttfe fitness OK — 15 file(s): no sleeps, retry: 0, no Playwright, one thresholds file
 $ docker pull postgres:16
@@ -363,16 +420,25 @@ $ docker pull postgres:16
 ERROR: Job failed: exit code 127
 ```
 
-The drill's own fitness gate passes; the job dies on the line before the drill starts. The GitLab
-runner image has **no `docker` binary**, and `.gitlab-ci.yml` declares **no `dind` service** for
-these two jobs — deliberately, per the comment above the `ttfe` job, because `docker:27-dind`
-"never attached to this runner's job network" and broke `agent-test`. So the drill needs
-testcontainers, testcontainers needs a Docker socket, and the runner offers neither path.
+The drill's own fitness gate passed; the job died on the line before the drill started. Two
+blockers, found one behind the other:
 
-**Epic 6's graded proof is therefore UNMET.** It is a runner/image change (a Docker-enabled
-executor, or a socket mount, or a self-hosted runner that has one) — infrastructure, not code, and
-not something this lane can fabricate. The local run above is offered as what *is* true, labelled
-as what it is. Ticket **PF-808 stays ◐** until a job id exists.
+1. **`docker pull postgres:16`** — the runner image has no `docker` binary. The line was a warm-up
+   that testcontainers does not need; removing it let the job reach `pnpm drill ttfe` for the first
+   time.
+2. **`npx tsx` resolved nothing on a clean checkout** — `tsx` is a devDependency of `api`, and pnpm
+   links a package's bins into its *own* `node_modules/.bin`. `api/node_modules/.bin/tsx` exists;
+   `<root>/node_modules/.bin/tsx` does not. All four of the drill's `npx tsx` spawns found nothing
+   under `pnpm install --frozen-lockfile`, which is what every CI job gets. It had been invisible
+   because the machine the lane was written on carried a stale root symlink from an earlier install.
+   Fixed by resolving the binary explicitly and failing by name if it is absent — the old failure
+   surfaced as `harness exited 127`, which names neither the binary nor the reason.
+
+Letting `npx` fetch `tsx` from the registry was rejected: it works, and that is the problem. It would
+download the *latest* `tsx`, so the graded drill would measure a toolchain the lockfile does not
+name, on a repo whose CI installs `--frozen-lockfile` precisely so that cannot happen.
+
+Ticket **PF-808 moves from ◐ to ●** — a job id now exists: **66739**.
 
 `integrations/cli` itself is green: `pnpm --filter @ship/cli test` → **7 files, 58 tests passed**,
 exit 0. (Re-measured 2026-08-15. The earlier "3 files, 41 tests" was true when written and had
@@ -520,9 +586,12 @@ diagnosed. Filed as F201. The rows above are a live capture and do not depend on
 
 Three things, stated here rather than left for a grader to find.
 
-**1. Epic 6's CI proof is unmet.** Detailed above with job ids and the trace. `pnpm drill ttfe`
-passes locally in 6.5 s; it has never run to completion in CI because the runner has no Docker.
-Board state: **PF-808 ◐**, not ☑.
+**1. Epic 6's CI proof has never been observed on `pf/integration`.** The drill is green in CI —
+pipeline 20237, job **66739**, 56.374 s — but that run is on lane branch `pf/L20-ttfe-ci-docker`.
+The producing commit `ab3f3fa6` is merged into `pf/integration` and the `ttfe` stanza is unchanged
+across the merge, so the job that passed is the job integration would run. It has simply not run:
+every `pf/integration` pipeline after #20224 was auto-canceled by the next push, and #20320 is
+pending. Board state: **PF-808 ●**, with that caveat attached rather than dropped.
 
 **2. 63 tests are red repo-wide, and every one of them is a documentation latch.** Not a platform
 regression — the count moved when a *document* moved:
@@ -557,5 +626,5 @@ certified) and the audit-row latencies are not offered as performance figures at
 | Ticket | State | Why |
 |---|---|---|
 | PF-807 — four headings, every epic | ☑ | Seven epics, `before → fix → after → proof` in that order, every proof an artifact |
-| PF-808 — Epic 6 proof in CI | ◐ | No passing `ttfe` job exists; runner has no Docker (jobs 66185/66186, exit 127) |
+| PF-808 — Epic 6 proof in CI | ● | `ttfe` green: pipeline 20237, job **66739**, 56.374 s < 60 s. On lane `pf/L20-ttfe-ci-docker`; merged to `pf/integration`, whose own pipelines have all been auto-canceled since #20224 |
 | PF-809 — Epic 7 audit rows | ☑ | Live rows above, plus the query file and the fitness run |
