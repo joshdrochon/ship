@@ -22,7 +22,7 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 | 1 | **GitHub Repository** | L26 | **GitLab `labs.gauntletai.com/joshrochon/ship` is the submitted remote** · `github.com/joshdrochon/ship` still serves Week 5 | ✅ **Ready** — see §1 |
 | 2 | **Demo Video (3–5 min)** | L26 | not recorded; script is [`docs/l19-five-line-story.md`](docs/l19-five-line-story.md) | ⚠ **Not ready** |
 | 3 | **Pre-Search Document** | L25 | [`PRESEARCH-PLUGFORGE.md`](PRESEARCH-PLUGFORGE.md) + [`docs/presearch-conversation.md`](docs/presearch-conversation.md) | ✅ **Ready** |
-| 4 | **Architecture Document** | L26 | [`docs/architecture.md`](docs/architecture.md) | ⚠ **Not ready** — see §4 |
+| 4 | **Architecture Document** | L26 | [`docs/architecture.md`](docs/architecture.md) — 149 lines, nine sections; depth moved to [`docs/architecture-appendix.md`](docs/architecture-appendix.md) | ✅ **Ready** — see §4 |
 | 5 | **OpenAPI Spec** | L13 | live `…/api/v1/openapi.json` + [`docs/openapi.json`](docs/openapi.json) | ✅ **Ready**, one caveat — see §5 |
 | 6 | **AI Cost Analysis** | L26 | *no Week 6 document exists* | ⛔ **Not ready** — see §6 |
 | 7 | **Per-Epic Write-up** | L26 | `docs/per-epic-writeup.md` — **absent** | ⛔ **Not ready** |
@@ -30,11 +30,10 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 | 9 | **Deployed Application** | L21 | `https://d258p92d3n1ebe.cloudfront.net/` | ✅ **Ready** — see §9 |
 | 10 | **Social Post** | L26 | not posted | ⚠ **Not ready** |
 
-**5 of 10 Ready, 1 Ready-with-caveat, 4 open.** Recounted 2026-08-14 evening, after the
+**6 of 10 Ready, 1 Ready-with-caveat, 3 open.** Recounted 2026-08-14 evening, after the
 branch push, the redeploy and the `/oauth/*` CloudFront fix. The five still open are rows
-2 (demo video), 4 (architecture length), 6 (cost analysis), 7 (per-epic write-up) and
-10 (social post) — of which 6 and 7 are documents nobody has written yet and 2 and 10 are
-yours to record and post.
+2 (demo video), 6 (cost analysis), 7 (per-epic write-up) and 10 (social post) — of which
+6 and 7 are documents nobody has written yet, and 2 and 10 are yours to record and post.
 
 ---
 
@@ -102,36 +101,26 @@ replaced. GitLab is where Week 6 lives and is what was submitted.
 
 ---
 
-## §4 · Architecture Document — nine sections present, length is the failure
+## §4 · Architecture Document — cut to the cap, depth preserved
 
-p.13 requires *"1–2 pages following the Section/Content table above. Committed at
-`docs/architecture.md`."* (The same cap appears on p.11.)
+p.13 requires *"1–2 pages following the Section/Content table above."*
 
-All nine required headings are present and correctly named:
+**859 lines → 149**, with all nine required headings present and correctly named. The cut was
+a move, not a deletion: the five sequence diagrams, the rejected alternatives, the decision
+records and the measured numbers are in
+[`docs/architecture-appendix.md`](docs/architecture-appendix.md), which the main document
+links from its first paragraph. Deleting that reasoning to satisfy a length cap would have
+been the wrong way to meet the cap.
 
-| p.12 section | Present |
-|---|:--:|
-| Module Layout | ✅ |
-| SOLID Rationale | ✅ |
-| Composition Root | ✅ |
-| Public/Internal Boundary | ✅ |
-| OAuth Flows | ✅ |
-| Webhook Pipeline | ✅ |
-| SDK Surface | ✅ |
-| Agent-as-Citizen | ✅ |
-| Failure Modes | ✅ |
+Reconciliations resolved in the same pass:
 
-**The document is 744 source lines** with five mermaid diagrams and thirteen extra
-subsections beyond the nine the table asks for. No rendering of 744 lines is 1–2 pages. The
-row cannot be called Ready on section coverage alone, and the fix is a cut, not an addition
-— the depth is genuinely good and belongs somewhere, just not in the document with the
-length cap on it.
+| Gap | Resolution |
+|---|---|
+| **G1** — "claims the agent's app is seeded by migration" | **Not a defect.** The doc said seeded by `db:migrate`, and deliberately *not* by a numbered migration. Verified: `api/src/db/migrate.ts:125` calls `seedPlatformApps`. Kept, now stated in one line. |
+| **G2** — `request_id` missing from the audit-field list | **Moot.** No audit-field list survives in the trimmed document; `request_id` is listed in the appendix's `audit/` module line. |
+| **G4** — the agent's grant type is never named | **Fixed.** Agent-as-Citizen now names Client Credentials, cites RFC 6749 §4.4, and states why Device Grant and Auth Code were rejected. |
 
-Still unreconciled against the code (L99 §*Documentation drift*): **G1** (claims the agent's
-OAuth app is seeded by migration; the repo seeds through `seed.ts`), **G2** (`request_id`
-missing from the audit-field list, though p.18 names it and `ApiError` carries it), **G4**
-(never names the agent's OAuth grant type, decided as Client Credentials / RFC 6749 §4.4 in
-L99 D5a). **G3** is L21's and is verification-only here.
+**G3** is L21's and remains verification-only.
 
 ---
 
