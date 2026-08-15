@@ -141,8 +141,8 @@ describe('PF-469 — the derivation is (event, subscription), NOT event.id verba
     // stored row, so it cannot see the derivation at all.
     expect(key).not.toBe(EVENT_ID);
     expect(key).toBe(`${EVENT_ID}:${sub.subscription.id}`);
-    // Still derived from the event id, which is what `docs/architecture.md:155`
-    // claims — derived from it AND the subscription.
+    // Still derived from the event id, which is what the Webhook Pipeline
+    // section of `docs/architecture.md` claims — from it AND the subscription.
     expect(key.startsWith(`${EVENT_ID}:`)).toBe(true);
   });
 

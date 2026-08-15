@@ -134,7 +134,7 @@ describe('PF-078 · ownership and the consumer contract', () => {
   });
 
   it('covers every resource the SDK surface names', () => {
-    // docs/architecture.md:34 — client.documents / issues / sprints / webhooks.
+    // docs/architecture.md, SDK Surface — client.documents / issues / sprints / webhooks.
     expect(PUBLIC_RESOURCES.map((r) => r.resource)).toEqual([
       'documents',
       'issues',

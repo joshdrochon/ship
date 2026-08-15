@@ -1,11 +1,13 @@
 /**
  * PF-152, PF-153, PF-157 — token generation, hashing and TTL constants.
  *
- * These are the assertions that make `docs/architecture.md:138` a checked claim
- * rather than a sentence. Line 138 says access tokens are "opaque high-entropy
+ * These are the assertions that make a sentence in the architecture material a
+ * checked claim rather than a sentence. The OAuth Flows section of
+ * `docs/architecture-appendix.md` says access tokens are "opaque high-entropy
  * strings stored hashed"; three of the four describes below correspond one-for-
  * one to those three words, which is PF-176's point — the document and the code
- * cannot drift because a test fails when they do.
+ * cannot drift because a test fails when they do. Cited by SECTION, never by
+ * line: the line numbers this header used to carry were stale within a week.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -71,8 +73,8 @@ describe('PF-152: high entropy', () => {
 
 describe('PF-152: opaque — not a JWT, no decodable payload', () => {
   /**
-   * "Opaque" in `docs/architecture.md:138` is a property a reviewer can only
-   * confirm if something confirms it. This is that something.
+   * "Opaque", in the sentence the header cites, is a property a reviewer can
+   * only confirm if something confirms it. This is that something.
    */
   it('is not a JWT', () => {
     const token = generateAccessToken();
