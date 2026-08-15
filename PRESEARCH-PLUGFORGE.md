@@ -1859,6 +1859,16 @@ not CSRF-able and forcing a token on it would break every SDK consumer. The prob
 skip, it is that its safety **rests on a fact in a different file**. The fix for "this is safe
 because of something over there" is a test that fails when *over there* changes.
 
+*Shipped, and where to re-run it.* `api/src/routes/portalWriteSurface.test.ts`, describe block
+**"PF-665 — CSRF on the app-form and rotate-secret endpoints"** — 4 assertions against the real
+Express app: **(a)** `POST /api/apps` and `POST /api/apps/:id/rotate-secret` with a valid
+session cookie but no `x-csrf-token` are both **403**, and the rotate case additionally asserts
+`secret_prefix` is unchanged, because a rejected CSRF that half-rotated a credential would be
+worse than accepting it; **(b)** session cookie + junk `Authorization: Bearer` + no CSRF token
+is **401** on both routes — the shape that would be a bypass if `authMiddleware` ever gained a
+session fallback; **(c)** a bearer POST to `/api/v1/webhooks` with no synchroniser token fails
+at **authentication and not at CSRF**, which is what keeps the SDK usable outside a browser.
+
 ## 3.2 — Testing Strategy *(p.17)*
 
 ### Q47

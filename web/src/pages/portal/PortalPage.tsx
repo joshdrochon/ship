@@ -34,8 +34,11 @@ import { ShipError, DELIVERY_STATUSES } from '@ship/sdk';
 import { SelectableList } from '@/components/SelectableList';
 import { cn } from '@/lib/cn';
 import { usePortalDeliveries, type DeliveryFilters } from '@/hooks/usePortalDeliveries';
+import { usePortalApp } from '@/hooks/usePortalApps';
+import { usePortalRegistry } from '@/hooks/usePortalRegistry';
 import { getPortalClient, invalidatePortalClient } from '@/lib/portalClient';
 import { DeliveryDetailPanel } from '@/components/portal/DeliveryDetailPanel';
+import { AppRecordPanel } from '@/components/portal/AppRecordPanel';
 
 /** The status pill's colour is information, not decoration. */
 function statusClass(status: DeliveryStatus): string {
@@ -77,6 +80,12 @@ export function PortalPage() {
 
   const { deliveries, loading, error, hasNext, hasPrevious, next, previous, reload, pageNumber } =
     usePortalDeliveries(appId ?? null, filters);
+
+  // PF-663 / PF-670 — the app's own record, and D3's rotation model. Both are
+  // read from the SESSION surface (`/api/apps`), not from `/api/v1`: p.3's seven
+  // scopes cannot gate app CRUD, which is the whole of PF-651's argument.
+  const { app, reload: reloadApp } = usePortalApp(appId ?? null);
+  const { scopes, rotationPolicy } = usePortalRegistry();
 
   const [replayingId, setReplayingId] = useState<string | null>(null);
   const [replayError, setReplayError] = useState<string | null>(null);
@@ -172,6 +181,21 @@ export function PortalPage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      {/*
+        PF-663 — the owner's full app record sits above the log rather than
+        replacing it. Collapsed by default: the delivery log is what a developer
+        came for, and `client_id` plus scopes plus redirect URIs is the thing
+        they come back for once, while configuring.
+      */}
+      {app && (
+        <AppRecordPanel
+          app={app}
+          scopeRegistry={scopes}
+          rotationPolicy={rotationPolicy}
+          onRotated={reloadApp}
+        />
+      )}
+
       <header className="flex flex-col gap-2 border-b border-border px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <h1 className="m-0 text-base font-medium text-foreground">

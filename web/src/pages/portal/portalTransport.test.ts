@@ -49,6 +49,10 @@ const PORTAL_FILES = [
   join(WEB_SRC, 'lib', 'portalClient.ts'),
   join(WEB_SRC, 'hooks', 'usePortalApps.ts'),
   join(WEB_SRC, 'hooks', 'usePortalDeliveries.ts'),
+  // PF-664 — the scope registry / rotation-policy read. On the session surface
+  // like `usePortalApps`, and under the same rule for the same reason: the day
+  // it needs a public route it must widen the SDK rather than reach past it.
+  join(WEB_SRC, 'hooks', 'usePortalRegistry.ts'),
 ];
 
 /**

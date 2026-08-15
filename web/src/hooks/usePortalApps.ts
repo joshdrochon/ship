@@ -41,6 +41,71 @@ export interface UsePortalAppsResult {
   reload: () => void;
 }
 
+/**
+ * PF-663 — the single app record, for the panel that shows the OWNER's full row.
+ *
+ * A separate read rather than a `find()` over `usePortalApps`' list, for two
+ * reasons that both showed up while building rotation:
+ *
+ *   * `GET /api/apps/:id` is PF-043's owner-scoped single read, so a URL typed
+ *     with someone else's app id lands on the same not-found body the list's
+ *     absence implies. Filtering a list client-side would render "loading"
+ *     forever instead.
+ *   * Rotation changes `secret_prefix` and `secret_version` on THIS app. A
+ *     targeted reload after rotating is one request; re-reading every app the
+ *     developer owns to refresh one row is not.
+ */
+export function usePortalApp(appId: string | null): {
+  app: PortalApp | null;
+  loading: boolean;
+  error: string | null;
+  reload: () => void;
+} {
+  const [app, setApp] = useState<PortalApp | null>(null);
+  const [loading, setLoading] = useState(appId !== null);
+  const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+
+  const reload = useCallback(() => setNonce((n) => n + 1), []);
+
+  useEffect(() => {
+    if (!appId) {
+      setApp(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+
+    apiGet(`/api/apps/${encodeURIComponent(appId)}`)
+      .then(async (res) => {
+        const body = await res.json().catch(() => null);
+        if (cancelled) return;
+        if (!res.ok || !body?.success) {
+          setError(body?.error?.message ?? `Could not load this app (${res.status})`);
+          setApp(null);
+          return;
+        }
+        setApp(body.data as PortalApp);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : 'Could not load this app');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appId, nonce]);
+
+  return { app, loading, error, reload };
+}
+
 export function usePortalApps(): UsePortalAppsResult {
   const [apps, setApps] = useState<PortalApp[] | null>(null);
   const [loading, setLoading] = useState(true);
