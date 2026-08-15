@@ -16,11 +16,27 @@ import pg from 'pg';
 const { Pool } = pg;
 
 const TEST_USER = {
-  email: 'shawn.jones@treasury.gov',
-  password: '!Musicfun1$$',
-  name: 'Shawn Jones',
-  isSuperAdmin: true,
+  email: process.env.TEST_USER_EMAIL ?? 'test-user@ship.local',
+  // NEVER hardcode a password here. This script writes `password_hash` against
+  // whatever DATABASE_URL points at -- the docstring above points it at the
+  // SHADOW Aurora instance -- so a literal here is a live credential for a
+  // deployed environment, committed to a public repository.
+  //
+  // A previous version of this file hardcoded a named @treasury.gov superadmin
+  // account and its plaintext password. It sat on `main` in a public repo and
+  // gitleaks never flagged it: no rule matches `password: '<value>'`, so the
+  // security-scan job was green the entire time. Do not treat that job as the
+  // gate that would catch this.
+  password: process.env.TEST_USER_PASSWORD,
+  name: process.env.TEST_USER_NAME ?? 'Test User',
+  isSuperAdmin: process.env.TEST_USER_SUPERADMIN === 'true',
 };
+
+if (!TEST_USER.password) {
+  console.error('ERROR: TEST_USER_PASSWORD environment variable is required.');
+  console.error('Refusing to run: this script sets a real password_hash.');
+  process.exit(1);
+}
 
 async function createTestUser() {
   const databaseUrl = process.env.DATABASE_URL;
