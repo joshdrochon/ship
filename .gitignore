@@ -177,3 +177,4 @@ docs/audit/raw/e2e-*.log
 # then `pnpm baseline:evidence`; the numbers and exit codes are quoted in
 # docs/mvp-gate-item-9.md, which is what git carries.
 .l26-evidence/
+.e2e-run/

@@ -22,8 +22,12 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 RESULTS=test-results
-LOG="$RESULTS/e2e-run.log"
-PIDFILE="$RESULTS/e2e-run.pid"
+# The log and pidfile live OUTSIDE test-results/ because Playwright clears that
+# directory at the start of a run — the first version put them inside it and the
+# log was gone by the time anyone looked, which is the opposite of the point.
+RUNDIR=.e2e-run
+LOG="$RUNDIR/e2e-run.log"
+PIDFILE="$RUNDIR/e2e-run.pid"
 
 status() {
   if [ ! -f "$RESULTS/summary.json" ]; then
@@ -61,12 +65,17 @@ if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; then
   exit 1
 fi
 
-mkdir -p "$RESULTS"
+mkdir -p "$RUNDIR"
 rm -rf "$RESULTS/errors"
 
-# `setsid` so the run survives the caller and does not inherit its stdout.
-# Redirecting to a file is the entire point: the volume is what breaks sessions.
-setsid pnpm exec playwright test "$@" > "$LOG" 2>&1 &
+# Detached, with all output to a file — the volume is what breaks agent sessions.
+#
+# `setsid` is coreutils and is NOT on macOS, where this repo is developed; the
+# first version used it and died with "setsid: command not found" AFTER
+# reporting a pid, so the caller polled a run that had never started. `nohup`
+# does the same job (immune to SIGHUP, detached from the terminal) and is on
+# both platforms.
+nohup pnpm exec playwright test "$@" > "$LOG" 2>&1 &
 echo $! > "$PIDFILE"
 
 echo "started (pid $(cat "$PIDFILE")), log: $LOG"
