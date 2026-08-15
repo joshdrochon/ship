@@ -630,7 +630,34 @@ jobs:
       # not an optimisation.
       - run: pnpm build:web
       - run: pnpm --filter @ship/api exec tsx src/db/migrate.ts
-      - run: pnpm baseline:compare
+      # PF-807 — the instrument is judged before the tree is. A/A before A/B: measure the
+      # same tree twice in separate processes and compare it to itself. If the runner's own
+      # noise is larger than the +10% budget, no verdict below means anything, including a
+      # passing one. This mirrors `regression-budget` in .gitlab-ci.yml, which is the
+      # authoritative pipeline; it was missing here. See docs/measurement-rules.md rule 1.
+      #
+      # Both sides pin the rate limiter: Part 1 caps its test ceiling at 10_000/min and this
+      # tree at 1_000_000, and above a certain sample count the Part 1 side answers 429 and
+      # the harness records the error path as route latency.
+      - run: API_RATE_LIMIT_MAX=100000000 PERF_TRIALS=25 node scripts/perf-self-check.mjs --budget 10
+      # Exit codes, and why 2 is tolerated here but 1 is not:
+      #   0 - every budget judged and met
+      #   1 - something judged is OVER budget. Fails the PR. This is PF-804's whole point.
+      #   2 - INDETERMINATE: nothing judged was over, but not every budget was judged.
+      #
+      # On this runner latency is always unjudged — the baseline is darwin-arm64 / node v26
+      # / 10 cores and this is linux-x64 / node 22 / 2-4 shared cores, so a P95 delta here
+      # describes the runner in both directions. The two deterministic metrics (bundle
+      # bytes, per-route query counts) are still enforced and still fail the PR on exit 1.
+      #
+      # Exit 2 is tolerated, NOT converted to a pass: docs/regression-report.json records
+      # `verdict: "indeterminate"`, `ok: false` and a populated `unjudged` array, and the
+      # artifact is uploaded either way. The latency half is established separately by the
+      # paired protocol — docs/regression-paired-runs.md, scripts/perf-paired-runs.sh.
+      #
+      # Do NOT replace this with `continue-on-error: true`. That swallows exit 1 as well,
+      # which removes the only thing making this job a gate.
+      - run: pnpm baseline:compare || [ $? -eq 2 ]
       - uses: actions/upload-artifact@v4
         if: always()
         with:
