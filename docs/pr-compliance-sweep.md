@@ -13,20 +13,29 @@ PF-026 enforces that the **sections exist**. This is the submission-time check t
 implicit, with the title and the framing both saying "PR body" while every number came
 from commit text. Relabelled 2026-08-15 rather than left to be discovered.
 
-**The substitution is necessary because there are no per-slice PRs.** Measured
-2026-08-15:
+**The substitution is necessary because there are no per-slice PRs.** Re-measured
+2026-08-15 against `origin/pf/integration` at `d497daf`:
 
 | | Count |
 |---|---:|
-| `pf/*` slice branches on `origin` | 167 |
-| Merges into `pf/integration` | 180 |
+| `pf/*` slice branches on `origin` | 177 |
+| **Slice merges on `pf/integration`** (subject `merge(pf/LNN-…)`) — **the unit this sweep counts** | **87** |
+| All merge commits reachable from `pf/integration`, PlugForge and Week 5 together | 184 |
 | Merge requests on GitLab **from a `pf/LNN-*` slice branch** | **0** |
 | Merge requests on GitLab from `pf/integration` → `main` (batch, not per-slice) | 3 |
 | Pull requests on GitHub from any `pf/` branch | **0** |
 
+The middle two rows are different quantities and an earlier revision of this table
+conflated them, reporting "180 merges" as though all of it were PlugForge. It is not: 96
+of the 184 are Week 5 and earlier — `Merge branch 'integration/phase-2' into 'main'`,
+`Merge pull request #8/#9 from …`, the `origin/master` back-merges. **87** is the number
+that belongs next to the 66 this sweep covered.
+
 (GitLab carries 19 MRs and GitHub 9 in total; every one not counted above belongs to Week
-5 and predates PlugForge. Reproduce with `glab mr list --repo joshrochon/ship --all` and
-`gh pr list --repo joshdrochon/ship --state all`.)
+5 and predates PlugForge. Reproduce with
+`glab api "projects/joshrochon%2Fship/merge_requests?state=all&per_page=100" --repo joshrochon/ship --hostname labs.gauntletai.com`
+and `gh pr list --repo joshdrochon/ship --state all --limit 200 --json headRefName`. Both
+were re-run on 2026-08-15; the two zero rows are still zero.)
 
 **So p.12's clause is not met as literally written, and this document does not claim it
 is.** What exists is the other half of the same sentence — per-slice branches, preserved,
@@ -34,9 +43,13 @@ each carrying the acceptance criterion and the fitness-test confirmation in its 
 bodies. That is the artifact swept below. Whether a grader accepts a commit body in place
 of a PR description is theirs to judge; presenting one as the other is not on offer.
 
-**The headline count is stale.** The sweep covered 66 slices; 180 merges now sit on
-`pf/integration`. The 55/66 figure below describes the tree as it stood when the sweep
-ran, not the tree being submitted. Re-run before submission or cite it with that scope.
+**The headline count covers 66 of 87 slices.** The 55/66 figure below was produced when
+`pf/integration` carried 66 slice merges; it now carries **87**, so **21 slices merged
+after the sweep ran are unaudited** — they are not counted as compliant or as
+non-compliant, they are simply not in the sample. 55/66 is a rate over the audited 66,
+never over the whole tree, and it is not an 87-slice result. Cite it with that scope or
+re-run the sweep; what is not available is reading 55/66 as the submission's compliance
+rate.
 
 ## Getting to the right unit took three attempts
 
@@ -51,7 +64,7 @@ measurements are recorded because both produced a confident, wrong number:
 3. **Merge parents** — for a merge with parents `P1 P2`, the slice's commits are exactly
    `P1..P2`. That is the number below.
 
-## Result — 55 of 66 slices fully compliant (as of the sweep; see the scope note above)
+## Result — 55 of the 66 slices audited, out of 87 on the branch
 
 | Standard | Count |
 |---|---:|

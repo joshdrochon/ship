@@ -1,13 +1,13 @@
 {
-  "measuredAt": "2026-08-15T18:50:19.330Z",
+  "measuredAt": "2026-08-15T21:12:41.167Z",
   "budgetBytes": 256000,
   "method": "gzip of unminified published files (upper bound on min+gzip)",
   "productionDependencyCount": 0,
   "unresolvedDependencies": [],
   "dist": {
-    "fileCount": 169,
-    "rawBytes": 625114,
-    "gzippedBytes": 225109,
+    "fileCount": 175,
+    "rawBytes": 644949,
+    "gzippedBytes": 233463,
     "files": [
       {
         "file": "dist/cjs/auth/flows.js",
@@ -18,20 +18,20 @@
         "gzippedBytes": 6009
       },
       {
+        "file": "dist/cjs/stability.js",
+        "gzippedBytes": 4581
+      },
+      {
+        "file": "dist/stability.js",
+        "gzippedBytes": 4506
+      },
+      {
         "file": "dist/errors.d.ts",
         "gzippedBytes": 4418
       },
       {
-        "file": "dist/cjs/stability.js",
-        "gzippedBytes": 4412
-      },
-      {
-        "file": "dist/stability.js",
-        "gzippedBytes": 4337
-      },
-      {
         "file": "dist/client.d.ts",
-        "gzippedBytes": 4156
+        "gzippedBytes": 4356
       },
       {
         "file": "dist/cjs/transport.js",
@@ -52,6 +52,6 @@
     ]
   },
   "dependencies": [],
-  "totalGzippedBytes": 225109,
+  "totalGzippedBytes": 233463,
   "withinBudget": true
 }

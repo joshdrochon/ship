@@ -17,6 +17,59 @@
 # The script refuses to raise it. Raising is a deliberate edit here, justified in the
 # commit message -- never a quiet adjustment to turn a pipeline green.
 #
-# The -25% grading ceiling is 756. This number should stay at or below that; the gap
-# between them is the headroom a future merge can spend before the *target* is at risk.
-742
+# ===========================================================================
+# RAISED 2026-08-15, 742 -> 1728. The justification, because the rule above
+# demands one and "the pipeline was red" is not one.
+# ===========================================================================
+#
+# WHAT WAS MEASURED. The ceiling of 742 was committed at f2d3f4e (2026-07-31). Re-running
+# the counter against that exact tree reports 742 -- the ceiling was set to the count of
+# the day, over 138 files. On `pf/integration` at d497daf the counter reports 1728 over
+# 319 files. The +986 looks like a catastrophic regression. It is not one:
+#
+#   All 138 files that existed at f2d3f4e still exist. On that identical file set:
+#
+#       742 then  ->  745 now      (+3)
+#
+#   The entire remaining +983 is carried by 181 files that did not exist when the
+#   ceiling was set:
+#
+#       api/src/platform      142 files    759 violations
+#       other new files        39 files    224 violations
+#
+# Reproduce:
+#     git archive f2d3f4e | tar -x -C /tmp/old
+#     (cd /tmp/old && python3 docs/audit/scripts/count-type-violations.py)   # -> 742
+#     python3 docs/audit/scripts/count-type-violations.py                    # -> 1728
+#     python3 docs/audit/scripts/count-type-violations.py --by-file -n 5000  # per-file
+#
+# WHY THAT JUSTIFIES A RAISE. The -25% target describes shrinking the Part 1 Ship
+# codebase. It was measured over a repo with no `api/src/platform`, no `sdk/` and no
+# `integrations/` -- none of them existed on 2026-07-31. You cannot reduce a baseline by
+# adding new files to it, and a gate that fails because Week 6 shipped 181 new files is
+# not reporting the thing it was built to report. The thing it WAS built to report --
+# "did a merge silently spend another lane's type-safety budget?" -- is measured above
+# and the answer is +3 over two weeks. The graded target is intact. `api/src/platform`
+# alone (759) exceeds the whole old ceiling, which is the clearest statement of how far
+# the metric's scope has drifted from the metric's meaning.
+#
+# WHAT THIS COSTS, STATED PLAINLY. The number below is no longer comparable to the -25%
+# grading ceiling of 756 and must not be read as if it were. The frozen-file-set figure
+# (745) is the one that speaks to Category 1; it is recorded here rather than gated,
+# because gating it needs a change to scripts/check-type-violations.sh, which this lane
+# does not own. Until that exists, this file carries the evidence and the script carries
+# a whole-repo ratchet.
+#
+# The ratchet still bites. 1728 is the exact current count, not a padded number, so the
+# next merge that adds a single `as any` anywhere in api/src, web/src or shared/src fails
+# the job exactly as before. Nothing was bought with headroom.
+#
+# KNOWN SCOPE DEFECT, not fixed here. The counter walks only api/src, web/src and
+# shared/src (PACKAGES in count-type-violations.py:30). `sdk/src` (46 .ts files) and
+# `integrations/` (84 .ts files) are never measured -- 130 files of PlugForge's most
+# heavily graded code. So this gate simultaneously penalises new platform code inside
+# api/src and ignores new code outside it. That is incoherent, and it is the reason the
+# whole-repo framing above should be replaced rather than re-tuned. Owner of
+# scripts/check-type-violations.sh: the fix is a second, frozen-scope ceiling over the
+# 138 Part 1 files, plus adding sdk/src and integrations/ to PACKAGES.
+1728
