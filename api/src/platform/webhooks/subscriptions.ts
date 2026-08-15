@@ -139,10 +139,24 @@ export class DuplicateSubscriptionError extends Error {
     readonly event: string,
     readonly targetUrl: string,
   ) {
+    // ⚑ The second sentence used to read "…under the same idempotency key,
+    // which the subscriber cannot tell from a retry." That was true only under
+    // PF-469's original derivation (`idempotency_key = event.id`, verbatim) and
+    // is FALSE against the derivation that shipped: `idempotencyKeyFor` keys on
+    // (event, subscription), so two subscriptions get two DIFFERENT keys.
+    //
+    // The correction strengthens the guard rather than weakening it. Under the
+    // old wording the subscriber's own deduplication would have absorbed the
+    // duplicate; under the shipped derivation nothing absorbs it, so the second
+    // POST is a genuine duplicate delivery the subscriber has no mechanical way
+    // to recognise. This message reaches a public API consumer verbatim —
+    // `webhooks/routes.ts` puts it on the 422 — so it has to be true.
+    // Recorded as F212.
     super(
       `This app already has a subscription for "${event}" pointed at ${targetUrl}. ` +
-        `A second one would deliver the same event twice to the same URL under the same ` +
-        `idempotency key, which the subscriber cannot tell from a retry.`,
+        `A second one would deliver the same event twice to the same URL, and the two ` +
+        `deliveries carry different Idempotency-Key values, so the subscriber has no way ` +
+        `to recognise the duplicate.`,
     );
     this.name = 'DuplicateSubscriptionError';
   }
