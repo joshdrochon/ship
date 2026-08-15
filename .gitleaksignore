@@ -189,3 +189,34 @@ b639059217e96664ba843c1847bc450e21367d31:api/src/__tests__/internal-middleware-s
 # would rather they were not in a public repo should raise it against
 # `docs/infra/`, which this lane does not own.
 68fbe47829e01816db8377630b48717dd0c8e992:docs/infra/mutated-plans/exercise-5.txt:generic-api-key:91
+
+# ---------------------------------------------------------------------------
+# Full-history findings (GIT_DEPTH: 0). Reviewed 2026-08-15; none is a live
+# credential. Stable because each names the commit that actually introduced the
+# line -- unlike shallow-clone fingerprints, which attribute to graft boundaries
+# and move on every push.
+#
+# Proof this is not a blanket suppression: a freshly generated AKIA/ghp pair
+# committed to api/src/__canary.ts was detected (9 findings, canary among them),
+# then removed. Do not use AWS's published example keys to retest -- gitleaks
+# allowlists AKIAIOSFODNN7EXAMPLE by design and it will look like a failure.
+# ---------------------------------------------------------------------------
+
+# The IAM least-privilege drill transcript (PF-635..638). One truncated OAuth
+# access token with expires_in 3600, long expired; the client_secret beside it
+# is `***`. Verified the full token appears nowhere in history at any length.
+b499db0149024a5e17592661fe861ce20b42dd36:docs/infra/iam-least-privilege.md:curl-auth-header:414
+b499db0149024a5e17592661fe861ce20b42dd36:docs/infra/iam-least-privilege.md:generic-api-key:416
+
+# PF-577's golden delivery fixture. `whsec_pf577_golden_secret_0123456789` is a
+# literal test vector -- the test asserts byte-for-byte rendering, so the value
+# has to be committed to be the thing under test.
+7e01bdd84b07dfa599fba1f8ffce5116faf96950:integrations/cli/tests/deliveryGolden.test.ts:generic-api-key:52
+
+# This file quotes the values it suppresses so a reader can judge them, which
+# makes the scanner flag its own ignore list. Self-referential, not a leak.
+cea602a5713b0aff579da39ea1c631af9c255768:.gitleaksignore:generic-api-key:139
+cea602a5713b0aff579da39ea1c631af9c255768:.gitleaksignore:generic-api-key:151
+cea602a5713b0aff579da39ea1c631af9c255768:.gitleaksignore:generic-api-key:177
+cea602a5713b0aff579da39ea1c631af9c255768:.gitleaksignore:generic-api-key:66
+cea602a5713b0aff579da39ea1c631af9c255768:.gitleaksignore:generic-api-key:72

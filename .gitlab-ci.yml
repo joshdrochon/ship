@@ -1101,6 +1101,24 @@ dependency-audit:
 security-scan:
   stage: audit
   needs: []
+  variables:
+    # Full history, not GitLab's default shallow clone.
+    #
+    # At the default `GIT_DEPTH: 20`, `gitleaks detect` reported 157 findings
+    # against 263 commits and ~460 MB. A full clone of the same HEAD, same
+    # gitleaks v8.28.0, same command, reports 8 findings against 1033 commits
+    # and ~24.7 MB. Fewer commits but nineteen times the bytes is the tell: in a
+    # shallow clone `git log -p --all` re-emits whole trees at each graft
+    # boundary, so every fixture is rediscovered and attributed to a boundary
+    # commit rather than the one that introduced it.
+    #
+    # That is why `.gitleaksignore` appeared not to work. Its fingerprints were
+    # correct; the shallow scan simply produced different ones. Pinning the 157
+    # would have been worse than useless -- boundary SHAs move whenever a commit
+    # lands, so the job would return red with a fresh 157 on the next push.
+    #
+    # This also INCREASES coverage: at depth 20 the job saw twenty commits.
+    GIT_DEPTH: 0
   script:
     # Secret scanning. `comply` is the organisation's tool but is not installable in
     # this image, so gitleaks is used and the substitution is recorded in CHANGES.md.
