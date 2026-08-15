@@ -517,26 +517,31 @@ ttfe-controls:
 #
 # Eight of the nine now run here. Counted against the README's own list:
 #
-#   @ship/cli test                  58  integration-units
+#   @ship/cli test                  83  integration-units
 #   @ship/cli test:server           19  cli-server-suite
-#   @ship/slack test                17  integration-units
-#   slack:live                       5  slack-live
+#   @ship/slack test                19  integration-units
+#   slack:live                      10  slack-live
 #   @ship/browser-demo test          5  integration-units
 #   @ship/browser-demo test:pkce     7  browser-demo-pkce
 #   drill:refresh                   21  drill-refresh
 #   drill:idempotency               14  drill-idempotency
-#   @ship/integration-testkit test   —  NOT RUN — see below
+#   @ship/integration-testkit test  21  integration-units
 #
-# `@ship/integration-testkit test` is the one held back, and NOT for an environmental
-# reason: it is red on this tree. Its own PF-721 fitness test ("one listener,
-# repository-wide") reports two files outside the allow-list that bind a socket —
-# `cli/tests/support/stubShip.ts` and `cli/tests/ttfe/listener.ts`. Both are deliberate:
-# PF-599 requires the drill to own an `http.Server` it can read raw bytes off, and the
-# p.11 fence stops `integrations/cli` importing the testkit at runtime anyway. The fix is
-# either two entries in that test's `ALLOWED_SERVER_FILES` with reasons, or a decision
-# that the fence should widen — both belong to whoever owns
-# `integrations/testkit/tests/oneListener.test.ts`, not here. A job added now would go red
-# on a real disagreement between two lanes, which is not what a CI gate is for.
+# Every count above was re-measured on THIS tree, after merging pf/integration. They are
+# floors, not equalities (`assert-tests-ran.sh` compares with >=), but a stale floor
+# under-guards: `@ship/cli test` was 58 and is 83, `@ship/slack test` was 17 and is 19,
+# `slack:live` was 5 and is 10 — all three grew while this branch was open. Re-measure
+# when they move rather than guessing upward.
+#
+# All nine run. `@ship/integration-testkit test` was the last, and it was held back for one
+# pipeline for a reason worth recording: it was RED, and not environmentally. Its own
+# PF-721 fitness test ("one listener, repository-wide") named two files outside the
+# allow-list that bind a socket — `cli/tests/support/stubShip.ts` and
+# `cli/tests/ttfe/listener.ts`. Both are deliberate (PF-599 needs the drill to own an
+# `http.Server` it can read raw bytes off, and the p.11 fence stops `integrations/cli`
+# importing the testkit at runtime anyway), so a job would have gone red on a real
+# disagreement between three lanes rather than on a defect. L24 has since allow-listed
+# both paths with reasons, and the suite passes 21/21 — so it has a job now.
 #
 # Every command below was run to completion on a worktree built with `pnpm install
 # --frozen-lockfile` — CI's own install — before its job was written. That was not
@@ -701,9 +706,14 @@ integration-units:
     # @ship/integration-testkit" and reports zero tests — which assert-tests-ran correctly
     # calls a SHORT RUN rather than a failure. Measured on job 67103.
     - pnpm --filter @ship/integration-testkit build
-    - scripts/assert-tests-ran.sh 58 -- pnpm --filter @ship/cli test
-    - scripts/assert-tests-ran.sh 17 -- pnpm --filter @ship/slack test
+    - scripts/assert-tests-ran.sh 83 -- pnpm --filter @ship/cli test
+    - scripts/assert-tests-ran.sh 19 -- pnpm --filter @ship/slack test
     - scripts/assert-tests-ran.sh 5 -- pnpm --filter @ship/browser-demo test
+    # PF-721's own suite. It was red until L24 allow-listed the two files this repo
+    # deliberately carries a second listener in — `cli/tests/support/stubShip.ts` and
+    # `cli/tests/ttfe/listener.ts` — so it had no job on the older tree. It passes now,
+    # which is the last of the nine.
+    - scripts/assert-tests-ran.sh 21 -- pnpm --filter @ship/integration-testkit test
   allow_failure: false
 
 # The three commands that boot a Ship through `scripts/l24-drill-server.ts` — it
@@ -771,7 +781,7 @@ drill-idempotency:
 slack-live:
   <<: *drill-job
   script:
-    - scripts/assert-tests-ran.sh 5 -- pnpm slack:live
+    - scripts/assert-tests-ran.sh 10 -- pnpm slack:live
 
 coverage:
   stage: verify

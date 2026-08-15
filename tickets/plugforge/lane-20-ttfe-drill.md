@@ -308,20 +308,50 @@ shape was already in the same file two lines down — `baseline:measure` uses
 `integrations/README.md` claims *"Every one of those runs in CI behind
 `scripts/assert-tests-ran.sh <n>`"* for nine commands, and `.gitlab-ci.yml` ran **zero**.
 p.8's "at least five integrations" ships exactly five with no margin, so on the graded remote
-nothing verified any of them. Eight now run, in six jobs, each verified on a clean `--frozen-lockfile` install first: cli 58 · cli test:server 19 · slack 17 · slack:live 5 · browser-demo 5 ·
-browser-demo test:pkce 7 · drill:refresh 21 · drill:idempotency 14.
+nothing verified any of them. Slack — the PRD's only `should-ship` after the CLI — had no
+automated proof at all.
 
-The ninth, `@ship/integration-testkit test`, is **red on this tree** and deliberately has no
-job. Its PF-721 fitness test ("one listener, repository-wide") names two files outside its
-allow-list that bind a socket: `cli/tests/support/stubShip.ts` (L19) and
-`cli/tests/ttfe/listener.ts` (**this lane**, PF-599 — the drill must own an `http.Server` it
-can read raw bytes off, and the p.11 fence stops it importing the testkit at runtime anyway).
-That is a genuine disagreement between three lanes, resolvable either by two
-`ALLOWED_SERVER_FILES` entries with reasons or by widening the fence. Both live in
-`integrations/testkit/tests/oneListener.test.ts`, which this lane does not own. **A job was
-not added, because it would have gone red on a real cross-lane decision rather than on a
-defect** — and `integrations/README.md`'s "every one of those" sentence is false until that
-is settled.
+**All nine now run, in six jobs**, every count re-measured on this tree after merging
+`pf/integration`:
+
+| Command | Tests | Job |
+|---|---|---|
+| `@ship/cli test` | 83 | `integration-units` |
+| `@ship/slack test` | 19 | `integration-units` |
+| `@ship/browser-demo test` | 5 | `integration-units` |
+| `@ship/integration-testkit test` | 21 | `integration-units` |
+| `@ship/cli test:server` | 19 | `cli-server-suite` |
+| `@ship/browser-demo test:pkce` | 7 | `browser-demo-pkce` |
+| `drill:refresh` | 21 | `drill-refresh` |
+| `drill:idempotency` | 14 | `drill-idempotency` |
+| `slack:live` | 10 | `slack-live` |
+
+Three of those counts had drifted while this branch was open — cli 58→83, slack 17→19,
+`slack:live` 5→10 — so the guards are floors measured here, not inherited. `slack:live` is a
+misleading name and it cost a round trip: it needs **no Slack credentials**; "live" means a
+live Ship.
+
+`@ship/integration-testkit test` was the last to land and was held back for one pipeline
+because it was **red**, not because of the environment: PF-721's "one listener,
+repository-wide" named `cli/tests/support/stubShip.ts` (L19) and `cli/tests/ttfe/listener.ts`
+(**this lane**, PF-599) as unlisted socket binders. L24 has since allow-listed both with
+reasons and it passes 21/21.
+
+**Three environment facts these jobs paid for, in pipelines rather than in review:**
+
+1. The `build` artifact carries `shared/agent/api/web/sdk` dist and **nothing under
+   `integrations/`**. `@ship/slack test` imports `@ship/integration-testkit` at runtime, so
+   without an explicit testkit build it collects zero tests and `assert-tests-ran.sh`
+   correctly calls a SHORT RUN (job 67103).
+2. `oauth_apps` is **empty** after migrate + seed unless `AGENT_/GRADER_/DEMO_CLIENT_SECRET`
+   are set — verified directly: 0 rows without, 3 with. Every device login then answers
+   `invalid_client`, so a missing row presents as a plausible auth failure (jobs 67101,
+   67104).
+3. The drills **cannot share a database**. Each leaves subscriptions behind and a signing
+   secret is encrypted at rest under `WEBHOOK_SECRET_KEY`, so the second drill dies with
+   `WebhookSecretCryptoError … NOTHING was delivered`. Ordering the lines would have gone
+   green while leaving a suite that passes because of what ran before it — the shape p.9 sets
+   at zero. One job per drill gets one `postgres:16` service per drill.
 
 ### Measured in CI, first time — job 66739
 
