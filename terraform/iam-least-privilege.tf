@@ -67,16 +67,89 @@ resource "aws_iam_role_policy_attachment" "eb_instance_admin_before" {
 #      instance is a bastion host or opening SSH -- inbound network access to a
 #      private subnet, versus an outbound-only agent with per-action IAM and a
 #      full CloudTrail record of every command.
-#   2. It grants no application-relevant data access. AmazonSSMManagedInstanceCore
-#      covers ssmmessages/ec2messages channel setup, UpdateInstanceInformation,
-#      and document reads. It does NOT include `ssm:GetParameter` on arbitrary
-#      paths, so the path-scoped Parameter Store boundary this drill exists to
-#      prove is untouched -- which is what keeps PF-637's denial test honest
-#      rather than an artifact of the tooling used to run it.
+#   2. It grants no application-relevant data access -- SEE THE CORRECTION BELOW,
+#      because the original version of this comment was WRONG about that.
 #   3. Without it there is no way to demonstrate the denial at all, and p.5 asks
 #      for exactly that demonstration.
+#
+# CORRECTION, 2026-08-15, found by running the drill rather than reasoning about
+# it. This block previously attached the AWS managed policy
+# `AmazonSSMManagedInstanceCore` and asserted, in this comment, that it "does NOT
+# include ssm:GetParameter on arbitrary paths, so the path-scoped Parameter Store
+# boundary this drill exists to prove is untouched."
+#
+# That assertion was false. The managed policy's real document contains:
+#
+#     Action:   [ ..., "ssm:GetParameter", "ssm:GetParameters" ]
+#     Resource: "*"
+#
+# So attaching it silently granted account-wide Parameter Store reads and
+# VOIDED the `/${project}/${environment}/*` boundary that eb_ssm_access exists to
+# draw. The first PF-637 run proved it empirically: with AdministratorAccess
+# already removed, the instance still read `/ship/terraform-state-bucket`, a
+# parameter well outside its prefix. The boundary was decorative, not enforced.
+#
+# This is the same failure mode PF-635 recorded for
+# AWSElasticBeanstalkMulticontainerDocker's second, wider bedrock grant: an AWS
+# managed policy quietly undoing a scoping decision made deliberately elsewhere.
+# It is the strongest evidence in this drill for p.5's actual lesson -- a managed
+# policy is not least privilege merely because AWS wrote it, and the only way to
+# know what one grants is to read its document.
+#
+# The fix is the inline policy below: the SSM agent's channel and document
+# actions, which are what the Session Manager / RunCommand path genuinely needs,
+# with the blanket Parameter Store grant removed. `ssm:GetParameter*` is NOT
+# restated here -- eb_ssm_access in ssm.tf already grants it, scoped to the
+# project prefix, and that is now the role's only path to Parameter Store.
 # ---------------------------------------------------------------------------
-resource "aws_iam_role_policy_attachment" "eb_instance_ssm_managed" {
-  role       = aws_iam_role.eb_instance.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+resource "aws_iam_role_policy" "eb_instance_ssm_agent" {
+  name = "${var.project_name}-eb-ssm-agent-channel"
+  role = aws_iam_role.eb_instance.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        # Session Manager / RunCommand duplex channels. These carry the command
+        # session itself and grant no access to any application data.
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel",
+          "ec2messages:AcknowledgeMessage",
+          "ec2messages:DeleteMessage",
+          "ec2messages:FailMessage",
+          "ec2messages:GetEndpoint",
+          "ec2messages:GetMessages",
+          "ec2messages:SendReply"
+        ]
+        Resource = "*"
+      },
+      {
+        # Agent registration, association handling and SSM *document* reads.
+        # ssm:GetDocument/DescribeDocument are how the agent fetches
+        # AWS-RunShellScript; they read documents, never parameters. The
+        # deliberate omission from this list is ssm:GetParameter/GetParameters
+        # on "*", which is precisely what made the managed policy unsafe here.
+        Effect = "Allow"
+        Action = [
+          "ssm:UpdateInstanceInformation",
+          "ssm:ListAssociations",
+          "ssm:ListInstanceAssociations",
+          "ssm:DescribeAssociation",
+          "ssm:DescribeDocument",
+          "ssm:GetDocument",
+          "ssm:GetManifest",
+          "ssm:PutInventory",
+          "ssm:PutComplianceItems",
+          "ssm:PutConfigurePackageResult",
+          "ssm:UpdateAssociationStatus",
+          "ssm:UpdateInstanceAssociationStatus"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
 }

@@ -243,6 +243,22 @@ resource "aws_iam_role_policy" "eb_bedrock_access" {
 }
 
 # IAM Role for EB instances to access Secrets Manager (FPKI OAuth credentials)
+#
+# PF-635 (PRD p.5): the WRITE half of this policy was dropped. It previously
+# granted secretsmanager:CreateSecret, UpdateSecret and TagResource, plus
+# kms:GenerateDataKey (which exists only to CREATE a secret, never to read one).
+#
+# A public-facing web instance that can rewrite its own OAuth client secret is a
+# privilege-escalation primitive, not a feature. Read stays because it is a live
+# boot/runtime path: api/src/services/caia.ts -> getCAIACredentials() reads
+# /ship/dev/caia-credentials, which exists in this account.
+#
+# KNOWN AND DELIBERATE CONSEQUENCE, recorded rather than discovered later:
+# POST /api/admin/credentials (api/src/routes/admin-credentials.ts, mounted at
+# api/src/app.ts:670) calls saveCAIACredentials() -> UpdateSecret/CreateSecret,
+# and now returns AccessDenied. Credential rotation moves to the operator path,
+# which runs under a human identity, not under the web tier's role. Restoring it
+# is a one-line change here if that trade is ever judged wrong.
 resource "aws_iam_role_policy" "eb_secrets_manager_access" {
   name = "${var.project_name}-eb-secrets-manager-access"
   role = aws_iam_role.eb_instance.id
@@ -253,10 +269,7 @@ resource "aws_iam_role_policy" "eb_secrets_manager_access" {
       {
         Effect = "Allow"
         Action = [
-          "secretsmanager:GetSecretValue",
-          "secretsmanager:CreateSecret",
-          "secretsmanager:UpdateSecret",
-          "secretsmanager:TagResource"
+          "secretsmanager:GetSecretValue"
         ]
         Resource = [
           "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:${var.project_name}/*",
@@ -264,10 +277,13 @@ resource "aws_iam_role_policy" "eb_secrets_manager_access" {
         ]
       },
       {
+        # kms:Decrypt only -- GenerateDataKey went with the write actions.
+        # Resource "*" is bounded by the ViaService condition: this key may only
+        # be used THROUGH Secrets Manager, so it cannot decrypt anything the
+        # resource scope above does not already permit.
         Effect = "Allow"
         Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey"
+          "kms:Decrypt"
         ]
         Resource = "*"
         Condition = {
