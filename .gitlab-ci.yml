@@ -315,7 +315,36 @@ regression-budget:
     paths:
       - docs/regression-report.md
       - docs/regression-report.json
-  allow_failure: false
+  # `docs/mvp-gate-item-9.md` -> "Pipeline note for the new exit code" specifies
+  # exactly this and it was never applied to this file, which is why the job has
+  # failed on every run it has ever had.
+  #
+  # The comparator's three outcomes are not the same thing:
+  #
+  #   0  every budget judged and met
+  #   1  something judged EXCEEDED its budget    <- a real regression, must fail
+  #   2  something could not be judged at all    <- not a verdict either way
+  #
+  # Exit 2 is what a cross-platform run produces. The baseline is darwin-arm64 /
+  # node v26 (`docs/baseline-part1.json`, captured 2026-08-14 at 5455f4e); this
+  # runner is linux-arm64 / node v22. Bundle bytes and query counts are
+  # deterministic and ARE judged here. An in-process P95 is not, and comparing
+  # one across two kernels and two Node majors measures the box in both
+  # directions -- it can hide a real regression behind a faster machine as
+  # readily as invent one on a slower one. Job 69004 is the illustration: five of
+  # six routes came in FASTER than a baseline taken on a different platform.
+  #
+  # So exit 2 is a warning and exit 1 still fails the MR. NOT `allow_failure:
+  # true`, which would swallow exit 1 as well and remove the only thing this job
+  # exists to provide.
+  #
+  # The latency half of PRD p.2 gate item 9 is enforced where it can be measured
+  # honestly -- the paired protocol on a machine matching the baseline, worst
+  # route +4.3%, recorded in `docs/regression-paired-runs.md` with raw samples in
+  # `docs/perf-paired-runs.txt`. This job does not establish that half and does
+  # not claim to; it says so in its own artifact on every run.
+  allow_failure:
+    exit_codes: [2]
 
 test:
   stage: verify
