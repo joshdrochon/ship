@@ -1,0 +1,2751 @@
+data.aws_availability_zones.available: Reading...
+data.aws_caller_identity.current: Reading...
+data.aws_caller_identity.current: Read complete after 0s [id=379484935796]
+data.aws_availability_zones.available: Read complete after 0s [id=us-east-1]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # aws_budgets_budget.monthly will be created
+  + resource "aws_budgets_budget" "monthly" {
+      + account_id        = (known after apply)
+      + arn               = (known after apply)
+      + budget_type       = "COST"
+      + id                = (known after apply)
+      + limit_amount      = "50"
+      + limit_unit        = "USD"
+      + name              = "shipdrill-monthly-cost"
+      + name_prefix       = (known after apply)
+      + tags_all          = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + time_period_end   = "2087-06-15_00:00"
+      + time_period_start = (known after apply)
+      + time_unit         = "MONTHLY"
+
+      + cost_filter (known after apply)
+
+      + cost_types (known after apply)
+
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = [
+              + "joshdrochon@gmail.com",
+            ]
+          + subscriber_sns_topic_arns  = []
+          + threshold                  = 100
+          + threshold_type             = "PERCENTAGE"
+        }
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = [
+              + "joshdrochon@gmail.com",
+            ]
+          + subscriber_sns_topic_arns  = []
+          + threshold                  = 50
+          + threshold_type             = "PERCENTAGE"
+        }
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = [
+              + "joshdrochon@gmail.com",
+            ]
+          + subscriber_sns_topic_arns  = []
+          + threshold                  = 80
+          + threshold_type             = "PERCENTAGE"
+        }
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "FORECASTED"
+          + subscriber_email_addresses = [
+              + "joshdrochon@gmail.com",
+            ]
+          + subscriber_sns_topic_arns  = []
+          + threshold                  = 100
+          + threshold_type             = "PERCENTAGE"
+        }
+    }
+
+  # aws_cloudfront_cache_policy.api_no_cache will be created
+  + resource "aws_cloudfront_cache_policy" "api_no_cache" {
+      + arn         = (known after apply)
+      + comment     = "Disable caching for API routes"
+      + default_ttl = 0
+      + etag        = (known after apply)
+      + id          = (known after apply)
+      + max_ttl     = 0
+      + min_ttl     = 0
+      + name        = "shipdrill-api-no-cache"
+
+      + parameters_in_cache_key_and_forwarded_to_origin {
+          + cookies_config {
+              + cookie_behavior = "none"
+            }
+          + headers_config {
+              + header_behavior = "none"
+            }
+          + query_strings_config {
+              + query_string_behavior = "none"
+            }
+        }
+    }
+
+  # aws_cloudfront_distribution.frontend will be created
+  + resource "aws_cloudfront_distribution" "frontend" {
+      + arn                             = (known after apply)
+      + caller_reference                = (known after apply)
+      + comment                         = "Ship Frontend - React static site with API routing"
+      + continuous_deployment_policy_id = (known after apply)
+      + default_root_object             = "index.html"
+      + domain_name                     = (known after apply)
+      + enabled                         = true
+      + etag                            = (known after apply)
+      + hosted_zone_id                  = (known after apply)
+      + http_version                    = "http2"
+      + id                              = (known after apply)
+      + in_progress_validation_batches  = (known after apply)
+      + is_ipv6_enabled                 = true
+      + last_modified_time              = (known after apply)
+      + price_class                     = "PriceClass_100"
+      + retain_on_delete                = false
+      + staging                         = false
+      + status                          = (known after apply)
+      + tags                            = {
+          + "Name" = "shipdrill-frontend-cdn"
+        }
+      + tags_all                        = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-frontend-cdn"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + trusted_key_groups              = (known after apply)
+      + trusted_signers                 = (known after apply)
+      + wait_for_deployment             = true
+      + web_acl_id                      = (known after apply)
+
+      + default_cache_behavior {
+          + allowed_methods         = [
+              + "GET",
+              + "HEAD",
+              + "OPTIONS",
+            ]
+          + cached_methods          = [
+              + "GET",
+              + "HEAD",
+            ]
+          + compress                = true
+          + default_ttl             = 3600
+          + max_ttl                 = 86400
+          + min_ttl                 = 0
+          + realtime_log_config_arn = (known after apply)
+          + target_origin_id        = (known after apply)
+          + trusted_key_groups      = (known after apply)
+          + trusted_signers         = (known after apply)
+          + viewer_protocol_policy  = "redirect-to-https"
+
+          + forwarded_values {
+              + headers                 = (known after apply)
+              + query_string            = false
+              + query_string_cache_keys = (known after apply)
+
+              + cookies {
+                  + forward           = "none"
+                  + whitelisted_names = (known after apply)
+                }
+            }
+
+          + function_association {
+              + event_type   = "viewer-request"
+              + function_arn = (known after apply)
+            }
+
+          + grpc_config (known after apply)
+        }
+
+      + origin {
+          + connection_attempts      = 3
+          + connection_timeout       = 10
+          + domain_name              = (known after apply)
+          + origin_access_control_id = (known after apply)
+          + origin_id                = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+
+      + restrictions {
+          + geo_restriction {
+              + locations        = (known after apply)
+              + restriction_type = "none"
+            }
+        }
+
+      + viewer_certificate {
+          + cloudfront_default_certificate = true
+          + minimum_protocol_version       = "TLSv1.2_2021"
+        }
+    }
+
+  # aws_cloudfront_function.spa_routing will be created
+  + resource "aws_cloudfront_function" "spa_routing" {
+      + arn             = (known after apply)
+      + code            = <<-EOT
+            // CloudFront Function for SPA routing
+            // Rewrites requests for SPA routes to /index.html while passing through static assets
+            function handler(event) {
+                var request = event.request;
+                var uri = request.uri;
+            
+                // Check if the URI has a file extension (static asset)
+                var hasExtension = /\.(html|css|js|json|ico|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|eot|map|txt|xml|webmanifest)$/i.test(uri);
+            
+                // If no file extension, rewrite to index.html for SPA routing
+                if (!hasExtension && uri !== '/') {
+                    request.uri = '/index.html';
+                }
+            
+                return request;
+            }
+        EOT
+      + comment         = "SPA routing - rewrites non-file requests to /index.html"
+      + etag            = (known after apply)
+      + id              = (known after apply)
+      + live_stage_etag = (known after apply)
+      + name            = "shipdrill-spa-routing"
+      + publish         = true
+      + runtime         = "cloudfront-js-2.0"
+      + status          = (known after apply)
+    }
+
+  # aws_cloudfront_origin_access_control.frontend will be created
+  + resource "aws_cloudfront_origin_access_control" "frontend" {
+      + arn                               = (known after apply)
+      + description                       = "OAC for Ship frontend S3 bucket"
+      + etag                              = (known after apply)
+      + id                                = (known after apply)
+      + name                              = "shipdrill-frontend-oac"
+      + origin_access_control_origin_type = "s3"
+      + signing_behavior                  = "always"
+      + signing_protocol                  = "sigv4"
+    }
+
+  # aws_cloudfront_origin_request_policy.api will be created
+  + resource "aws_cloudfront_origin_request_policy" "api" {
+      + arn     = (known after apply)
+      + comment = "Forward all viewer data to API origin"
+      + etag    = (known after apply)
+      + id      = (known after apply)
+      + name    = "shipdrill-api-origin-request"
+
+      + cookies_config {
+          + cookie_behavior = "all"
+        }
+
+      + headers_config {
+          + header_behavior = "allViewerAndWhitelistCloudFront"
+
+          + headers {
+              + items = [
+                  + "CloudFront-Forwarded-Proto",
+                ]
+            }
+        }
+
+      + query_strings_config {
+          + query_string_behavior = "all"
+        }
+    }
+
+  # aws_cloudfront_realtime_log_config.main will be created
+  + resource "aws_cloudfront_realtime_log_config" "main" {
+      + arn           = (known after apply)
+      + fields        = [
+          + "asn",
+          + "c-country",
+          + "c-ip",
+          + "c-ip-version",
+          + "c-port",
+          + "cache-behavior-path-pattern",
+          + "cs-accept",
+          + "cs-accept-encoding",
+          + "cs-bytes",
+          + "cs-cookie",
+          + "cs-header-names",
+          + "cs-headers",
+          + "cs-headers-count",
+          + "cs-host",
+          + "cs-method",
+          + "cs-protocol",
+          + "cs-protocol-version",
+          + "cs-referer",
+          + "cs-uri-query",
+          + "cs-uri-stem",
+          + "cs-user-agent",
+          + "fle-encrypted-fields",
+          + "fle-status",
+          + "origin-fbl",
+          + "origin-lbl",
+          + "primary-distribution-dns-name",
+          + "primary-distribution-id",
+          + "s-ip",
+          + "sc-bytes",
+          + "sc-content-len",
+          + "sc-content-type",
+          + "sc-range-end",
+          + "sc-range-start",
+          + "sc-status",
+          + "ssl-cipher",
+          + "ssl-protocol",
+          + "time-taken",
+          + "time-to-first-byte",
+          + "timestamp",
+          + "x-edge-detailed-result-type",
+          + "x-edge-location",
+          + "x-edge-request-id",
+          + "x-edge-response-result-type",
+          + "x-edge-result-type",
+          + "x-forwarded-for",
+          + "x-host-header",
+        ]
+      + id            = (known after apply)
+      + name          = "shipdrill-dev-realtime-logs"
+      + sampling_rate = 100
+
+      + endpoint {
+          + stream_type = "Kinesis"
+
+          + kinesis_stream_config {
+              + role_arn   = (known after apply)
+              + stream_arn = (known after apply)
+            }
+        }
+    }
+
+  # aws_cloudwatch_log_group.aurora will be created
+  + resource "aws_cloudwatch_log_group" "aurora" {
+      + arn               = (known after apply)
+      + id                = (known after apply)
+      + log_group_class   = (known after apply)
+      + name              = "/aws/rds/cluster/shipdrill-aurora/postgresql"
+      + name_prefix       = (known after apply)
+      + retention_in_days = 30
+      + skip_destroy      = false
+      + tags              = {
+          + "Name" = "shipdrill-aurora-logs"
+        }
+      + tags_all          = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-aurora-logs"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+    }
+
+  # aws_cloudwatch_log_group.vpc_flow_logs will be created
+  + resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+      + arn               = (known after apply)
+      + id                = (known after apply)
+      + log_group_class   = (known after apply)
+      + name              = "/aws/vpc/shipdrill"
+      + name_prefix       = (known after apply)
+      + retention_in_days = 30
+      + skip_destroy      = false
+      + tags              = {
+          + "Name" = "shipdrill-vpc-flow-logs"
+        }
+      + tags_all          = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-vpc-flow-logs"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+    }
+
+  # aws_db_subnet_group.aurora will be created
+  + resource "aws_db_subnet_group" "aurora" {
+      + arn                     = (known after apply)
+      + description             = "Managed by Terraform"
+      + id                      = (known after apply)
+      + name                    = "shipdrill-aurora"
+      + name_prefix             = (known after apply)
+      + subnet_ids              = (known after apply)
+      + supported_network_types = (known after apply)
+      + tags                    = {
+          + "Name" = "shipdrill-aurora-subnet-group"
+        }
+      + tags_all                = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-aurora-subnet-group"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + vpc_id                  = (known after apply)
+    }
+
+  # aws_eip.nat[0] will be created
+  + resource "aws_eip" "nat" {
+      + allocation_id        = (known after apply)
+      + arn                  = (known after apply)
+      + association_id       = (known after apply)
+      + carrier_ip           = (known after apply)
+      + customer_owned_ip    = (known after apply)
+      + domain               = "vpc"
+      + id                   = (known after apply)
+      + instance             = (known after apply)
+      + ipam_pool_id         = (known after apply)
+      + network_border_group = (known after apply)
+      + network_interface    = (known after apply)
+      + private_dns          = (known after apply)
+      + private_ip           = (known after apply)
+      + ptr_record           = (known after apply)
+      + public_dns           = (known after apply)
+      + public_ip            = (known after apply)
+      + public_ipv4_pool     = (known after apply)
+      + tags                 = {
+          + "Name" = "shipdrill-nat-eip"
+        }
+      + tags_all             = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-nat-eip"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + vpc                  = (known after apply)
+    }
+
+  # aws_elastic_beanstalk_application.api will be created
+  + resource "aws_elastic_beanstalk_application" "api" {
+      + arn         = (known after apply)
+      + description = "Ship API - Express + WebSocket collaboration server"
+      + id          = (known after apply)
+      + name        = "shipdrill-api"
+      + tags        = {
+          + "Name" = "shipdrill-api"
+        }
+      + tags_all    = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-api"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+    }
+
+  # aws_elastic_beanstalk_environment.api will be created
+  + resource "aws_elastic_beanstalk_environment" "api" {
+      + all_settings           = (known after apply)
+      + application            = "shipdrill-api"
+      + arn                    = (known after apply)
+      + autoscaling_groups     = (known after apply)
+      + cname                  = (known after apply)
+      + cname_prefix           = (known after apply)
+      + endpoint_url           = (known after apply)
+      + id                     = (known after apply)
+      + instances              = (known after apply)
+      + launch_configurations  = (known after apply)
+      + load_balancers         = (known after apply)
+      + name                   = "shipdrill-api-prod"
+      + platform_arn           = (known after apply)
+      + queues                 = (known after apply)
+      + solution_stack_name    = "64bit Amazon Linux 2023 v4.13.6 running Docker"
+      + tags                   = {
+          + "Name" = "shipdrill-api-prod"
+        }
+      + tags_all               = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-api-prod"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier                   = "WebServer"
+      + triggers               = (known after apply)
+      + version_label          = (known after apply)
+      + wait_for_ready_timeout = "20m"
+
+      + setting {
+          + name      = "AWS_REGION"
+          + namespace = "aws:elasticbeanstalk:application:environment"
+          + value     = "us-east-1"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "AssociatePublicIpAddress"
+          + namespace = "aws:ec2:vpc"
+          + value     = "false"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "BatchSize"
+          + namespace = "aws:elasticbeanstalk:command"
+          + value     = "1"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "BatchSizeType"
+          + namespace = "aws:elasticbeanstalk:command"
+          + value     = "Fixed"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "DeploymentPolicy"
+          + namespace = "aws:elasticbeanstalk:command"
+          + value     = "RollingWithAdditionalBatch"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "DisableIMDSv1"
+          + namespace = "aws:autoscaling:launchconfiguration"
+          + value     = "true"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "ELBScheme"
+          + namespace = "aws:ec2:vpc"
+          + value     = "public"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "ELBSubnets"
+          + namespace = "aws:ec2:vpc"
+          + value     = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "ENVIRONMENT"
+          + namespace = "aws:elasticbeanstalk:application:environment"
+          + value     = "dev"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "EnvironmentType"
+          + namespace = "aws:elasticbeanstalk:environment"
+          + value     = "LoadBalanced"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "HealthCheckPath"
+          + namespace = "aws:elasticbeanstalk:environment:process:default"
+          + value     = "/health"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "IamInstanceProfile"
+          + namespace = "aws:autoscaling:launchconfiguration"
+          + value     = "shipdrill-eb-instance-profile"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "InstanceType"
+          + namespace = "aws:autoscaling:launchconfiguration"
+          + value     = "t3.small"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "LoadBalancerType"
+          + namespace = "aws:elasticbeanstalk:environment"
+          + value     = "application"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "MaxSize"
+          + namespace = "aws:autoscaling:asg"
+          + value     = "4"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "MinSize"
+          + namespace = "aws:autoscaling:asg"
+          + value     = "1"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "NODE_ENV"
+          + namespace = "aws:elasticbeanstalk:application:environment"
+          + value     = "production"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "PORT"
+          + namespace = "aws:elasticbeanstalk:application:environment"
+          + value     = "80"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "SecurityGroups"
+          + namespace = "aws:autoscaling:launchconfiguration"
+          + value     = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "SecurityGroups"
+          + namespace = "aws:elbv2:loadbalancer"
+          + value     = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "ServiceRole"
+          + namespace = "aws:elasticbeanstalk:environment"
+          + value     = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "Subnets"
+          + namespace = "aws:ec2:vpc"
+          + value     = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "SystemType"
+          + namespace = "aws:elasticbeanstalk:healthreporting:system"
+          + value     = "enhanced"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "Timeout"
+          + namespace = "aws:elasticbeanstalk:command"
+          + value     = "1800"
+            # (1 unchanged attribute hidden)
+        }
+      + setting {
+          + name      = "VPCId"
+          + namespace = "aws:ec2:vpc"
+          + value     = (known after apply)
+            # (1 unchanged attribute hidden)
+        }
+    }
+
+  # aws_flow_log.main will be created
+  + resource "aws_flow_log" "main" {
+      + arn                      = (known after apply)
+      + iam_role_arn             = (known after apply)
+      + id                       = (known after apply)
+      + log_destination          = (known after apply)
+      + log_destination_type     = "cloud-watch-logs"
+      + log_format               = (known after apply)
+      + log_group_name           = (known after apply)
+      + max_aggregation_interval = 60
+      + tags                     = {
+          + "Name" = "shipdrill-vpc-flow-log"
+        }
+      + tags_all                 = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-vpc-flow-log"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + traffic_type             = "ALL"
+      + vpc_id                   = (known after apply)
+    }
+
+  # aws_iam_instance_profile.eb will be created
+  + resource "aws_iam_instance_profile" "eb" {
+      + arn         = (known after apply)
+      + create_date = (known after apply)
+      + id          = (known after apply)
+      + name        = "shipdrill-eb-instance-profile"
+      + name_prefix = (known after apply)
+      + path        = "/"
+      + role        = "shipdrill-eb-instance-role"
+      + tags        = {
+          + "Name" = "shipdrill-eb-instance-profile"
+        }
+      + tags_all    = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-eb-instance-profile"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + unique_id   = (known after apply)
+    }
+
+  # aws_iam_role.cloudfront_realtime_logs will be created
+  + resource "aws_iam_role" "cloudfront_realtime_logs" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "cloudfront.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "shipdrill-dev-cf-realtime-logs"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Environment" = "dev"
+          + "Name"        = "shipdrill-cf-realtime-logs-role"
+        }
+      + tags_all              = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-cf-realtime-logs-role"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.eb_instance will be created
+  + resource "aws_iam_role" "eb_instance" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ec2.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "shipdrill-eb-instance-role"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Name" = "shipdrill-eb-instance-role"
+        }
+      + tags_all              = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-eb-instance-role"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.eb_service will be created
+  + resource "aws_iam_role" "eb_service" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Condition = {
+                          + StringEquals = {
+                              + "sts:ExternalId" = "elasticbeanstalk"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "elasticbeanstalk.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "shipdrill-eb-service-role"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags                  = {
+          + "Name" = "shipdrill-eb-service-role"
+        }
+      + tags_all              = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-eb-service-role"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.vpc_flow_logs will be created
+  + resource "aws_iam_role" "vpc_flow_logs" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "vpc-flow-logs.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "shipdrill-vpc-flow-logs"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role_policy.cloudfront_realtime_logs will be created
+  + resource "aws_iam_role_policy" "cloudfront_realtime_logs" {
+      + id          = (known after apply)
+      + name        = "shipdrill-dev-cf-realtime-logs"
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.eb_bedrock_access will be created
+  + resource "aws_iam_role_policy" "eb_bedrock_access" {
+      + id          = (known after apply)
+      + name        = "shipdrill-eb-bedrock-access"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "bedrock:InvokeModel",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = [
+                          + "arn:aws:bedrock:*::foundation-model/anthropic.*",
+                          + "arn:aws:bedrock:*:379484935796:inference-profile/anthropic.*",
+                          + "arn:aws:bedrock:*:379484935796:inference-profile/global.anthropic.*",
+                        ]
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.eb_instance_ssm_agent will be created
+  + resource "aws_iam_role_policy" "eb_instance_ssm_agent" {
+      + id          = (known after apply)
+      + name        = "shipdrill-eb-ssm-agent-channel"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "ssmmessages:CreateControlChannel",
+                          + "ssmmessages:CreateDataChannel",
+                          + "ssmmessages:OpenControlChannel",
+                          + "ssmmessages:OpenDataChannel",
+                          + "ec2messages:AcknowledgeMessage",
+                          + "ec2messages:DeleteMessage",
+                          + "ec2messages:FailMessage",
+                          + "ec2messages:GetEndpoint",
+                          + "ec2messages:GetMessages",
+                          + "ec2messages:SendReply",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "*"
+                    },
+                  + {
+                      + Action   = [
+                          + "ssm:UpdateInstanceInformation",
+                          + "ssm:ListAssociations",
+                          + "ssm:ListInstanceAssociations",
+                          + "ssm:DescribeAssociation",
+                          + "ssm:DescribeDocument",
+                          + "ssm:GetDocument",
+                          + "ssm:GetManifest",
+                          + "ssm:PutInventory",
+                          + "ssm:PutComplianceItems",
+                          + "ssm:PutConfigurePackageResult",
+                          + "ssm:UpdateAssociationStatus",
+                          + "ssm:UpdateInstanceAssociationStatus",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "*"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.eb_secrets_manager_access will be created
+  + resource "aws_iam_role_policy" "eb_secrets_manager_access" {
+      + id          = (known after apply)
+      + name        = "shipdrill-eb-secrets-manager-access"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "secretsmanager:GetSecretValue",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = [
+                          + "arn:aws:secretsmanager:us-east-1:379484935796:secret:shipdrill/*",
+                          + "arn:aws:secretsmanager:us-east-1:379484935796:secret:/shipdrill/*",
+                        ]
+                    },
+                  + {
+                      + Action    = [
+                          + "kms:Decrypt",
+                        ]
+                      + Condition = {
+                          + StringEquals = {
+                              + "kms:ViaService" = "secretsmanager.us-east-1.amazonaws.com"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Resource  = "*"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.eb_ssm_access will be created
+  + resource "aws_iam_role_policy" "eb_ssm_access" {
+      + id          = (known after apply)
+      + name        = "shipdrill-eb-ssm-access"
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action   = [
+                          + "ssm:GetParameter",
+                          + "ssm:GetParameters",
+                          + "ssm:GetParametersByPath",
+                        ]
+                      + Effect   = "Allow"
+                      + Resource = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/*"
+                    },
+                  + {
+                      + Action    = [
+                          + "kms:Decrypt",
+                        ]
+                      + Condition = {
+                          + StringEquals = {
+                              + "kms:ViaService" = "ssm.us-east-1.amazonaws.com"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Resource  = "*"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.vpc_flow_logs will be created
+  + resource "aws_iam_role_policy" "vpc_flow_logs" {
+      + id          = (known after apply)
+      + name        = "shipdrill-vpc-flow-logs"
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy_attachment.eb_service_managed will be created
+  + resource "aws_iam_role_policy_attachment" "eb_service_managed" {
+      + id         = (known after apply)
+      + policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy"
+      + role       = "shipdrill-eb-service-role"
+    }
+
+  # aws_iam_role_policy_attachment.eb_service_policy will be created
+  + resource "aws_iam_role_policy_attachment" "eb_service_policy" {
+      + id         = (known after apply)
+      + policy_arn = "arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth"
+      + role       = "shipdrill-eb-service-role"
+    }
+
+  # aws_iam_role_policy_attachment.eb_web_tier will be created
+  + resource "aws_iam_role_policy_attachment" "eb_web_tier" {
+      + id         = (known after apply)
+      + policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier"
+      + role       = "shipdrill-eb-instance-role"
+    }
+
+  # aws_internet_gateway.main will be created
+  + resource "aws_internet_gateway" "main" {
+      + arn      = (known after apply)
+      + id       = (known after apply)
+      + owner_id = (known after apply)
+      + tags     = {
+          + "Name" = "shipdrill-igw"
+        }
+      + tags_all = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-igw"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + vpc_id   = (known after apply)
+    }
+
+  # aws_kinesis_stream.cloudfront_logs will be created
+  + resource "aws_kinesis_stream" "cloudfront_logs" {
+      + arn                       = (known after apply)
+      + encryption_type           = "KMS"
+      + enforce_consumer_deletion = false
+      + id                        = (known after apply)
+      + kms_key_id                = "alias/aws/kinesis"
+      + name                      = "shipdrill-dev-cloudfront-logs"
+      + retention_period          = 4320
+      + shard_count               = 4
+      + tags                      = {
+          + "Environment" = "dev"
+          + "Name"        = "shipdrill-cloudfront-logs"
+        }
+      + tags_all                  = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-cloudfront-logs"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+
+      + stream_mode_details {
+          + stream_mode = "PROVISIONED"
+        }
+    }
+
+  # aws_nat_gateway.main[0] will be created
+  + resource "aws_nat_gateway" "main" {
+      + allocation_id                      = (known after apply)
+      + association_id                     = (known after apply)
+      + connectivity_type                  = "public"
+      + id                                 = (known after apply)
+      + network_interface_id               = (known after apply)
+      + private_ip                         = (known after apply)
+      + public_ip                          = (known after apply)
+      + secondary_private_ip_address_count = (known after apply)
+      + secondary_private_ip_addresses     = (known after apply)
+      + subnet_id                          = (known after apply)
+      + tags                               = {
+          + "Name" = "shipdrill-nat"
+        }
+      + tags_all                           = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-nat"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+    }
+
+  # aws_rds_cluster.aurora will be created
+  + resource "aws_rds_cluster" "aurora" {
+      + allocated_storage                     = (known after apply)
+      + apply_immediately                     = (known after apply)
+      + arn                                   = (known after apply)
+      + availability_zones                    = (known after apply)
+      + backup_retention_period               = 7
+      + ca_certificate_identifier             = (known after apply)
+      + ca_certificate_valid_till             = (known after apply)
+      + cluster_identifier                    = "shipdrill-aurora"
+      + cluster_identifier_prefix             = (known after apply)
+      + cluster_members                       = (known after apply)
+      + cluster_resource_id                   = (known after apply)
+      + cluster_scalability_type              = (known after apply)
+      + copy_tags_to_snapshot                 = false
+      + database_insights_mode                = (known after apply)
+      + database_name                         = "ship_main"
+      + db_cluster_parameter_group_name       = "shipdrill-aurora-pg16"
+      + db_subnet_group_name                  = "shipdrill-aurora"
+      + db_system_id                          = (known after apply)
+      + delete_automated_backups              = false
+      + enable_global_write_forwarding        = false
+      + enable_http_endpoint                  = false
+      + enable_local_write_forwarding         = false
+      + enabled_cloudwatch_logs_exports       = [
+          + "postgresql",
+        ]
+      + endpoint                              = (known after apply)
+      + engine                                = "aurora-postgresql"
+      + engine_lifecycle_support              = (known after apply)
+      + engine_mode                           = "provisioned"
+      + engine_version                        = "16.8"
+      + engine_version_actual                 = (known after apply)
+      + final_snapshot_identifier             = (known after apply)
+      + hosted_zone_id                        = (known after apply)
+      + iam_roles                             = (known after apply)
+      + id                                    = (known after apply)
+      + kms_key_id                            = (known after apply)
+      + master_password                       = (sensitive value)
+      + master_password_wo                    = (write-only attribute)
+      + master_user_secret                    = (known after apply)
+      + master_user_secret_kms_key_id         = (known after apply)
+      + master_username                       = "postgres"
+      + monitoring_interval                   = (known after apply)
+      + monitoring_role_arn                   = (known after apply)
+      + network_type                          = (known after apply)
+      + performance_insights_kms_key_id       = (known after apply)
+      + performance_insights_retention_period = (known after apply)
+      + port                                  = (known after apply)
+      + preferred_backup_window               = "03:00-04:00"
+      + preferred_maintenance_window          = "sun:04:00-sun:05:00"
+      + reader_endpoint                       = (known after apply)
+      + skip_final_snapshot                   = false
+      + storage_encrypted                     = true
+      + storage_type                          = (known after apply)
+      + tags                                  = {
+          + "Name" = "shipdrill-aurora-cluster"
+        }
+      + tags_all                              = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-aurora-cluster"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + vpc_security_group_ids                = (known after apply)
+
+      + serverlessv2_scaling_configuration {
+          + max_capacity             = 4
+          + min_capacity             = 0.5
+          + seconds_until_auto_pause = (known after apply)
+        }
+    }
+
+  # aws_rds_cluster_instance.aurora will be created
+  + resource "aws_rds_cluster_instance" "aurora" {
+      + apply_immediately                     = (known after apply)
+      + arn                                   = (known after apply)
+      + auto_minor_version_upgrade            = true
+      + availability_zone                     = (known after apply)
+      + ca_cert_identifier                    = (known after apply)
+      + cluster_identifier                    = (known after apply)
+      + copy_tags_to_snapshot                 = false
+      + db_parameter_group_name               = (known after apply)
+      + db_subnet_group_name                  = "shipdrill-aurora"
+      + dbi_resource_id                       = (known after apply)
+      + endpoint                              = (known after apply)
+      + engine                                = "aurora-postgresql"
+      + engine_version                        = "16.8"
+      + engine_version_actual                 = (known after apply)
+      + force_destroy                         = false
+      + id                                    = (known after apply)
+      + identifier                            = "shipdrill-aurora-instance-1"
+      + identifier_prefix                     = (known after apply)
+      + instance_class                        = "db.serverless"
+      + kms_key_id                            = (known after apply)
+      + monitoring_interval                   = 0
+      + monitoring_role_arn                   = (known after apply)
+      + network_type                          = (known after apply)
+      + performance_insights_enabled          = (known after apply)
+      + performance_insights_kms_key_id       = (known after apply)
+      + performance_insights_retention_period = (known after apply)
+      + port                                  = (known after apply)
+      + preferred_backup_window               = (known after apply)
+      + preferred_maintenance_window          = (known after apply)
+      + promotion_tier                        = 0
+      + publicly_accessible                   = false
+      + storage_encrypted                     = (known after apply)
+      + tags                                  = {
+          + "Name" = "shipdrill-aurora-instance-1"
+        }
+      + tags_all                              = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-aurora-instance-1"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + writer                                = (known after apply)
+    }
+
+  # aws_rds_cluster_parameter_group.aurora will be created
+  + resource "aws_rds_cluster_parameter_group" "aurora" {
+      + arn         = (known after apply)
+      + description = "Managed by Terraform"
+      + family      = "aurora-postgresql16"
+      + id          = (known after apply)
+      + name        = "shipdrill-aurora-pg16"
+      + name_prefix = (known after apply)
+      + tags        = {
+          + "Name" = "shipdrill-aurora-pg16"
+        }
+      + tags_all    = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-aurora-pg16"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+
+      + parameter {
+          + apply_method = "immediate"
+          + name         = "log_min_duration_statement"
+          + value        = "1000"
+        }
+      + parameter {
+          + apply_method = "immediate"
+          + name         = "log_statement"
+          + value        = "ddl"
+        }
+    }
+
+  # aws_route_table.private will be created
+  + resource "aws_route_table" "private" {
+      + arn              = (known after apply)
+      + id               = (known after apply)
+      + owner_id         = (known after apply)
+      + propagating_vgws = (known after apply)
+      + route            = [
+          + {
+              + cidr_block                 = "0.0.0.0/0"
+              + nat_gateway_id             = (known after apply)
+                # (11 unchanged attributes hidden)
+            },
+        ]
+      + tags             = {
+          + "Name" = "shipdrill-private-rt"
+        }
+      + tags_all         = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-private-rt"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + vpc_id           = (known after apply)
+    }
+
+  # aws_route_table.public will be created
+  + resource "aws_route_table" "public" {
+      + arn              = (known after apply)
+      + id               = (known after apply)
+      + owner_id         = (known after apply)
+      + propagating_vgws = (known after apply)
+      + route            = [
+          + {
+              + cidr_block                 = "0.0.0.0/0"
+              + gateway_id                 = (known after apply)
+                # (11 unchanged attributes hidden)
+            },
+        ]
+      + tags             = {
+          + "Name" = "shipdrill-public-rt"
+        }
+      + tags_all         = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-public-rt"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + vpc_id           = (known after apply)
+    }
+
+  # aws_route_table_association.private[0] will be created
+  + resource "aws_route_table_association" "private" {
+      + id             = (known after apply)
+      + route_table_id = (known after apply)
+      + subnet_id      = (known after apply)
+    }
+
+  # aws_route_table_association.private[1] will be created
+  + resource "aws_route_table_association" "private" {
+      + id             = (known after apply)
+      + route_table_id = (known after apply)
+      + subnet_id      = (known after apply)
+    }
+
+  # aws_route_table_association.public[0] will be created
+  + resource "aws_route_table_association" "public" {
+      + id             = (known after apply)
+      + route_table_id = (known after apply)
+      + subnet_id      = (known after apply)
+    }
+
+  # aws_route_table_association.public[1] will be created
+  + resource "aws_route_table_association" "public" {
+      + id             = (known after apply)
+      + route_table_id = (known after apply)
+      + subnet_id      = (known after apply)
+    }
+
+  # aws_s3_bucket.frontend will be created
+  + resource "aws_s3_bucket" "frontend" {
+      + acceleration_status         = (known after apply)
+      + acl                         = (known after apply)
+      + arn                         = (known after apply)
+      + bucket                      = "shipdrill-frontend-dev-379484935796"
+      + bucket_domain_name          = (known after apply)
+      + bucket_prefix               = (known after apply)
+      + bucket_regional_domain_name = (known after apply)
+      + force_destroy               = false
+      + hosted_zone_id              = (known after apply)
+      + id                          = (known after apply)
+      + object_lock_enabled         = (known after apply)
+      + policy                      = (known after apply)
+      + region                      = (known after apply)
+      + request_payer               = (known after apply)
+      + tags                        = {
+          + "Name" = "shipdrill-frontend"
+        }
+      + tags_all                    = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-frontend"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + website_domain              = (known after apply)
+      + website_endpoint            = (known after apply)
+
+      + cors_rule (known after apply)
+
+      + grant (known after apply)
+
+      + lifecycle_rule (known after apply)
+
+      + logging (known after apply)
+
+      + object_lock_configuration (known after apply)
+
+      + replication_configuration (known after apply)
+
+      + server_side_encryption_configuration (known after apply)
+
+      + versioning (known after apply)
+
+      + website (known after apply)
+    }
+
+  # aws_s3_bucket.uploads will be created
+  + resource "aws_s3_bucket" "uploads" {
+      + acceleration_status         = (known after apply)
+      + acl                         = (known after apply)
+      + arn                         = (known after apply)
+      + bucket                      = "shipdrill-uploads-dev-379484935796"
+      + bucket_domain_name          = (known after apply)
+      + bucket_prefix               = (known after apply)
+      + bucket_regional_domain_name = (known after apply)
+      + force_destroy               = false
+      + hosted_zone_id              = (known after apply)
+      + id                          = (known after apply)
+      + object_lock_enabled         = (known after apply)
+      + policy                      = (known after apply)
+      + region                      = (known after apply)
+      + request_payer               = (known after apply)
+      + tags                        = {
+          + "Name" = "shipdrill-uploads"
+        }
+      + tags_all                    = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-uploads"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + website_domain              = (known after apply)
+      + website_endpoint            = (known after apply)
+
+      + cors_rule (known after apply)
+
+      + grant (known after apply)
+
+      + lifecycle_rule (known after apply)
+
+      + logging (known after apply)
+
+      + object_lock_configuration (known after apply)
+
+      + replication_configuration (known after apply)
+
+      + server_side_encryption_configuration (known after apply)
+
+      + versioning (known after apply)
+
+      + website (known after apply)
+    }
+
+  # aws_s3_bucket_cors_configuration.uploads will be created
+  + resource "aws_s3_bucket_cors_configuration" "uploads" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+
+      + cors_rule {
+          + allowed_headers = [
+              + "*",
+            ]
+          + allowed_methods = [
+              + "POST",
+              + "PUT",
+            ]
+          + allowed_origins = [
+              + "http://localhost:5173",
+              + "http://localhost:5174",
+              + "http://localhost:5175",
+            ]
+          + expose_headers  = [
+              + "ETag",
+            ]
+            id              = null
+          + max_age_seconds = 3600
+        }
+    }
+
+  # aws_s3_bucket_lifecycle_configuration.uploads will be created
+  + resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
+      + bucket                                 = (known after apply)
+      + expected_bucket_owner                  = (known after apply)
+      + id                                     = (known after apply)
+      + transition_default_minimum_object_size = "all_storage_classes_128K"
+
+      + rule {
+          + id     = "abort-incomplete-multipart"
+          + status = "Enabled"
+            # (1 unchanged attribute hidden)
+
+          + abort_incomplete_multipart_upload {
+              + days_after_initiation = 1
+            }
+        }
+    }
+
+  # aws_s3_bucket_policy.frontend will be created
+  + resource "aws_s3_bucket_policy" "frontend" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+      + policy = (known after apply)
+    }
+
+  # aws_s3_bucket_public_access_block.frontend will be created
+  + resource "aws_s3_bucket_public_access_block" "frontend" {
+      + block_public_acls       = true
+      + block_public_policy     = true
+      + bucket                  = (known after apply)
+      + id                      = (known after apply)
+      + ignore_public_acls      = true
+      + restrict_public_buckets = true
+    }
+
+  # aws_s3_bucket_public_access_block.uploads will be created
+  + resource "aws_s3_bucket_public_access_block" "uploads" {
+      + block_public_acls       = true
+      + block_public_policy     = true
+      + bucket                  = (known after apply)
+      + id                      = (known after apply)
+      + ignore_public_acls      = true
+      + restrict_public_buckets = true
+    }
+
+  # aws_s3_bucket_server_side_encryption_configuration.frontend will be created
+  + resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+
+      + rule {
+          + apply_server_side_encryption_by_default {
+              + sse_algorithm     = "AES256"
+                # (1 unchanged attribute hidden)
+            }
+        }
+    }
+
+  # aws_s3_bucket_server_side_encryption_configuration.uploads will be created
+  + resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+
+      + rule {
+          + apply_server_side_encryption_by_default {
+              + sse_algorithm     = "AES256"
+                # (1 unchanged attribute hidden)
+            }
+        }
+    }
+
+  # aws_s3_bucket_versioning.frontend will be created
+  + resource "aws_s3_bucket_versioning" "frontend" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+
+      + versioning_configuration {
+          + mfa_delete = (known after apply)
+          + status     = "Enabled"
+        }
+    }
+
+  # aws_s3_bucket_versioning.uploads will be created
+  + resource "aws_s3_bucket_versioning" "uploads" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+
+      + versioning_configuration {
+          + mfa_delete = (known after apply)
+          + status     = "Enabled"
+        }
+    }
+
+  # aws_security_group.alb will be created
+  + resource "aws_security_group" "alb" {
+      + arn                    = (known after apply)
+      + description            = "ALB security group - public access"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + description      = "Allow all outbound"
+              + from_port        = 0
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "-1"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 0
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + description      = "Allow HTTP from anywhere"
+              + from_port        = 80
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 80
+            },
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + description      = "Allow HTTPS from anywhere"
+              + from_port        = 443
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 443
+            },
+        ]
+      + name                   = "shipdrill-alb"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags                   = {
+          + "Name" = "shipdrill-alb"
+        }
+      + tags_all               = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-alb"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + vpc_id                 = (known after apply)
+    }
+
+  # aws_security_group.aurora will be created
+  + resource "aws_security_group" "aurora" {
+      + arn                    = (known after apply)
+      + description            = "Aurora database security group - ingress only from EB"
+      + egress                 = (known after apply)
+      + id                     = (known after apply)
+      + ingress                = (known after apply)
+      + name                   = "shipdrill-aurora"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags                   = {
+          + "Name" = "shipdrill-aurora"
+        }
+      + tags_all               = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-aurora"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + vpc_id                 = (known after apply)
+    }
+
+  # aws_security_group.eb_instance will be created
+  + resource "aws_security_group" "eb_instance" {
+      + arn                    = (known after apply)
+      + description            = "Elastic Beanstalk instance security group"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + description      = "Allow all outbound"
+              + from_port        = 0
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "-1"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 0
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = [
+          + {
+              + cidr_blocks      = []
+              + description      = "Allow HTTP from ALB"
+              + from_port        = 80
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = (known after apply)
+              + self             = false
+              + to_port          = 80
+            },
+        ]
+      + name                   = "shipdrill-eb-instance"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags                   = {
+          + "Name" = "shipdrill-eb-instance"
+        }
+      + tags_all               = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-eb-instance"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + vpc_id                 = (known after apply)
+    }
+
+  # aws_security_group_rule.aurora_ingress_from_eb will be created
+  + resource "aws_security_group_rule" "aurora_ingress_from_eb" {
+      + description              = "Allow PostgreSQL from EB instances"
+      + from_port                = 5432
+      + id                       = (known after apply)
+      + protocol                 = "tcp"
+      + security_group_id        = (known after apply)
+      + security_group_rule_id   = (known after apply)
+      + self                     = false
+      + source_security_group_id = (known after apply)
+      + to_port                  = 5432
+      + type                     = "ingress"
+    }
+
+  # aws_ssm_parameter.agent_client_secret will be created
+  + resource "aws_ssm_parameter" "agent_client_secret" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "client_secret for the FleetGraph Agent OAuth app (first-party). Seeds on every db:migrate via seedPlatformApps()."
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/AGENT_CLIENT_SECRET"
+      + tags           = {
+          + "Name" = "shipdrill-agent-client-secret"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-agent-client-secret"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "SecureString"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.app_base_url will be created
+  + resource "aws_ssm_parameter" "app_base_url" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "Base URL for the application (used in OAuth callbacks)"
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/APP_BASE_URL"
+      + tags           = {
+          + "Name" = "shipdrill-app-base-url"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-app-base-url"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "String"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.cdn_domain will be created
+  + resource "aws_ssm_parameter" "cdn_domain" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "CDN domain for serving uploaded files"
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/CDN_DOMAIN"
+      + tags           = {
+          + "Name" = "shipdrill-cdn-domain"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-cdn-domain"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "String"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.cors_origin will be created
+  + resource "aws_ssm_parameter" "cors_origin" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "CORS origin for API (frontend URL)"
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/CORS_ORIGIN"
+      + tags           = {
+          + "Name" = "shipdrill-cors-origin"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-cors-origin"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "String"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.database_url will be created
+  + resource "aws_ssm_parameter" "database_url" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "PostgreSQL connection string for Ship application"
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/DATABASE_URL"
+      + tags           = {
+          + "Name" = "shipdrill-database-url"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-database-url"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "SecureString"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.db_host will be created
+  + resource "aws_ssm_parameter" "db_host" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "Aurora cluster endpoint"
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/DB_HOST"
+      + tags           = {
+          + "Name" = "shipdrill-db-host"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-db-host"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "String"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.db_name will be created
+  + resource "aws_ssm_parameter" "db_name" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "Database name"
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/DB_NAME"
+      + tags           = {
+          + "Name" = "shipdrill-db-name"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-db-name"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "String"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.db_password will be created
+  + resource "aws_ssm_parameter" "db_password" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "Database password"
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/DB_PASSWORD"
+      + tags           = {
+          + "Name" = "shipdrill-db-password"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-db-password"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "SecureString"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.db_username will be created
+  + resource "aws_ssm_parameter" "db_username" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "Database username"
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/DB_USERNAME"
+      + tags           = {
+          + "Name" = "shipdrill-db-username"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-db-username"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "String"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.demo_client_secret will be created
+  + resource "aws_ssm_parameter" "demo_client_secret" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "client_secret for the write-scoped grader demo app (L99 D12). Lets a grader run `ship docs create` from the README."
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/DEMO_CLIENT_SECRET"
+      + tags           = {
+          + "Name" = "shipdrill-demo-client-secret"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-demo-client-secret"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "SecureString"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.grader_client_secret will be created
+  + resource "aws_ssm_parameter" "grader_client_secret" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "client_secret for the read-only grader OAuth app. Published in the README per PRD p.13."
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/GRADER_CLIENT_SECRET"
+      + tags           = {
+          + "Name" = "shipdrill-grader-client-secret"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-grader-client-secret"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "SecureString"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.session_secret will be created
+  + resource "aws_ssm_parameter" "session_secret" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "Session secret for express-session cookie signing"
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/SESSION_SECRET"
+      + tags           = {
+          + "Name" = "shipdrill-session-secret"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-session-secret"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "SecureString"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_ssm_parameter.webhook_secret_key will be created
+  + resource "aws_ssm_parameter" "webhook_secret_key" {
+      + arn            = (known after apply)
+      + data_type      = (known after apply)
+      + description    = "AES-256-GCM key encrypting webhook signing secrets at rest (L15 PF-422). Read at boot by api/src/config/ssm.ts. Rotating it orphans every stored subscription secret."
+      + has_value_wo   = (known after apply)
+      + id             = (known after apply)
+      + insecure_value = (known after apply)
+      + key_id         = (known after apply)
+      + name           = "/shipdrill/dev/WEBHOOK_SECRET_KEY"
+      + tags           = {
+          + "Name" = "shipdrill-webhook-secret-key"
+        }
+      + tags_all       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-webhook-secret-key"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+      + tier           = (known after apply)
+      + type           = "SecureString"
+      + value          = (sensitive value)
+      + value_wo       = (write-only attribute)
+      + version        = (known after apply)
+    }
+
+  # aws_subnet.private[0] will be created
+  + resource "aws_subnet" "private" {
+      + arn                                            = (known after apply)
+      + assign_ipv6_address_on_creation                = false
+      + availability_zone                              = "us-east-1a"
+      + availability_zone_id                           = (known after apply)
+      + cidr_block                                     = "10.0.10.0/24"
+      + enable_dns64                                   = false
+      + enable_resource_name_dns_a_record_on_launch    = false
+      + enable_resource_name_dns_aaaa_record_on_launch = false
+      + id                                             = (known after apply)
+      + ipv6_cidr_block_association_id                 = (known after apply)
+      + ipv6_native                                    = false
+      + map_public_ip_on_launch                        = false
+      + owner_id                                       = (known after apply)
+      + private_dns_hostname_type_on_launch            = (known after apply)
+      + tags                                           = {
+          + "Name" = "shipdrill-private-1"
+          + "Tier" = "Private"
+        }
+      + tags_all                                       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-private-1"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+          + "Tier"        = "Private"
+        }
+      + vpc_id                                         = (known after apply)
+    }
+
+  # aws_subnet.private[1] will be created
+  + resource "aws_subnet" "private" {
+      + arn                                            = (known after apply)
+      + assign_ipv6_address_on_creation                = false
+      + availability_zone                              = "us-east-1b"
+      + availability_zone_id                           = (known after apply)
+      + cidr_block                                     = "10.0.11.0/24"
+      + enable_dns64                                   = false
+      + enable_resource_name_dns_a_record_on_launch    = false
+      + enable_resource_name_dns_aaaa_record_on_launch = false
+      + id                                             = (known after apply)
+      + ipv6_cidr_block_association_id                 = (known after apply)
+      + ipv6_native                                    = false
+      + map_public_ip_on_launch                        = false
+      + owner_id                                       = (known after apply)
+      + private_dns_hostname_type_on_launch            = (known after apply)
+      + tags                                           = {
+          + "Name" = "shipdrill-private-2"
+          + "Tier" = "Private"
+        }
+      + tags_all                                       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-private-2"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+          + "Tier"        = "Private"
+        }
+      + vpc_id                                         = (known after apply)
+    }
+
+  # aws_subnet.public[0] will be created
+  + resource "aws_subnet" "public" {
+      + arn                                            = (known after apply)
+      + assign_ipv6_address_on_creation                = false
+      + availability_zone                              = "us-east-1a"
+      + availability_zone_id                           = (known after apply)
+      + cidr_block                                     = "10.0.0.0/24"
+      + enable_dns64                                   = false
+      + enable_resource_name_dns_a_record_on_launch    = false
+      + enable_resource_name_dns_aaaa_record_on_launch = false
+      + id                                             = (known after apply)
+      + ipv6_cidr_block_association_id                 = (known after apply)
+      + ipv6_native                                    = false
+      + map_public_ip_on_launch                        = true
+      + owner_id                                       = (known after apply)
+      + private_dns_hostname_type_on_launch            = (known after apply)
+      + tags                                           = {
+          + "Name" = "shipdrill-public-1"
+          + "Tier" = "Public"
+        }
+      + tags_all                                       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-public-1"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+          + "Tier"        = "Public"
+        }
+      + vpc_id                                         = (known after apply)
+    }
+
+  # aws_subnet.public[1] will be created
+  + resource "aws_subnet" "public" {
+      + arn                                            = (known after apply)
+      + assign_ipv6_address_on_creation                = false
+      + availability_zone                              = "us-east-1b"
+      + availability_zone_id                           = (known after apply)
+      + cidr_block                                     = "10.0.1.0/24"
+      + enable_dns64                                   = false
+      + enable_resource_name_dns_a_record_on_launch    = false
+      + enable_resource_name_dns_aaaa_record_on_launch = false
+      + id                                             = (known after apply)
+      + ipv6_cidr_block_association_id                 = (known after apply)
+      + ipv6_native                                    = false
+      + map_public_ip_on_launch                        = true
+      + owner_id                                       = (known after apply)
+      + private_dns_hostname_type_on_launch            = (known after apply)
+      + tags                                           = {
+          + "Name" = "shipdrill-public-2"
+          + "Tier" = "Public"
+        }
+      + tags_all                                       = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-public-2"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+          + "Tier"        = "Public"
+        }
+      + vpc_id                                         = (known after apply)
+    }
+
+  # aws_vpc.main will be created
+  + resource "aws_vpc" "main" {
+      + arn                                  = (known after apply)
+      + cidr_block                           = "10.0.0.0/16"
+      + default_network_acl_id               = (known after apply)
+      + default_route_table_id               = (known after apply)
+      + default_security_group_id            = (known after apply)
+      + dhcp_options_id                      = (known after apply)
+      + enable_dns_hostnames                 = true
+      + enable_dns_support                   = true
+      + enable_network_address_usage_metrics = (known after apply)
+      + id                                   = (known after apply)
+      + instance_tenancy                     = "default"
+      + ipv6_association_id                  = (known after apply)
+      + ipv6_cidr_block                      = (known after apply)
+      + ipv6_cidr_block_network_border_group = (known after apply)
+      + main_route_table_id                  = (known after apply)
+      + owner_id                             = (known after apply)
+      + tags                                 = {
+          + "Name" = "shipdrill-vpc"
+        }
+      + tags_all                             = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-vpc"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+    }
+
+  # aws_wafv2_ip_set.bad_ips[0] will be created
+  + resource "aws_wafv2_ip_set" "bad_ips" {
+      + arn                = (known after apply)
+      + description        = "IP addresses to block"
+      + id                 = (known after apply)
+      + ip_address_version = "IPV4"
+      + lock_token         = (known after apply)
+      + name               = "shipdrill-dev-bad-ips"
+      + name_prefix        = (known after apply)
+      + scope              = "CLOUDFRONT"
+      + tags               = {
+          + "Environment" = "dev"
+          + "Name"        = "shipdrill-bad-ips"
+        }
+      + tags_all           = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-bad-ips"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+    }
+
+  # aws_wafv2_regex_pattern_set.static_files[0] will be created
+  + resource "aws_wafv2_regex_pattern_set" "static_files" {
+      + arn         = (known after apply)
+      + description = "Static file extensions exempt from DDoS challenges"
+      + id          = (known after apply)
+      + lock_token  = (known after apply)
+      + name        = "shipdrill-dev-static-files"
+      + name_prefix = (known after apply)
+      + scope       = "CLOUDFRONT"
+      + tags        = {
+          + "Environment" = "dev"
+          + "Name"        = "shipdrill-static-files"
+        }
+      + tags_all    = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-static-files"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+
+      + regular_expression {
+          + regex_string = "\\/api\\/|\\.(acc|avi|css|gif|ico|jpe?g|js|json|mp[34]|ogg|otf|pdf|png|tiff?|ttf|webm|webp|woff2?|xml)$"
+        }
+    }
+
+  # aws_wafv2_web_acl.cloudfront[0] will be created
+  + resource "aws_wafv2_web_acl" "cloudfront" {
+      + application_integration_url = (known after apply)
+      + arn                         = (known after apply)
+      + capacity                    = (known after apply)
+      + description                 = "WAF WebACL for shipdrill CloudFront distribution"
+      + id                          = (known after apply)
+      + lock_token                  = (known after apply)
+      + name                        = "shipdrill-dev-cloudfront-waf"
+      + name_prefix                 = (known after apply)
+      + scope                       = "CLOUDFRONT"
+      + tags                        = {
+          + "Environment" = "dev"
+          + "Name"        = "shipdrill-cloudfront-waf"
+        }
+      + tags_all                    = {
+          + "Environment" = "dev"
+          + "ManagedBy"   = "Terraform"
+          + "Name"        = "shipdrill-cloudfront-waf"
+          + "Project"     = "shipdrill"
+          + "Repository"  = "ship"
+        }
+
+      + default_action {
+          + allow {
+            }
+        }
+
+      + rule {
+          + name     = "RateBasedRule-IP-300"
+          + priority = 1
+
+          + action {
+              + block {
+                  + custom_response {
+                      + response_code            = 429
+                        # (1 unchanged attribute hidden)
+
+                      + response_header {
+                          + name  = "Retry-After"
+                          + value = "300"
+                        }
+                    }
+                }
+            }
+
+          + statement {
+              + rate_based_statement {
+                  + aggregate_key_type    = "IP"
+                  + evaluation_window_sec = 300
+                  + limit                 = 300
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "shipdrill-RateBasedRule-IP-300"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "BadIPs"
+          + priority = 6
+
+          + action {
+              + block {
+                }
+            }
+
+          + statement {
+              + ip_set_reference_statement {
+                  + arn = (known after apply)
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "shipdrill-BadIPs"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesAmazonIpReputationList"
+          + priority = 2
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesAmazonIpReputationList"
+                  + vendor_name = "AWS"
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "shipdrill-AWSIpReputationList"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesBotControlRuleSet"
+          + priority = 7
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesBotControlRuleSet"
+                  + vendor_name = "AWS"
+                    # (1 unchanged attribute hidden)
+
+                  + managed_rule_group_configs {
+                        # (2 unchanged attributes hidden)
+
+                      + aws_managed_rules_bot_control_rule_set {
+                          + enable_machine_learning = true
+                          + inspection_level        = "COMMON"
+                        }
+                    }
+
+                  + rule_action_override {
+                      + name = "CategoryAdvertising"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryAI"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryArchiver"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryContentFetcher"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryEmailClient"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryHttpLibrary"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryLinkChecker"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryMiscellaneous"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryMonitoring"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategoryScrapingFramework"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategorySearchEngine"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategorySecurity"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategorySeo"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "CategorySocialMedia"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "SignalAutomatedBrowser"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "SignalKnownBotDataCenter"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                  + rule_action_override {
+                      + name = "SignalNonBrowserUserAgent"
+
+                      + action_to_use {
+                          + count {
+                            }
+                        }
+                    }
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "shipdrill-AWSBotControl"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesCommonRuleSet"
+          + priority = 3
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesCommonRuleSet"
+                  + vendor_name = "AWS"
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "shipdrill-AWSCommonRuleSet"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesKnownBadInputsRuleSet"
+          + priority = 4
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesKnownBadInputsRuleSet"
+                  + vendor_name = "AWS"
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "shipdrill-AWSKnownBadInputs"
+              + sampled_requests_enabled   = true
+            }
+        }
+      + rule {
+          + name     = "AWSManagedRulesSQLiRuleSet"
+          + priority = 5
+
+          + override_action {
+              + none {}
+            }
+
+          + statement {
+              + managed_rule_group_statement {
+                  + name        = "AWSManagedRulesSQLiRuleSet"
+                  + vendor_name = "AWS"
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          + visibility_config {
+              + cloudwatch_metrics_enabled = true
+              + metric_name                = "shipdrill-AWSSQLiRuleSet"
+              + sampled_requests_enabled   = true
+            }
+        }
+
+      + visibility_config {
+          + cloudwatch_metrics_enabled = true
+          + metric_name                = "shipdrill-CloudFrontWAF"
+          + sampled_requests_enabled   = true
+        }
+    }
+
+  # random_bytes.webhook_secret_key will be created
+  + resource "random_bytes" "webhook_secret_key" {
+      + base64 = (sensitive value)
+      + hex    = (sensitive value)
+      + length = 32
+    }
+
+  # random_password.agent_client_secret will be created
+  + resource "random_password" "agent_client_secret" {
+      + bcrypt_hash = (sensitive value)
+      + id          = (known after apply)
+      + length      = 48
+      + lower       = true
+      + min_lower   = 0
+      + min_numeric = 0
+      + min_special = 0
+      + min_upper   = 0
+      + number      = true
+      + numeric     = true
+      + result      = (sensitive value)
+      + special     = false
+      + upper       = true
+    }
+
+  # random_password.db_password will be created
+  + resource "random_password" "db_password" {
+      + bcrypt_hash = (sensitive value)
+      + id          = (known after apply)
+      + length      = 32
+      + lower       = true
+      + min_lower   = 0
+      + min_numeric = 0
+      + min_special = 0
+      + min_upper   = 0
+      + number      = true
+      + numeric     = true
+      + result      = (sensitive value)
+      + special     = false
+      + upper       = true
+    }
+
+  # random_password.demo_client_secret will be created
+  + resource "random_password" "demo_client_secret" {
+      + bcrypt_hash = (sensitive value)
+      + id          = (known after apply)
+      + length      = 48
+      + lower       = true
+      + min_lower   = 0
+      + min_numeric = 0
+      + min_special = 0
+      + min_upper   = 0
+      + number      = true
+      + numeric     = true
+      + result      = (sensitive value)
+      + special     = false
+      + upper       = true
+    }
+
+  # random_password.grader_client_secret will be created
+  + resource "random_password" "grader_client_secret" {
+      + bcrypt_hash = (sensitive value)
+      + id          = (known after apply)
+      + length      = 48
+      + lower       = true
+      + min_lower   = 0
+      + min_numeric = 0
+      + min_special = 0
+      + min_upper   = 0
+      + number      = true
+      + numeric     = true
+      + result      = (sensitive value)
+      + special     = false
+      + upper       = true
+    }
+
+  # random_password.session_secret will be created
+  + resource "random_password" "session_secret" {
+      + bcrypt_hash = (sensitive value)
+      + id          = (known after apply)
+      + length      = 64
+      + lower       = true
+      + min_lower   = 0
+      + min_numeric = 0
+      + min_special = 0
+      + min_upper   = 0
+      + number      = true
+      + numeric     = true
+      + result      = (sensitive value)
+      + special     = false
+      + upper       = true
+    }
+
+Plan: 82 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + api_url                        = "Set after EB environment creation"
+  + aurora_cluster_endpoint        = (known after apply)
+  + aurora_cluster_reader_endpoint = (known after apply)
+  + budget_monthly_limit_usd       = 50
+  + budget_name                    = "shipdrill-monthly-cost"
+  + cloudfront_distribution_id     = (known after apply)
+  + cloudfront_domain_name         = (known after apply)
+  + cors_origin_ssm_parameter      = "/shipdrill/dev/CORS_ORIGIN"
+  + database_name                  = "ship_main"
+  + database_url_ssm_parameter     = "/shipdrill/dev/DATABASE_URL"
+  + demo_client_secret             = (sensitive value)
+  + eb_alb_security_group          = (known after apply)
+  + eb_application_name            = "shipdrill-api"
+  + eb_config_summary              = {
+      + alb_security_group      = (known after apply)
+      + application_name        = "shipdrill-api"
+      + instance_profile        = "shipdrill-eb-instance-profile"
+      + instance_security_group = (known after apply)
+      + private_subnets         = (known after apply)
+      + public_subnets          = (known after apply)
+      + service_role_arn        = (known after apply)
+      + vpc_id                  = (known after apply)
+    }
+  + eb_environment_name            = "shipdrill-api-prod"
+  + eb_environment_url             = (known after apply)
+  + eb_instance_profile            = "shipdrill-eb-instance-profile"
+  + eb_instance_security_group     = (known after apply)
+  + eb_private_subnets             = (known after apply)
+  + eb_public_subnets              = (known after apply)
+  + eb_service_role                = (known after apply)
+  + eb_vpc_id                      = (known after apply)
+  + frontend_url                   = (known after apply)
+  + grader_client_secret           = (sensitive value)
+  + private_subnet_ids             = [
+      + (known after apply),
+      + (known after apply),
+    ]
+  + public_subnet_ids              = [
+      + (known after apply),
+      + (known after apply),
+    ]
+  + s3_bucket_name                 = (known after apply)
+  + uploads_bucket_arn             = (known after apply)
+  + uploads_bucket_name            = (known after apply)
+  + vpc_id                         = (known after apply)
+
+Warning: Invalid Attribute Combination
+
+  with aws_s3_bucket_lifecycle_configuration.uploads,
+  on s3-cloudfront.tf line 466, in resource "aws_s3_bucket_lifecycle_configuration" "uploads":
+ 466:   rule {
+
+No attribute specified when one (and only one) of
+[rule[0].filter,rule[0].prefix] is required
+
+This will be an error in a future version of the provider
+
+─────────────────────────────────────────────────────────────────────────────
+
+Saved the plan to: phase1.tfplan
+
+To perform exactly these actions, run the following command to apply:
+    terraform apply "phase1.tfplan"

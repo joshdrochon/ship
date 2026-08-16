@@ -1,0 +1,51 @@
+# Drill 2 (2026-08-16) — AWS control-plane corroboration
+# Captured read-only after the fact. Phases 2-6 were not tee'd to log files;
+# these records are AWS's own and are what the phase-3/4/6 claims rest on.
+# Re-runnable by any reader with account access.
+
+## aws elasticbeanstalk describe-environments --include-deleted (shipdrill)
+shipdrill-api-prod	e-pmmy6bytxz	shipdrill-api-prod.eba-eanmh369.us-east-1.elasticbeanstalk.com	Terminated	2026-08-16T04:31:05.864000+00:00	2026-08-16T04:42:54.852000+00:00
+shipdrill-api-prod	e-ueiumksy2t	shipdrill-api-prod.eba-6szytv2k.us-east-1.elasticbeanstalk.com	Terminated	2026-08-16T03:48:03.564000+00:00	2026-08-16T04:21:02.324000+00:00
+
+## aws elasticbeanstalk describe-events --environment-id e-pmmy6bytxz  (PHASE 4 rebuild)
+2026-08-16T04:31:04.551000+00:00	INFO	createEnvironment is starting.
+2026-08-16T04:31:06.037000+00:00	INFO	Using elasticbeanstalk-us-east-1-379484935796 as Amazon S3 storage bucket for environment data.
+2026-08-16T04:31:33.128000+00:00	INFO	Environment health has transitioned to Pending. Initialization in progress (running for 14 seconds). There are no instances.
+2026-08-16T04:31:42.263000+00:00	INFO	Created security group named: sg-01ab13d31cc7c09b5
+2026-08-16T04:31:42.321000+00:00	INFO	Created target group named: arn:aws:elasticloadbalancing:us-east-1:379484935796:targetgroup/awseb-AWSEB-FCFW7X755JER/073140aa396360be
+2026-08-16T04:31:42.349000+00:00	INFO	Created security group named: sg-0a8d79657fdb3ff12
+2026-08-16T04:31:57.654000+00:00	INFO	Created Auto Scaling group named: awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingGroup-2RSZCa30yDHp
+2026-08-16T04:31:57.704000+00:00	INFO	Waiting for EC2 instances to launch. This may take a few minutes.
+2026-08-16T04:32:12.995000+00:00	INFO	Created Auto Scaling group policy named: arn:aws:autoscaling:us-east-1:379484935796:scalingPolicy:b636b7f6-d459-450e-8a9a-492f7bec81de:autoScalingGroupName/awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingGroup-2RSZCa30yDHp:policyName/awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingScaleDownPolicy-LgTqwNAsSc0v
+2026-08-16T04:32:13.026000+00:00	INFO	Created Auto Scaling group policy named: arn:aws:autoscaling:us-east-1:379484935796:scalingPolicy:091c21fa-c641-4de1-a1d3-967eb3078b67:autoScalingGroupName/awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingGroup-2RSZCa30yDHp:policyName/awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingScaleUpPolicy-soE7Gzwjehlf
+2026-08-16T04:32:13.041000+00:00	INFO	Created CloudWatch alarm named: awseb-e-pmmy6bytxz-stack-AWSEBCloudwatchAlarmLow-JDhr5hwcW8Q7
+2026-08-16T04:32:13.057000+00:00	INFO	Created CloudWatch alarm named: awseb-e-pmmy6bytxz-stack-AWSEBCloudwatchAlarmHigh-OlpXSLZkP9xM
+2026-08-16T04:34:17.060000+00:00	INFO	Created load balancer named: arn:aws:elasticloadbalancing:us-east-1:379484935796:loadbalancer/app/awseb--AWSEB-Z0XJGdUiPKoJ/2ed5d3050a22b2d0
+2026-08-16T04:34:17.106000+00:00	INFO	Created Load Balancer listener named: arn:aws:elasticloadbalancing:us-east-1:379484935796:listener/app/awseb--AWSEB-Z0XJGdUiPKoJ/2ed5d3050a22b2d0/9ce5dbea7cd5eb21
+2026-08-16T04:34:33.132000+00:00	INFO	Added instance [i-035c6af04bf318658] to your environment.
+2026-08-16T04:36:53.624000+00:00	WARN	The instance deployment failed to authenticate to ECR public registries. The deployment used unauthenticated pulls to download the Docker image from ECR public registries.
+2026-08-16T04:37:25.087000+00:00	INFO	Instance deployment completed successfully.
+2026-08-16T04:37:33.154000+00:00	INFO	Environment health has transitioned from Pending to Ok. Initialization completed 1 second ago and took 6 minutes.
+2026-08-16T04:37:33.224000+00:00	INFO	Application available at shipdrill-api-prod.eba-eanmh369.us-east-1.elasticbeanstalk.com.
+2026-08-16T04:37:33.978000+00:00	INFO	Successfully launched environment: shipdrill-api-prod
+2026-08-16T04:39:33.511000+00:00	INFO	terminateEnvironment is starting.
+2026-08-16T04:39:33.655000+00:00	INFO	Validating environment's EC2 instances have termination protection disabled before performing termination.
+2026-08-16T04:39:34.076000+00:00	INFO	Finished validating environment's EC2 instances for termination protection.
+2026-08-16T04:39:50.941000+00:00	INFO	Deleted CloudWatch alarm named: awseb-e-pmmy6bytxz-stack-AWSEBCloudwatchAlarmLow-JDhr5hwcW8Q7 
+2026-08-16T04:39:50.987000+00:00	INFO	Deleted CloudWatch alarm named: awseb-e-pmmy6bytxz-stack-AWSEBCloudwatchAlarmHigh-OlpXSLZkP9xM 
+2026-08-16T04:39:51.023000+00:00	INFO	Deleted Load Balancer listener named: arn:aws:elasticloadbalancing:us-east-1:379484935796:listener/app/awseb--AWSEB-Z0XJGdUiPKoJ/2ed5d3050a22b2d0/9ce5dbea7cd5eb21
+2026-08-16T04:39:51.050000+00:00	INFO	Deleted Auto Scaling group policy named: arn:aws:autoscaling:us-east-1:379484935796:scalingPolicy:091c21fa-c641-4de1-a1d3-967eb3078b67:autoScalingGroupName/awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingGroup-2RSZCa30yDHp:policyName/awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingScaleUpPolicy-soE7Gzwjehlf
+2026-08-16T04:39:51.080000+00:00	INFO	Deleted Auto Scaling group policy named: arn:aws:autoscaling:us-east-1:379484935796:scalingPolicy:b636b7f6-d459-450e-8a9a-492f7bec81de:autoScalingGroupName/awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingGroup-2RSZCa30yDHp:policyName/awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingScaleDownPolicy-LgTqwNAsSc0v
+2026-08-16T04:39:51.109000+00:00	INFO	Waiting for EC2 instances to terminate. This may take a few minutes.
+2026-08-16T04:40:51.828000+00:00	INFO	Deleted load balancer named: arn:aws:elasticloadbalancing:us-east-1:379484935796:loadbalancer/app/awseb--AWSEB-Z0XJGdUiPKoJ/2ed5d3050a22b2d0
+2026-08-16T04:41:32.892000+00:00	WARN	Environment health has transitioned from Ok to Warning. Terminate in progress (running for 77 seconds). Access denied while accessing Auto Scaling and Elastic Load Balancing using role "arn:aws:iam::379484935796:role/shipdrill-eb-service-role". Verify the role policy.
+2026-08-16T04:42:32.791000+00:00	INFO	Removed instance [i-035c6af04bf318658] from your environment.
+2026-08-16T04:42:38.080000+00:00	INFO	Deleted Auto Scaling group named: awseb-e-pmmy6bytxz-stack-AWSEBAutoScalingGroup-2RSZCa30yDHp
+2026-08-16T04:42:53.422000+00:00	INFO	Deleted target group named: arn:aws:elasticloadbalancing:us-east-1:379484935796:targetgroup/awseb-AWSEB-FCFW7X755JER/073140aa396360be
+2026-08-16T04:42:53.462000+00:00	INFO	Deleted security group named: sg-0a8d79657fdb3ff12
+2026-08-16T04:42:53.481000+00:00	INFO	Deleted security group named: sg-01ab13d31cc7c09b5
+2026-08-16T04:42:54.325000+00:00	INFO	Deleting SNS topic for environment shipdrill-api-prod.
+2026-08-16T04:42:55.118000+00:00	INFO	terminateEnvironment completed successfully.
+
+## aws rds describe-db-clusters (shipdrill)
+shipdrill-aurora	backing-up	2026-08-16T04:30:53.404000+00:00	cluster-K4VXDIUPGCDPVD2XQZMSI4KLQI
