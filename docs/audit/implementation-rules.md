@@ -81,13 +81,29 @@ the public API like any other client. *"The agent rewire is the architectural pa
 direct service calls with SDK calls, behind a feature flag so Part 2's tests pass with the flag
 on or off."*
 
-> **A8 is the rule with the weakest evidence, and it is stated here so that stays visible.**
-> The flag exists (`SHIP_AGENT_VIA_SDK`, `agent/src/composition.ts:38`, default OFF) and
-> `docs/l23-flag-matrix.md` inventories which of Part 2's tests are flag-sensitive. **No CI job
-> runs the suite in both flag states.** `grep -n "SHIP_AGENT_VIA_SDK" .gitlab-ci.yml
-> .github/workflows/*.yml` returns nothing. The matrix document is an inventory, not a proof,
-> and it says so itself. p.17 asks *"How does CI prove Part 2's tests pass with the flag both on
-> and off?"* — today the honest answer is that it does not.
+> **A8 is proven in CI. This note used to say the opposite and was left stale.**
+>
+> p.17 asks *"How does CI prove Part 2's tests pass with the flag both on and off?"* The
+> answer is the **`agent-flag-matrix`** job (`.gitlab-ci.yml`, `allow_failure: false`),
+> which runs `scripts/agent-flag-matrix.sh`. Both legs, one run, most recently job 69165:
+>
+>     ── bucket 1, SHIP_AGENT_VIA_SDK=off ──   ok  leg off: 230/230
+>     ── bucket 1, SHIP_AGENT_VIA_SDK=on  ──   ok  leg on:  230/230
+>     PF-706 ok — bucket 1 is green in BOTH states, 230 tests per leg.
+>
+> The script carries two anti-vacuity guards, because a matrix that runs zero tests in one
+> leg is green and means nothing: each leg asserts a **minimum test count**, and the two
+> legs must run the **same file set**. `docs/l23-flag-matrix.md` remains the inventory of
+> which tests are flag-sensitive; the job is the proof.
+>
+> **What this block said until 2026-08-16**, kept because the correction matters more than
+> the tidiness: *"No CI job runs the suite in both flag states … `grep -n
+> "SHIP_AGENT_VIA_SDK" .gitlab-ci.yml .github/workflows/*.yml` returns nothing … today the
+> honest answer is that it does not."* That was true when written and stopped being true
+> when the job landed in MR !27. The grep it cites now matches. A caveat nobody re-checks
+> becomes a false claim the moment the gap it describes is closed — which is the same
+> defect that cost this submission MVP gate item 9, where a correct +4.3% sat underneath a
+> summary still reading "not established".
 
 ---
 

@@ -10,26 +10,49 @@
 > enforced — manual benchmark, automated baseline comparison, perf job that fails the
 > PR?"* Answer: **a perf job that fails the PR.** `regression-budget` in both pipelines.
 
-The gate item is two claims. They are recorded separately below because they are
-separately true, and one of them is **still not established**.
+## Verdict: all four halves are established and within budget
 
-| Half | Status |
-|---|---|
-| Playwright regression suite passes on main | Passing as of 2026-08-12 on the L01 tree — **not re-run on the integration tree**, see below |
-| P95 latency ≤ +10% | **PASS** — worst route +4.3%. Established by the paired protocol, not by a single run; see *The latency half* |
-| Bundle size ≤ +10% | **PASS** — +2.72% (747,644 → 767,960 B gzipped), integration tree `dbfb46d`, 2026-08-15 |
-| Per-route query counts ≤ +10% | **PASS** — 0.00% on all six routes, bit-identical |
+| Half | Budget | Measured | Status |
+|---|---|---|---|
+| **P95 latency** | ≤ +10% | **+4.3%** worst route | **ESTABLISHED — WITHIN BUDGET** |
+| **Bundle size** | ≤ +10% | **+2.72%** (747,644 → 767,960 B gzipped) | **ESTABLISHED — WITHIN BUDGET** |
+| **Per-route query counts** | ≤ +10% | **0.00%**, bit-identical on all six routes | **ESTABLISHED — WITHIN BUDGET** |
+| **Playwright suite passes on main** | 0 failures | `886 passed`, 0 failed on `main` at `94a6905` | **PASSING** |
 
-> **Superseded 2026-08-14.** Until then this table read *"P95 latency — Not established.
-> Machine too contended to measure"*, and the Mechanism table below pointed at a baseline
-> captured at `b639059`. Both statements were written on 2026-08-13 and both were
-> overtaken the next day by `b6177e4`, which re-captured the baseline at the real Part 1
-> commit and produced the paired-run evidence. `b639059` is **three commits after Week 5's
-> `main`** (`5455f4e`) and already contains `api/src/platform/`, the OAuth router and the
-> SDK — so the "before" picture had much of the "after" already in it, which is
-> `docs/measurement-rules.md` rule 2. The settling evidence is
-> **`docs/regression-paired-runs.md`**, ten alternating pairs against a baseline captured
-> at `5455f4e`, raw samples in `docs/perf-paired-runs.txt`.
+P95 is measured by the **paired protocol** — ten alternating pairs per side, 25 trials of
+60 samples per route, both sides running identical measurement code, against a baseline
+captured at `5455f4e` (Week 5's `main`, the actual Part 1 tree). `GET /health` is the
+control: it runs no query and touches no database, and it moved −5.8%, which is the
+run-to-run floor. Full table and raw samples:
+**[`docs/regression-paired-runs.md`](regression-paired-runs.md)** and
+[`docs/perf-paired-runs.txt`](perf-paired-runs.txt).
+
+Reproduce: `scripts/perf-paired-runs.sh <part1-worktree> 10`.
+
+> ### Read this before citing an older number
+>
+> **P95 was genuinely NOT established until 2026-08-14.** Before that this document said
+> so, in those words, and it was correct at the time: the baseline was captured at
+> `b639059` — three commits *after* Week 5's `main` — so it already contained
+> `api/src/platform/`, the OAuth router and the SDK. The "before" picture had most of the
+> "after" already in it, and the machine was too contended to resolve 10% anyway.
+>
+> That was fixed on 2026-08-14 in `b6177e4`, which re-captured the baseline at the real
+> Part 1 commit, removed two harness defects, and produced the paired-run evidence above.
+> The **+4.3%** figure is from after that fix.
+>
+> Any statement that P95 is unestablished, or any figure standing on a `2026-08-12`
+> baseline ref (`41393f6`, `b639059`), predates the re-capture and is superseded. The
+> three defects are written out in full further down, because each one produced a
+> confident number and two of them were wrong in the reassuring direction.
+
+**Why the CI job shows a warning rather than a pass.** `regression-budget` runs on a
+linux-arm64 / node v22 runner; the baseline is darwin-arm64 / node v26. Bundle bytes and
+query counts are deterministic and are judged there unconditionally. An in-process P95 is
+not, so the job marks latency `NOT JUDGED` and exits 2 — "could not be judged", which is
+distinct from exit 1, "judged and exceeded". Comparing P95 across two kernels and two Node
+majors measures the box in both directions. The latency half is therefore established on a
+machine matching the baseline, above, and the job says so in its own artifact on every run.
 
 ---
 
