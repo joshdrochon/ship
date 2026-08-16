@@ -476,7 +476,17 @@ describe('FleetGraph API', () => {
         notificationId,
       ]);
       expect(notif.rows[0].state).toBe('acknowledged');
-    });
+      // 30s, not the 5s default. This test does a seed, an authenticated round
+      // trip and two follow-up queries, and on a loaded CI runner that lands
+      // just past the line: it timed out at 5042 ms in job 69056 and 5015 ms in
+      // job 69115, then passed on retry with nothing changed. Forty milliseconds
+      // either side of a deadline is not a signal about the code.
+      //
+      // The number is deliberately far from the observed cost rather than a
+      // little above it -- a limit set at 6s would buy one more bad afternoon.
+      // Nothing here waits on a timer, so a longer ceiling cannot hide a hang;
+      // it only stops the suite failing on scheduler noise.
+    }, 30_000);
 
     it("returns 404 for another user's finding", async () => {
       const { notificationId } = await seedFinding({
