@@ -1,0 +1,313 @@
+random_bytes.webhook_secret_key: Creating...
+random_bytes.webhook_secret_key: Creation complete after 0s
+random_password.agent_client_secret: Creating...
+random_password.session_secret: Creating...
+random_password.demo_client_secret: Creating...
+random_password.db_password: Creating...
+random_password.grader_client_secret: Creating...
+random_password.session_secret: Creation complete after 0s [id=none]
+random_password.db_password: Creation complete after 0s [id=none]
+random_password.grader_client_secret: Creation complete after 0s [id=none]
+random_password.agent_client_secret: Creation complete after 0s [id=none]
+random_password.demo_client_secret: Creation complete after 0s [id=none]
+aws_wafv2_regex_pattern_set.static_files[0]: Creating...
+aws_rds_cluster_parameter_group.aurora: Creating...
+aws_iam_role.eb_service: Creating...
+aws_ssm_parameter.session_secret: Creating...
+aws_iam_role.eb_instance: Creating...
+aws_ssm_parameter.agent_client_secret: Creating...
+aws_cloudfront_origin_request_policy.api: Creating...
+aws_ssm_parameter.demo_client_secret: Creating...
+aws_ssm_parameter.db_password: Creating...
+aws_ssm_parameter.grader_client_secret: Creating...
+aws_cloudfront_origin_request_policy.api: Creation complete after 0s [id=bd211e38-4b26-4936-8be3-f7b5101801d8]
+aws_ssm_parameter.webhook_secret_key: Creating...
+aws_wafv2_regex_pattern_set.static_files[0]: Creation complete after 1s [id=0c42bd2f-4787-4e97-93a5-0f2af9f5004f]
+aws_elastic_beanstalk_application.api: Creating...
+aws_iam_role.eb_service: Creation complete after 1s [id=shipdrill-eb-service-role]
+aws_s3_bucket.uploads: Creating...
+aws_iam_role.eb_instance: Creation complete after 1s [id=shipdrill-eb-instance-role]
+aws_vpc.main: Creating...
+aws_ssm_parameter.grader_client_secret: Creation complete after 1s [id=/shipdrill/dev/GRADER_CLIENT_SECRET]
+aws_ssm_parameter.agent_client_secret: Creation complete after 1s [id=/shipdrill/dev/AGENT_CLIENT_SECRET]
+aws_iam_role.vpc_flow_logs: Creating...
+aws_ssm_parameter.session_secret: Creation complete after 1s [id=/shipdrill/dev/SESSION_SECRET]
+aws_ssm_parameter.db_password: Creation complete after 1s [id=/shipdrill/dev/DB_PASSWORD]
+aws_s3_bucket.frontend: Creating...
+aws_cloudfront_cache_policy.api_no_cache: Creating...
+aws_budgets_budget.monthly: Creating...
+aws_ssm_parameter.demo_client_secret: Creation complete after 1s [id=/shipdrill/dev/DEMO_CLIENT_SECRET]
+aws_iam_role.cloudfront_realtime_logs: Creating...
+aws_cloudfront_cache_policy.api_no_cache: Creation complete after 0s [id=1f48ba91-506d-4a81-879e-d0b7244b820e]
+aws_cloudfront_origin_access_control.frontend: Creating...
+aws_ssm_parameter.webhook_secret_key: Creation complete after 1s [id=/shipdrill/dev/WEBHOOK_SECRET_KEY]
+aws_cloudfront_function.spa_routing: Creating...
+aws_iam_role.vpc_flow_logs: Creation complete after 0s [id=shipdrill-vpc-flow-logs]
+aws_iam_role.cloudfront_realtime_logs: Creation complete after 0s [id=shipdrill-dev-cf-realtime-logs]
+aws_cloudwatch_log_group.vpc_flow_logs: Creating...
+aws_cloudfront_origin_access_control.frontend: Creation complete after 0s [id=ETPDDABYMYBEM]
+aws_wafv2_ip_set.bad_ips[0]: Creating...
+aws_kinesis_stream.cloudfront_logs: Creating...
+aws_elastic_beanstalk_application.api: Creation complete after 0s [id=shipdrill-api]
+aws_iam_role_policy_attachment.eb_service_managed: Creating...
+aws_wafv2_ip_set.bad_ips[0]: Creation complete after 0s [id=29fa851f-9fa6-4e3c-8ab0-fef9fefa3e13]
+aws_iam_role_policy_attachment.eb_service_policy: Creating...
+aws_cloudwatch_log_group.vpc_flow_logs: Creation complete after 0s [id=/aws/vpc/shipdrill]
+aws_iam_role_policy_attachment.eb_web_tier: Creating...
+aws_iam_role_policy_attachment.eb_service_managed: Creation complete after 1s [id=shipdrill-eb-service-role-20260816034734462700000001]
+aws_iam_instance_profile.eb: Creating...
+aws_iam_role_policy_attachment.eb_service_policy: Creation complete after 1s [id=shipdrill-eb-service-role-20260816034734467400000002]
+aws_iam_role_policy.eb_bedrock_access: Creating...
+aws_rds_cluster_parameter_group.aurora: Creation complete after 2s [id=shipdrill-aurora-pg16]
+aws_iam_role_policy.eb_ssm_access: Creating...
+aws_iam_role_policy_attachment.eb_web_tier: Creation complete after 1s [id=shipdrill-eb-instance-role-20260816034734625900000003]
+aws_iam_role_policy.eb_secrets_manager_access: Creating...
+aws_iam_role_policy.eb_ssm_access: Creation complete after 0s [id=shipdrill-eb-instance-role:shipdrill-eb-ssm-access]
+aws_iam_role_policy.eb_instance_ssm_agent: Creating...
+aws_iam_role_policy.eb_bedrock_access: Creation complete after 0s [id=shipdrill-eb-instance-role:shipdrill-eb-bedrock-access]
+aws_iam_role_policy.eb_secrets_manager_access: Creation complete after 0s [id=shipdrill-eb-instance-role:shipdrill-eb-secrets-manager-access]
+aws_iam_role_policy.vpc_flow_logs: Creating...
+aws_iam_role_policy.eb_instance_ssm_agent: Creation complete after 0s [id=shipdrill-eb-instance-role:shipdrill-eb-ssm-agent-channel]
+aws_iam_role_policy.vpc_flow_logs: Creation complete after 0s [id=shipdrill-vpc-flow-logs:shipdrill-vpc-flow-logs]
+aws_s3_bucket.frontend: Creation complete after 1s [id=shipdrill-frontend-dev-379484935796]
+aws_s3_bucket_versioning.frontend: Creating...
+aws_s3_bucket_public_access_block.frontend: Creating...
+aws_s3_bucket_server_side_encryption_configuration.frontend: Creating...
+aws_s3_bucket.uploads: Creation complete after 1s [id=shipdrill-uploads-dev-379484935796]
+aws_s3_bucket_server_side_encryption_configuration.uploads: Creating...
+aws_s3_bucket_server_side_encryption_configuration.uploads: Creation complete after 0s [id=shipdrill-uploads-dev-379484935796]
+aws_s3_bucket_cors_configuration.uploads: Creating...
+aws_s3_bucket_public_access_block.frontend: Creation complete after 1s [id=shipdrill-frontend-dev-379484935796]
+aws_s3_bucket_versioning.uploads: Creating...
+aws_s3_bucket_server_side_encryption_configuration.frontend: Creation complete after 1s [id=shipdrill-frontend-dev-379484935796]
+aws_s3_bucket_public_access_block.uploads: Creating...
+aws_s3_bucket_cors_configuration.uploads: Creation complete after 1s [id=shipdrill-uploads-dev-379484935796]
+aws_s3_bucket_lifecycle_configuration.uploads: Creating...
+aws_cloudfront_function.spa_routing: Creation complete after 2s [id=shipdrill-spa-routing]
+aws_s3_bucket_public_access_block.uploads: Creation complete after 0s [id=shipdrill-uploads-dev-379484935796]
+aws_s3_bucket_versioning.frontend: Creation complete after 2s [id=shipdrill-frontend-dev-379484935796]
+aws_s3_bucket_versioning.uploads: Creation complete after 1s [id=shipdrill-uploads-dev-379484935796]
+aws_wafv2_web_acl.cloudfront[0]: Creating...
+aws_wafv2_web_acl.cloudfront[0]: Creation complete after 2s [id=6f960bc6-c2a9-4c9d-8d89-d67d2a1a502a]
+aws_iam_instance_profile.eb: Creation complete after 6s [id=shipdrill-eb-instance-profile]
+aws_budgets_budget.monthly: Creation complete after 7s [id=379484935796:shipdrill-monthly-cost]
+aws_vpc.main: Still creating... [00m10s elapsed]
+aws_kinesis_stream.cloudfront_logs: Still creating... [00m10s elapsed]
+aws_s3_bucket_lifecycle_configuration.uploads: Still creating... [00m10s elapsed]
+aws_vpc.main: Creation complete after 12s [id=vpc-06b9679e6912b1b02]
+aws_internet_gateway.main: Creating...
+aws_subnet.private[1]: Creating...
+aws_security_group.aurora: Creating...
+aws_subnet.public[0]: Creating...
+aws_flow_log.main: Creating...
+aws_subnet.public[1]: Creating...
+aws_subnet.private[0]: Creating...
+aws_security_group.alb: Creating...
+aws_internet_gateway.main: Creation complete after 1s [id=igw-0184850ee1777bcae]
+aws_route_table.public: Creating...
+aws_flow_log.main: Creation complete after 1s [id=fl-0645bac09eca4bb24]
+aws_eip.nat[0]: Creating...
+aws_subnet.private[0]: Creation complete after 1s [id=subnet-0a07bc54020485d50]
+aws_route_table.public: Creation complete after 1s [id=rtb-04975e65a8cde1624]
+aws_security_group.aurora: Creation complete after 3s [id=sg-0780602de0f477e0c]
+aws_subnet.private[1]: Creation complete after 3s [id=subnet-0c9c42c68f849a61c]
+aws_db_subnet_group.aurora: Creating...
+aws_eip.nat[0]: Creation complete after 2s [id=eipalloc-0bd8a16adf0f4d977]
+aws_security_group.alb: Creation complete after 3s [id=sg-0268cad23cefd6ea4]
+aws_security_group.eb_instance: Creating...
+aws_db_subnet_group.aurora: Creation complete after 1s [id=shipdrill-aurora]
+aws_rds_cluster.aurora: Creating...
+aws_security_group.eb_instance: Creation complete after 3s [id=sg-0fcbb23a11dc566ca]
+aws_security_group_rule.aurora_ingress_from_eb: Creating...
+aws_security_group_rule.aurora_ingress_from_eb: Creation complete after 0s [id=sgrule-2021312778]
+aws_kinesis_stream.cloudfront_logs: Still creating... [00m20s elapsed]
+aws_s3_bucket_lifecycle_configuration.uploads: Still creating... [00m20s elapsed]
+aws_subnet.public[1]: Still creating... [00m10s elapsed]
+aws_subnet.public[0]: Still creating... [00m10s elapsed]
+aws_subnet.public[0]: Creation complete after 14s [id=subnet-0a58bda42717e366e]
+aws_rds_cluster.aurora: Still creating... [00m10s elapsed]
+aws_nat_gateway.main[0]: Creating...
+aws_subnet.public[1]: Creation complete after 15s [id=subnet-0e8512ea41c09eae9]
+aws_route_table_association.public[0]: Creating...
+aws_route_table_association.public[1]: Creating...
+aws_elastic_beanstalk_environment.api: Creating...
+aws_route_table_association.public[0]: Creation complete after 1s [id=rtbassoc-08587637b8004ca9c]
+aws_route_table_association.public[1]: Creation complete after 1s [id=rtbassoc-0019d0e7e5d504ffa]
+aws_kinesis_stream.cloudfront_logs: Still creating... [00m30s elapsed]
+aws_s3_bucket_lifecycle_configuration.uploads: Still creating... [00m30s elapsed]
+aws_kinesis_stream.cloudfront_logs: Creation complete after 32s [id=arn:aws:kinesis:us-east-1:379484935796:stream/shipdrill-dev-cloudfront-logs]
+aws_iam_role_policy.cloudfront_realtime_logs: Creating...
+aws_iam_role_policy.cloudfront_realtime_logs: Creation complete after 0s [id=shipdrill-dev-cf-realtime-logs:shipdrill-dev-cf-realtime-logs]
+aws_cloudfront_realtime_log_config.main: Creating...
+aws_cloudfront_realtime_log_config.main: Creation complete after 0s [id=arn:aws:cloudfront::379484935796:realtime-log-config/shipdrill-dev-realtime-logs]
+aws_cloudfront_distribution.frontend: Creating...
+aws_rds_cluster.aurora: Still creating... [00m20s elapsed]
+aws_nat_gateway.main[0]: Still creating... [00m10s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [00m10s elapsed]
+aws_s3_bucket_lifecycle_configuration.uploads: Still creating... [00m40s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [00m10s elapsed]
+aws_rds_cluster.aurora: Still creating... [00m30s elapsed]
+aws_nat_gateway.main[0]: Still creating... [00m20s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [00m21s elapsed]
+aws_s3_bucket_lifecycle_configuration.uploads: Still creating... [00m50s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [00m20s elapsed]
+aws_rds_cluster.aurora: Still creating... [00m40s elapsed]
+aws_nat_gateway.main[0]: Still creating... [00m30s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [00m31s elapsed]
+aws_s3_bucket_lifecycle_configuration.uploads: Creation complete after 56s [id=shipdrill-uploads-dev-379484935796]
+aws_cloudfront_distribution.frontend: Still creating... [00m30s elapsed]
+aws_rds_cluster.aurora: Still creating... [00m50s elapsed]
+aws_nat_gateway.main[0]: Still creating... [00m40s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [00m41s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [00m40s elapsed]
+aws_rds_cluster.aurora: Still creating... [01m00s elapsed]
+aws_nat_gateway.main[0]: Still creating... [00m50s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [00m51s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [00m50s elapsed]
+aws_rds_cluster.aurora: Still creating... [01m10s elapsed]
+aws_nat_gateway.main[0]: Still creating... [01m00s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [01m01s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [01m00s elapsed]
+aws_rds_cluster.aurora: Still creating... [01m20s elapsed]
+aws_nat_gateway.main[0]: Still creating... [01m10s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [01m11s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [01m10s elapsed]
+aws_rds_cluster.aurora: Still creating... [01m30s elapsed]
+aws_nat_gateway.main[0]: Still creating... [01m20s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [01m21s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [01m20s elapsed]
+aws_rds_cluster.aurora: Still creating... [01m40s elapsed]
+aws_nat_gateway.main[0]: Still creating... [01m30s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [01m31s elapsed]
+aws_nat_gateway.main[0]: Creation complete after 1m35s [id=nat-0dabca855e82301b3]
+aws_route_table.private: Creating...
+aws_cloudfront_distribution.frontend: Still creating... [01m30s elapsed]
+aws_route_table.private: Creation complete after 3s [id=rtb-0d7e7e7b824cdfe36]
+aws_route_table_association.private[0]: Creating...
+aws_route_table_association.private[1]: Creating...
+aws_route_table_association.private[0]: Creation complete after 1s [id=rtbassoc-0363fe32d55c72f23]
+aws_route_table_association.private[1]: Creation complete after 1s [id=rtbassoc-05c7b9cf319b0f26d]
+aws_rds_cluster.aurora: Still creating... [01m50s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [01m41s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [01m40s elapsed]
+aws_rds_cluster.aurora: Still creating... [02m00s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [01m51s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [01m50s elapsed]
+aws_rds_cluster.aurora: Still creating... [02m10s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [02m01s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [02m00s elapsed]
+aws_rds_cluster.aurora: Still creating... [02m20s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [02m11s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [02m10s elapsed]
+aws_rds_cluster.aurora: Creation complete after 2m27s [id=shipdrill-aurora]
+aws_ssm_parameter.db_username: Creating...
+aws_ssm_parameter.db_name: Creating...
+aws_ssm_parameter.db_host: Creating...
+aws_cloudwatch_log_group.aurora: Creating...
+aws_ssm_parameter.database_url: Creating...
+aws_rds_cluster_instance.aurora: Creating...
+aws_ssm_parameter.db_name: Creation complete after 2s [id=/shipdrill/dev/DB_NAME]
+aws_ssm_parameter.db_username: Creation complete after 2s [id=/shipdrill/dev/DB_USERNAME]
+aws_ssm_parameter.db_host: Creation complete after 2s [id=/shipdrill/dev/DB_HOST]
+aws_ssm_parameter.database_url: Creation complete after 2s [id=/shipdrill/dev/DATABASE_URL]
+aws_elastic_beanstalk_environment.api: Still creating... [02m21s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [02m20s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [00m10s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [02m31s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [02m30s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [00m20s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [02m41s elapsed]
+aws_cloudfront_distribution.frontend: Still creating... [02m40s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [00m30s elapsed]
+aws_cloudfront_distribution.frontend: Creation complete after 2m45s [id=E1EGHBG3ETF7UK]
+aws_s3_bucket_policy.frontend: Creating...
+aws_ssm_parameter.app_base_url: Creating...
+aws_ssm_parameter.cdn_domain: Creating...
+aws_ssm_parameter.cors_origin: Creating...
+aws_ssm_parameter.app_base_url: Creation complete after 0s [id=/shipdrill/dev/APP_BASE_URL]
+aws_ssm_parameter.cdn_domain: Creation complete after 1s [id=/shipdrill/dev/CDN_DOMAIN]
+aws_ssm_parameter.cors_origin: Creation complete after 1s [id=/shipdrill/dev/CORS_ORIGIN]
+aws_elastic_beanstalk_environment.api: Still creating... [02m51s elapsed]
+aws_s3_bucket_policy.frontend: Creation complete after 1s [id=shipdrill-frontend-dev-379484935796]
+aws_rds_cluster_instance.aurora: Still creating... [00m40s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [03m01s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [00m50s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [03m11s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [01m00s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [03m21s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [01m10s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [03m31s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [01m20s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [03m41s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [01m30s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [03m51s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [01m40s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [04m01s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [01m50s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [04m11s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [02m00s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [04m21s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [02m10s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [04m31s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [02m20s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [04m41s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [02m30s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [04m51s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [02m40s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [05m01s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [02m50s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [05m11s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [03m00s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [05m21s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [03m10s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [05m31s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [03m20s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [05m41s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [03m30s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [05m51s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [03m40s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [06m01s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [03m50s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [06m11s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [04m00s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [06m21s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [04m10s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [06m31s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [04m20s elapsed]
+aws_elastic_beanstalk_environment.api: Still creating... [06m41s elapsed]
+aws_elastic_beanstalk_environment.api: Creation complete after 6m41s [id=e-ueiumksy2t]
+aws_rds_cluster_instance.aurora: Still creating... [04m30s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [04m40s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [04m50s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [05m00s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [05m10s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [05m20s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [05m30s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [05m40s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [05m50s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [06m00s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [06m10s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [06m20s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [06m30s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [06m40s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [06m50s elapsed]
+aws_rds_cluster_instance.aurora: Still creating... [07m00s elapsed]
+aws_rds_cluster_instance.aurora: Creation complete after 7m9s [id=shipdrill-aurora-instance-1]
+
+Warning: Invalid Attribute Combination
+
+  with aws_s3_bucket_lifecycle_configuration.uploads,
+  on s3-cloudfront.tf line 466, in resource "aws_s3_bucket_lifecycle_configuration" "uploads":
+ 466:   rule {
+
+No attribute specified when one (and only one) of
+[rule[0].filter,rule[0].prefix] is required
+
+This will be an error in a future version of the provider
+
+Error: creating CloudWatch Logs Log Group (/aws/rds/cluster/shipdrill-aurora/postgresql): operation error CloudWatch Logs: CreateLogGroup, https response error StatusCode: 400, RequestID: a5a5ba81-23de-45d3-9173-748ef653d582, ResourceAlreadyExistsException: The specified log group already exists
+
+  with aws_cloudwatch_log_group.aurora,
+  on database.tf line 110, in resource "aws_cloudwatch_log_group" "aurora":
+ 110: resource "aws_cloudwatch_log_group" "aurora" {
+
