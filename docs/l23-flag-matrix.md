@@ -130,6 +130,57 @@ Three alternatives were considered and rejected:
   vacuously *because there would be no rows to contradict it*. A green matrix
   proving nothing is worse than an honest one member wider.
 
+### The excluded path is proven — by a different test, in a different job
+
+**Added 2026-08-16. This document has never cited it, and that omission was a real
+defect rather than a labelling one.** Everything above establishes *why*
+`cron.test.ts` cannot run flag-on. Read alone, it leaves a reader to assume the
+flag-on composition root — the real `client_credentials` exchange this file says
+needs "a running API server with a seeded first-party app" — is simply unproven.
+It is not. That exact path has its own test, and standing up the API inside a
+suite is precisely what that test does:
+
+**`api/src/platform/api/v1/agentCitizenFitness.test.ts`** — PF-709, D11's fitness
+test, the Epic 7 proof. It
+
+1. boots a **real server** with the real public router, the real bearer
+   middleware and the **real `PgAuditSink`** — not the in-memory sink, because
+   the audit rows are the deliverable;
+2. registers the agent's app exactly as `seedPlatformApps` does — first party,
+   confidential, the three read scopes;
+3. mints a token **over the wire** with `grant_type=client_credentials` — the
+   step `cron.test.ts` fails at, performed for real against a live server;
+4. runs the agent's detectors through `createCitizenReader` over a real
+   `ShipClient` pointed at that server;
+5. reads the trail back with L12's `listCalls({ clientId })` and asserts every
+   row.
+
+It carries a **non-zero guard** first (`:277`, `:289`), which its own header calls
+the most important assertion in the file: every other assertion has the form
+*"every row has property P"* and is trivially true of an empty set, so a run where
+the agent made no calls would otherwise be the perfect false positive for this
+epic. And it runs in the blocking **`test:`** job (`.gitlab-ci.yml:299`), not
+only on a developer's machine.
+
+So the accurate statement of this bucket is: *one file is excluded from the flag
+matrix because its five composition-root tests need a running server; the
+behaviour those tests would have exercised is proven against a running server
+elsewhere, in CI.* The exclusion narrows what **this matrix** proves. It does not
+leave the flag-on composition root unproven.
+
+**One caveat, carried with the citation rather than left for a reader to find.**
+`agentCitizenFitness.test.ts` is filed as **flaky in CI** — L99 **F201**. It
+failed job **66027** on *"a full flag-on detector run produces audit rows, and the
+count is NOT ZERO — expected 0 to be greater than 0"*, while the sibling
+`signals.length > 0` passed in the same run, so the detector ran and returned
+signals and the audit rows were not there to read. It passed job **66183** and
+passes locally. Undiagnosed; the candidates are the audit sink's write not being
+awaited before the read on a slower box, or the shared `postgres` service
+behaving unlike testcontainers. **A flaky non-vacuity guard is worth strictly
+less than a slow reliable one**, and anyone leaning on the paragraph above should
+lean on it at that weight. Fixing F201 is the single highest-value change to the
+evidence behind this bucket.
+
 ## Bucket 3 — genuinely conflicting. Forked and named.
 
 Exactly one, and it is a **"no"** rather than a technicality.
