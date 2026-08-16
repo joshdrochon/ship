@@ -628,8 +628,15 @@ ttfe-controls:
 # failing run stays in the series, the soak fails, and the diagnosis names the drill or
 # the platform. Re-running to clear it is the one move that makes this number a lie.
 ttfe-soak:
-  stage: verify
-  needs: ['build']
+  # `audit`, which is AFTER `perf`, and with no `needs:` -- both deliberate.
+  #
+  # This job took 45 minutes and, carrying `needs: ['build']`, was DAG-scheduled: on
+  # `main` it started the moment `build` finished and ran straight through whatever
+  # else was happening, including `regression-budget`. A 45-minute soak running
+  # beside a latency measurement is precisely the contention that made that
+  # measurement unusable. Dropping `needs` puts it back under stage ordering, and
+  # `audit` places it after the measurement rather than across it.
+  stage: audit
   # A soak is deliberate; a push to the same ref must not silently kill the evidence run
   # in flight. This is the one job in this file that opts out of the default.
   interruptible: false
@@ -657,9 +664,21 @@ ttfe-soak:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_BRANCH == "main"'
+    # On a branch this is opt-in, and `allow_failure: false` on an untriggered
+    # manual job does not mean "strict" -- it means BLOCKING. GitLab parks the
+    # whole pipeline at `manual` until a human clicks it, which is why every
+    # branch pipeline in this project's history terminates at `manual` and not
+    # at `success` (20381, 20382, 20383). Nothing failed in them; the soak was
+    # simply never run, and the pipeline waited forever for a run nobody asked
+    # for.
+    #
+    # `allow_failure: true` is GitLab's optional-manual job: still there, still
+    # one click, no longer holding the pipeline hostage. This does NOT touch the
+    # gate. On `main` the rule above matches first and the soak runs
+    # automatically with the default `allow_failure: false`, so PRD p.9's "0%
+    # flake over 20 CI runs" is enforced exactly where it was before.
     - when: manual
-      allow_failure: false
-  allow_failure: false
+      allow_failure: true
 
 # ── The nine integration commands (PF-720) ──────────────────────────────────────────
 #
