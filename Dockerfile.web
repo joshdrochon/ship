@@ -13,19 +13,47 @@ RUN npm install -g pnpm@10 && pnpm config set strict-ssl false
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY web/package.json ./web/
 COPY shared/package.json ./shared/
+# `@ship/web` imports `@ship/sdk` for real, and has since L22's developer portal:
+# p.10 requires the portal to consume the public API "like any other client", so
+# it goes through the SDK rather than reaching for internal routes. That makes
+# the SDK a build-time dependency of the frontend, not just a published artifact
+# — the production `Dockerfile` carries the same note against its `web` build.
+#
+# Without this COPY the install layer dies with
+#
+#   ERR_PNPM_WORKSPACE_PKG_NOT_FOUND  In web: "@ship/sdk@workspace:*" is in the
+#   dependencies but no package named "@ship/sdk" is present in the workspace
+#
+# which is the second half of the `./start.sh` failure on a clean checkout —
+# docker-compose.local.yml builds the `web` service from this file, so fixing
+# `Dockerfile.dev` alone moves the break from the `api` target to this one.
+#
+# Only `sdk` is added here, not the full manifest list the production Dockerfile
+# carries: `@ship/web`'s workspace closure is exactly `@ship/shared` +
+# `@ship/sdk`, and this install is filtered rather than `--frozen-lockfile`, so
+# unrelated manifests would buy nothing. (`Dockerfile.dev` does copy all of them,
+# because `@ship/api` genuinely depends on `@ship/agent` as well.)
+COPY sdk/package.json ./sdk/
 
 # Create minimal api package.json - needed for workspace but won't be installed
 RUN mkdir -p api && echo '{"name":"@ship/api","version":"0.0.0","private":true}' > api/package.json
 
-# Install only web and shared dependencies (skip api entirely)
-RUN pnpm install --filter @ship/web --filter @ship/shared --ignore-scripts
+# Install `@ship/web` AND its workspace dependency closure (shared + sdk). api is
+# still excluded entirely — the stub manifest above stands in for it.
+RUN pnpm install --filter @ship/web... --ignore-scripts
 
 # Copy source code
 COPY shared/ ./shared/
+COPY sdk/ ./sdk/
 COPY web/ ./web/
 
-# Build shared types first
-RUN pnpm build:shared
+# Build shared types and the SDK. Vite resolves `@ship/sdk` through the
+# node_modules symlink to `sdk/package.json`'s `exports`, which point at
+# `dist/` — there is no Vite alias to the sources. `dist/` is gitignored, so a
+# clean clone has none and the image must produce it; building it here also
+# means a stale `sdk/dist` on a developer's machine (which `.dockerignore` does
+# NOT filter out) is overwritten rather than shipped.
+RUN pnpm build:shared && pnpm --filter @ship/sdk build
 
 # Expose Vite dev server port
 EXPOSE 5173

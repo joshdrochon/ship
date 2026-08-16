@@ -137,8 +137,36 @@ async function seed() {
     // Note: These are independent - no coupling via person_document_id
     let membershipsCreated = 0;
     let personDocsCreated = 0;
+    // "All users" means all users of THIS workspace's cast, not literally every
+    // row in the table.
+    //
+    // The two platform accounts belong to the dedicated Grader Sandbox
+    // (migrations 041 and 076) and must not be swept into the primary workspace
+    // by a blanket SELECT:
+    //
+    //   platform-apps@ship.local — owns the first-party OAuth apps
+    //   grader@ship.local        — the human who approves a grader's device grant
+    //
+    // MEASURED, not hypothetical: before this filter, `grader@ship.local` came
+    // out of a fresh `./start.sh` holding memberships in BOTH 'Grader Sandbox'
+    // and 'Ship Workspace'. Login still landed in the sandbox (its
+    // `last_workspace_id`), so the device-grant flow looked correct — but the
+    // account could switch workspaces and read the primary tenant's documents,
+    // which is precisely the outcome PRD p.18 ("without exposing your tenant's
+    // data") and migration 076's isolation argument rule out. The grader
+    // credentials are published in the README, so this is a published login into
+    // the primary workspace.
+    //
+    // Filtered by the fixed UUIDs rather than by email: they are stable by
+    // construction (that is why 041 and 076 hard-code them) and a rename of the
+    // address cannot silently re-open the hole.
     const allUsersForMembership = await pool.query(
-      'SELECT id, email, name FROM users'
+      `SELECT id, email, name FROM users
+        WHERE id NOT IN ($1, $2)`,
+      [
+        '00000000-0000-4000-8000-0000000000b1', // platform-apps@ship.local (041)
+        '00000000-0000-4000-8000-0000000000b2', // grader@ship.local (076)
+      ]
     );
 
     for (const user of allUsersForMembership.rows) {
