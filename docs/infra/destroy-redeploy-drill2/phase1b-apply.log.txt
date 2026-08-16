@@ -1,0 +1,65 @@
+aws_cloudwatch_log_group.aurora: Creating...
+aws_elastic_beanstalk_application.api: Modifying... [id=shipdrill-api]
+aws_elastic_beanstalk_application.api: Modifications complete after 0s [id=shipdrill-api]
+aws_cloudwatch_log_group.aurora: Creation complete after 0s [id=/aws/rds/cluster/shipdrill-aurora/postgresql]
+aws_elastic_beanstalk_environment.api: Modifying... [id=e-ueiumksy2t]
+aws_wafv2_web_acl.cloudfront[0]: Modifying... [id=6f960bc6-c2a9-4c9d-8d89-d67d2a1a502a]
+aws_wafv2_web_acl.cloudfront[0]: Modifications complete after 3s [id=6f960bc6-c2a9-4c9d-8d89-d67d2a1a502a]
+aws_cloudfront_distribution.frontend: Modifying... [id=E1EGHBG3ETF7UK]
+aws_elastic_beanstalk_environment.api: Still modifying... [id=e-ueiumksy2t, 00m10s elapsed]
+aws_elastic_beanstalk_environment.api: Modifications complete after 12s [id=e-ueiumksy2t]
+aws_cloudfront_distribution.frontend: Still modifying... [id=E1EGHBG3ETF7UK, 00m10s elapsed]
+aws_cloudfront_distribution.frontend: Still modifying... [id=E1EGHBG3ETF7UK, 00m20s elapsed]
+aws_cloudfront_distribution.frontend: Still modifying... [id=E1EGHBG3ETF7UK, 00m30s elapsed]
+aws_cloudfront_distribution.frontend: Still modifying... [id=E1EGHBG3ETF7UK, 00m40s elapsed]
+aws_cloudfront_distribution.frontend: Modifications complete after 48s [id=E1EGHBG3ETF7UK]
+
+Apply complete! Resources: 1 added, 4 changed, 0 destroyed.
+
+Outputs:
+
+api_url = "Set after EB environment creation"
+aurora_cluster_endpoint = "shipdrill-aurora.cluster-canm4g4ki4wm.us-east-1.rds.amazonaws.com"
+aurora_cluster_reader_endpoint = "shipdrill-aurora.cluster-ro-canm4g4ki4wm.us-east-1.rds.amazonaws.com"
+budget_monthly_limit_usd = 50
+budget_name = "shipdrill-monthly-cost"
+cloudfront_distribution_id = "E1EGHBG3ETF7UK"
+cloudfront_domain_name = "dsfcbyaubexj7.cloudfront.net"
+cors_origin_ssm_parameter = "/shipdrill/dev/CORS_ORIGIN"
+database_name = "ship_main"
+database_url_ssm_parameter = "/shipdrill/dev/DATABASE_URL"
+demo_client_secret = <sensitive>
+eb_alb_security_group = "sg-0268cad23cefd6ea4"
+eb_application_name = "shipdrill-api"
+eb_config_summary = {
+  "alb_security_group" = "sg-0268cad23cefd6ea4"
+  "application_name" = "shipdrill-api"
+  "instance_profile" = "shipdrill-eb-instance-profile"
+  "instance_security_group" = "sg-0fcbb23a11dc566ca"
+  "private_subnets" = "subnet-0a07bc54020485d50,subnet-0c9c42c68f849a61c"
+  "public_subnets" = "subnet-0a58bda42717e366e,subnet-0e8512ea41c09eae9"
+  "service_role_arn" = "arn:aws:iam::379484935796:role/shipdrill-eb-service-role"
+  "vpc_id" = "vpc-06b9679e6912b1b02"
+}
+eb_environment_name = "shipdrill-api-prod"
+eb_environment_url = "awseb--AWSEB-bhtoVfgFWuTN-852918829.us-east-1.elb.amazonaws.com"
+eb_instance_profile = "shipdrill-eb-instance-profile"
+eb_instance_security_group = "sg-0fcbb23a11dc566ca"
+eb_private_subnets = "subnet-0a07bc54020485d50,subnet-0c9c42c68f849a61c"
+eb_public_subnets = "subnet-0a58bda42717e366e,subnet-0e8512ea41c09eae9"
+eb_service_role = "arn:aws:iam::379484935796:role/shipdrill-eb-service-role"
+eb_vpc_id = "vpc-06b9679e6912b1b02"
+frontend_url = "https://dsfcbyaubexj7.cloudfront.net"
+grader_client_secret = <sensitive>
+private_subnet_ids = [
+  "subnet-0a07bc54020485d50",
+  "subnet-0c9c42c68f849a61c",
+]
+public_subnet_ids = [
+  "subnet-0a58bda42717e366e",
+  "subnet-0e8512ea41c09eae9",
+]
+s3_bucket_name = "shipdrill-frontend-dev-379484935796"
+uploads_bucket_arn = "arn:aws:s3:::shipdrill-uploads-dev-379484935796"
+uploads_bucket_name = "shipdrill-uploads-dev-379484935796"
+vpc_id = "vpc-06b9679e6912b1b02"

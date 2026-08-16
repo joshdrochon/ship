@@ -1,0 +1,3940 @@
+random_password.agent_client_secret: Refreshing state... [id=none]
+random_password.session_secret: Refreshing state... [id=none]
+random_password.demo_client_secret: Refreshing state... [id=none]
+random_password.grader_client_secret: Refreshing state... [id=none]
+random_password.db_password: Refreshing state... [id=none]
+random_bytes.webhook_secret_key: Refreshing state...
+aws_ssm_parameter.session_secret: Refreshing state... [id=/shipdrill/dev/SESSION_SECRET]
+aws_ssm_parameter.grader_client_secret: Refreshing state... [id=/shipdrill/dev/GRADER_CLIENT_SECRET]
+aws_iam_role.vpc_flow_logs: Refreshing state... [id=shipdrill-vpc-flow-logs]
+aws_cloudfront_origin_request_policy.api: Refreshing state... [id=bd211e38-4b26-4936-8be3-f7b5101801d8]
+aws_iam_role.cloudfront_realtime_logs: Refreshing state... [id=shipdrill-dev-cf-realtime-logs]
+aws_cloudfront_function.spa_routing: Refreshing state... [id=shipdrill-spa-routing]
+data.aws_caller_identity.current: Reading...
+aws_iam_role.eb_service: Refreshing state... [id=shipdrill-eb-service-role]
+aws_ssm_parameter.webhook_secret_key: Refreshing state... [id=/shipdrill/dev/WEBHOOK_SECRET_KEY]
+aws_budgets_budget.monthly: Refreshing state... [id=379484935796:shipdrill-monthly-cost]
+data.aws_caller_identity.current: Read complete after 1s [id=379484935796]
+aws_cloudwatch_log_group.vpc_flow_logs: Refreshing state... [id=/aws/vpc/shipdrill]
+aws_vpc.main: Refreshing state... [id=vpc-06b9679e6912b1b02]
+aws_ssm_parameter.demo_client_secret: Refreshing state... [id=/shipdrill/dev/DEMO_CLIENT_SECRET]
+aws_iam_role.eb_instance: Refreshing state... [id=shipdrill-eb-instance-role]
+data.aws_availability_zones.available: Reading...
+aws_kinesis_stream.cloudfront_logs: Refreshing state... [id=arn:aws:kinesis:us-east-1:379484935796:stream/shipdrill-dev-cloudfront-logs]
+aws_ssm_parameter.db_password: Refreshing state... [id=/shipdrill/dev/DB_PASSWORD]
+aws_wafv2_ip_set.bad_ips[0]: Refreshing state... [id=29fa851f-9fa6-4e3c-8ab0-fef9fefa3e13]
+aws_elastic_beanstalk_application.api: Refreshing state... [id=shipdrill-api]
+aws_wafv2_regex_pattern_set.static_files[0]: Refreshing state... [id=0c42bd2f-4787-4e97-93a5-0f2af9f5004f]
+data.aws_availability_zones.available: Read complete after 1s [id=us-east-1]
+aws_cloudfront_origin_access_control.frontend: Refreshing state... [id=ETPDDABYMYBEM]
+aws_ssm_parameter.agent_client_secret: Refreshing state... [id=/shipdrill/dev/AGENT_CLIENT_SECRET]
+aws_rds_cluster_parameter_group.aurora: Refreshing state... [id=shipdrill-aurora-pg16]
+aws_cloudfront_cache_policy.api_no_cache: Refreshing state... [id=1f48ba91-506d-4a81-879e-d0b7244b820e]
+aws_s3_bucket.uploads: Refreshing state... [id=shipdrill-uploads-dev-379484935796]
+aws_s3_bucket.frontend: Refreshing state... [id=shipdrill-frontend-dev-379484935796]
+aws_iam_role_policy_attachment.eb_service_managed: Refreshing state... [id=shipdrill-eb-service-role-20260816034734462700000001]
+aws_iam_role_policy_attachment.eb_service_policy: Refreshing state... [id=shipdrill-eb-service-role-20260816034734467400000002]
+aws_iam_role_policy.vpc_flow_logs: Refreshing state... [id=shipdrill-vpc-flow-logs:shipdrill-vpc-flow-logs]
+aws_iam_role_policy.cloudfront_realtime_logs: Refreshing state... [id=shipdrill-dev-cf-realtime-logs:shipdrill-dev-cf-realtime-logs]
+aws_iam_instance_profile.eb: Refreshing state... [id=shipdrill-eb-instance-profile]
+aws_iam_role_policy.eb_secrets_manager_access: Refreshing state... [id=shipdrill-eb-instance-role:shipdrill-eb-secrets-manager-access]
+aws_iam_role_policy.eb_ssm_access: Refreshing state... [id=shipdrill-eb-instance-role:shipdrill-eb-ssm-access]
+aws_iam_role_policy_attachment.eb_web_tier: Refreshing state... [id=shipdrill-eb-instance-role-20260816034734625900000003]
+aws_iam_role_policy.eb_instance_ssm_agent: Refreshing state... [id=shipdrill-eb-instance-role:shipdrill-eb-ssm-agent-channel]
+aws_iam_role_policy.eb_bedrock_access: Refreshing state... [id=shipdrill-eb-instance-role:shipdrill-eb-bedrock-access]
+aws_cloudfront_realtime_log_config.main: Refreshing state... [id=arn:aws:cloudfront::379484935796:realtime-log-config/shipdrill-dev-realtime-logs]
+aws_security_group.alb: Refreshing state... [id=sg-0268cad23cefd6ea4]
+aws_flow_log.main: Refreshing state... [id=fl-0645bac09eca4bb24]
+aws_subnet.private[1]: Refreshing state... [id=subnet-0c9c42c68f849a61c]
+aws_subnet.private[0]: Refreshing state... [id=subnet-0a07bc54020485d50]
+aws_security_group.aurora: Refreshing state... [id=sg-0780602de0f477e0c]
+aws_internet_gateway.main: Refreshing state... [id=igw-0184850ee1777bcae]
+aws_subnet.public[0]: Refreshing state... [id=subnet-0a58bda42717e366e]
+aws_subnet.public[1]: Refreshing state... [id=subnet-0e8512ea41c09eae9]
+aws_security_group.eb_instance: Refreshing state... [id=sg-0fcbb23a11dc566ca]
+aws_db_subnet_group.aurora: Refreshing state... [id=shipdrill-aurora]
+aws_route_table.public: Refreshing state... [id=rtb-04975e65a8cde1624]
+aws_eip.nat[0]: Refreshing state... [id=eipalloc-0bd8a16adf0f4d977]
+aws_security_group_rule.aurora_ingress_from_eb: Refreshing state... [id=sgrule-2021312778]
+aws_elastic_beanstalk_environment.api: Refreshing state... [id=e-ueiumksy2t]
+aws_route_table_association.public[1]: Refreshing state... [id=rtbassoc-0019d0e7e5d504ffa]
+aws_route_table_association.public[0]: Refreshing state... [id=rtbassoc-08587637b8004ca9c]
+aws_rds_cluster.aurora: Refreshing state... [id=shipdrill-aurora]
+aws_nat_gateway.main[0]: Refreshing state... [id=nat-0dabca855e82301b3]
+aws_route_table.private: Refreshing state... [id=rtb-0d7e7e7b824cdfe36]
+aws_route_table_association.private[1]: Refreshing state... [id=rtbassoc-05c7b9cf319b0f26d]
+aws_route_table_association.private[0]: Refreshing state... [id=rtbassoc-0363fe32d55c72f23]
+aws_wafv2_web_acl.cloudfront[0]: Refreshing state... [id=6f960bc6-c2a9-4c9d-8d89-d67d2a1a502a]
+aws_s3_bucket_versioning.uploads: Refreshing state... [id=shipdrill-uploads-dev-379484935796]
+aws_s3_bucket_server_side_encryption_configuration.uploads: Refreshing state... [id=shipdrill-uploads-dev-379484935796]
+aws_s3_bucket_cors_configuration.uploads: Refreshing state... [id=shipdrill-uploads-dev-379484935796]
+aws_ssm_parameter.database_url: Refreshing state... [id=/shipdrill/dev/DATABASE_URL]
+aws_s3_bucket_lifecycle_configuration.uploads: Refreshing state... [id=shipdrill-uploads-dev-379484935796]
+aws_s3_bucket_server_side_encryption_configuration.frontend: Refreshing state... [id=shipdrill-frontend-dev-379484935796]
+aws_rds_cluster_instance.aurora: Refreshing state... [id=shipdrill-aurora-instance-1]
+aws_cloudwatch_log_group.aurora: Refreshing state... [id=/aws/rds/cluster/shipdrill-aurora/postgresql]
+aws_s3_bucket_versioning.frontend: Refreshing state... [id=shipdrill-frontend-dev-379484935796]
+aws_s3_bucket_public_access_block.frontend: Refreshing state... [id=shipdrill-frontend-dev-379484935796]
+aws_ssm_parameter.db_username: Refreshing state... [id=/shipdrill/dev/DB_USERNAME]
+aws_ssm_parameter.db_host: Refreshing state... [id=/shipdrill/dev/DB_HOST]
+aws_ssm_parameter.db_name: Refreshing state... [id=/shipdrill/dev/DB_NAME]
+aws_s3_bucket_public_access_block.uploads: Refreshing state... [id=shipdrill-uploads-dev-379484935796]
+aws_cloudfront_distribution.frontend: Refreshing state... [id=E1EGHBG3ETF7UK]
+aws_s3_bucket_policy.frontend: Refreshing state... [id=shipdrill-frontend-dev-379484935796]
+aws_ssm_parameter.cdn_domain: Refreshing state... [id=/shipdrill/dev/CDN_DOMAIN]
+aws_ssm_parameter.cors_origin: Refreshing state... [id=/shipdrill/dev/CORS_ORIGIN]
+aws_ssm_parameter.app_base_url: Refreshing state... [id=/shipdrill/dev/APP_BASE_URL]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  - destroy
+
+Terraform will perform the following actions:
+
+  # aws_budgets_budget.monthly will be destroyed
+  - resource "aws_budgets_budget" "monthly" {
+      - account_id        = "379484935796" -> null
+      - arn               = "arn:aws:budgets::379484935796:budget/shipdrill-monthly-cost" -> null
+      - budget_type       = "COST" -> null
+      - id                = "379484935796:shipdrill-monthly-cost" -> null
+      - limit_amount      = "50.0" -> null
+      - limit_unit        = "USD" -> null
+      - name              = "shipdrill-monthly-cost" -> null
+      - tags              = {} -> null
+      - tags_all          = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - time_period_end   = "2087-06-15_00:00" -> null
+      - time_period_start = "2026-08-01_00:00" -> null
+      - time_unit         = "MONTHLY" -> null
+        # (1 unchanged attribute hidden)
+
+      - cost_types {
+          - include_credit             = true -> null
+          - include_discount           = true -> null
+          - include_other_subscription = true -> null
+          - include_recurring          = true -> null
+          - include_refund             = true -> null
+          - include_subscription       = true -> null
+          - include_support            = true -> null
+          - include_tax                = true -> null
+          - include_upfront            = true -> null
+          - use_amortized              = false -> null
+          - use_blended                = false -> null
+        }
+
+      - notification {
+          - comparison_operator        = "GREATER_THAN" -> null
+          - notification_type          = "ACTUAL" -> null
+          - subscriber_email_addresses = [
+              - "joshdrochon@gmail.com",
+            ] -> null
+          - subscriber_sns_topic_arns  = [] -> null
+          - threshold                  = 100 -> null
+          - threshold_type             = "PERCENTAGE" -> null
+        }
+      - notification {
+          - comparison_operator        = "GREATER_THAN" -> null
+          - notification_type          = "ACTUAL" -> null
+          - subscriber_email_addresses = [
+              - "joshdrochon@gmail.com",
+            ] -> null
+          - subscriber_sns_topic_arns  = [] -> null
+          - threshold                  = 50 -> null
+          - threshold_type             = "PERCENTAGE" -> null
+        }
+      - notification {
+          - comparison_operator        = "GREATER_THAN" -> null
+          - notification_type          = "ACTUAL" -> null
+          - subscriber_email_addresses = [
+              - "joshdrochon@gmail.com",
+            ] -> null
+          - subscriber_sns_topic_arns  = [] -> null
+          - threshold                  = 80 -> null
+          - threshold_type             = "PERCENTAGE" -> null
+        }
+      - notification {
+          - comparison_operator        = "GREATER_THAN" -> null
+          - notification_type          = "FORECASTED" -> null
+          - subscriber_email_addresses = [
+              - "joshdrochon@gmail.com",
+            ] -> null
+          - subscriber_sns_topic_arns  = [] -> null
+          - threshold                  = 100 -> null
+          - threshold_type             = "PERCENTAGE" -> null
+        }
+    }
+
+  # aws_cloudfront_cache_policy.api_no_cache will be destroyed
+  - resource "aws_cloudfront_cache_policy" "api_no_cache" {
+      - arn         = "arn:aws:cloudfront::379484935796:cache-policy/1f48ba91-506d-4a81-879e-d0b7244b820e" -> null
+      - comment     = "Disable caching for API routes" -> null
+      - default_ttl = 0 -> null
+      - etag        = "E23ZP02F085DFQ" -> null
+      - id          = "1f48ba91-506d-4a81-879e-d0b7244b820e" -> null
+      - max_ttl     = 0 -> null
+      - min_ttl     = 0 -> null
+      - name        = "shipdrill-api-no-cache" -> null
+
+      - parameters_in_cache_key_and_forwarded_to_origin {
+          - enable_accept_encoding_brotli = false -> null
+          - enable_accept_encoding_gzip   = false -> null
+
+          - cookies_config {
+              - cookie_behavior = "none" -> null
+            }
+
+          - headers_config {
+              - header_behavior = "none" -> null
+            }
+
+          - query_strings_config {
+              - query_string_behavior = "none" -> null
+            }
+        }
+    }
+
+  # aws_cloudfront_distribution.frontend will be destroyed
+  - resource "aws_cloudfront_distribution" "frontend" {
+      - aliases                         = [] -> null
+      - arn                             = "arn:aws:cloudfront::379484935796:distribution/E1EGHBG3ETF7UK" -> null
+      - caller_reference                = "terraform-20260816034806373200000007" -> null
+      - comment                         = "Ship Frontend - React static site with API routing" -> null
+      - default_root_object             = "index.html" -> null
+      - domain_name                     = "dsfcbyaubexj7.cloudfront.net" -> null
+      - enabled                         = true -> null
+      - etag                            = "ETVPDKIKX0DER" -> null
+      - hosted_zone_id                  = "Z2FDTNDATAQYW2" -> null
+      - http_version                    = "http2" -> null
+      - id                              = "E1EGHBG3ETF7UK" -> null
+      - in_progress_validation_batches  = 0 -> null
+      - is_ipv6_enabled                 = true -> null
+      - last_modified_time              = "2026-08-16 03:59:03.567 +0000 UTC" -> null
+      - price_class                     = "PriceClass_100" -> null
+      - retain_on_delete                = false -> null
+      - staging                         = false -> null
+      - status                          = "Deployed" -> null
+      - tags                            = {
+          - "Name" = "shipdrill-frontend-cdn"
+        } -> null
+      - tags_all                        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-frontend-cdn"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - trusted_key_groups              = [
+          - {
+              - enabled = false
+              - items   = []
+            },
+        ] -> null
+      - trusted_signers                 = [
+          - {
+              - enabled = false
+              - items   = []
+            },
+        ] -> null
+      - wait_for_deployment             = true -> null
+      - web_acl_id                      = "arn:aws:wafv2:us-east-1:379484935796:global/webacl/shipdrill-dev-cloudfront-waf/6f960bc6-c2a9-4c9d-8d89-d67d2a1a502a" -> null
+        # (1 unchanged attribute hidden)
+
+      - default_cache_behavior {
+          - allowed_methods            = [
+              - "GET",
+              - "HEAD",
+              - "OPTIONS",
+            ] -> null
+          - cached_methods             = [
+              - "GET",
+              - "HEAD",
+            ] -> null
+          - compress                   = true -> null
+          - default_ttl                = 3600 -> null
+          - max_ttl                    = 86400 -> null
+          - min_ttl                    = 0 -> null
+          - realtime_log_config_arn    = "arn:aws:cloudfront::379484935796:realtime-log-config/shipdrill-dev-realtime-logs" -> null
+          - smooth_streaming           = false -> null
+          - target_origin_id           = "S3-shipdrill-frontend-dev-379484935796" -> null
+          - trusted_key_groups         = [] -> null
+          - trusted_signers            = [] -> null
+          - viewer_protocol_policy     = "redirect-to-https" -> null
+            # (4 unchanged attributes hidden)
+
+          - forwarded_values {
+              - headers                 = [] -> null
+              - query_string            = false -> null
+              - query_string_cache_keys = [] -> null
+
+              - cookies {
+                  - forward           = "none" -> null
+                  - whitelisted_names = [] -> null
+                }
+            }
+
+          - function_association {
+              - event_type   = "viewer-request" -> null
+              - function_arn = "arn:aws:cloudfront::379484935796:function/shipdrill-spa-routing" -> null
+            }
+
+          - grpc_config {
+              - enabled = false -> null
+            }
+        }
+
+      - origin {
+          - connection_attempts      = 3 -> null
+          - connection_timeout       = 10 -> null
+          - domain_name              = "shipdrill-frontend-dev-379484935796.s3.us-east-1.amazonaws.com" -> null
+          - origin_access_control_id = "ETPDDABYMYBEM" -> null
+          - origin_id                = "S3-shipdrill-frontend-dev-379484935796" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - restrictions {
+          - geo_restriction {
+              - locations        = [] -> null
+              - restriction_type = "none" -> null
+            }
+        }
+
+      - viewer_certificate {
+          - cloudfront_default_certificate = true -> null
+          - minimum_protocol_version       = "TLSv1" -> null
+            # (3 unchanged attributes hidden)
+        }
+    }
+
+  # aws_cloudfront_function.spa_routing will be destroyed
+  - resource "aws_cloudfront_function" "spa_routing" {
+      - arn                          = "arn:aws:cloudfront::379484935796:function/shipdrill-spa-routing" -> null
+      - code                         = <<-EOT
+            // CloudFront Function for SPA routing
+            // Rewrites requests for SPA routes to /index.html while passing through static assets
+            function handler(event) {
+                var request = event.request;
+                var uri = request.uri;
+            
+                // Check if the URI has a file extension (static asset)
+                var hasExtension = /\.(html|css|js|json|ico|png|jpg|jpeg|gif|svg|webp|woff|woff2|ttf|eot|map|txt|xml|webmanifest)$/i.test(uri);
+            
+                // If no file extension, rewrite to index.html for SPA routing
+                if (!hasExtension && uri !== '/') {
+                    request.uri = '/index.html';
+                }
+            
+                return request;
+            }
+        EOT -> null
+      - comment                      = "SPA routing - rewrites non-file requests to /index.html" -> null
+      - etag                         = "ETVPDKIKX0DER" -> null
+      - id                           = "shipdrill-spa-routing" -> null
+      - key_value_store_associations = [] -> null
+      - live_stage_etag              = "ETVPDKIKX0DER" -> null
+      - name                         = "shipdrill-spa-routing" -> null
+      - publish                      = true -> null
+      - runtime                      = "cloudfront-js-2.0" -> null
+      - status                       = "DEPLOYED" -> null
+    }
+
+  # aws_cloudfront_origin_access_control.frontend will be destroyed
+  - resource "aws_cloudfront_origin_access_control" "frontend" {
+      - arn                               = "arn:aws:cloudfront::379484935796:origin-access-control/ETPDDABYMYBEM" -> null
+      - description                       = "OAC for Ship frontend S3 bucket" -> null
+      - etag                              = "ETVPDKIKX0DER" -> null
+      - id                                = "ETPDDABYMYBEM" -> null
+      - name                              = "shipdrill-frontend-oac" -> null
+      - origin_access_control_origin_type = "s3" -> null
+      - signing_behavior                  = "always" -> null
+      - signing_protocol                  = "sigv4" -> null
+    }
+
+  # aws_cloudfront_origin_request_policy.api will be destroyed
+  - resource "aws_cloudfront_origin_request_policy" "api" {
+      - arn     = "arn:aws:cloudfront::379484935796:origin-request-policy/bd211e38-4b26-4936-8be3-f7b5101801d8" -> null
+      - comment = "Forward all viewer data to API origin" -> null
+      - etag    = "E23ZP02F085DFQ" -> null
+      - id      = "bd211e38-4b26-4936-8be3-f7b5101801d8" -> null
+      - name    = "shipdrill-api-origin-request" -> null
+
+      - cookies_config {
+          - cookie_behavior = "all" -> null
+        }
+
+      - headers_config {
+          - header_behavior = "allViewerAndWhitelistCloudFront" -> null
+
+          - headers {
+              - items = [
+                  - "CloudFront-Forwarded-Proto",
+                ] -> null
+            }
+        }
+
+      - query_strings_config {
+          - query_string_behavior = "all" -> null
+        }
+    }
+
+  # aws_cloudfront_realtime_log_config.main will be destroyed
+  - resource "aws_cloudfront_realtime_log_config" "main" {
+      - arn           = "arn:aws:cloudfront::379484935796:realtime-log-config/shipdrill-dev-realtime-logs" -> null
+      - fields        = [
+          - "asn",
+          - "c-country",
+          - "c-ip",
+          - "c-ip-version",
+          - "c-port",
+          - "cache-behavior-path-pattern",
+          - "cs-accept",
+          - "cs-accept-encoding",
+          - "cs-bytes",
+          - "cs-cookie",
+          - "cs-header-names",
+          - "cs-headers",
+          - "cs-headers-count",
+          - "cs-host",
+          - "cs-method",
+          - "cs-protocol",
+          - "cs-protocol-version",
+          - "cs-referer",
+          - "cs-uri-query",
+          - "cs-uri-stem",
+          - "cs-user-agent",
+          - "fle-encrypted-fields",
+          - "fle-status",
+          - "origin-fbl",
+          - "origin-lbl",
+          - "primary-distribution-dns-name",
+          - "primary-distribution-id",
+          - "s-ip",
+          - "sc-bytes",
+          - "sc-content-len",
+          - "sc-content-type",
+          - "sc-range-end",
+          - "sc-range-start",
+          - "sc-status",
+          - "ssl-cipher",
+          - "ssl-protocol",
+          - "time-taken",
+          - "time-to-first-byte",
+          - "timestamp",
+          - "x-edge-detailed-result-type",
+          - "x-edge-location",
+          - "x-edge-request-id",
+          - "x-edge-response-result-type",
+          - "x-edge-result-type",
+          - "x-forwarded-for",
+          - "x-host-header",
+        ] -> null
+      - id            = "arn:aws:cloudfront::379484935796:realtime-log-config/shipdrill-dev-realtime-logs" -> null
+      - name          = "shipdrill-dev-realtime-logs" -> null
+      - sampling_rate = 100 -> null
+
+      - endpoint {
+          - stream_type = "Kinesis" -> null
+
+          - kinesis_stream_config {
+              - role_arn   = "arn:aws:iam::379484935796:role/shipdrill-dev-cf-realtime-logs" -> null
+              - stream_arn = "arn:aws:kinesis:us-east-1:379484935796:stream/shipdrill-dev-cloudfront-logs" -> null
+            }
+        }
+    }
+
+  # aws_cloudwatch_log_group.aurora will be destroyed
+  - resource "aws_cloudwatch_log_group" "aurora" {
+      - arn               = "arn:aws:logs:us-east-1:379484935796:log-group:/aws/rds/cluster/shipdrill-aurora/postgresql" -> null
+      - id                = "/aws/rds/cluster/shipdrill-aurora/postgresql" -> null
+      - log_group_class   = "STANDARD" -> null
+      - name              = "/aws/rds/cluster/shipdrill-aurora/postgresql" -> null
+      - retention_in_days = 30 -> null
+      - skip_destroy      = false -> null
+      - tags              = {
+          - "Name" = "shipdrill-aurora-logs"
+        } -> null
+      - tags_all          = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-aurora-logs"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+        # (2 unchanged attributes hidden)
+    }
+
+  # aws_cloudwatch_log_group.vpc_flow_logs will be destroyed
+  - resource "aws_cloudwatch_log_group" "vpc_flow_logs" {
+      - arn               = "arn:aws:logs:us-east-1:379484935796:log-group:/aws/vpc/shipdrill" -> null
+      - id                = "/aws/vpc/shipdrill" -> null
+      - log_group_class   = "STANDARD" -> null
+      - name              = "/aws/vpc/shipdrill" -> null
+      - retention_in_days = 30 -> null
+      - skip_destroy      = false -> null
+      - tags              = {
+          - "Name" = "shipdrill-vpc-flow-logs"
+        } -> null
+      - tags_all          = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-vpc-flow-logs"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+        # (2 unchanged attributes hidden)
+    }
+
+  # aws_db_subnet_group.aurora will be destroyed
+  - resource "aws_db_subnet_group" "aurora" {
+      - arn                     = "arn:aws:rds:us-east-1:379484935796:subgrp:shipdrill-aurora" -> null
+      - description             = "Managed by Terraform" -> null
+      - id                      = "shipdrill-aurora" -> null
+      - name                    = "shipdrill-aurora" -> null
+      - subnet_ids              = [
+          - "subnet-0a07bc54020485d50",
+          - "subnet-0c9c42c68f849a61c",
+        ] -> null
+      - supported_network_types = [
+          - "IPV4",
+        ] -> null
+      - tags                    = {
+          - "Name" = "shipdrill-aurora-subnet-group"
+        } -> null
+      - tags_all                = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-aurora-subnet-group"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - vpc_id                  = "vpc-06b9679e6912b1b02" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_eip.nat[0] will be destroyed
+  - resource "aws_eip" "nat" {
+      - allocation_id            = "eipalloc-0bd8a16adf0f4d977" -> null
+      - arn                      = "arn:aws:ec2:us-east-1:379484935796:elastic-ip/eipalloc-0bd8a16adf0f4d977" -> null
+      - association_id           = "eipassoc-06bbd9bb8ae153b47" -> null
+      - domain                   = "vpc" -> null
+      - id                       = "eipalloc-0bd8a16adf0f4d977" -> null
+      - network_border_group     = "us-east-1" -> null
+      - network_interface        = "eni-04aa1bd5d25a7aa24" -> null
+      - private_dns              = "ip-10-0-0-173.ec2.internal" -> null
+      - private_ip               = "10.0.0.173" -> null
+      - public_dns               = "ec2-100-27-99-129.compute-1.amazonaws.com" -> null
+      - public_ip                = "100.27.99.129" -> null
+      - public_ipv4_pool         = "amazon" -> null
+      - tags                     = {
+          - "Name" = "shipdrill-nat-eip"
+        } -> null
+      - tags_all                 = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-nat-eip"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - vpc                      = true -> null
+        # (5 unchanged attributes hidden)
+    }
+
+  # aws_elastic_beanstalk_application.api will be destroyed
+  - resource "aws_elastic_beanstalk_application" "api" {
+      - arn         = "arn:aws:elasticbeanstalk:us-east-1:379484935796:application/shipdrill-api" -> null
+      - description = "Ship API - Express + WebSocket collaboration server" -> null
+      - id          = "shipdrill-api" -> null
+      - name        = "shipdrill-api" -> null
+      - tags        = {} -> null
+      - tags_all    = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+    }
+
+  # aws_elastic_beanstalk_environment.api will be destroyed
+  - resource "aws_elastic_beanstalk_environment" "api" {
+      - all_settings           = [
+          - {
+              - name      = "AWS_REGION"
+              - namespace = "aws:elasticbeanstalk:application:environment"
+              - value     = "us-east-1"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "AccessLogsS3Bucket"
+              - namespace = "aws:elbv2:loadbalancer"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "AccessLogsS3Enabled"
+              - namespace = "aws:elbv2:loadbalancer"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "AccessLogsS3Prefix"
+              - namespace = "aws:elbv2:loadbalancer"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "AppSource"
+              - namespace = "aws:cloudformation:template:parameter"
+              - value     = "https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_docker_amazon_linux_2023_1.0.3076.0_20260808211332/sampleapp/EBSampleApp-Docker.zip"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Application Healthcheck URL"
+              - namespace = "aws:elasticbeanstalk:application"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "AssociatePublicIpAddress"
+              - namespace = "aws:ec2:vpc"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Automatically Terminate Unhealthy Instances"
+              - namespace = "aws:elasticbeanstalk:monitoring"
+              - value     = "true"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Availability Zones"
+              - namespace = "aws:autoscaling:asg"
+              - value     = "Any"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "BatchSize"
+              - namespace = "aws:elasticbeanstalk:command"
+              - value     = "1"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "BatchSizeType"
+              - namespace = "aws:elasticbeanstalk:command"
+              - value     = "Fixed"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "BlockDeviceMappings"
+              - namespace = "aws:autoscaling:launchconfiguration"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "BreachDuration"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "5"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "ConfigDocument"
+              - namespace = "aws:elasticbeanstalk:healthreporting:system"
+              - value     = jsonencode(
+                    {
+                      - CloudWatchMetrics = {
+                          - Environment = {
+                              - ApplicationLatencyP10     = null
+                              - ApplicationLatencyP50     = null
+                              - ApplicationLatencyP75     = null
+                              - ApplicationLatencyP85     = null
+                              - ApplicationLatencyP90     = null
+                              - ApplicationLatencyP95     = null
+                              - ApplicationLatencyP99     = null
+                              - "ApplicationLatencyP99.9" = null
+                              - ApplicationRequests2xx    = null
+                              - ApplicationRequests3xx    = null
+                              - ApplicationRequests4xx    = null
+                              - ApplicationRequests5xx    = null
+                              - ApplicationRequestsTotal  = null
+                              - InstancesDegraded         = null
+                              - InstancesInfo             = null
+                              - InstancesNoData           = null
+                              - InstancesOk               = null
+                              - InstancesPending          = null
+                              - InstancesSevere           = null
+                              - InstancesUnknown          = null
+                              - InstancesWarning          = null
+                            }
+                          - Instance    = {
+                              - ApplicationLatencyP10     = null
+                              - ApplicationLatencyP50     = null
+                              - ApplicationLatencyP75     = null
+                              - ApplicationLatencyP85     = null
+                              - ApplicationLatencyP90     = null
+                              - ApplicationLatencyP95     = null
+                              - ApplicationLatencyP99     = null
+                              - "ApplicationLatencyP99.9" = null
+                              - ApplicationRequests2xx    = null
+                              - ApplicationRequests3xx    = null
+                              - ApplicationRequests4xx    = null
+                              - ApplicationRequests5xx    = null
+                              - ApplicationRequestsTotal  = null
+                              - CPUIdle                   = null
+                              - CPUIowait                 = null
+                              - CPUIrq                    = null
+                              - CPUNice                   = null
+                              - CPUSoftirq                = null
+                              - CPUSystem                 = null
+                              - CPUUser                   = null
+                              - InstanceHealth            = null
+                              - LoadAverage1min           = null
+                              - LoadAverage5min           = null
+                              - RootFilesystemUtil        = null
+                            }
+                        }
+                      - Version           = 1
+                    }
+                )
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Cooldown"
+              - namespace = "aws:autoscaling:asg"
+              - value     = "360"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Custom Availability Zones"
+              - namespace = "aws:autoscaling:asg"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "DefaultProcess"
+              - namespace = "aws:elbv2:listener:default"
+              - value     = "default"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "DefaultSSHPort"
+              - namespace = "aws:elasticbeanstalk:control"
+              - value     = "22"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "DeleteOnTerminate"
+              - namespace = "aws:elasticbeanstalk:cloudwatch:logs"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "DeleteOnTerminate"
+              - namespace = "aws:elasticbeanstalk:cloudwatch:logs:health"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "DeploymentPolicy"
+              - namespace = "aws:elasticbeanstalk:command"
+              - value     = "RollingWithAdditionalBatch"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "DeregistrationDelay"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "20"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "DisableDefaultEC2SecurityGroup"
+              - namespace = "aws:autoscaling:launchconfiguration"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "DisableIMDSv1"
+              - namespace = "aws:autoscaling:launchconfiguration"
+              - value     = "true"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "EC2KeyName"
+              - namespace = "aws:autoscaling:launchconfiguration"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "ELBScheme"
+              - namespace = "aws:ec2:vpc"
+              - value     = "public"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "ELBSubnets"
+              - namespace = "aws:ec2:vpc"
+              - value     = "subnet-0a58bda42717e366e,subnet-0e8512ea41c09eae9"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "ENVIRONMENT"
+              - namespace = "aws:elasticbeanstalk:application:environment"
+              - value     = "dev"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "EnableCapacityRebalancing"
+              - namespace = "aws:autoscaling:asg"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "EnableSpot"
+              - namespace = "aws:ec2:instances"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "EnhancedHealthAuthEnabled"
+              - namespace = "aws:elasticbeanstalk:healthreporting:system"
+              - value     = "true"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "EnvironmentType"
+              - namespace = "aws:elasticbeanstalk:environment"
+              - value     = "LoadBalanced"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "EnvironmentVariables"
+              - namespace = "aws:cloudformation:template:parameter"
+              - value     = "AWS_REGION=us-east-1,PORT=80,ENVIRONMENT=dev,NODE_ENV=production"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "EvaluationPeriods"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "1"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "EvaluationTime"
+              - namespace = "aws:elasticbeanstalk:trafficsplitting"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "ExternalExtensionsS3Bucket"
+              - namespace = "aws:elasticbeanstalk:environment"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "ExternalExtensionsS3Key"
+              - namespace = "aws:elasticbeanstalk:environment"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "HasCoupledDatabase"
+              - namespace = "aws:rds:dbinstance"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "HealthCheckInterval"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "15"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "HealthCheckPath"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "/health"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "HealthCheckSuccessThreshold"
+              - namespace = "aws:elasticbeanstalk:healthreporting:system"
+              - value     = "Ok"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "HealthCheckTimeout"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "5"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "HealthStreamingEnabled"
+              - namespace = "aws:elasticbeanstalk:cloudwatch:logs:health"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "HealthyThresholdCount"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "3"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "HooksPkgUrl"
+              - namespace = "aws:cloudformation:template:parameter"
+              - value     = "https://elasticbeanstalk-platform-assets-us-east-1.s3.amazonaws.com/stalks/eb_docker_amazon_linux_2023_1.0.3076.0_20260808211332/lib/hooks.tar.gz"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "IamInstanceProfile"
+              - namespace = "aws:autoscaling:launchconfiguration"
+              - value     = "shipdrill-eb-instance-profile"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "IdleTimeout"
+              - namespace = "aws:elbv2:loadbalancer"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "IgnoreHealthCheck"
+              - namespace = "aws:elasticbeanstalk:command"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "ImageId"
+              - namespace = "aws:autoscaling:launchconfiguration"
+              - value     = "ami-0bdb2306ca428a182"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "InstancePort"
+              - namespace = "aws:cloudformation:template:parameter"
+              - value     = "80"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "InstanceRefreshEnabled"
+              - namespace = "aws:elasticbeanstalk:managedactions:platformupdate"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "InstanceType"
+              - namespace = "aws:autoscaling:launchconfiguration"
+              - value     = "t3.small"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "InstanceTypeFamily"
+              - namespace = "aws:cloudformation:template:parameter"
+              - value     = "t3"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "InstanceTypes"
+              - namespace = "aws:ec2:instances"
+              - value     = "t3.small"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "IpAddressType"
+              - namespace = "aws:elbv2:loadbalancer"
+              - value     = "ipv4"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "LaunchTemplateTagPropagationEnabled"
+              - namespace = "aws:autoscaling:launchconfiguration"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "LaunchTimeout"
+              - namespace = "aws:elasticbeanstalk:control"
+              - value     = "0"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "LaunchType"
+              - namespace = "aws:elasticbeanstalk:control"
+              - value     = "Migration"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "ListenerEnabled"
+              - namespace = "aws:elbv2:listener:default"
+              - value     = "true"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "LoadBalancerIsShared"
+              - namespace = "aws:elasticbeanstalk:environment"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "LoadBalancerType"
+              - namespace = "aws:elasticbeanstalk:environment"
+              - value     = "application"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "LogPublicationControl"
+              - namespace = "aws:elasticbeanstalk:hostmanager"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "LowerBreachScaleIncrement"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "-1"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "LowerThreshold"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "2000000"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "ManagedActionsEnabled"
+              - namespace = "aws:elasticbeanstalk:managedactions"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "MatcherHTTPCode"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "MaxBatchSize"
+              - namespace = "aws:autoscaling:updatepolicy:rollingupdate"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "MaxSize"
+              - namespace = "aws:autoscaling:asg"
+              - value     = "4"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "MeasureName"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "NetworkOut"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "MinInstancesInService"
+              - namespace = "aws:autoscaling:updatepolicy:rollingupdate"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "MinSize"
+              - namespace = "aws:autoscaling:asg"
+              - value     = "1"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "MonitoringInterval"
+              - namespace = "aws:autoscaling:launchconfiguration"
+              - value     = "5 minute"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "NODE_ENV"
+              - namespace = "aws:elasticbeanstalk:application:environment"
+              - value     = "production"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "NewVersionPercent"
+              - namespace = "aws:elasticbeanstalk:trafficsplitting"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "Notification Endpoint"
+              - namespace = "aws:elasticbeanstalk:sns:topics"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "Notification Protocol"
+              - namespace = "aws:elasticbeanstalk:sns:topics"
+              - value     = "email"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Notification Topic ARN"
+              - namespace = "aws:elasticbeanstalk:sns:topics"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "Notification Topic Name"
+              - namespace = "aws:elasticbeanstalk:sns:topics"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "PORT"
+              - namespace = "aws:elasticbeanstalk:application:environment"
+              - value     = "80"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "PauseTime"
+              - namespace = "aws:autoscaling:updatepolicy:rollingupdate"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "Period"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "5"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Port"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "80"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "PreferredStartTime"
+              - namespace = "aws:elasticbeanstalk:managedactions"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "Protocol"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "HTTP"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Protocol"
+              - namespace = "aws:elbv2:listener:default"
+              - value     = "HTTP"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "ProxyServer"
+              - namespace = "aws:elasticbeanstalk:environment:proxy"
+              - value     = "nginx"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "RetentionInDays"
+              - namespace = "aws:elasticbeanstalk:cloudwatch:logs"
+              - value     = "7"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "RetentionInDays"
+              - namespace = "aws:elasticbeanstalk:cloudwatch:logs:health"
+              - value     = "7"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "RollbackLaunchOnFailure"
+              - namespace = "aws:elasticbeanstalk:control"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "RollingUpdateEnabled"
+              - namespace = "aws:autoscaling:updatepolicy:rollingupdate"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "RollingUpdateType"
+              - namespace = "aws:autoscaling:updatepolicy:rollingupdate"
+              - value     = "Time"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "RootVolumeIOPS"
+              - namespace = "aws:autoscaling:launchconfiguration"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "RootVolumeSize"
+              - namespace = "aws:autoscaling:launchconfiguration"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "RootVolumeThroughput"
+              - namespace = "aws:autoscaling:launchconfiguration"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "RootVolumeType"
+              - namespace = "aws:autoscaling:launchconfiguration"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "Rules"
+              - namespace = "aws:elbv2:listener:default"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "SSHSourceRestriction"
+              - namespace = "aws:autoscaling:launchconfiguration"
+              - value     = "tcp,22,22,0.0.0.0/0"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "SSLCertificateArns"
+              - namespace = "aws:elbv2:listener:default"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "SSLPolicy"
+              - namespace = "aws:elbv2:listener:default"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "SecurityGroups"
+              - namespace = "aws:autoscaling:launchconfiguration"
+              - value     = "sg-0fcbb23a11dc566ca"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "SecurityGroups"
+              - namespace = "aws:elbv2:loadbalancer"
+              - value     = "sg-0268cad23cefd6ea4"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "ServiceRole"
+              - namespace = "aws:elasticbeanstalk:environment"
+              - value     = "arn:aws:iam::379484935796:role/shipdrill-eb-service-role"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "ServiceRoleForManagedUpdates"
+              - namespace = "aws:elasticbeanstalk:managedactions"
+              - value     = "arn:aws:iam::379484935796:role/shipdrill-eb-service-role"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "SpotAllocationStrategy"
+              - namespace = "aws:ec2:instances"
+              - value     = "capacity-optimized"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "SpotFleetOnDemandAboveBasePercentage"
+              - namespace = "aws:ec2:instances"
+              - value     = "70"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "SpotFleetOnDemandBase"
+              - namespace = "aws:ec2:instances"
+              - value     = "0"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "SpotMaxPrice"
+              - namespace = "aws:ec2:instances"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "Statistic"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "Average"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "StickinessEnabled"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "StickinessLBCookieDuration"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "86400"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "StickinessType"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "lb_cookie"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "StreamLogs"
+              - namespace = "aws:elasticbeanstalk:cloudwatch:logs"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Subnets"
+              - namespace = "aws:ec2:vpc"
+              - value     = "subnet-0a07bc54020485d50,subnet-0c9c42c68f849a61c"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "SupportedArchitectures"
+              - namespace = "aws:ec2:instances"
+              - value     = "x86_64"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "SystemType"
+              - namespace = "aws:elasticbeanstalk:healthreporting:system"
+              - value     = "enhanced"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Timeout"
+              - namespace = "aws:autoscaling:updatepolicy:rollingupdate"
+              - value     = "PT30M"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Timeout"
+              - namespace = "aws:elasticbeanstalk:command"
+              - value     = "1800"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "UnhealthyThresholdCount"
+              - namespace = "aws:elasticbeanstalk:environment:process:default"
+              - value     = "5"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "Unit"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "Bytes"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "UpdateLevel"
+              - namespace = "aws:elasticbeanstalk:managedactions:platformupdate"
+                # (2 unchanged attributes hidden)
+            },
+          - {
+              - name      = "UpperBreachScaleIncrement"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "1"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "UpperThreshold"
+              - namespace = "aws:autoscaling:trigger"
+              - value     = "6000000"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "VPCId"
+              - namespace = "aws:ec2:vpc"
+              - value     = "vpc-06b9679e6912b1b02"
+                # (1 unchanged attribute hidden)
+            },
+          - {
+              - name      = "XRayEnabled"
+              - namespace = "aws:elasticbeanstalk:xray"
+              - value     = "false"
+                # (1 unchanged attribute hidden)
+            },
+        ] -> null
+      - application            = "shipdrill-api" -> null
+      - arn                    = "arn:aws:elasticbeanstalk:us-east-1:379484935796:environment/shipdrill-api/shipdrill-api-prod" -> null
+      - autoscaling_groups     = [
+          - "awseb-e-ueiumksy2t-stack-AWSEBAutoScalingGroup-8lsIKrqWXQjF",
+        ] -> null
+      - cname                  = "shipdrill-api-prod.eba-6szytv2k.us-east-1.elasticbeanstalk.com" -> null
+      - endpoint_url           = "awseb--AWSEB-bhtoVfgFWuTN-852918829.us-east-1.elb.amazonaws.com" -> null
+      - id                     = "e-ueiumksy2t" -> null
+      - instances              = [
+          - "i-0c129748ac1d02f98",
+        ] -> null
+      - launch_configurations  = [] -> null
+      - load_balancers         = [
+          - "arn:aws:elasticloadbalancing:us-east-1:379484935796:loadbalancer/app/awseb--AWSEB-bhtoVfgFWuTN/8c17041786c15d93",
+        ] -> null
+      - name                   = "shipdrill-api-prod" -> null
+      - platform_arn           = "arn:aws:elasticbeanstalk:us-east-1::platform/Docker running on 64bit Amazon Linux 2023/4.13.6" -> null
+      - queues                 = [] -> null
+      - solution_stack_name    = "64bit Amazon Linux 2023 v4.13.6 running Docker" -> null
+      - tags                   = {} -> null
+      - tags_all               = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier                   = "WebServer" -> null
+      - triggers               = [] -> null
+      - wait_for_ready_timeout = "20m" -> null
+        # (3 unchanged attributes hidden)
+
+      - setting {
+          - name      = "AWS_REGION" -> null
+          - namespace = "aws:elasticbeanstalk:application:environment" -> null
+          - value     = "us-east-1" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "AssociatePublicIpAddress" -> null
+          - namespace = "aws:ec2:vpc" -> null
+          - value     = "false" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "BatchSize" -> null
+          - namespace = "aws:elasticbeanstalk:command" -> null
+          - value     = "1" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "BatchSizeType" -> null
+          - namespace = "aws:elasticbeanstalk:command" -> null
+          - value     = "Fixed" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "DeploymentPolicy" -> null
+          - namespace = "aws:elasticbeanstalk:command" -> null
+          - value     = "RollingWithAdditionalBatch" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "DisableIMDSv1" -> null
+          - namespace = "aws:autoscaling:launchconfiguration" -> null
+          - value     = "true" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "ELBScheme" -> null
+          - namespace = "aws:ec2:vpc" -> null
+          - value     = "public" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "ELBSubnets" -> null
+          - namespace = "aws:ec2:vpc" -> null
+          - value     = "subnet-0a58bda42717e366e,subnet-0e8512ea41c09eae9" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "ENVIRONMENT" -> null
+          - namespace = "aws:elasticbeanstalk:application:environment" -> null
+          - value     = "dev" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "EnvironmentType" -> null
+          - namespace = "aws:elasticbeanstalk:environment" -> null
+          - value     = "LoadBalanced" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "HealthCheckPath" -> null
+          - namespace = "aws:elasticbeanstalk:environment:process:default" -> null
+          - value     = "/health" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "IamInstanceProfile" -> null
+          - namespace = "aws:autoscaling:launchconfiguration" -> null
+          - value     = "shipdrill-eb-instance-profile" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "InstanceType" -> null
+          - namespace = "aws:autoscaling:launchconfiguration" -> null
+          - value     = "t3.small" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "LoadBalancerType" -> null
+          - namespace = "aws:elasticbeanstalk:environment" -> null
+          - value     = "application" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "MaxSize" -> null
+          - namespace = "aws:autoscaling:asg" -> null
+          - value     = "4" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "MinSize" -> null
+          - namespace = "aws:autoscaling:asg" -> null
+          - value     = "1" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "NODE_ENV" -> null
+          - namespace = "aws:elasticbeanstalk:application:environment" -> null
+          - value     = "production" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "PORT" -> null
+          - namespace = "aws:elasticbeanstalk:application:environment" -> null
+          - value     = "80" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "SecurityGroups" -> null
+          - namespace = "aws:autoscaling:launchconfiguration" -> null
+          - value     = "sg-0fcbb23a11dc566ca" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "SecurityGroups" -> null
+          - namespace = "aws:elbv2:loadbalancer" -> null
+          - value     = "sg-0268cad23cefd6ea4" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "ServiceRole" -> null
+          - namespace = "aws:elasticbeanstalk:environment" -> null
+          - value     = "arn:aws:iam::379484935796:role/shipdrill-eb-service-role" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "Subnets" -> null
+          - namespace = "aws:ec2:vpc" -> null
+          - value     = "subnet-0a07bc54020485d50,subnet-0c9c42c68f849a61c" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "SystemType" -> null
+          - namespace = "aws:elasticbeanstalk:healthreporting:system" -> null
+          - value     = "enhanced" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "Timeout" -> null
+          - namespace = "aws:elasticbeanstalk:command" -> null
+          - value     = "1800" -> null
+            # (1 unchanged attribute hidden)
+        }
+      - setting {
+          - name      = "VPCId" -> null
+          - namespace = "aws:ec2:vpc" -> null
+          - value     = "vpc-06b9679e6912b1b02" -> null
+            # (1 unchanged attribute hidden)
+        }
+    }
+
+  # aws_flow_log.main will be destroyed
+  - resource "aws_flow_log" "main" {
+      - arn                        = "arn:aws:ec2:us-east-1:379484935796:vpc-flow-log/fl-0645bac09eca4bb24" -> null
+      - iam_role_arn               = "arn:aws:iam::379484935796:role/shipdrill-vpc-flow-logs" -> null
+      - id                         = "fl-0645bac09eca4bb24" -> null
+      - log_destination            = "arn:aws:logs:us-east-1:379484935796:log-group:/aws/vpc/shipdrill" -> null
+      - log_destination_type       = "cloud-watch-logs" -> null
+      - log_format                 = "${version} ${account-id} ${interface-id} ${srcaddr} ${dstaddr} ${srcport} ${dstport} ${protocol} ${packets} ${bytes} ${start} ${end} ${action} ${log-status}" -> null
+      - log_group_name             = "/aws/vpc/shipdrill" -> null
+      - max_aggregation_interval   = 60 -> null
+      - tags                       = {
+          - "Name" = "shipdrill-vpc-flow-log"
+        } -> null
+      - tags_all                   = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-vpc-flow-log"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - traffic_type               = "ALL" -> null
+      - vpc_id                     = "vpc-06b9679e6912b1b02" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_instance_profile.eb will be destroyed
+  - resource "aws_iam_instance_profile" "eb" {
+      - arn         = "arn:aws:iam::379484935796:instance-profile/shipdrill-eb-instance-profile" -> null
+      - create_date = "2026-08-16T03:47:34Z" -> null
+      - id          = "shipdrill-eb-instance-profile" -> null
+      - name        = "shipdrill-eb-instance-profile" -> null
+      - path        = "/" -> null
+      - role        = "shipdrill-eb-instance-role" -> null
+      - tags        = {
+          - "Name" = "shipdrill-eb-instance-profile"
+        } -> null
+      - tags_all    = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-eb-instance-profile"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - unique_id   = "AIPAVQWYQSZ2HWF2QRIR7" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_role.cloudfront_realtime_logs will be destroyed
+  - resource "aws_iam_role" "cloudfront_realtime_logs" {
+      - arn                   = "arn:aws:iam::379484935796:role/shipdrill-dev-cf-realtime-logs" -> null
+      - assume_role_policy    = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "sts:AssumeRole"
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - Service = "cloudfront.amazonaws.com"
+                        }
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - create_date           = "2026-08-16T03:47:33Z" -> null
+      - force_detach_policies = false -> null
+      - id                    = "shipdrill-dev-cf-realtime-logs" -> null
+      - managed_policy_arns   = [] -> null
+      - max_session_duration  = 3600 -> null
+      - name                  = "shipdrill-dev-cf-realtime-logs" -> null
+      - path                  = "/" -> null
+      - tags                  = {
+          - "Environment" = "dev"
+          - "Name"        = "shipdrill-cf-realtime-logs-role"
+        } -> null
+      - tags_all              = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-cf-realtime-logs-role"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - unique_id             = "AROAVQWYQSZ2L72BZQH2I" -> null
+        # (3 unchanged attributes hidden)
+
+      - inline_policy {
+          - name   = "shipdrill-dev-cf-realtime-logs" -> null
+          - policy = jsonencode(
+                {
+                  - Statement = [
+                      - {
+                          - Action   = [
+                              - "kinesis:DescribeStreamSummary",
+                              - "kinesis:DescribeStream",
+                              - "kinesis:PutRecord",
+                              - "kinesis:PutRecords",
+                            ]
+                          - Effect   = "Allow"
+                          - Resource = "arn:aws:kinesis:us-east-1:379484935796:stream/shipdrill-dev-cloudfront-logs"
+                        },
+                    ]
+                  - Version   = "2012-10-17"
+                }
+            ) -> null
+        }
+    }
+
+  # aws_iam_role.eb_instance will be destroyed
+  - resource "aws_iam_role" "eb_instance" {
+      - arn                   = "arn:aws:iam::379484935796:role/shipdrill-eb-instance-role" -> null
+      - assume_role_policy    = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "sts:AssumeRole"
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - Service = "ec2.amazonaws.com"
+                        }
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - create_date           = "2026-08-16T03:47:33Z" -> null
+      - force_detach_policies = false -> null
+      - id                    = "shipdrill-eb-instance-role" -> null
+      - managed_policy_arns   = [
+          - "arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier",
+        ] -> null
+      - max_session_duration  = 3600 -> null
+      - name                  = "shipdrill-eb-instance-role" -> null
+      - path                  = "/" -> null
+      - tags                  = {
+          - "Name" = "shipdrill-eb-instance-role"
+        } -> null
+      - tags_all              = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-eb-instance-role"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - unique_id             = "AROAVQWYQSZ2NJS3MJGIG" -> null
+        # (3 unchanged attributes hidden)
+
+      - inline_policy {
+          - name   = "shipdrill-eb-bedrock-access" -> null
+          - policy = jsonencode(
+                {
+                  - Statement = [
+                      - {
+                          - Action   = [
+                              - "bedrock:InvokeModel",
+                            ]
+                          - Effect   = "Allow"
+                          - Resource = [
+                              - "arn:aws:bedrock:*::foundation-model/anthropic.*",
+                              - "arn:aws:bedrock:*:379484935796:inference-profile/anthropic.*",
+                              - "arn:aws:bedrock:*:379484935796:inference-profile/global.anthropic.*",
+                            ]
+                        },
+                    ]
+                  - Version   = "2012-10-17"
+                }
+            ) -> null
+        }
+      - inline_policy {
+          - name   = "shipdrill-eb-secrets-manager-access" -> null
+          - policy = jsonencode(
+                {
+                  - Statement = [
+                      - {
+                          - Action   = [
+                              - "secretsmanager:GetSecretValue",
+                            ]
+                          - Effect   = "Allow"
+                          - Resource = [
+                              - "arn:aws:secretsmanager:us-east-1:379484935796:secret:shipdrill/*",
+                              - "arn:aws:secretsmanager:us-east-1:379484935796:secret:/shipdrill/*",
+                            ]
+                        },
+                      - {
+                          - Action    = [
+                              - "kms:Decrypt",
+                            ]
+                          - Condition = {
+                              - StringEquals = {
+                                  - "kms:ViaService" = "secretsmanager.us-east-1.amazonaws.com"
+                                }
+                            }
+                          - Effect    = "Allow"
+                          - Resource  = "*"
+                        },
+                    ]
+                  - Version   = "2012-10-17"
+                }
+            ) -> null
+        }
+      - inline_policy {
+          - name   = "shipdrill-eb-ssm-access" -> null
+          - policy = jsonencode(
+                {
+                  - Statement = [
+                      - {
+                          - Action   = [
+                              - "ssm:GetParameter",
+                              - "ssm:GetParameters",
+                              - "ssm:GetParametersByPath",
+                            ]
+                          - Effect   = "Allow"
+                          - Resource = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/*"
+                        },
+                      - {
+                          - Action    = [
+                              - "kms:Decrypt",
+                            ]
+                          - Condition = {
+                              - StringEquals = {
+                                  - "kms:ViaService" = "ssm.us-east-1.amazonaws.com"
+                                }
+                            }
+                          - Effect    = "Allow"
+                          - Resource  = "*"
+                        },
+                    ]
+                  - Version   = "2012-10-17"
+                }
+            ) -> null
+        }
+      - inline_policy {
+          - name   = "shipdrill-eb-ssm-agent-channel" -> null
+          - policy = jsonencode(
+                {
+                  - Statement = [
+                      - {
+                          - Action   = [
+                              - "ssmmessages:CreateControlChannel",
+                              - "ssmmessages:CreateDataChannel",
+                              - "ssmmessages:OpenControlChannel",
+                              - "ssmmessages:OpenDataChannel",
+                              - "ec2messages:AcknowledgeMessage",
+                              - "ec2messages:DeleteMessage",
+                              - "ec2messages:FailMessage",
+                              - "ec2messages:GetEndpoint",
+                              - "ec2messages:GetMessages",
+                              - "ec2messages:SendReply",
+                            ]
+                          - Effect   = "Allow"
+                          - Resource = "*"
+                        },
+                      - {
+                          - Action   = [
+                              - "ssm:UpdateInstanceInformation",
+                              - "ssm:ListAssociations",
+                              - "ssm:ListInstanceAssociations",
+                              - "ssm:DescribeAssociation",
+                              - "ssm:DescribeDocument",
+                              - "ssm:GetDocument",
+                              - "ssm:GetManifest",
+                              - "ssm:PutInventory",
+                              - "ssm:PutComplianceItems",
+                              - "ssm:PutConfigurePackageResult",
+                              - "ssm:UpdateAssociationStatus",
+                              - "ssm:UpdateInstanceAssociationStatus",
+                            ]
+                          - Effect   = "Allow"
+                          - Resource = "*"
+                        },
+                    ]
+                  - Version   = "2012-10-17"
+                }
+            ) -> null
+        }
+    }
+
+  # aws_iam_role.eb_service will be destroyed
+  - resource "aws_iam_role" "eb_service" {
+      - arn                   = "arn:aws:iam::379484935796:role/shipdrill-eb-service-role" -> null
+      - assume_role_policy    = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "sts:AssumeRole"
+                      - Condition = {
+                          - StringEquals = {
+                              - "sts:ExternalId" = "elasticbeanstalk"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - Service = "elasticbeanstalk.amazonaws.com"
+                        }
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - create_date           = "2026-08-16T03:47:33Z" -> null
+      - force_detach_policies = false -> null
+      - id                    = "shipdrill-eb-service-role" -> null
+      - managed_policy_arns   = [
+          - "arn:aws:iam::aws:policy/AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy",
+          - "arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth",
+        ] -> null
+      - max_session_duration  = 3600 -> null
+      - name                  = "shipdrill-eb-service-role" -> null
+      - path                  = "/" -> null
+      - tags                  = {
+          - "Name" = "shipdrill-eb-service-role"
+        } -> null
+      - tags_all              = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-eb-service-role"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - unique_id             = "AROAVQWYQSZ2MRWCERRJR" -> null
+        # (3 unchanged attributes hidden)
+    }
+
+  # aws_iam_role.vpc_flow_logs will be destroyed
+  - resource "aws_iam_role" "vpc_flow_logs" {
+      - arn                   = "arn:aws:iam::379484935796:role/shipdrill-vpc-flow-logs" -> null
+      - assume_role_policy    = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "sts:AssumeRole"
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - Service = "vpc-flow-logs.amazonaws.com"
+                        }
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - create_date           = "2026-08-16T03:47:33Z" -> null
+      - force_detach_policies = false -> null
+      - id                    = "shipdrill-vpc-flow-logs" -> null
+      - managed_policy_arns   = [] -> null
+      - max_session_duration  = 3600 -> null
+      - name                  = "shipdrill-vpc-flow-logs" -> null
+      - path                  = "/" -> null
+      - tags                  = {} -> null
+      - tags_all              = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - unique_id             = "AROAVQWYQSZ2JEQR4FQ2B" -> null
+        # (3 unchanged attributes hidden)
+
+      - inline_policy {
+          - name   = "shipdrill-vpc-flow-logs" -> null
+          - policy = jsonencode(
+                {
+                  - Statement = [
+                      - {
+                          - Action   = [
+                              - "logs:CreateLogStream",
+                              - "logs:PutLogEvents",
+                              - "logs:DescribeLogGroups",
+                              - "logs:DescribeLogStreams",
+                            ]
+                          - Effect   = "Allow"
+                          - Resource = [
+                              - "arn:aws:logs:us-east-1:379484935796:log-group:/aws/vpc/shipdrill",
+                              - "arn:aws:logs:us-east-1:379484935796:log-group:/aws/vpc/shipdrill:*",
+                            ]
+                        },
+                    ]
+                  - Version   = "2012-10-17"
+                }
+            ) -> null
+        }
+    }
+
+  # aws_iam_role_policy.cloudfront_realtime_logs will be destroyed
+  - resource "aws_iam_role_policy" "cloudfront_realtime_logs" {
+      - id          = "shipdrill-dev-cf-realtime-logs:shipdrill-dev-cf-realtime-logs" -> null
+      - name        = "shipdrill-dev-cf-realtime-logs" -> null
+      - policy      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action   = [
+                          - "kinesis:DescribeStreamSummary",
+                          - "kinesis:DescribeStream",
+                          - "kinesis:PutRecord",
+                          - "kinesis:PutRecords",
+                        ]
+                      - Effect   = "Allow"
+                      - Resource = "arn:aws:kinesis:us-east-1:379484935796:stream/shipdrill-dev-cloudfront-logs"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - role        = "shipdrill-dev-cf-realtime-logs" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_role_policy.eb_bedrock_access will be destroyed
+  - resource "aws_iam_role_policy" "eb_bedrock_access" {
+      - id          = "shipdrill-eb-instance-role:shipdrill-eb-bedrock-access" -> null
+      - name        = "shipdrill-eb-bedrock-access" -> null
+      - policy      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action   = [
+                          - "bedrock:InvokeModel",
+                        ]
+                      - Effect   = "Allow"
+                      - Resource = [
+                          - "arn:aws:bedrock:*::foundation-model/anthropic.*",
+                          - "arn:aws:bedrock:*:379484935796:inference-profile/anthropic.*",
+                          - "arn:aws:bedrock:*:379484935796:inference-profile/global.anthropic.*",
+                        ]
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - role        = "shipdrill-eb-instance-role" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_role_policy.eb_instance_ssm_agent will be destroyed
+  - resource "aws_iam_role_policy" "eb_instance_ssm_agent" {
+      - id          = "shipdrill-eb-instance-role:shipdrill-eb-ssm-agent-channel" -> null
+      - name        = "shipdrill-eb-ssm-agent-channel" -> null
+      - policy      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action   = [
+                          - "ssmmessages:CreateControlChannel",
+                          - "ssmmessages:CreateDataChannel",
+                          - "ssmmessages:OpenControlChannel",
+                          - "ssmmessages:OpenDataChannel",
+                          - "ec2messages:AcknowledgeMessage",
+                          - "ec2messages:DeleteMessage",
+                          - "ec2messages:FailMessage",
+                          - "ec2messages:GetEndpoint",
+                          - "ec2messages:GetMessages",
+                          - "ec2messages:SendReply",
+                        ]
+                      - Effect   = "Allow"
+                      - Resource = "*"
+                    },
+                  - {
+                      - Action   = [
+                          - "ssm:UpdateInstanceInformation",
+                          - "ssm:ListAssociations",
+                          - "ssm:ListInstanceAssociations",
+                          - "ssm:DescribeAssociation",
+                          - "ssm:DescribeDocument",
+                          - "ssm:GetDocument",
+                          - "ssm:GetManifest",
+                          - "ssm:PutInventory",
+                          - "ssm:PutComplianceItems",
+                          - "ssm:PutConfigurePackageResult",
+                          - "ssm:UpdateAssociationStatus",
+                          - "ssm:UpdateInstanceAssociationStatus",
+                        ]
+                      - Effect   = "Allow"
+                      - Resource = "*"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - role        = "shipdrill-eb-instance-role" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_role_policy.eb_secrets_manager_access will be destroyed
+  - resource "aws_iam_role_policy" "eb_secrets_manager_access" {
+      - id          = "shipdrill-eb-instance-role:shipdrill-eb-secrets-manager-access" -> null
+      - name        = "shipdrill-eb-secrets-manager-access" -> null
+      - policy      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action   = [
+                          - "secretsmanager:GetSecretValue",
+                        ]
+                      - Effect   = "Allow"
+                      - Resource = [
+                          - "arn:aws:secretsmanager:us-east-1:379484935796:secret:shipdrill/*",
+                          - "arn:aws:secretsmanager:us-east-1:379484935796:secret:/shipdrill/*",
+                        ]
+                    },
+                  - {
+                      - Action    = [
+                          - "kms:Decrypt",
+                        ]
+                      - Condition = {
+                          - StringEquals = {
+                              - "kms:ViaService" = "secretsmanager.us-east-1.amazonaws.com"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "*"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - role        = "shipdrill-eb-instance-role" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_role_policy.eb_ssm_access will be destroyed
+  - resource "aws_iam_role_policy" "eb_ssm_access" {
+      - id          = "shipdrill-eb-instance-role:shipdrill-eb-ssm-access" -> null
+      - name        = "shipdrill-eb-ssm-access" -> null
+      - policy      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action   = [
+                          - "ssm:GetParameter",
+                          - "ssm:GetParameters",
+                          - "ssm:GetParametersByPath",
+                        ]
+                      - Effect   = "Allow"
+                      - Resource = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/*"
+                    },
+                  - {
+                      - Action    = [
+                          - "kms:Decrypt",
+                        ]
+                      - Condition = {
+                          - StringEquals = {
+                              - "kms:ViaService" = "ssm.us-east-1.amazonaws.com"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Resource  = "*"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - role        = "shipdrill-eb-instance-role" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_role_policy.vpc_flow_logs will be destroyed
+  - resource "aws_iam_role_policy" "vpc_flow_logs" {
+      - id          = "shipdrill-vpc-flow-logs:shipdrill-vpc-flow-logs" -> null
+      - name        = "shipdrill-vpc-flow-logs" -> null
+      - policy      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action   = [
+                          - "logs:CreateLogStream",
+                          - "logs:PutLogEvents",
+                          - "logs:DescribeLogGroups",
+                          - "logs:DescribeLogStreams",
+                        ]
+                      - Effect   = "Allow"
+                      - Resource = [
+                          - "arn:aws:logs:us-east-1:379484935796:log-group:/aws/vpc/shipdrill",
+                          - "arn:aws:logs:us-east-1:379484935796:log-group:/aws/vpc/shipdrill:*",
+                        ]
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - role        = "shipdrill-vpc-flow-logs" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_iam_role_policy_attachment.eb_service_managed will be destroyed
+  - resource "aws_iam_role_policy_attachment" "eb_service_managed" {
+      - id         = "shipdrill-eb-service-role-20260816034734462700000001" -> null
+      - policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy" -> null
+      - role       = "shipdrill-eb-service-role" -> null
+    }
+
+  # aws_iam_role_policy_attachment.eb_service_policy will be destroyed
+  - resource "aws_iam_role_policy_attachment" "eb_service_policy" {
+      - id         = "shipdrill-eb-service-role-20260816034734467400000002" -> null
+      - policy_arn = "arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth" -> null
+      - role       = "shipdrill-eb-service-role" -> null
+    }
+
+  # aws_iam_role_policy_attachment.eb_web_tier will be destroyed
+  - resource "aws_iam_role_policy_attachment" "eb_web_tier" {
+      - id         = "shipdrill-eb-instance-role-20260816034734625900000003" -> null
+      - policy_arn = "arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier" -> null
+      - role       = "shipdrill-eb-instance-role" -> null
+    }
+
+  # aws_internet_gateway.main will be destroyed
+  - resource "aws_internet_gateway" "main" {
+      - arn      = "arn:aws:ec2:us-east-1:379484935796:internet-gateway/igw-0184850ee1777bcae" -> null
+      - id       = "igw-0184850ee1777bcae" -> null
+      - owner_id = "379484935796" -> null
+      - tags     = {
+          - "Name" = "shipdrill-igw"
+        } -> null
+      - tags_all = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-igw"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - vpc_id   = "vpc-06b9679e6912b1b02" -> null
+    }
+
+  # aws_kinesis_stream.cloudfront_logs will be destroyed
+  - resource "aws_kinesis_stream" "cloudfront_logs" {
+      - arn                       = "arn:aws:kinesis:us-east-1:379484935796:stream/shipdrill-dev-cloudfront-logs" -> null
+      - encryption_type           = "KMS" -> null
+      - enforce_consumer_deletion = false -> null
+      - id                        = "arn:aws:kinesis:us-east-1:379484935796:stream/shipdrill-dev-cloudfront-logs" -> null
+      - kms_key_id                = "alias/aws/kinesis" -> null
+      - name                      = "shipdrill-dev-cloudfront-logs" -> null
+      - retention_period          = 4320 -> null
+      - shard_count               = 4 -> null
+      - shard_level_metrics       = [] -> null
+      - tags                      = {
+          - "Environment" = "dev"
+          - "Name"        = "shipdrill-cloudfront-logs"
+        } -> null
+      - tags_all                  = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-cloudfront-logs"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+
+      - stream_mode_details {
+          - stream_mode = "PROVISIONED" -> null
+        }
+    }
+
+  # aws_nat_gateway.main[0] will be destroyed
+  - resource "aws_nat_gateway" "main" {
+      - allocation_id                      = "eipalloc-0bd8a16adf0f4d977" -> null
+      - association_id                     = "eipassoc-06bbd9bb8ae153b47" -> null
+      - connectivity_type                  = "public" -> null
+      - id                                 = "nat-0dabca855e82301b3" -> null
+      - network_interface_id               = "eni-04aa1bd5d25a7aa24" -> null
+      - private_ip                         = "10.0.0.173" -> null
+      - public_ip                          = "100.27.99.129" -> null
+      - secondary_allocation_ids           = [] -> null
+      - secondary_private_ip_address_count = 0 -> null
+      - secondary_private_ip_addresses     = [] -> null
+      - subnet_id                          = "subnet-0a58bda42717e366e" -> null
+      - tags                               = {
+          - "Name" = "shipdrill-nat"
+        } -> null
+      - tags_all                           = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-nat"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+    }
+
+  # aws_rds_cluster.aurora will be destroyed
+  - resource "aws_rds_cluster" "aurora" {
+      - allocated_storage                     = 1 -> null
+      - arn                                   = "arn:aws:rds:us-east-1:379484935796:cluster:shipdrill-aurora" -> null
+      - availability_zones                    = [
+          - "us-east-1a",
+          - "us-east-1b",
+          - "us-east-1d",
+        ] -> null
+      - backtrack_window                      = 0 -> null
+      - backup_retention_period               = 7 -> null
+      - cluster_identifier                    = "shipdrill-aurora" -> null
+      - cluster_members                       = [
+          - "shipdrill-aurora-instance-1",
+        ] -> null
+      - cluster_resource_id                   = "cluster-UXXPFRRY4IK42HM4YI5XZRM7CA" -> null
+      - copy_tags_to_snapshot                 = false -> null
+      - database_insights_mode                = "standard" -> null
+      - database_name                         = "ship_main" -> null
+      - db_cluster_parameter_group_name       = "shipdrill-aurora-pg16" -> null
+      - db_subnet_group_name                  = "shipdrill-aurora" -> null
+      - delete_automated_backups              = false -> null
+      - deletion_protection                   = false -> null
+      - enable_global_write_forwarding        = false -> null
+      - enable_http_endpoint                  = false -> null
+      - enable_local_write_forwarding         = false -> null
+      - enabled_cloudwatch_logs_exports       = [
+          - "postgresql",
+        ] -> null
+      - endpoint                              = "shipdrill-aurora.cluster-canm4g4ki4wm.us-east-1.rds.amazonaws.com" -> null
+      - engine                                = "aurora-postgresql" -> null
+      - engine_lifecycle_support              = "open-source-rds-extended-support" -> null
+      - engine_mode                           = "provisioned" -> null
+      - engine_version                        = "16.8" -> null
+      - engine_version_actual                 = "16.8" -> null
+      - final_snapshot_identifier             = "shipdrill-final-snapshot-2026-08-16-0347" -> null
+      - hosted_zone_id                        = "Z2R2ITUGPM61AM" -> null
+      - iam_database_authentication_enabled   = false -> null
+      - iam_roles                             = [] -> null
+      - id                                    = "shipdrill-aurora" -> null
+      - iops                                  = 0 -> null
+      - kms_key_id                            = "arn:aws:kms:us-east-1:379484935796:key/0fdde657-3c91-4269-a19a-ed5a57df45d3" -> null
+      - master_password                       = (sensitive value) -> null
+      - master_password_wo                    = (write-only attribute) -> null
+      - master_user_secret                    = [] -> null
+      - master_username                       = "postgres" -> null
+      - monitoring_interval                   = 0 -> null
+      - network_type                          = "IPV4" -> null
+      - performance_insights_enabled          = false -> null
+      - performance_insights_retention_period = 0 -> null
+      - port                                  = 5432 -> null
+      - preferred_backup_window               = "03:00-04:00" -> null
+      - preferred_maintenance_window          = "sun:04:00-sun:05:00" -> null
+      - reader_endpoint                       = "shipdrill-aurora.cluster-ro-canm4g4ki4wm.us-east-1.rds.amazonaws.com" -> null
+      - skip_final_snapshot                   = false -> null
+      - storage_encrypted                     = true -> null
+      - tags                                  = {
+          - "Name" = "shipdrill-aurora-cluster"
+        } -> null
+      - tags_all                              = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-aurora-cluster"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - vpc_security_group_ids                = [
+          - "sg-0780602de0f477e0c",
+        ] -> null
+        # (11 unchanged attributes hidden)
+
+      - serverlessv2_scaling_configuration {
+          - max_capacity             = 4 -> null
+          - min_capacity             = 0.5 -> null
+          - seconds_until_auto_pause = 0 -> null
+        }
+    }
+
+  # aws_rds_cluster_instance.aurora will be destroyed
+  - resource "aws_rds_cluster_instance" "aurora" {
+      - arn                                   = "arn:aws:rds:us-east-1:379484935796:db:shipdrill-aurora-instance-1" -> null
+      - auto_minor_version_upgrade            = true -> null
+      - availability_zone                     = "us-east-1a" -> null
+      - ca_cert_identifier                    = "rds-ca-rsa2048-g1" -> null
+      - cluster_identifier                    = "shipdrill-aurora" -> null
+      - copy_tags_to_snapshot                 = false -> null
+      - db_parameter_group_name               = "default.aurora-postgresql16" -> null
+      - db_subnet_group_name                  = "shipdrill-aurora" -> null
+      - dbi_resource_id                       = "db-KVMN6LH6XFT4V6QGJE5TLUW4ZY" -> null
+      - endpoint                              = "shipdrill-aurora-instance-1.canm4g4ki4wm.us-east-1.rds.amazonaws.com" -> null
+      - engine                                = "aurora-postgresql" -> null
+      - engine_version                        = "16.8" -> null
+      - engine_version_actual                 = "16.8" -> null
+      - force_destroy                         = false -> null
+      - id                                    = "shipdrill-aurora-instance-1" -> null
+      - identifier                            = "shipdrill-aurora-instance-1" -> null
+      - instance_class                        = "db.serverless" -> null
+      - kms_key_id                            = "arn:aws:kms:us-east-1:379484935796:key/0fdde657-3c91-4269-a19a-ed5a57df45d3" -> null
+      - monitoring_interval                   = 0 -> null
+      - network_type                          = "IPV4" -> null
+      - performance_insights_enabled          = false -> null
+      - performance_insights_retention_period = 0 -> null
+      - port                                  = 5432 -> null
+      - preferred_backup_window               = "03:00-04:00" -> null
+      - preferred_maintenance_window          = "sun:08:10-sun:08:40" -> null
+      - promotion_tier                        = 0 -> null
+      - publicly_accessible                   = false -> null
+      - storage_encrypted                     = true -> null
+      - tags                                  = {
+          - "Name" = "shipdrill-aurora-instance-1"
+        } -> null
+      - tags_all                              = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-aurora-instance-1"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - writer                                = true -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_rds_cluster_parameter_group.aurora will be destroyed
+  - resource "aws_rds_cluster_parameter_group" "aurora" {
+      - arn         = "arn:aws:rds:us-east-1:379484935796:cluster-pg:shipdrill-aurora-pg16" -> null
+      - description = "Managed by Terraform" -> null
+      - family      = "aurora-postgresql16" -> null
+      - id          = "shipdrill-aurora-pg16" -> null
+      - name        = "shipdrill-aurora-pg16" -> null
+      - tags        = {
+          - "Name" = "shipdrill-aurora-pg16"
+        } -> null
+      - tags_all    = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-aurora-pg16"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+        # (1 unchanged attribute hidden)
+
+      - parameter {
+          - apply_method = "immediate" -> null
+          - name         = "log_min_duration_statement" -> null
+          - value        = "1000" -> null
+        }
+      - parameter {
+          - apply_method = "immediate" -> null
+          - name         = "log_statement" -> null
+          - value        = "ddl" -> null
+        }
+    }
+
+  # aws_route_table.private will be destroyed
+  - resource "aws_route_table" "private" {
+      - arn              = "arn:aws:ec2:us-east-1:379484935796:route-table/rtb-0d7e7e7b824cdfe36" -> null
+      - id               = "rtb-0d7e7e7b824cdfe36" -> null
+      - owner_id         = "379484935796" -> null
+      - propagating_vgws = [] -> null
+      - route            = [
+          - {
+              - cidr_block                 = "0.0.0.0/0"
+              - nat_gateway_id             = "nat-0dabca855e82301b3"
+                # (11 unchanged attributes hidden)
+            },
+        ] -> null
+      - tags             = {
+          - "Name" = "shipdrill-private-rt"
+        } -> null
+      - tags_all         = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-private-rt"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - vpc_id           = "vpc-06b9679e6912b1b02" -> null
+    }
+
+  # aws_route_table.public will be destroyed
+  - resource "aws_route_table" "public" {
+      - arn              = "arn:aws:ec2:us-east-1:379484935796:route-table/rtb-04975e65a8cde1624" -> null
+      - id               = "rtb-04975e65a8cde1624" -> null
+      - owner_id         = "379484935796" -> null
+      - propagating_vgws = [] -> null
+      - route            = [
+          - {
+              - cidr_block                 = "0.0.0.0/0"
+              - gateway_id                 = "igw-0184850ee1777bcae"
+                # (11 unchanged attributes hidden)
+            },
+        ] -> null
+      - tags             = {
+          - "Name" = "shipdrill-public-rt"
+        } -> null
+      - tags_all         = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-public-rt"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - vpc_id           = "vpc-06b9679e6912b1b02" -> null
+    }
+
+  # aws_route_table_association.private[0] will be destroyed
+  - resource "aws_route_table_association" "private" {
+      - id             = "rtbassoc-0363fe32d55c72f23" -> null
+      - route_table_id = "rtb-0d7e7e7b824cdfe36" -> null
+      - subnet_id      = "subnet-0a07bc54020485d50" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_route_table_association.private[1] will be destroyed
+  - resource "aws_route_table_association" "private" {
+      - id             = "rtbassoc-05c7b9cf319b0f26d" -> null
+      - route_table_id = "rtb-0d7e7e7b824cdfe36" -> null
+      - subnet_id      = "subnet-0c9c42c68f849a61c" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_route_table_association.public[0] will be destroyed
+  - resource "aws_route_table_association" "public" {
+      - id             = "rtbassoc-08587637b8004ca9c" -> null
+      - route_table_id = "rtb-04975e65a8cde1624" -> null
+      - subnet_id      = "subnet-0a58bda42717e366e" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_route_table_association.public[1] will be destroyed
+  - resource "aws_route_table_association" "public" {
+      - id             = "rtbassoc-0019d0e7e5d504ffa" -> null
+      - route_table_id = "rtb-04975e65a8cde1624" -> null
+      - subnet_id      = "subnet-0e8512ea41c09eae9" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_s3_bucket.frontend will be destroyed
+  - resource "aws_s3_bucket" "frontend" {
+      - arn                         = "arn:aws:s3:::shipdrill-frontend-dev-379484935796" -> null
+      - bucket                      = "shipdrill-frontend-dev-379484935796" -> null
+      - bucket_domain_name          = "shipdrill-frontend-dev-379484935796.s3.amazonaws.com" -> null
+      - bucket_regional_domain_name = "shipdrill-frontend-dev-379484935796.s3.us-east-1.amazonaws.com" -> null
+      - force_destroy               = false -> null
+      - hosted_zone_id              = "Z3AQBSTGFYJSTF" -> null
+      - id                          = "shipdrill-frontend-dev-379484935796" -> null
+      - object_lock_enabled         = false -> null
+      - policy                      = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "s3:GetObject"
+                      - Condition = {
+                          - StringEquals = {
+                              - "AWS:SourceArn" = "arn:aws:cloudfront::379484935796:distribution/E1EGHBG3ETF7UK"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - Service = "cloudfront.amazonaws.com"
+                        }
+                      - Resource  = "arn:aws:s3:::shipdrill-frontend-dev-379484935796/*"
+                      - Sid       = "AllowCloudFrontServicePrincipal"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+      - region                      = "us-east-1" -> null
+      - request_payer               = "BucketOwner" -> null
+      - tags                        = {
+          - "Name" = "shipdrill-frontend"
+        } -> null
+      - tags_all                    = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-frontend"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+        # (2 unchanged attributes hidden)
+
+      - grant {
+          - id          = "fb791eb5b1ca0c3ffdc2209913c4d450821b72540d0ba6e45d1a545ab2372ecd" -> null
+          - permissions = [
+              - "FULL_CONTROL",
+            ] -> null
+          - type        = "CanonicalUser" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - server_side_encryption_configuration {
+          - rule {
+              - bucket_key_enabled = false -> null
+
+              - apply_server_side_encryption_by_default {
+                  - sse_algorithm     = "AES256" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+        }
+
+      - versioning {
+          - enabled    = true -> null
+          - mfa_delete = false -> null
+        }
+    }
+
+  # aws_s3_bucket.uploads will be destroyed
+  - resource "aws_s3_bucket" "uploads" {
+      - arn                         = "arn:aws:s3:::shipdrill-uploads-dev-379484935796" -> null
+      - bucket                      = "shipdrill-uploads-dev-379484935796" -> null
+      - bucket_domain_name          = "shipdrill-uploads-dev-379484935796.s3.amazonaws.com" -> null
+      - bucket_regional_domain_name = "shipdrill-uploads-dev-379484935796.s3.us-east-1.amazonaws.com" -> null
+      - force_destroy               = false -> null
+      - hosted_zone_id              = "Z3AQBSTGFYJSTF" -> null
+      - id                          = "shipdrill-uploads-dev-379484935796" -> null
+      - object_lock_enabled         = false -> null
+      - region                      = "us-east-1" -> null
+      - request_payer               = "BucketOwner" -> null
+      - tags                        = {
+          - "Name" = "shipdrill-uploads"
+        } -> null
+      - tags_all                    = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-uploads"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+        # (3 unchanged attributes hidden)
+
+      - cors_rule {
+          - allowed_headers = [
+              - "*",
+            ] -> null
+          - allowed_methods = [
+              - "POST",
+              - "PUT",
+            ] -> null
+          - allowed_origins = [
+              - "http://localhost:5173",
+              - "http://localhost:5175",
+              - "http://localhost:5174",
+            ] -> null
+          - expose_headers  = [
+              - "ETag",
+            ] -> null
+          - max_age_seconds = 3600 -> null
+        }
+
+      - grant {
+          - id          = "fb791eb5b1ca0c3ffdc2209913c4d450821b72540d0ba6e45d1a545ab2372ecd" -> null
+          - permissions = [
+              - "FULL_CONTROL",
+            ] -> null
+          - type        = "CanonicalUser" -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - lifecycle_rule {
+          - abort_incomplete_multipart_upload_days = 1 -> null
+          - enabled                                = true -> null
+          - id                                     = "abort-incomplete-multipart" -> null
+          - tags                                   = {} -> null
+            # (1 unchanged attribute hidden)
+        }
+
+      - server_side_encryption_configuration {
+          - rule {
+              - bucket_key_enabled = false -> null
+
+              - apply_server_side_encryption_by_default {
+                  - sse_algorithm     = "AES256" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+        }
+
+      - versioning {
+          - enabled    = true -> null
+          - mfa_delete = false -> null
+        }
+    }
+
+  # aws_s3_bucket_cors_configuration.uploads will be destroyed
+  - resource "aws_s3_bucket_cors_configuration" "uploads" {
+      - bucket                = "shipdrill-uploads-dev-379484935796" -> null
+      - id                    = "shipdrill-uploads-dev-379484935796" -> null
+        # (1 unchanged attribute hidden)
+
+      - cors_rule {
+          - allowed_headers = [
+              - "*",
+            ] -> null
+          - allowed_methods = [
+              - "POST",
+              - "PUT",
+            ] -> null
+          - allowed_origins = [
+              - "http://localhost:5173",
+              - "http://localhost:5174",
+              - "http://localhost:5175",
+            ] -> null
+          - expose_headers  = [
+              - "ETag",
+            ] -> null
+            id              = null
+          - max_age_seconds = 3600 -> null
+        }
+    }
+
+  # aws_s3_bucket_lifecycle_configuration.uploads will be destroyed
+  - resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
+      - bucket                                 = "shipdrill-uploads-dev-379484935796" -> null
+      - id                                     = "shipdrill-uploads-dev-379484935796" -> null
+      - transition_default_minimum_object_size = "all_storage_classes_128K" -> null
+        # (1 unchanged attribute hidden)
+
+      - rule {
+          - id     = "abort-incomplete-multipart" -> null
+          - status = "Enabled" -> null
+            # (1 unchanged attribute hidden)
+
+          - abort_incomplete_multipart_upload {
+              - days_after_initiation = 1 -> null
+            }
+        }
+    }
+
+  # aws_s3_bucket_policy.frontend will be destroyed
+  - resource "aws_s3_bucket_policy" "frontend" {
+      - bucket = "shipdrill-frontend-dev-379484935796" -> null
+      - id     = "shipdrill-frontend-dev-379484935796" -> null
+      - policy = jsonencode(
+            {
+              - Statement = [
+                  - {
+                      - Action    = "s3:GetObject"
+                      - Condition = {
+                          - StringEquals = {
+                              - "AWS:SourceArn" = "arn:aws:cloudfront::379484935796:distribution/E1EGHBG3ETF7UK"
+                            }
+                        }
+                      - Effect    = "Allow"
+                      - Principal = {
+                          - Service = "cloudfront.amazonaws.com"
+                        }
+                      - Resource  = "arn:aws:s3:::shipdrill-frontend-dev-379484935796/*"
+                      - Sid       = "AllowCloudFrontServicePrincipal"
+                    },
+                ]
+              - Version   = "2012-10-17"
+            }
+        ) -> null
+    }
+
+  # aws_s3_bucket_public_access_block.frontend will be destroyed
+  - resource "aws_s3_bucket_public_access_block" "frontend" {
+      - block_public_acls       = true -> null
+      - block_public_policy     = true -> null
+      - bucket                  = "shipdrill-frontend-dev-379484935796" -> null
+      - id                      = "shipdrill-frontend-dev-379484935796" -> null
+      - ignore_public_acls      = true -> null
+      - restrict_public_buckets = true -> null
+    }
+
+  # aws_s3_bucket_public_access_block.uploads will be destroyed
+  - resource "aws_s3_bucket_public_access_block" "uploads" {
+      - block_public_acls       = true -> null
+      - block_public_policy     = true -> null
+      - bucket                  = "shipdrill-uploads-dev-379484935796" -> null
+      - id                      = "shipdrill-uploads-dev-379484935796" -> null
+      - ignore_public_acls      = true -> null
+      - restrict_public_buckets = true -> null
+    }
+
+  # aws_s3_bucket_server_side_encryption_configuration.frontend will be destroyed
+  - resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
+      - bucket                = "shipdrill-frontend-dev-379484935796" -> null
+      - id                    = "shipdrill-frontend-dev-379484935796" -> null
+        # (1 unchanged attribute hidden)
+
+      - rule {
+          - bucket_key_enabled = false -> null
+
+          - apply_server_side_encryption_by_default {
+              - sse_algorithm     = "AES256" -> null
+                # (1 unchanged attribute hidden)
+            }
+        }
+    }
+
+  # aws_s3_bucket_server_side_encryption_configuration.uploads will be destroyed
+  - resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
+      - bucket                = "shipdrill-uploads-dev-379484935796" -> null
+      - id                    = "shipdrill-uploads-dev-379484935796" -> null
+        # (1 unchanged attribute hidden)
+
+      - rule {
+          - bucket_key_enabled = false -> null
+
+          - apply_server_side_encryption_by_default {
+              - sse_algorithm     = "AES256" -> null
+                # (1 unchanged attribute hidden)
+            }
+        }
+    }
+
+  # aws_s3_bucket_versioning.frontend will be destroyed
+  - resource "aws_s3_bucket_versioning" "frontend" {
+      - bucket                = "shipdrill-frontend-dev-379484935796" -> null
+      - id                    = "shipdrill-frontend-dev-379484935796" -> null
+        # (1 unchanged attribute hidden)
+
+      - versioning_configuration {
+          - status     = "Enabled" -> null
+            # (1 unchanged attribute hidden)
+        }
+    }
+
+  # aws_s3_bucket_versioning.uploads will be destroyed
+  - resource "aws_s3_bucket_versioning" "uploads" {
+      - bucket                = "shipdrill-uploads-dev-379484935796" -> null
+      - id                    = "shipdrill-uploads-dev-379484935796" -> null
+        # (1 unchanged attribute hidden)
+
+      - versioning_configuration {
+          - status     = "Enabled" -> null
+            # (1 unchanged attribute hidden)
+        }
+    }
+
+  # aws_security_group.alb will be destroyed
+  - resource "aws_security_group" "alb" {
+      - arn                    = "arn:aws:ec2:us-east-1:379484935796:security-group/sg-0268cad23cefd6ea4" -> null
+      - description            = "ALB security group - public access" -> null
+      - egress                 = [
+          - {
+              - cidr_blocks      = [
+                  - "0.0.0.0/0",
+                ]
+              - description      = "Allow all outbound"
+              - from_port        = 0
+              - ipv6_cidr_blocks = []
+              - prefix_list_ids  = []
+              - protocol         = "-1"
+              - security_groups  = []
+              - self             = false
+              - to_port          = 0
+            },
+        ] -> null
+      - id                     = "sg-0268cad23cefd6ea4" -> null
+      - ingress                = [
+          - {
+              - cidr_blocks      = [
+                  - "0.0.0.0/0",
+                ]
+              - description      = "Allow HTTP from anywhere"
+              - from_port        = 80
+              - ipv6_cidr_blocks = []
+              - prefix_list_ids  = []
+              - protocol         = "tcp"
+              - security_groups  = []
+              - self             = false
+              - to_port          = 80
+            },
+          - {
+              - cidr_blocks      = [
+                  - "0.0.0.0/0",
+                ]
+              - description      = "Allow HTTPS from anywhere"
+              - from_port        = 443
+              - ipv6_cidr_blocks = []
+              - prefix_list_ids  = []
+              - protocol         = "tcp"
+              - security_groups  = []
+              - self             = false
+              - to_port          = 443
+            },
+        ] -> null
+      - name                   = "shipdrill-alb" -> null
+      - owner_id               = "379484935796" -> null
+      - revoke_rules_on_delete = false -> null
+      - tags                   = {
+          - "Name" = "shipdrill-alb"
+        } -> null
+      - tags_all               = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-alb"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - vpc_id                 = "vpc-06b9679e6912b1b02" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_security_group.aurora will be destroyed
+  - resource "aws_security_group" "aurora" {
+      - arn                    = "arn:aws:ec2:us-east-1:379484935796:security-group/sg-0780602de0f477e0c" -> null
+      - description            = "Aurora database security group - ingress only from EB" -> null
+      - egress                 = [] -> null
+      - id                     = "sg-0780602de0f477e0c" -> null
+      - ingress                = [
+          - {
+              - cidr_blocks      = []
+              - description      = "Allow PostgreSQL from EB instances"
+              - from_port        = 5432
+              - ipv6_cidr_blocks = []
+              - prefix_list_ids  = []
+              - protocol         = "tcp"
+              - security_groups  = [
+                  - "sg-0fcbb23a11dc566ca",
+                ]
+              - self             = false
+              - to_port          = 5432
+            },
+        ] -> null
+      - name                   = "shipdrill-aurora" -> null
+      - owner_id               = "379484935796" -> null
+      - revoke_rules_on_delete = false -> null
+      - tags                   = {
+          - "Name" = "shipdrill-aurora"
+        } -> null
+      - tags_all               = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-aurora"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - vpc_id                 = "vpc-06b9679e6912b1b02" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_security_group.eb_instance will be destroyed
+  - resource "aws_security_group" "eb_instance" {
+      - arn                    = "arn:aws:ec2:us-east-1:379484935796:security-group/sg-0fcbb23a11dc566ca" -> null
+      - description            = "Elastic Beanstalk instance security group" -> null
+      - egress                 = [
+          - {
+              - cidr_blocks      = [
+                  - "0.0.0.0/0",
+                ]
+              - description      = "Allow all outbound"
+              - from_port        = 0
+              - ipv6_cidr_blocks = []
+              - prefix_list_ids  = []
+              - protocol         = "-1"
+              - security_groups  = []
+              - self             = false
+              - to_port          = 0
+            },
+        ] -> null
+      - id                     = "sg-0fcbb23a11dc566ca" -> null
+      - ingress                = [
+          - {
+              - cidr_blocks      = []
+              - description      = "Allow HTTP from ALB"
+              - from_port        = 80
+              - ipv6_cidr_blocks = []
+              - prefix_list_ids  = []
+              - protocol         = "tcp"
+              - security_groups  = [
+                  - "sg-0268cad23cefd6ea4",
+                ]
+              - self             = false
+              - to_port          = 80
+            },
+        ] -> null
+      - name                   = "shipdrill-eb-instance" -> null
+      - owner_id               = "379484935796" -> null
+      - revoke_rules_on_delete = false -> null
+      - tags                   = {
+          - "Name" = "shipdrill-eb-instance"
+        } -> null
+      - tags_all               = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-eb-instance"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - vpc_id                 = "vpc-06b9679e6912b1b02" -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_security_group_rule.aurora_ingress_from_eb will be destroyed
+  - resource "aws_security_group_rule" "aurora_ingress_from_eb" {
+      - description              = "Allow PostgreSQL from EB instances" -> null
+      - from_port                = 5432 -> null
+      - id                       = "sgrule-2021312778" -> null
+      - protocol                 = "tcp" -> null
+      - security_group_id        = "sg-0780602de0f477e0c" -> null
+      - security_group_rule_id   = "sgr-06d801d4abc5cbc3a" -> null
+      - self                     = false -> null
+      - source_security_group_id = "sg-0fcbb23a11dc566ca" -> null
+      - to_port                  = 5432 -> null
+      - type                     = "ingress" -> null
+    }
+
+  # aws_ssm_parameter.agent_client_secret will be destroyed
+  - resource "aws_ssm_parameter" "agent_client_secret" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/AGENT_CLIENT_SECRET" -> null
+      - data_type       = "text" -> null
+      - description     = "client_secret for the FleetGraph Agent OAuth app (first-party). Seeds on every db:migrate via seedPlatformApps()." -> null
+      - id              = "/shipdrill/dev/AGENT_CLIENT_SECRET" -> null
+      - key_id          = "alias/aws/ssm" -> null
+      - name            = "/shipdrill/dev/AGENT_CLIENT_SECRET" -> null
+      - tags            = {
+          - "Name" = "shipdrill-agent-client-secret"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-agent-client-secret"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "SecureString" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_ssm_parameter.app_base_url will be destroyed
+  - resource "aws_ssm_parameter" "app_base_url" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/APP_BASE_URL" -> null
+      - data_type       = "text" -> null
+      - description     = "Base URL for the application (used in OAuth callbacks)" -> null
+      - id              = "/shipdrill/dev/APP_BASE_URL" -> null
+      - name            = "/shipdrill/dev/APP_BASE_URL" -> null
+      - tags            = {
+          - "Name" = "shipdrill-app-base-url"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-app-base-url"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "String" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (2 unchanged attributes hidden)
+    }
+
+  # aws_ssm_parameter.cdn_domain will be destroyed
+  - resource "aws_ssm_parameter" "cdn_domain" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/CDN_DOMAIN" -> null
+      - data_type       = "text" -> null
+      - description     = "CDN domain for serving uploaded files" -> null
+      - id              = "/shipdrill/dev/CDN_DOMAIN" -> null
+      - name            = "/shipdrill/dev/CDN_DOMAIN" -> null
+      - tags            = {
+          - "Name" = "shipdrill-cdn-domain"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-cdn-domain"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "String" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (2 unchanged attributes hidden)
+    }
+
+  # aws_ssm_parameter.cors_origin will be destroyed
+  - resource "aws_ssm_parameter" "cors_origin" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/CORS_ORIGIN" -> null
+      - data_type       = "text" -> null
+      - description     = "CORS origin for API (frontend URL)" -> null
+      - id              = "/shipdrill/dev/CORS_ORIGIN" -> null
+      - name            = "/shipdrill/dev/CORS_ORIGIN" -> null
+      - tags            = {
+          - "Name" = "shipdrill-cors-origin"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-cors-origin"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "String" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (2 unchanged attributes hidden)
+    }
+
+  # aws_ssm_parameter.database_url will be destroyed
+  - resource "aws_ssm_parameter" "database_url" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/DATABASE_URL" -> null
+      - data_type       = "text" -> null
+      - description     = "PostgreSQL connection string for Ship application" -> null
+      - id              = "/shipdrill/dev/DATABASE_URL" -> null
+      - key_id          = "alias/aws/ssm" -> null
+      - name            = "/shipdrill/dev/DATABASE_URL" -> null
+      - tags            = {
+          - "Name" = "shipdrill-database-url"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-database-url"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "SecureString" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_ssm_parameter.db_host will be destroyed
+  - resource "aws_ssm_parameter" "db_host" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/DB_HOST" -> null
+      - data_type       = "text" -> null
+      - description     = "Aurora cluster endpoint" -> null
+      - id              = "/shipdrill/dev/DB_HOST" -> null
+      - name            = "/shipdrill/dev/DB_HOST" -> null
+      - tags            = {
+          - "Name" = "shipdrill-db-host"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-db-host"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "String" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (2 unchanged attributes hidden)
+    }
+
+  # aws_ssm_parameter.db_name will be destroyed
+  - resource "aws_ssm_parameter" "db_name" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/DB_NAME" -> null
+      - data_type       = "text" -> null
+      - description     = "Database name" -> null
+      - id              = "/shipdrill/dev/DB_NAME" -> null
+      - name            = "/shipdrill/dev/DB_NAME" -> null
+      - tags            = {
+          - "Name" = "shipdrill-db-name"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-db-name"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "String" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (2 unchanged attributes hidden)
+    }
+
+  # aws_ssm_parameter.db_password will be destroyed
+  - resource "aws_ssm_parameter" "db_password" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/DB_PASSWORD" -> null
+      - data_type       = "text" -> null
+      - description     = "Database password" -> null
+      - id              = "/shipdrill/dev/DB_PASSWORD" -> null
+      - key_id          = "alias/aws/ssm" -> null
+      - name            = "/shipdrill/dev/DB_PASSWORD" -> null
+      - tags            = {
+          - "Name" = "shipdrill-db-password"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-db-password"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "SecureString" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_ssm_parameter.db_username will be destroyed
+  - resource "aws_ssm_parameter" "db_username" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/DB_USERNAME" -> null
+      - data_type       = "text" -> null
+      - description     = "Database username" -> null
+      - id              = "/shipdrill/dev/DB_USERNAME" -> null
+      - name            = "/shipdrill/dev/DB_USERNAME" -> null
+      - tags            = {
+          - "Name" = "shipdrill-db-username"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-db-username"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "String" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (2 unchanged attributes hidden)
+    }
+
+  # aws_ssm_parameter.demo_client_secret will be destroyed
+  - resource "aws_ssm_parameter" "demo_client_secret" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/DEMO_CLIENT_SECRET" -> null
+      - data_type       = "text" -> null
+      - description     = "client_secret for the write-scoped grader demo app (L99 D12). Lets a grader run `ship docs create` from the README." -> null
+      - id              = "/shipdrill/dev/DEMO_CLIENT_SECRET" -> null
+      - key_id          = "alias/aws/ssm" -> null
+      - name            = "/shipdrill/dev/DEMO_CLIENT_SECRET" -> null
+      - tags            = {
+          - "Name" = "shipdrill-demo-client-secret"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-demo-client-secret"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "SecureString" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_ssm_parameter.grader_client_secret will be destroyed
+  - resource "aws_ssm_parameter" "grader_client_secret" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/GRADER_CLIENT_SECRET" -> null
+      - data_type       = "text" -> null
+      - description     = "client_secret for the read-only grader OAuth app. Published in the README per PRD p.13." -> null
+      - id              = "/shipdrill/dev/GRADER_CLIENT_SECRET" -> null
+      - key_id          = "alias/aws/ssm" -> null
+      - name            = "/shipdrill/dev/GRADER_CLIENT_SECRET" -> null
+      - tags            = {
+          - "Name" = "shipdrill-grader-client-secret"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-grader-client-secret"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "SecureString" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_ssm_parameter.session_secret will be destroyed
+  - resource "aws_ssm_parameter" "session_secret" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/SESSION_SECRET" -> null
+      - data_type       = "text" -> null
+      - description     = "Session secret for express-session cookie signing" -> null
+      - id              = "/shipdrill/dev/SESSION_SECRET" -> null
+      - key_id          = "alias/aws/ssm" -> null
+      - name            = "/shipdrill/dev/SESSION_SECRET" -> null
+      - tags            = {
+          - "Name" = "shipdrill-session-secret"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-session-secret"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "SecureString" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_ssm_parameter.webhook_secret_key will be destroyed
+  - resource "aws_ssm_parameter" "webhook_secret_key" {
+      - arn             = "arn:aws:ssm:us-east-1:379484935796:parameter/shipdrill/dev/WEBHOOK_SECRET_KEY" -> null
+      - data_type       = "text" -> null
+      - description     = "AES-256-GCM key encrypting webhook signing secrets at rest (L15 PF-422). Read at boot by api/src/config/ssm.ts. Rotating it orphans every stored subscription secret." -> null
+      - id              = "/shipdrill/dev/WEBHOOK_SECRET_KEY" -> null
+      - key_id          = "alias/aws/ssm" -> null
+      - name            = "/shipdrill/dev/WEBHOOK_SECRET_KEY" -> null
+      - tags            = {
+          - "Name" = "shipdrill-webhook-secret-key"
+        } -> null
+      - tags_all        = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-webhook-secret-key"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - tier            = "Standard" -> null
+      - type            = "SecureString" -> null
+      - value           = (sensitive value) -> null
+      - value_wo        = (write-only attribute) -> null
+      - version         = 1 -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_subnet.private[0] will be destroyed
+  - resource "aws_subnet" "private" {
+      - arn                                            = "arn:aws:ec2:us-east-1:379484935796:subnet/subnet-0a07bc54020485d50" -> null
+      - assign_ipv6_address_on_creation                = false -> null
+      - availability_zone                              = "us-east-1a" -> null
+      - availability_zone_id                           = "use1-az1" -> null
+      - cidr_block                                     = "10.0.10.0/24" -> null
+      - enable_dns64                                   = false -> null
+      - enable_lni_at_device_index                     = 0 -> null
+      - enable_resource_name_dns_a_record_on_launch    = false -> null
+      - enable_resource_name_dns_aaaa_record_on_launch = false -> null
+      - id                                             = "subnet-0a07bc54020485d50" -> null
+      - ipv6_native                                    = false -> null
+      - map_customer_owned_ip_on_launch                = false -> null
+      - map_public_ip_on_launch                        = false -> null
+      - owner_id                                       = "379484935796" -> null
+      - private_dns_hostname_type_on_launch            = "ip-name" -> null
+      - tags                                           = {
+          - "Name" = "shipdrill-private-1"
+          - "Tier" = "Private"
+        } -> null
+      - tags_all                                       = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-private-1"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+          - "Tier"        = "Private"
+        } -> null
+      - vpc_id                                         = "vpc-06b9679e6912b1b02" -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_subnet.private[1] will be destroyed
+  - resource "aws_subnet" "private" {
+      - arn                                            = "arn:aws:ec2:us-east-1:379484935796:subnet/subnet-0c9c42c68f849a61c" -> null
+      - assign_ipv6_address_on_creation                = false -> null
+      - availability_zone                              = "us-east-1b" -> null
+      - availability_zone_id                           = "use1-az2" -> null
+      - cidr_block                                     = "10.0.11.0/24" -> null
+      - enable_dns64                                   = false -> null
+      - enable_lni_at_device_index                     = 0 -> null
+      - enable_resource_name_dns_a_record_on_launch    = false -> null
+      - enable_resource_name_dns_aaaa_record_on_launch = false -> null
+      - id                                             = "subnet-0c9c42c68f849a61c" -> null
+      - ipv6_native                                    = false -> null
+      - map_customer_owned_ip_on_launch                = false -> null
+      - map_public_ip_on_launch                        = false -> null
+      - owner_id                                       = "379484935796" -> null
+      - private_dns_hostname_type_on_launch            = "ip-name" -> null
+      - tags                                           = {
+          - "Name" = "shipdrill-private-2"
+          - "Tier" = "Private"
+        } -> null
+      - tags_all                                       = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-private-2"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+          - "Tier"        = "Private"
+        } -> null
+      - vpc_id                                         = "vpc-06b9679e6912b1b02" -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_subnet.public[0] will be destroyed
+  - resource "aws_subnet" "public" {
+      - arn                                            = "arn:aws:ec2:us-east-1:379484935796:subnet/subnet-0a58bda42717e366e" -> null
+      - assign_ipv6_address_on_creation                = false -> null
+      - availability_zone                              = "us-east-1a" -> null
+      - availability_zone_id                           = "use1-az1" -> null
+      - cidr_block                                     = "10.0.0.0/24" -> null
+      - enable_dns64                                   = false -> null
+      - enable_lni_at_device_index                     = 0 -> null
+      - enable_resource_name_dns_a_record_on_launch    = false -> null
+      - enable_resource_name_dns_aaaa_record_on_launch = false -> null
+      - id                                             = "subnet-0a58bda42717e366e" -> null
+      - ipv6_native                                    = false -> null
+      - map_customer_owned_ip_on_launch                = false -> null
+      - map_public_ip_on_launch                        = true -> null
+      - owner_id                                       = "379484935796" -> null
+      - private_dns_hostname_type_on_launch            = "ip-name" -> null
+      - tags                                           = {
+          - "Name" = "shipdrill-public-1"
+          - "Tier" = "Public"
+        } -> null
+      - tags_all                                       = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-public-1"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+          - "Tier"        = "Public"
+        } -> null
+      - vpc_id                                         = "vpc-06b9679e6912b1b02" -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_subnet.public[1] will be destroyed
+  - resource "aws_subnet" "public" {
+      - arn                                            = "arn:aws:ec2:us-east-1:379484935796:subnet/subnet-0e8512ea41c09eae9" -> null
+      - assign_ipv6_address_on_creation                = false -> null
+      - availability_zone                              = "us-east-1b" -> null
+      - availability_zone_id                           = "use1-az2" -> null
+      - cidr_block                                     = "10.0.1.0/24" -> null
+      - enable_dns64                                   = false -> null
+      - enable_lni_at_device_index                     = 0 -> null
+      - enable_resource_name_dns_a_record_on_launch    = false -> null
+      - enable_resource_name_dns_aaaa_record_on_launch = false -> null
+      - id                                             = "subnet-0e8512ea41c09eae9" -> null
+      - ipv6_native                                    = false -> null
+      - map_customer_owned_ip_on_launch                = false -> null
+      - map_public_ip_on_launch                        = true -> null
+      - owner_id                                       = "379484935796" -> null
+      - private_dns_hostname_type_on_launch            = "ip-name" -> null
+      - tags                                           = {
+          - "Name" = "shipdrill-public-2"
+          - "Tier" = "Public"
+        } -> null
+      - tags_all                                       = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-public-2"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+          - "Tier"        = "Public"
+        } -> null
+      - vpc_id                                         = "vpc-06b9679e6912b1b02" -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_vpc.main will be destroyed
+  - resource "aws_vpc" "main" {
+      - arn                                  = "arn:aws:ec2:us-east-1:379484935796:vpc/vpc-06b9679e6912b1b02" -> null
+      - assign_generated_ipv6_cidr_block     = false -> null
+      - cidr_block                           = "10.0.0.0/16" -> null
+      - default_network_acl_id               = "acl-003b281814f5d0915" -> null
+      - default_route_table_id               = "rtb-08a36840c5baa02f0" -> null
+      - default_security_group_id            = "sg-040d5e050f72e185f" -> null
+      - dhcp_options_id                      = "dopt-0a58a73e864400dc2" -> null
+      - enable_dns_hostnames                 = true -> null
+      - enable_dns_support                   = true -> null
+      - enable_network_address_usage_metrics = false -> null
+      - id                                   = "vpc-06b9679e6912b1b02" -> null
+      - instance_tenancy                     = "default" -> null
+      - ipv6_netmask_length                  = 0 -> null
+      - main_route_table_id                  = "rtb-08a36840c5baa02f0" -> null
+      - owner_id                             = "379484935796" -> null
+      - tags                                 = {
+          - "Name" = "shipdrill-vpc"
+        } -> null
+      - tags_all                             = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-vpc"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+        # (4 unchanged attributes hidden)
+    }
+
+  # aws_wafv2_ip_set.bad_ips[0] will be destroyed
+  - resource "aws_wafv2_ip_set" "bad_ips" {
+      - addresses          = [] -> null
+      - arn                = "arn:aws:wafv2:us-east-1:379484935796:global/ipset/shipdrill-dev-bad-ips/29fa851f-9fa6-4e3c-8ab0-fef9fefa3e13" -> null
+      - description        = "IP addresses to block" -> null
+      - id                 = "29fa851f-9fa6-4e3c-8ab0-fef9fefa3e13" -> null
+      - ip_address_version = "IPV4" -> null
+      - lock_token         = "14cf61b1-6815-4b59-9c90-f03cd6b5836f" -> null
+      - name               = "shipdrill-dev-bad-ips" -> null
+      - scope              = "CLOUDFRONT" -> null
+      - tags               = {
+          - "Environment" = "dev"
+          - "Name"        = "shipdrill-bad-ips"
+        } -> null
+      - tags_all           = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-bad-ips"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_wafv2_regex_pattern_set.static_files[0] will be destroyed
+  - resource "aws_wafv2_regex_pattern_set" "static_files" {
+      - arn         = "arn:aws:wafv2:us-east-1:379484935796:global/regexpatternset/shipdrill-dev-static-files/0c42bd2f-4787-4e97-93a5-0f2af9f5004f" -> null
+      - description = "Static file extensions exempt from DDoS challenges" -> null
+      - id          = "0c42bd2f-4787-4e97-93a5-0f2af9f5004f" -> null
+      - lock_token  = "21ed786f-a255-455a-8228-d445aec56bb4" -> null
+      - name        = "shipdrill-dev-static-files" -> null
+      - scope       = "CLOUDFRONT" -> null
+      - tags        = {
+          - "Environment" = "dev"
+          - "Name"        = "shipdrill-static-files"
+        } -> null
+      - tags_all    = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-static-files"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+        # (1 unchanged attribute hidden)
+
+      - regular_expression {
+          - regex_string = "\\/api\\/|\\.(acc|avi|css|gif|ico|jpe?g|js|json|mp[34]|ogg|otf|pdf|png|tiff?|ttf|webm|webp|woff2?|xml)$" -> null
+        }
+    }
+
+  # aws_wafv2_web_acl.cloudfront[0] will be destroyed
+  - resource "aws_wafv2_web_acl" "cloudfront" {
+      - arn                         = "arn:aws:wafv2:us-east-1:379484935796:global/webacl/shipdrill-dev-cloudfront-waf/6f960bc6-c2a9-4c9d-8d89-d67d2a1a502a" -> null
+      - capacity                    = 1178 -> null
+      - description                 = "WAF WebACL for shipdrill CloudFront distribution" -> null
+      - id                          = "6f960bc6-c2a9-4c9d-8d89-d67d2a1a502a" -> null
+      - lock_token                  = "4244a870-e2c2-422d-897c-acd4bce48fd5" -> null
+      - name                        = "shipdrill-dev-cloudfront-waf" -> null
+      - scope                       = "CLOUDFRONT" -> null
+      - tags                        = {
+          - "Environment" = "dev"
+          - "Name"        = "shipdrill-cloudfront-waf"
+        } -> null
+      - tags_all                    = {
+          - "Environment" = "dev"
+          - "ManagedBy"   = "Terraform"
+          - "Name"        = "shipdrill-cloudfront-waf"
+          - "Project"     = "shipdrill"
+          - "Repository"  = "ship"
+        } -> null
+      - token_domains               = [] -> null
+        # (2 unchanged attributes hidden)
+
+      - default_action {
+          - allow {
+            }
+        }
+
+      - rule {
+          - name     = "RateBasedRule-IP-300" -> null
+          - priority = 1 -> null
+
+          - action {
+              - block {
+                  - custom_response {
+                      - response_code            = 429 -> null
+                        # (1 unchanged attribute hidden)
+
+                      - response_header {
+                          - name  = "Retry-After" -> null
+                          - value = "300" -> null
+                        }
+                    }
+                }
+            }
+
+          - statement {
+              - rate_based_statement {
+                  - aggregate_key_type    = "IP" -> null
+                  - evaluation_window_sec = 300 -> null
+                  - limit                 = 300 -> null
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "shipdrill-RateBasedRule-IP-300" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "BadIPs" -> null
+          - priority = 6 -> null
+
+          - action {
+              - block {
+                }
+            }
+
+          - statement {
+              - ip_set_reference_statement {
+                  - arn = "arn:aws:wafv2:us-east-1:379484935796:global/ipset/shipdrill-dev-bad-ips/29fa851f-9fa6-4e3c-8ab0-fef9fefa3e13" -> null
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "shipdrill-BadIPs" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesAmazonIpReputationList" -> null
+          - priority = 2 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesAmazonIpReputationList" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "shipdrill-AWSIpReputationList" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesBotControlRuleSet" -> null
+          - priority = 7 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesBotControlRuleSet" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+
+                  - managed_rule_group_configs {
+                        # (2 unchanged attributes hidden)
+
+                      - aws_managed_rules_bot_control_rule_set {
+                          - enable_machine_learning = false -> null
+                          - inspection_level        = "COMMON" -> null
+                        }
+                    }
+
+                  - rule_action_override {
+                      - name = "CategoryAdvertising" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryAI" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryArchiver" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryContentFetcher" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryEmailClient" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryHttpLibrary" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryLinkChecker" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryMiscellaneous" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryMonitoring" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategoryScrapingFramework" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategorySearchEngine" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategorySecurity" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategorySeo" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "CategorySocialMedia" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "SignalAutomatedBrowser" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "SignalKnownBotDataCenter" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                  - rule_action_override {
+                      - name = "SignalNonBrowserUserAgent" -> null
+
+                      - action_to_use {
+                          - count {
+                            }
+                        }
+                    }
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "shipdrill-AWSBotControl" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesCommonRuleSet" -> null
+          - priority = 3 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesCommonRuleSet" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "shipdrill-AWSCommonRuleSet" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesKnownBadInputsRuleSet" -> null
+          - priority = 4 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesKnownBadInputsRuleSet" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "shipdrill-AWSKnownBadInputs" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+      - rule {
+          - name     = "AWSManagedRulesSQLiRuleSet" -> null
+          - priority = 5 -> null
+
+          - override_action {
+              - none {}
+            }
+
+          - statement {
+              - managed_rule_group_statement {
+                  - name        = "AWSManagedRulesSQLiRuleSet" -> null
+                  - vendor_name = "AWS" -> null
+                    # (1 unchanged attribute hidden)
+                }
+            }
+
+          - visibility_config {
+              - cloudwatch_metrics_enabled = true -> null
+              - metric_name                = "shipdrill-AWSSQLiRuleSet" -> null
+              - sampled_requests_enabled   = true -> null
+            }
+        }
+
+      - visibility_config {
+          - cloudwatch_metrics_enabled = true -> null
+          - metric_name                = "shipdrill-CloudFrontWAF" -> null
+          - sampled_requests_enabled   = true -> null
+        }
+    }
+
+  # random_bytes.webhook_secret_key will be destroyed
+  - resource "random_bytes" "webhook_secret_key" {
+      - base64 = (sensitive value) -> null
+      - hex    = (sensitive value) -> null
+      - length = 32 -> null
+    }
+
+  # random_password.agent_client_secret will be destroyed
+  - resource "random_password" "agent_client_secret" {
+      - bcrypt_hash = (sensitive value) -> null
+      - id          = "none" -> null
+      - length      = 48 -> null
+      - lower       = true -> null
+      - min_lower   = 0 -> null
+      - min_numeric = 0 -> null
+      - min_special = 0 -> null
+      - min_upper   = 0 -> null
+      - number      = true -> null
+      - numeric     = true -> null
+      - result      = (sensitive value) -> null
+      - special     = false -> null
+      - upper       = true -> null
+    }
+
+  # random_password.db_password will be destroyed
+  - resource "random_password" "db_password" {
+      - bcrypt_hash = (sensitive value) -> null
+      - id          = "none" -> null
+      - length      = 32 -> null
+      - lower       = true -> null
+      - min_lower   = 0 -> null
+      - min_numeric = 0 -> null
+      - min_special = 0 -> null
+      - min_upper   = 0 -> null
+      - number      = true -> null
+      - numeric     = true -> null
+      - result      = (sensitive value) -> null
+      - special     = false -> null
+      - upper       = true -> null
+    }
+
+  # random_password.demo_client_secret will be destroyed
+  - resource "random_password" "demo_client_secret" {
+      - bcrypt_hash = (sensitive value) -> null
+      - id          = "none" -> null
+      - length      = 48 -> null
+      - lower       = true -> null
+      - min_lower   = 0 -> null
+      - min_numeric = 0 -> null
+      - min_special = 0 -> null
+      - min_upper   = 0 -> null
+      - number      = true -> null
+      - numeric     = true -> null
+      - result      = (sensitive value) -> null
+      - special     = false -> null
+      - upper       = true -> null
+    }
+
+  # random_password.grader_client_secret will be destroyed
+  - resource "random_password" "grader_client_secret" {
+      - bcrypt_hash = (sensitive value) -> null
+      - id          = "none" -> null
+      - length      = 48 -> null
+      - lower       = true -> null
+      - min_lower   = 0 -> null
+      - min_numeric = 0 -> null
+      - min_special = 0 -> null
+      - min_upper   = 0 -> null
+      - number      = true -> null
+      - numeric     = true -> null
+      - result      = (sensitive value) -> null
+      - special     = false -> null
+      - upper       = true -> null
+    }
+
+  # random_password.session_secret will be destroyed
+  - resource "random_password" "session_secret" {
+      - bcrypt_hash = (sensitive value) -> null
+      - id          = "none" -> null
+      - length      = 64 -> null
+      - lower       = true -> null
+      - min_lower   = 0 -> null
+      - min_numeric = 0 -> null
+      - min_special = 0 -> null
+      - min_upper   = 0 -> null
+      - number      = true -> null
+      - numeric     = true -> null
+      - result      = (sensitive value) -> null
+      - special     = false -> null
+      - upper       = true -> null
+    }
+
+Plan: 0 to add, 0 to change, 82 to destroy.
+
+Changes to Outputs:
+  - api_url                        = "Set after EB environment creation" -> null
+  - aurora_cluster_endpoint        = "shipdrill-aurora.cluster-canm4g4ki4wm.us-east-1.rds.amazonaws.com" -> null
+  - aurora_cluster_reader_endpoint = "shipdrill-aurora.cluster-ro-canm4g4ki4wm.us-east-1.rds.amazonaws.com" -> null
+  - budget_monthly_limit_usd       = 50 -> null
+  - budget_name                    = "shipdrill-monthly-cost" -> null
+  - cloudfront_distribution_id     = "E1EGHBG3ETF7UK" -> null
+  - cloudfront_domain_name         = "dsfcbyaubexj7.cloudfront.net" -> null
+  - cors_origin_ssm_parameter      = "/shipdrill/dev/CORS_ORIGIN" -> null
+  - database_name                  = "ship_main" -> null
+  - database_url_ssm_parameter     = "/shipdrill/dev/DATABASE_URL" -> null
+  - demo_client_secret             = (sensitive value) -> null
+  - eb_alb_security_group          = "sg-0268cad23cefd6ea4" -> null
+  - eb_application_name            = "shipdrill-api" -> null
+  - eb_config_summary              = {
+      - alb_security_group      = "sg-0268cad23cefd6ea4"
+      - application_name        = "shipdrill-api"
+      - instance_profile        = "shipdrill-eb-instance-profile"
+      - instance_security_group = "sg-0fcbb23a11dc566ca"
+      - private_subnets         = "subnet-0a07bc54020485d50,subnet-0c9c42c68f849a61c"
+      - public_subnets          = "subnet-0a58bda42717e366e,subnet-0e8512ea41c09eae9"
+      - service_role_arn        = "arn:aws:iam::379484935796:role/shipdrill-eb-service-role"
+      - vpc_id                  = "vpc-06b9679e6912b1b02"
+    } -> null
+  - eb_environment_name            = "shipdrill-api-prod" -> null
+  - eb_environment_url             = "awseb--AWSEB-bhtoVfgFWuTN-852918829.us-east-1.elb.amazonaws.com" -> null
+  - eb_instance_profile            = "shipdrill-eb-instance-profile" -> null
+  - eb_instance_security_group     = "sg-0fcbb23a11dc566ca" -> null
+  - eb_private_subnets             = "subnet-0a07bc54020485d50,subnet-0c9c42c68f849a61c" -> null
+  - eb_public_subnets              = "subnet-0a58bda42717e366e,subnet-0e8512ea41c09eae9" -> null
+  - eb_service_role                = "arn:aws:iam::379484935796:role/shipdrill-eb-service-role" -> null
+  - eb_vpc_id                      = "vpc-06b9679e6912b1b02" -> null
+  - frontend_url                   = "https://dsfcbyaubexj7.cloudfront.net" -> null
+  - grader_client_secret           = (sensitive value) -> null
+  - private_subnet_ids             = [
+      - "subnet-0a07bc54020485d50",
+      - "subnet-0c9c42c68f849a61c",
+    ] -> null
+  - public_subnet_ids              = [
+      - "subnet-0a58bda42717e366e",
+      - "subnet-0e8512ea41c09eae9",
+    ] -> null
+  - s3_bucket_name                 = "shipdrill-frontend-dev-379484935796" -> null
+  - uploads_bucket_arn             = "arn:aws:s3:::shipdrill-uploads-dev-379484935796" -> null
+  - uploads_bucket_name            = "shipdrill-uploads-dev-379484935796" -> null
+  - vpc_id                         = "vpc-06b9679e6912b1b02" -> null
+
+Warning: Invalid Attribute Combination
+
+  with aws_s3_bucket_lifecycle_configuration.uploads,
+  on s3-cloudfront.tf line 466, in resource "aws_s3_bucket_lifecycle_configuration" "uploads":
+ 466:   rule {
+
+No attribute specified when one (and only one) of
+[rule[0].filter,rule[0].prefix] is required
+
+This will be an error in a future version of the provider
+
+─────────────────────────────────────────────────────────────────────────────
+
+Saved the plan to: phase3-destroy.tfplan
+
+To perform exactly these actions, run the following command to apply:
+    terraform apply "phase3-destroy.tfplan"
+Releasing state lock. This may take a few moments...
