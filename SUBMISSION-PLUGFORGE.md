@@ -33,19 +33,23 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 | 6 | **AI Cost Analysis** | L26 | [`docs/ai-cost-analysis-plugforge.md`](docs/ai-cost-analysis-plugforge.md) | ✅ **Ready** — see §6 |
 | 7 | **Per-Epic Write-up** | L26 | [`docs/per-epic-writeup.md`](docs/per-epic-writeup.md) — seven epics, `before → fix → after → proof`; Epic 7's audit rows are a live capture. **Epic 6's proof section has been corrected and is no longer stale**: it now cites pipeline **20237** / job **66739**, `success`, **56.374 s** — see §7 | ✅ **Ready** — see §7 |
 | 8 | **Three Discoveries** | L26 | [`docs/three-discoveries.md`](docs/three-discoveries.md) | ✅ **Ready** |
-| 9 | **Deployed Application** | L21 | `https://d258p92d3n1ebe.cloudfront.net/` — all four surfaces 200 · README carries `client_id`s and scopes but **no `client_secret` value** | ✅ **Ready**, one decision — see §9 |
+| 9 | **Deployed Application** | L21 | `https://d258p92d3n1ebe.cloudfront.net/` — all four surfaces 200 · README carries the `client_id`s, their scopes, **and the grader sign-in `grader@ship.local` / `grader123`** (`README.md:128-129`, seeded by migration 076). Both grader apps are public clients, so no `client_secret` is used by any flow | ✅ **Ready** — see §9 |
 | 10 | **Social Post** | L26 | not posted | ⚠ **Not ready** |
 
 **5 Ready · 2 Ready-with-a-caveat · 3 open.** Recounted 2026-08-15 in the final
 due-diligence pass, every number re-measured rather than carried forward. Row 7 moved from
 caveat to Ready in that pass, when Epic 6's proof section was corrected.
 
-- **Ready (5):** rows 3, 4, 6, 7, 8.
-- **Ready with a caveat (2):** row 5 — spec is live, **equal to the committed copy as parsed
+- **Ready (6):** rows 3, 4, 6, 7, 8, 9.
+- **Ready with a caveat (1):** row 5 — spec is live, **equal to the committed copy as parsed
   JSON** and schema-validated (exit 0), but not byte-identical (the served document is
-  minified, 67 311 B, against the pretty-printed 155 439 B in git); row 9 — every surface
-  reachable, but the grader `client_secret` is behind an `aws ssm` command a grader cannot
-  run.
+  minified, 67 311 B, against the pretty-printed 155 439 B in git).
+- **Row 9 moved from caveat to Ready, 2026-08-16.** The caveat read *"the grader
+  `client_secret` is behind an `aws ssm` command a grader cannot run."* p.13 asks for
+  *credentials in the README* and the README publishes them — `grader@ship.local` /
+  `grader123` at `README.md:128-129`, seeded by migration **076**. The `client_secret` is
+  not used: both grader apps are `isPublic: true` (`platformApps.ts:140,190`), so
+  `/oauth/token` takes `client_id` alone. See §9.
 - **Open (3):** row 1 — the public remote carries the branches, so two of p.12's three
   clauses hold; the third is **partly** met — **7** slice-branch MRs, **5** of them fully
   compliant, against **185** slices (§1); rows 2 and 10 are yours to record and post.
@@ -622,29 +626,43 @@ re-confirmed 2026-08-15. The webhook key is not among them because it is fetched
 boot, not set as an EB option. §6's conclusion — that the environment holds no LLM key or
 endpoint and the agent cannot make an LLM call there — is unaffected.
 
-### Credentials in the README
+### Credentials in the README — **met, and the open decision is closed**
 
-`README.md` publishes both `client_id` values (`ship_app_grader_readonly` at `README:93`,
-`ship_app_grader_demo` at `:94`) and their scopes. The `client_secret` values are **not** in
-the README — `:109` and `:111` give `aws ssm get-parameter` commands instead, which need AWS
-credentials for account `379484935796`. A grader has none, so for them that command is not a
-credential. p.13 says *"credentials in the README"*.
+**Rewritten 2026-08-16. This section described a gap that had already been filled, and the
+open decision it carried would have published a live secret to satisfy a clause that was
+already satisfied.** p.13 asks for *"a pre-registered OAuth app (read-only scopes) for
+graders, plus credentials in the README"* (`.claude/prd/page-13.txt:24-26`). All of it is
+in the README:
 
-**Re-checked 2026-08-15 and the blocker is not access.** The parameters read fine with the
-repo's own identity (`arn:aws:iam::379484935796:user/ship-terraform`), and
-`terraform/platform-apps.tf`'s own header already concedes the requirement — the secrets are
-`random_password` + SSM rather than show-once *specifically* so they can be read back,
-because *"the README has to publish the grader's secret (p.13), so a value nobody can read
-back would defeat the deliverable."*
+| p.13 clause | Where |
+|---|---|
+| Pre-registered app, read-only scopes | `ship_app_grader_readonly`, three `:read` scopes, no write scope — `README.md:93` |
+| Credentials in the README | `grader@ship.local` / `grader123` — `README.md:128-129`, with the workspace named at `:130` |
 
-> **This is a decision, not a task, and it is deliberately left to you.** Publishing a live
-> `client_secret` into a repo that is public on GitHub is a real trade. In its favour: p.13
-> requires it, the apps are scoped to a dedicated grader workspace, the read-only app cannot
-> write, and the Terraform was designed around publishing them. Against: it is a live
-> credential in a public repo, and rotating it later means a `-replace` plus a redeploy.
-> **Lean: publish the read-only app's secret only** — it is the one p.13's gate-item app
-> needs, it can only read one sandbox workspace, and leaving the write-scoped demo secret
-> behind SSM keeps the blast radius at zero. Not done here.
+**The sign-in credentials are the credentials this deliverable needs, and they are published.**
+`ship login` runs the device grant, whose approval leg requires a *human with a browser*
+signed in to the workspace the app is registered in — `deviceVerify.ts:317` returns
+403 `'Wrong workspace'` otherwise, which is the tenancy guard that keeps a grader's token
+away from the primary tenant's data. Without a sign-in the grader apps were unreachable no
+matter what else was published. That account is seeded by
+`api/src/db/migrations/076_seed_grader_user.sql`, so it exists on every environment that has
+run `db:migrate`. Its only membership is the **Grader Sandbox** workspace, it is not a
+super-admin, and the sandbox holds three seeded example documents and no tenant data.
+
+**The `client_secret` is not a credential any flow on that page uses.** Both grader apps are
+registered as **public clients** under RFC 6749 §2.1 — `isPublic: true` at
+`api/src/db/platformApps.ts:140` (read-only) and `:190` (demo) — so `/oauth/token` accepts
+`client_id` alone, which is what the CLI sends. `README.md:105-106` says so on the page:
+*"You do not need a `client_secret` for anything on this page."* The `aws ssm get-parameter`
+commands remain in the README as an optional extra for a reader who has account access, not
+as the path.
+
+> **The decision this section used to hold open is withdrawn.** It read *"Lean: publish the
+> read-only app's secret only"* and treated publishing a live credential into a public repo
+> as the price of p.13. It is not the price of anything — the clause is met without it, and
+> the flow it would unlock is a flow that already works with `client_id` alone. Publishing a
+> live secret to close an already-closed clause is a pure cost: blast radius, rotation
+> burden, and a gitleaks finding in a repo that is public on GitHub. **Nothing to do.**
 
 ### Re-verified from outside, 2026-08-15
 
@@ -726,20 +744,29 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
 | 4 | Eight branches on GitLab absent from GitHub, four the reverse | `git push` ×12 makes the remotes set-equal. Measured 2026-08-16. **No `pf/*` branch is GitHub-only** — the four are Week-5 branches (`chore/destroy-redeploy-cycle`, `ci/rollback-remote-state`, `fix/agent-test-pool-shutdown-race`, `fix/local-apply-strips-credentials`); the eight are the `pf/L*` slice branches merged as !21–!27 plus `pf/L26-final-closables` | L26 |
 | 5 | ~~`docs/architecture-appendix.md` still reports the SDK footprint as 218.4 KB~~ | **DONE 2026-08-16.** It now reads **233 463 B** (228.0 KB, 175 files, 91.2% of budget) from the regenerated `sdk/size-report.json`, and the citation was corrected from `d497daf` (which holds the superseded 225 109 B) to `40c4793` | arch lane |
 | 6 | ~~`docs/pr-compliance-sweep.md` reports 55 of 66; integration carries **87** slice merges~~ | **DONE 2026-08-16** — the headline is dated and the counts re-measured: `pf/integration` carries **90**, a further **7** merged straight to `main`, so 55/66 is a rate over 66 of **97** slices and the document now says so | L26 |
-| 7 | Grader `client_secret` absent from the README (p.13 literal) | **Your decision, not a task** — lean: publish the read-only app's secret only (§9) | you |
+| 7 | ~~Grader `client_secret` absent from the README (p.13 literal)~~ | **NOT AN ITEM — withdrawn 2026-08-16.** p.13 asks for *credentials in the README*; `README.md:128-129` publishes `grader@ship.local` / `grader123`, seeded by migration **076**. The `client_secret` is used by no flow on that page — both grader apps are `isPublic: true` (`platformApps.ts:140,190`) and `/oauth/token` takes `client_id` alone. The old lean would have published a live secret into a public repo to close a clause that was already closed. **No decision required** (§9) | — |
 | 8 | The appendix's *"PlugForge's own must-ship surface still adds no AWS resources"* is false | One sentence; `terraform/platform-apps.tf` declares six PlugForge-only resources (§4) | L21 |
 
 ### Cannot be closed before submission — disclose, don't let a grader find them
 
 | # | Item | Why |
 |---|---|---|
-| 1 | **Per-slice PRs for *each* slice** (p.12, third clause) | Seven exist (!21–!27), five fully compliant — so the artifact exists and *"each"* is what fails. ~180 retroactive PRs would be a paper trail written after the merges they describe. Concede the *"each"* in writing (§1). The row previously read *"Zero per-slice PRs"*, which stopped being true on 2026-08-15. |
-| 2 | **TTFE ≤ 30 min on a clean machine, docs only** (p.6, p.8) | The clause is an AND and the halves fail differently. *"Clean machine"* is `--clean`, unimplemented — `scripts/ttfe/drill.mjs:71-77` exits 2 saying so. *"Following only the published docs"* is not a scripting problem at all: the failure it measures is a step missing from the docs, and any script is written by someone who already knows the step. So the figure is **unmeasured, not estimated** — no number is offered for it. Closing it needs one person, one clean machine and a stopwatch (~1 h). Decomposed in `docs/ttfe-drill.md` → *"The clause has two conjuncts"*. The CI half, < 60 s, **is** met at 56.374 s. |
-| 3 | **Playwright regression "on main"** (p.2 item 9) | `main` is Week 5 and stays that way. The green 881-test run is on the integration tree at `c728c40`. |
-| 4 | **Expired token → *distinct error code*** (p.2 item 3) | The distinction ships as `details.reason: 'expired'`; the code stays `unauthorized`. A seventh code would contradict p.7's printed six-member union and break the SDK's key-equality assertion — three lanes, with a PRD self-contradiction underneath. |
-| 5 | **Signature verification < 1 ms** (p.8) | No benchmark exists. Writing one now is new work, not a correction. |
-| 6 | **Destroy-redeploy fully clean** (p.5) | The drill ran and is honestly logged, but the rebuild needed a manual flow-log-group clear. Re-running means ~25 minutes of teardown against the live graded deployment. |
-| 7 | **Demo video · social post** | Yours to record and post. |
+**Re-read against the coverage matrix 2026-08-16, and most of this table was stale.** Five of
+its seven rows described states the project had already left, and one described a shortfall
+that was never one. A "cannot close" list that is not re-read becomes a list of things a grader
+is told are broken while the repo proves otherwise — the exact failure the matrix's own headline
+count kept hitting. Rows are struck rather than deleted so the change is visible.
+
+| # | Item | Why |
+|---|---|---|
+| 1 | **Per-slice PRs for *each* slice** (p.12, third clause) — **the one WEAK row in the matrix** | Seven exist (!21–!27), five fully compliant — so the artifact exists and *"each"* is what fails. ~180 retroactive PRs would be a paper trail written after the merges they describe. Concede the *"each"* in writing (§1). **State the harsher reading too, because a grader reaches it first:** p.12 files this clause under **GitHub Repository**, and `gh pr list --repo joshdrochon/ship --state all` returns **9 PRs, all Week 5, newest 2026-08-08** — **zero Week-6 PRs on GitHub**. The seven compliant MRs are on GitLab `origin`. Both readings fail; neither is softened. |
+| 2 | **TTFE ≤ 30 min on a clean machine, docs only** (p.6, p.8) | **Half closed; the row is rewritten.** *"Clean machine"* is **met and measured** — `pnpm drill ttfe --clean` (PF-590) is implemented and ran twice at **12393 ms** and **11467 ms**, cold `node:22-bookworm`, no repo mount, empty pnpm store, tarball over HTTP, SDK rebuilt from source. That is 0.21 min of 30. The old text (*"`--clean` unimplemented — `drill.mjs:71-77` exits 2"*) is false as of 2026-08-16. *"Following only the published docs"* (PF-601) remains and cannot be closed by any script: the failure it measures is a step missing from the docs, and a script is written by someone who already knows the step. One person, one clean machine, a stopwatch, ~1 h. The CI half, < 60 s, **is** met — **7001 ms** on job **68256**, ref `main`. |
+| 3 | ~~**Playwright regression "on main"** (p.2 item 9)~~ | **CLOSED.** The premise expired: MR !20 merged `pf/integration → main`, so `main` is no longer Week 5. Re-run on `main`'s tip — **886 passed, 0 failed**, 2 flaky-on-retry (both Week-5 specs, on a box running four CI containers). Matrix row is SATISFIED. |
+| 4 | ~~**Expired token → *distinct error code*** (p.2 item 3)~~ | **RE-GRADED SATISFIED 2026-08-16 — this was never a shortfall.** p.2 says *"a distinct error code"* and one ships: `details.reason ∈ {expired, invalid, missing}`, a closed `.strict()`-validated enum, published on all **22** operations that can 401, plus per-reason RFC 6750 challenge headers. Only the *strict* reading (a distinct value of the `code` field) fails, and it fails for two reasons outside the project's control: **p.7 prints `ApiErrorCode` closed at six with exactly one 401 member**, and **RFC 6750 §3.1 defines only three codes**, with `invalid_token` covering *"expired, revoked, malformed"*. There is no standards-compliant distinct wire code to ship. Disclosed as a grader's legitimate disagreement, not as a gap. |
+| 5 | ~~**Signature verification < 1 ms** (p.8)~~ | **CLOSED — the benchmark existed the whole time.** `sdk/perf-report.json`: `verifyWebhook`, 5000 iterations, **P95 0.020292 ms** against a 1 ms budget, 49× inside it, measured 2026-08-13. Gated per drill run by `ttfe.drill.ts:392-402`. *"No benchmark exists"* was this document being wrong, not the project. |
+| 6 | ~~**Destroy-redeploy fully clean** (p.5)~~ | **CLOSED by drill 2, 2026-08-16.** Destroyed to 0 resources, then `Apply complete! Resources: 82 added, 0 changed, 0 destroyed` **unaided**, service `200`. Two corrections to the old text: the drill runs against a **throwaway** with its own state key, never *"~25 minutes of teardown against the live graded deployment"*; and the manual flow-log clear is what drill 2 proved was fixed. Residue is smaller and named in the matrix — a second orphan-able log group and a snapshot-name collision, both about running a *third* drill, neither about whether the rebuild works. |
+| 7 | **Flag matrix excludes one composition-root file** (p.11 item 8) — **the one QUALIFIED row** | Not a shortfall, not closable today, which is why the matrix now has a fourth verdict for it. `src/entrypoints/cron.test.ts` is excluded because 5 of its 6 tests reach the composition root and flag-on need a running API server with a seeded first-party app to complete a real `client_credentials` exchange. The matrix itself is green and **blocking on `main`** — job **68255**, `ok leg off: 230/230`, `ok leg on: 230/230`. The excluded path is proven separately by `agentCitizenFitness.test.ts` (real server, real token over a socket, real `PgAuditSink`, non-zero guard) in the blocking `test:` job. **Carry the caveat:** that test is filed flaky in CI (L99 **F201**, failed 66027 / passed 66183, undiagnosed). |
+| 8 | **Demo video · social post** | Yours to record and post. |
 
 ---
 
@@ -768,7 +795,9 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
       **233 463 B** (§4b). Done 2026-08-16.
 - [ ] `docs/per-epic-writeup.md` Epic 6 updated to the green TTFE run (§7). **Highest value
       item on this list.**
-- [ ] Decision taken on the grader `client_secret` (§9) and on PF-813's byte-identity
+- [x] Grader `client_secret` — **no decision needed, withdrawn 2026-08-16.** p.13's clause is
+      met by `README.md:128-129` (`grader@ship.local` / `grader123`, migration 076); the
+      apps are public clients so no secret is used (§9). Still open: PF-813's byte-identity
       clause (§5).
 - [ ] The CI status block re-run against whatever the last `main` pipeline is at submission
       time. It was `#20224` on `pf/integration` on 2026-08-15, is `#20358` on `main` as of
