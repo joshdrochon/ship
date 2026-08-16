@@ -44,7 +44,7 @@ exists.
 |---|---|---|---|---|---|
 | PF-491 | ☑ `new ShipClient({ token })` compiles with **no** `baseUrl` — the gate's literal example | ⚑ **Verified defect:** `ShipClientOptions.baseUrl` is `string` (required) in `sdk/src/client.ts:13`, so the MVP gate's own expression `new ShipClient({ token })` is a type error today. Make `baseUrl` optional with a documented default resolution order (explicit option → `SHIP_BASE_URL` env → the published instance URL) and ship a `@ts-expect-error`-free fixture that constructs the client exactly as p.2 writes it. A gate item that does not typecheck fails on a screenshot | MVP-8 | p.2 | PF-004 |
 | PF-492 | ☑ `.me()` against a **running server** returns the typed authenticated user | The gate is an integration assertion, not a unit test: boot the app, mint a token for a registered app, `await new ShipClient({ token, baseUrl }).me()`, and assert the resolved value's `app.client_id`, `user` and `scopes` are populated — with the call site typed such that `me.app.client_id` compiles and `me.app.nonexistent` does not. A mocked `fetch` cannot satisfy this ticket **Verified 2026-08-13:** Proved by sdkOAuthFlows.test.ts against a genuinely listening server (server.listen, real device-flow token): me.app.client_id, me.user.id and me.scopes all asserted, plus a @ts-expect-error proving me.app.nonexistent does not compile. | MVP-8 | p.2 | PF-491, PF-493 |
-| PF-493 | ☒ `Me` is the shape `/api/v1/me` actually returns, asserted against the spec | `Me` (`client.ts:21`) is hand-declared: `{app:{client_id,name}, user:{id,name}\|null, scopes:string[]}`. A test asserts it against the served spec's `me` response schema rather than against another hand-written literal. ⚑ **Sequencing:** `/api/v1/me` is **L10's** route and L13 ships `documents` only (PF-363 asserts `/me` is *absent* from the spec) — so this assertion has nothing to run against until L10 lands. See audit notes; this is a real hole in the spine's dependency row for this lane | MVP-8 | p.2, p.5 | PF-492, PF-378 |
+| PF-493 | ☑ `Me` is the shape `/api/v1/me` actually returns, asserted against the spec | `Me` (`client.ts:21`) is hand-declared: `{app:{client_id,name}, user:{id,name}\|null, scopes:string[]}`. A test asserts it against the served spec's `me` response schema rather than against another hand-written literal. ⚑ **Sequencing:** `/api/v1/me` is **L10's** route and L13 ships `documents` only (PF-363 asserts `/me` is *absent* from the spec) — so this assertion has nothing to run against until L10 lands. See audit notes; this is a real hole in the spine's dependency row for this lane **UNBLOCKED and DONE 2026-08-15 — the ☒ was wrong, and wrong in the safe direction.** The blocking premise was that *"`GET /api/v1/me` does not exist and its absence is PINNED."* Both halves are stale: L10 shipped the route (`api/src/platform/api/v1/me/routes.ts`, `me.schema.ts`, `me.routes.test.ts`), and **both pinning tests were flipped by the lane that landed it** — `api/src/__tests__/scope-fitness.test.ts:217` carries the note *"FLIPPED BY L10. This case previously asserted `/me` was absent"* and now asserts `expect(paths).toContain('/me')` with `scopeRegistry.size` still **7** (no eighth scope invented), and `documents.regression.test.ts:32` now reads *"enumerateV1Routes returns the documents routes, the spec, and L10's /me"*. The criterion itself is **met**, not merely unblocked: `api/src/platform/api/v1/sdkGate.test.ts:171` — *"the SDK's hand-declared `Me` agrees with the SERVED schema, field for field"* — fetches `${baseUrl}/api/v1/openapi.json` at runtime, reads `spec.paths['/me'].get`, and compares field by field against `Me`, which is exactly the criterion's *"against the served spec's `me` response schema rather than against another hand-written literal"*. `/me` is present in the committed `docs/openapi.json` path set | MVP-8 | p.2, p.5 | PF-492, PF-378 |
 | PF-494 | ☑ Base-URL joining preserves a path prefix on the instance URL | `new URL('/api/v1' + path, baseUrl)` (`client.ts:46`) resolves an **absolute** path against the origin, so `baseUrl: 'https://host/ship'` silently becomes `https://host/api/v1/...` and every call 404s. Table test: bare origin, origin with a trailing slash, origin with a path prefix, and a prefix without a trailing slash all produce the same, correct four URLs. A grader deploying behind a path prefix hits this before anything else | MVP-8 | p.2 | PF-491 |
 | PF-495 | ☑ One transport — exactly one place in `sdk/` calls `fetch`, sets `Authorization`, and reads the error body | Grep assertion over `sdk/src/**`: the literal `fetch(` appears in one module; every resource client receives the injected `Transport` (`resources/documents.ts:22`) and constructs no request of its own. Second assertion: no code path stringifies a token into a log, an error message, or a thrown `Error.stack`. This is the seam L18's four resource clients and both auth helpers plug into — two transports means two auth behaviours and two retry policies | — | p.10, p.12 | PF-491 |
 | PF-496 | ☑ Zero-polyfill runtime — global `fetch`, declared engines, no `node-fetch` | `package.json` declares `engines.node` at a version with global `fetch` (≥18), the browser build uses the same global, and a test asserts `dependencies` contains no HTTP client. Drill stage 1's expected outcome (p.8) is *"Workspace package resolves; types load in editor"* plus no *"peer-dependency errors"* — a polyfill dependency is the cheapest way to fail all three and the fastest way to spend the p.9 size budget | TS-9 | p.8, p.9 | PF-495 |
@@ -68,7 +68,7 @@ exists.
 | PF-514 | ☑ Install footprint: zero production dependencies, measured at **< 250 KB min+gzip** | p.9 sets the target: *"SDK install size (production deps only)"* at *"< 250 KB minified + gzipped"*. A committed script measures the packed tarball's production closure (bundle `dist` + every transitive `dependencies` entry, minify, gzip, sum) and writes the number to a report. Acceptance: `dependencies` is empty **and** the measured number is recorded — the empty-deps assertion is the mechanism, the byte count is the proof. Deliberately measures the closure and not just `dist`, so adding one 400 KB dependency fails even though `dist` did not grow | PERF:SDK install size < 250 KB | p.9, p.15 | PF-496 |
 | PF-515 | ☑ CI runs the SDK suite and fails the build over the size budget | Two gaps closed at once: `.github/workflows/ci.yml` runs vitest for `@ship/api`, `@ship/web` and `@ship/agent` and **not** `@ship/sdk`, and `eslint.config.js` fences `platform/**` and `integrations/**` but **not** `sdk/**`. Ship (a) an `@ship/sdk` test step, (b) a blocking size-check step running PF-514's script against the exported budget constant, and (c) a `no-restricted-imports` rule forbidding `api/src/**` from `sdk/**` with a negative fixture proving it fires. Answers Pre-Search 1.2 (p.15) — *"how will you enforce it (bundle analyzer, CI size check)"* — with the CI-size-check option, chosen because a bundle analyzer reports and a check refuses | — | p.15, p.18 | PF-514, PF-013 |
 
-## Build status — 23 done · 1 partial · 1 blocked
+## Build status — 25 done · 0 partial · 0 blocked
 
 Legend: ☑ done · ◐ partial, and why · ☒ blocked on another lane.
 
@@ -77,22 +77,30 @@ seven packages · `pnpm lint` 0 errors · `pnpm lint:boundary` 4 fences green in
 `F24 sdk → workspace` · `pnpm --filter @ship/sdk test` 161 passing · api suite 1489
 passing.
 
-**◐ PF-492 — the gate runs against a genuinely running server, but not against the
-production `/me`.** `api/src/platform/api/v1/sdkGate.test.ts` boots real Express on a
+**☑ PF-492 — the gate runs against a genuinely running server, and now against the
+production `/me` too.** `api/src/platform/api/v1/sdkGate.test.ts` boots real Express on a
 real port with real `createPublicRouter` and real `bearerTokenMiddleware`, mints a
 real token, and calls `new ShipClient({ token, baseUrl }).me()` over a socket. §2
-resolves a typed `Me` with `app.client_id`, `user` and `scopes` populated. What it
-cannot do is call the route in the composition root, because there isn't one.
+resolves a typed `Me` with `app.client_id`, `user` and `scopes` populated.
+**Resolved 2026-08-15 — this block used to read ◐ on the grounds that the gate
+"cannot call the route in the composition root, because there isn't one." There is one now.**
+L10 shipped `api/src/platform/api/v1/me/routes.ts`, and the same file imports the real
+composition root (`sdkGate.test.ts:51`, `import { createApp } from '../../../app.js'`) to
+fetch the served spec off a booted app. The table row and this block now agree; they
+disagreed for as long as the ◐ premise went unrechecked.
 
-**☒ PF-493 — `GET /api/v1/me` does not exist, and its absence is PINNED.** The audit
-note in this file said the route was L10's and unbuilt. It is worse than unbuilt: two
-tests already on `pf/integration` assert it is ABSENT —
-`documents/documents.regression.test.ts` asserts the mounted v1 route set is exactly
-the three `documents` routes, and `__tests__/scope-fitness.test.ts` asserts no path
-starting `/me` is mounted. So adding it is a **three-lane change** (L10 ships it, L13
-regenerates the spec, L09's regression assertion is updated) plus the spine edit this
-file already called for (`Blocks on: L13, L10`). It is not a local edit, and it was
-not made. PF-493's assertion has nothing to run against until then.
+**☑ PF-493 — `GET /api/v1/me` exists, and the pins that asserted its absence were
+flipped.** This block used to read ☒ *"the route does not exist and its absence is
+PINNED"*, and it was the reason the build-status line above under-counted. Both halves
+are stale. The route is built (`me/routes.ts`, `me.schema.ts`, `me.routes.test.ts`), and
+the two tests that pinned its absence were updated by the lane that landed it, in the
+same three-lane shape this block predicted: `__tests__/scope-fitness.test.ts:217` says so
+in its own comment — *"FLIPPED BY L10. This case previously asserted `/me` was absent"* —
+and now asserts `expect(paths).toContain('/me')` with the scope registry still at **7**,
+while `documents/documents.regression.test.ts:32` now enumerates *"the documents routes,
+the spec, and L10's /me"*. The three-lane change was not avoided; it was made. PF-493's
+assertion therefore has something to run against, and it runs: `sdkGate.test.ts:171`
+compares `Me` against the **served** spec's `/me` response schema field for field.
 
 ## Slices
 
@@ -179,5 +187,3 @@ confirm or refute rather than rediscover:
   **L18**. The `/api/v1/me` route itself (L10), the server's rate-limit headers (L11), and the CLI
   that consumes this package (L19). If any of those is unowned at audit time it goes to
   `lane-99-unassigned.md`, not into this file.
-</content>
-</invoke>
