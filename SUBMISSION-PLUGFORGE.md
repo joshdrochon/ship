@@ -131,10 +131,10 @@ old block listed as canceled (`#20241`…`#20311`) plus `#20314`, which it calle
 | `dependency-audit` | audit | ✅ pass | |
 | `security-scan` | audit | ✅ **pass** | was `leaks found: 46`. `GIT_DEPTH: 0` — a shallow clone re-emits whole trees at graft boundaries, which is what produced the 46 |
 | `license-inventory` | audit | ✅ pass | |
-| `test` | verify | ❌ **fail** | **2 of 2991**, in 2 of 170 files. `openapi/staticCopy.test.ts` — *"parses to exactly what GET /api/v1/openapi.json serves"*; and `oauth/deviceCodes.test.ts` — a 100 000-generation collision probe. **The same suite is 3005/3005 green locally** (171 files, `pnpm --filter @ship/api test`, 2026-08-16), so both are runner-environment failures rather than tree defects. Disclosed rather than explained away: nobody has root-caused either, and *"green on my machine"* is not a pass |
-| `coverage` | verify | ❌ **fail** | the same two tests, then `No files to upload` on a missing `cobertura-coverage.xml` |
-| `regression-budget` | verify | ❌ **fail** | **not a regression.** The job's own A/A self-check aborted: `TOO NOISY — GET /api/issues moved 66.5% between two runs of identical code`, against a +10% budget. The self-hosted runner cannot time anything to ±10%; `docs/regression-paired-runs.md` is the protocol that can |
-| `e2e` | verify | ⏳ running at time of writing | `allow_failure: true` |
+| `test` | verify | ✅ **pass** | was *"2 of 2991 failing"*. Both were runner-environment failures and both are green on `main` pipeline 20482 (2026-08-16): **3016 tests, 172 files, 0 failed**. One further flake surfaced and was fixed rather than retried — `fleetgraph.test.ts` was timing out 42 ms past vitest's 5 s default |
+| `coverage` | verify | ✅ **pass** | followed the two tests above |
+| `regression-budget` | perf | ⚠️ **warning (exit 2), by design** | **not a regression, and not a failure.** The comparator exits `2` = *could not be judged*, distinct from `1` = *judged and exceeded*. The baseline is darwin-arm64 / node v26 and the runner is linux-arm64 / node v22, so the six P95 rows are `NOT JUDGED`; bundle bytes and query counts are deterministic and **are** judged there, unconditionally, and pass. `allow_failure: exit_codes: [2]` encodes exactly that — exit 1 still fails the pipeline. The latency half is established by the paired protocol on a baseline-matching machine: **+4.3%**, [`docs/regression-paired-runs.md`](docs/regression-paired-runs.md). The job also now runs alone in a `perf` stage; sharing `verify` with twenty jobs was making it measure its neighbours (`/health` — no query, no database — read 589%) |
+| `e2e` | verify | ⚠️ warning-only (`allow_failure: true`) | 888 tests. Green on `main` at `94a6905`; one test (`program-mode-week-ux.spec.ts:380`) later became flaky and is fixed by retrying the click rather than waiting longer on one that never registered |
 | `docker-image` | package | ⏹ skipped | |
 
 **Read the three failures together.** Two are the same two tests, and the third is a
@@ -199,7 +199,7 @@ gate doc now reports the same +2.72% recorded below. **This file was the stale o
 | Bundle size vs Part 1 baseline | **+2.72%** — 747 644 B → 767 960 B, within +10% ✅ ([`docs/regression-report.json`](docs/regression-report.json), compared 2026-08-15T18:57Z at `dbfb46d`) |
 | Per-route query counts (six routes, reported per route, never aggregated) | **0.00%** on all six ✅ — bit-identical, 0/3/4/5/5/7 both sides |
 | P95 latency | **within budget, largest regression +4.3%** against +10% — [`docs/regression-paired-runs.md`](docs/regression-paired-runs.md). Re-measured after review: the old baseline was not Part 1, and the harness was timing its own server binds |
-| Playwright regression suite passes | **881 passed, 0 failed, exit 0** on the integration tree at `c728c40`, 2026-08-14 ✅ — see §11. **Not on `main`**, which p.2 asks for literally; `main` is still Week 5 |
+| Playwright regression suite passes **on main** | **886 passed, 0 failed** on `main` at `94a6905`, 2026-08-15 ✅ — p.2's clause is met literally. The earlier *"not on `main`, `main` is still Week 5"* note is withdrawn: that premise expired when MR !20 merged the integration tree into `main` |
 
 > **Read the generated report's verdict, not its latency rows.**
 > [`docs/regression-report.json`](docs/regression-report.json) carries

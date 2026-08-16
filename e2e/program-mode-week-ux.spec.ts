@@ -385,10 +385,27 @@ test.describe('Phase 2: Weeks Tab UI', () => {
     const cardCount = await sprintCard.count()
 
     if (cardCount > 0) {
-      await sprintCard.click()
-      // Clicking a sprint card navigates to /documents/{id}/sprints/{sprintId}
-      // Wait for URL to update which indicates selection worked
-      await expect(page).toHaveURL(/\/documents\/[a-f0-9-]+\/sprints\/[a-f0-9-]+/, { timeout: 15000 })
+      // Clicking a sprint card navigates to /documents/{id}/sprints/{sprintId}.
+      //
+      // The click and the assertion are inside `toPass` together, deliberately.
+      // A single click followed by a 15s URL wait failed outright on `main` in
+      // job 69188 and was flaky-on-retry in job 69156 — same test, same line.
+      // The 15s was never the problem: the call log shows the URL polled 19
+      // times and never moved, so the click itself did not register. That
+      // happens when the card is painted but its handler is not yet attached,
+      // and waiting longer on a click that never landed cannot fix it.
+      //
+      // Retrying the pair re-clicks instead of waiting harder. Navigation is
+      // idempotent here — arriving at the sprint URL twice is the same state —
+      // so a redundant click costs nothing, and the inner timeout stays short so
+      // a genuinely broken selection still fails inside the outer budget rather
+      // than hanging.
+      await expect(async () => {
+        await sprintCard.click()
+        await expect(page).toHaveURL(/\/documents\/[a-f0-9-]+\/sprints\/[a-f0-9-]+/, {
+          timeout: 5000,
+        })
+      }).toPass({ timeout: 30000 })
 
       // After navigation, verify a card shows as selected.
       //
