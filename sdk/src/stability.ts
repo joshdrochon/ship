@@ -90,7 +90,7 @@ export const STABLE_SURFACE = [
   //
   // The cost is bounded on purpose: `cursor` is on `ListOptions` and ABSENT from
   // `IterateOptions`, so the ergonomic path cannot see one even by accident, and
-  // `typeProofs/paginationHidesCursor.ts` pins that with `@ts-expect-error`.
+  // `typeProofs/surfaceContracts.ts` pins that with `@ts-expect-error`.
   // Read p.4's sentence as satisfied for `iterate()` and knowingly overridden for
   // `list()`. Stated the same way in docs/architecture.md → SDK Surface.
   'ListOptions',
@@ -285,6 +285,11 @@ export const PRE_1_0_SURFACE = [
   'BINDING_BY_OPERATION_ID',
   'resolveBoundMethod',
   'listPublicMethodPaths',
+  // Guards the WIDTH of the reverse walk: a sub-client on `ShipClient` that
+  // `listPublicMethodPaths` does not descend into. Exported for the same reason
+  // its neighbours are — the parity test lives in `api/` and reaches the SDK
+  // only through the published entry point.
+  'unwalkedClientProperties',
   'OperationBinding',
   'ClientMethodPath',
   'ReturnShape',

@@ -43,19 +43,27 @@ import {
   BINDING_BY_OPERATION_ID,
   resolveBoundMethod,
   listPublicMethodPaths,
+  unwalkedClientProperties,
   type OperationBinding,
 } from '@ship/sdk';
 import { generatePublicOpenAPIDocumentOrDie } from './registry.js';
 import { listSpecOperations, type SpecOperation } from './specOperations.js';
+import { V1_ROUTE_MODULES } from '../api/v1/allRoutes.js';
 
-// Side-effect imports: an operation exists in the registry because its module
-// was loaded. Same list as `staticCopy.test.ts` (L99 F52's checklist item 2) —
-// a resource missing here is a resource this test would silently not check.
-import '../api/v1/documents/routes.js';
-import '../api/v1/issues/routes.js';
-import '../api/v1/sprints/routes.js';
-import '../api/v1/me/routes.js';
-import '../api/v1/webhooks/routes.js';
+// Side-effect import: an operation exists in the registry because its module was
+// loaded, so what is imported here IS the surface this file measures.
+//
+// This used to be a hand-written list, and it is how `GET /api/v1/audit` reached
+// `main` with no SDK binding and a green parity suite: the audit route was not
+// in the list, so `OPERATIONS` never contained `getAudit`, so §2 had nothing to
+// report unbound and §1's same-size assertion compared 22 against 22. A short
+// list here does not fail the suite — it shrinks the thing being measured, and
+// reports 100% parity over a surface with a hole in it.
+//
+// `allRoutes.ts` is now the single list, and `allRoutes.test.ts` checks it
+// against the directory listing so a new resource nobody wires up turns the
+// suite red. Do not inline a copy of it here.
+import '../api/v1/allRoutes.js';
 import './route.js';
 
 const SPEC: OpenAPIObject = generatePublicOpenAPIDocumentOrDie();
@@ -134,8 +142,40 @@ describe('§1 · PF-532 — neither side can be empty, and the two failures are 
 
   it('and the two sets are the SAME SIZE — a fact worth stating on its own', () => {
     // p.6 sets spec parity at 100%. This is that number, and it is only
-    // meaningful because of the two guards above.
+    // meaningful because of the two guards above AND the one below.
     expect(OPERATION_BINDINGS.length).toBe(OPERATIONS.length);
+  });
+
+  it('the spec being walked covers EVERY route module, not just the imported ones', () => {
+    // ── The assertion the audit hole needed. ────────────────────────────────
+    //
+    // Everything above compares the binding table against `OPERATIONS`, and
+    // `OPERATIONS` is generated from whatever route modules this file's import
+    // graph loaded. That makes the surface being measured a variable, and the
+    // same-size assertion above passes at ANY size: drop a route module and the
+    // spec side loses its operations, the binding table was already missing
+    // them, and 22 === 22 is as green as 23 === 23.
+    //
+    // That is not a hypothetical — it is exactly how `GET /api/v1/audit`
+    // reached main with no SDK binding. So this compares the walked spec
+    // against the route manifest, which `allRoutes.test.ts` in turn compares
+    // against the filesystem. A resource with no operations here is a resource
+    // this file is not checking.
+    const segments = new Set(
+      OPERATIONS.map((operation) => operation.path.split('/')[1]).filter(
+        (segment): segment is string => segment !== undefined && segment.length > 0,
+      ),
+    );
+    const unrepresented = V1_ROUTE_MODULES.filter((resource) => !segments.has(resource));
+
+    expect(
+      unrepresented,
+      `${unrepresented.join(', ')} — route module(s) in the manifest contribute NO operation ` +
+        `to the spec this test walks. Every assertion in this file is therefore silent about ` +
+        `them, including the "same size" check above, which passes at a smaller number rather ` +
+        `than failing. Either the module is not being loaded (registration happens at module ` +
+        `load, so check the import of allRoutes.js) or it declares no route.`,
+    ).toEqual([]);
   });
 });
 
@@ -316,6 +356,29 @@ describe('§4 · PF-531 — reverse parity: an SDK method with no spec operation
     expect(paths).toContain('documents.list');
     expect(paths).toContain('webhooks.rotate');
     expect(paths).toContain('me');
+    // The two that were invisible to this walk until the audit hole was found:
+    // `audit` was missing from the list of sub-clients it descends into, and
+    // `webhooks.deliveries` was never descended into at all, so three bound
+    // delivery methods went unchecked in this direction.
+    expect(paths).toContain('audit.list');
+    expect(paths).toContain('webhooks.deliveries.replay');
+  });
+
+  it('the walk descends into EVERY sub-client on the instance — none silently skipped', () => {
+    // `listPublicMethodPaths` reads methods off real prototypes, but the set of
+    // OBJECTS it reads them from is a list inside the SDK. A resource added to
+    // `ShipClient` and not to that list is not reported as unbound — it is not
+    // looked at, which is the same vacuous pass one level out. `client.audit`
+    // sat in exactly that blind spot.
+    const unwalked = unwalkedClientProperties(CLIENT);
+
+    expect(
+      unwalked,
+      `${unwalked.join(', ')} — sub-client(s) on ShipClient that the reverse walk does not ` +
+        `descend into, so their public methods are checked against nothing. Add them to ` +
+        `WALKED_SUB_CLIENTS (or WALKED_NESTED) in sdk/src/operations.ts, or, if it is not ` +
+        `public surface, to NOT_PUBLIC_SURFACE with the reason.`,
+    ).toEqual([]);
   });
 
   it('every binding’s `call` and aliases resolve — no binding points at a phantom', () => {
