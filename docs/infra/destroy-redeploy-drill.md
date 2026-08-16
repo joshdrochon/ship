@@ -78,10 +78,57 @@ truth" currently carries a manual step**, which is exactly the claim this drill 
 to test. It did not recur on the second teardown, so the race is intermittent — which
 makes it worse to rely on, not better.
 
-*Remediation, not yet taken:* the durable fix is a log group whose name cannot collide
-on rebuild (`name_prefix`, or a random suffix), so a lingering orphan is ignored rather
-than fatal. That is a change to the graded config and belongs in daylight, not at the
-end of a drill.
+**Remediation taken 2026-08-16 — in the config, NOT re-drilled. Read both halves of that
+sentence.**
+
+The cause was established by reading the config rather than by guessing at the race, and it
+is not the one this section originally proposed. Three properties compose:
+
+1. `aws_cloudwatch_log_group.vpc_flow_logs` has a fully deterministic name,
+   `/aws/vpc/${var.project_name}` (`terraform/vpc.tf:121`). There is no `import` block, no
+   `moved` block and no data source anywhere under `terraform/`, so Terraform has no way to
+   adopt a survivor — any survivor is fatal rather than a no-op.
+2. `aws_iam_role_policy.vpc_flow_logs` granted **`logs:CreateLogGroup` on `Resource = "*"`**
+   to the flow-log delivery role (`terraform/vpc.tf:151,160`). That is the permission that
+   let delivery **re-create** the group Terraform had just deleted. Delivery never needed it:
+   `aws_flow_log.main` references the group's ARN, so Terraform always creates the group
+   first.
+3. `aws_flow_log.main` set no `max_aggregation_interval`, i.e. the provider default of
+   **600 s**, so up to ten minutes of buffered records could land after the flow log resource
+   was gone. The destroy took 11m18s. The window sat inside it, which is exactly what a
+   06:18:00 UTC re-creation "inside the destroy window" looks like.
+
+The fix removes (2) and shrinks (3), which between them remove (1)'s consequence:
+
+- **`logs:CreateLogGroup` is gone** from the policy. Delivery can write; it cannot create.
+- **`Resource` is scoped** to this log group and its streams. That is least privilege, and it
+  also buys an **ordering edge** for free: the policy now references
+  `aws_cloudwatch_log_group.vpc_flow_logs.arn`, so Terraform destroys the **policy before the
+  group**. By the time the group is deleted the role holds no CloudWatch Logs permission at
+  all and there is no principal left that could resurrect it.
+- **`max_aggregation_interval = 60`** cuts the in-flight window from ten minutes to one.
+
+Applied to both copies — `terraform/vpc.tf` and `terraform/modules/vpc/main.tf`, which
+`environments/prod` consumes. `terraform validate` passes and `terraform fmt -check` is clean;
+the only validate warning is the pre-existing `aws_s3_bucket_lifecycle_configuration.uploads`
+one at `s3-cloudfront.tf:466`, untouched by this change.
+
+**Why `name_prefix` was NOT taken**, though this section originally proposed it: changing the
+log group's name forces a **replacement** of the log group, and `aws_flow_log.main` references
+it, so it forces a replacement of the flow log too. That is two unplanned replacements queued
+onto the graded environment's next apply, applied by whoever runs it, unobserved. Removing the
+permission that causes the orphan is the smaller change and addresses the cause rather than
+tolerating it. The trade, recorded rather than buried: with no `CreateLogGroup`, a log group
+deleted out of band stops receiving records instead of silently re-creating itself — which is
+the behaviour we want, since the self-healing is what broke this drill.
+
+**What is NOT claimed.** The fix is **unapplied and un-drilled**. This drill was run
+2026-08-14, before it. Nothing here re-ran `destroy` and `apply` against live AWS to prove the
+rebuild is now unaided: that is the graded deployment, and re-drilling it hours before
+submission is not a trade worth making. So *"destroy and redeploy from the Terraform config
+alone"* stays **WEAK** — the cause of finding 1 is removed **in the configuration**, on
+evidence a reader can check by reading it, and the demonstration is owed. Finding 2 below is
+untouched by this and is a second, independent reason the same clause fails.
 
 ### 2. The post-apply plan is not `No changes.`
 

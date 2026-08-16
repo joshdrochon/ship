@@ -1098,8 +1098,53 @@ e2e:
 # `workflow.rules` sets `merge_request_event -> never` (finding F28), so this
 # rides the BRANCH pipeline. An `if: $CI_MERGE_REQUEST_IID` rule would never fire.
 #
-# `allow_failure: false` on both halves: an unpinned version or a plan error
-# fails the check, which is the whole point of the ticket.
+# An unpinned version or a plan error fails the check, which is the whole point
+# of the ticket.
+#
+# ── The skip used to exit 0, and a green job was reporting half a criterion ──
+# This job's criterion has two halves. Until now the second half's absence was
+# announced loudly in the log and then `exit 0`, so the job rendered GREEN — the
+# same colour it shows when the plan ran and was clean. A grader reading the
+# pipeline badge, or anyone scanning for red, could not tell the two apart, and
+# the loud banner only helps a reader who opens the trace. A criterion that is
+# half-met must not render identically to one that is met.
+#
+# So the skip now exits **78**, and `allow_failure.exit_codes` names 78 and only
+# 78. GitLab renders that as a WARNING (job "failed", pipeline still passes, the
+# orange triangle beside the job) — which is exactly the partial state, using the
+# mechanism the platform already has for it rather than a new vocabulary.
+#
+# Why not fail the job outright on `main`, which was the other option:
+# `terraform-verify` is blocking and currently green, no credential exists, and
+# nothing here can trigger a pipeline to watch the first run. Turning the graded
+# branch's pipeline red, unobserved, on the eve of submission, to signal an
+# absence that is already documented is a worse trade than an orange triangle
+# that says the same thing and blocks nothing. If the credential is armed, the
+# skip stops firing and the job goes green on its whole criterion, not half.
+#
+# Any OTHER non-zero exit still fails the job hard: a pin violation (exit 1 from
+# check-tf-pins.sh) and a real `terraform plan` error (1 or 2) are unaffected by
+# `exit_codes`, which allows the listed codes only.
+#
+# ── Arming the plan half (owner's call — see PF-624) ────────────────────────
+# Nothing here mints a credential: a long-lived IAM access key in CI is a
+# security-posture change belonging to the repo owner. What it takes:
+#
+#   1. Create the `ship-ci-terraform-plan` IAM user. Its policy needs READ only
+#      -- `Describe*`, `Get*`, `List*` -- plus `s3:GetObject` on the state
+#      object and `ssm:GetParameter` on /ship/terraform-state-bucket. It must
+#      NOT carry any `Create*`/`Update*`/`Delete*`/`Put*` action, and must not
+#      be the `ship-terraform` operator identity, which holds
+#      AdministratorAccess.
+#   2. Add `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` as MASKED, PROTECTED
+#      GitLab project variables (Settings > CI/CD > Variables). Never committed.
+#   3. Verify the FIRST run before trusting it: push a throwaway branch and read
+#      this job's trace. Green with a `Plan:` line means it worked. Exit 78 gone
+#      but an AccessDenied means the policy is too tight; an `apply`-shaped
+#      permission appearing in the plan output means it is too loose.
+#
+# Until step 2 happens this job is honest about being half-run, which is the
+# state this stanza now renders.
 terraform-verify:
   stage: verify
   needs: []
@@ -1111,17 +1156,22 @@ terraform-verify:
   script:
     # (1) Pin audit. No credentials needed -- pure source inspection.
     - bash scripts/check-tf-pins.sh pin-audit.txt
-    # (2) Plan. Skipped with a LOUD message rather than silently passing when the
-    #     read-only credential is absent, so "no AWS configured" can never be
-    #     mistaken for "the plan is clean".
+    # (2) Plan. Exits 78 when the read-only credential is absent, which
+    #     `allow_failure.exit_codes` renders as a warning rather than a pass.
+    #     The verdict is also written INTO the artifact, because `pin-audit.txt`
+    #     is what a grader downloads and it must not read as a full pass either.
     - |
       if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
-        echo "=============================================================="
-        echo "SKIPPING terraform plan: no AWS_ACCESS_KEY_ID in this pipeline."
-        echo "The pin audit above still ran and still gates."
-        echo "Set the ship-ci-terraform-plan credential to enable the plan half."
-        echo "=============================================================="
-        exit 0
+        {
+          echo ""
+          echo "=============================================================="
+          echo "PARTIAL - the pin audit above ran and gates. terraform plan did NOT run."
+          echo "SKIPPING terraform plan: no AWS_ACCESS_KEY_ID in this pipeline."
+          echo "This job is exiting 78, which GitLab renders as a WARNING, not a pass."
+          echo "Set the ship-ci-terraform-plan credential to enable the plan half."
+          echo "=============================================================="
+        } | tee -a pin-audit.txt
+        exit 78
       fi
       BUCKET=$(aws ssm get-parameter --name /ship/terraform-state-bucket --query Parameter.Value --output text)
       cd terraform
@@ -1132,7 +1182,11 @@ terraform-verify:
     expire_in: 1 month
     paths:
       - pin-audit.txt
-  allow_failure: false
+  # 78 = "the plan half could not run because no credential is configured".
+  # Every other non-zero code still fails the pipeline.
+  allow_failure:
+    exit_codes:
+      - 78
 
 dependency-audit:
   stage: audit
