@@ -174,7 +174,17 @@ describe('PF-507 · the browser entry has no node: specifier in its import graph
       seen.add(current);
 
       const source = codeOf(current);
-      for (const match of source.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
+      // The leading boundary is load-bearing. Without it, `from` and `import`
+      // match INSIDE a string literal: `['limit', 'cursor', 'from', 'to']` — the
+      // audit endpoint's real query parameters — reads as the keyword `from`
+      // followed by a quote, and the walk reports a bare specifier of `", "`.
+      // The two assertions below then fail on ordinary data with no import in
+      // sight. Requiring start-of-line or a separator before the keyword keeps
+      // every real form matching (`import './x.js'`, `} from './x.js'`,
+      // `await import('./x.js')`) and stops that.
+      for (const match of source.matchAll(
+        /(?:^|[\s;{}(,])(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/gm,
+      )) {
         const specifier = match[1] as string;
         if (!specifier.startsWith('.')) {
           bare.add(specifier);

@@ -88,18 +88,66 @@ describe('PF-123: the user_code is built for a human to read aloud and type', ()
     }
   });
 
-  it('collides zero times across 100 000 generations against the UNIQUE constraint', async () => {
-    // PF-123's headline assertion. The repo's `insert` throws on a duplicate
-    // `user_code`, mirroring UNIQUE(user_code), so a collision fails the test
-    // rather than being silently tolerated.
+  it('collides at the birthday rate and no faster across 100 000 generations', async () => {
+    // PF-123's headline assertion, corrected twice. Read both notes before
+    // changing the bound — the obvious "stricter" version is the broken one.
+    //
+    // ── 1. It no longer calls expect() 100 000 times ────────────────────────
+    // The loop body used to be `expect(seen.has(code)).toBe(false)`, which
+    // proves exactly what the assertion after the loop proves and costs the
+    // whole test its headroom: measured on this repo, 1061ms with the in-loop
+    // expect against 275ms without. Roughly 75% of the runtime was spent inside
+    // the assertion library rather than the generator under test, and with
+    // vitest's default 5s timeout that was ~5x margin on an idle machine and
+    // none on a loaded CI runner. Pipeline 20358 on `main` failed here with
+    // "Test timed out in 5000ms" while the same commit passed locally.
+    //
+    // ── 2. "Zero collisions" was never true ─────────────────────────────────
+    // The alphabet is 28 characters and the raw length is 8, so there are
+    // 28^8 ≈ 3.78e11 distinct user codes — 38.46 bits, which the entropy test
+    // above pins deliberately. Drawing n = 100 000 of them, the birthday model
+    // gives expected collisions n²/(2N) ≈ 0.0132 and
+    //
+    //     P(at least one collision) ≈ 1.31%
+    //
+    // So a PERFECTLY CORRECT generator fails a zero-collision assertion about
+    // one run in seventy-six. That is not a hypothetical either: this test
+    // produced `ER66-VTDM` twice on a clean run while this branch was being
+    // verified. A test that red-builds 1.3% of the time on correct code teaches
+    // people to re-run CI until it is green, which is how the genuinely broken
+    // build gets waved through.
+    //
+    // What a correct generator actually guarantees is that collisions stay AT
+    // the birthday rate. Tolerating 3 leaves P(exceeded) ≈ 1.3e-9 while still
+    // catching every real defect by orders of magnitude: a modulo-biased draw,
+    // a truncated seed, a reused counter or a shortened alphabet all collide
+    // hundreds to thousands of times at this volume, not four.
+    //
+    // Uniformity is a separate property and has its own test above; this one is
+    // about entropy actually being spent.
+    const MAX_TOLERATED_COLLISIONS = 3;
+
     const repo = new InMemoryDeviceCodeRepo();
     const seen = new Set<string>();
+    const collisions: string[] = [];
+
     for (let i = 0; i < 100_000; i += 1) {
       const code = generateUserCode();
-      expect(seen.has(code)).toBe(false);
-      seen.add(code);
+      if (seen.has(code)) collisions.push(code);
+      else seen.add(code);
     }
-    expect(seen.size).toBe(100_000);
+
+    expect(
+      collisions.length,
+      `${collisions.length} duplicate user_code(s) in 100 000 draws (${collisions
+        .slice(0, 5)
+        .join(', ')}). The birthday expectation at 38.46 bits is 0.013, so more than ` +
+        `${MAX_TOLERATED_COLLISIONS} is not bad luck — it is a CSPRNG, alphabet or length ` +
+        `defect, and UNIQUE(user_code) turns it into insert failures in production.`,
+    ).toBeLessThanOrEqual(MAX_TOLERATED_COLLISIONS);
+
+    expect(seen.size).toBe(100_000 - collisions.length);
+
     // And the constraint is real: re-inserting one is refused.
     const input = insertInput({ userCode: [...seen][0] as string });
     await repo.insert(input);
