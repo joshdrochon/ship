@@ -18,7 +18,15 @@ import { V1_PREFIX } from '../api/v1/testSupport.js';
 import { validateOpenApi31, OPENAPI_31_SCHEMA_URI } from './schemaValidation.js';
 import { generatePublicOpenAPIDocument } from './registry.js';
 import { mountOpenApiSpec, OPENAPI_SPEC_PATH } from './route.js';
-import '../api/v1/documents/routes.js';
+// The WHOLE public surface, not one resource. This was
+// `import '../api/v1/documents/routes.js'`, which meant MVP gate item 7's claim
+// — "OpenAPI 3.1 validated in a unit test" — was true of 3 operations out of 23.
+// A schema error anywhere in issues, sprints, me, webhooks or audit validated
+// green here because those paths were not in the document being validated.
+// `allRoutes.ts` is the single manifest; `allRoutes.test.ts` checks it against
+// the directory listing.
+import '../api/v1/allRoutes.js';
+import { V1_ROUTE_MODULES } from '../api/v1/allRoutes.js';
 
 const malformed = JSON.parse(
   readFileSync(new URL('./fixtures/malformed-spec.json', import.meta.url), 'utf8'),
@@ -86,6 +94,26 @@ describe('PF-371 — the generated document validates', () => {
     // `expected false to be true` against a 40 KB document costs an hour.
     expect(result.errors.join('\n')).toBe('');
     expect(result.valid).toBe(true);
+  });
+
+  it('and the document it validated is the WHOLE surface', () => {
+    // MVP gate item 7 says the spec is validated in a unit test. "The spec"
+    // means all of it. With only `documents/routes.js` imported, the assertion
+    // above ran against 3 operations and reported the gate satisfied — a schema
+    // error in any other resource validated green because it was not in the
+    // document. Passing on a subset is the same vacuity as passing on nothing,
+    // scaled.
+    const paths = Object.keys(generatePublicOpenAPIDocument().paths ?? {});
+    const missing = V1_ROUTE_MODULES.filter(
+      (resource) => !paths.some((path) => path.split('/')[1] === resource),
+    );
+
+    expect(
+      missing,
+      `${missing.join(', ')} contribute no path to the validated document, so the validation ` +
+        `above says nothing about them. Registration happens at module load — check the ` +
+        `import of allRoutes.js.`,
+    ).toEqual([]);
   });
 });
 

@@ -68,7 +68,7 @@ will not.
 | G-9 | There is **no** `/metrics` endpoint and no notifier anywhere in the build | absence, `api/src` | Q56 answers "logs and a query", and Q45's alert conditions are queryable and tested but **not paged**. Stated as a limit rather than dressed up |
 | G-10 | The deliverer is in-process; there is no queue, no worker, no broker | `api/src/platform/webhooks/` | Q1/Q2 fanout arithmetic is bounded by one Node process, and Q8's cost ceiling has to be a code-level circuit breaker, not a queue-depth alarm |
 | G-11 | The live Terraform root is **AWS** with real state; `terraform/render/` is retained, unapplied | `terraform/*.tf`, `terraform/render/PLAN-ANNOTATED.md` | Q53. This reverses the topology an earlier draft of the board assumed (D6) |
-| G-12 | The public error union is **closed at six** codes, printed verbatim on PRD p.7 | `docs/architecture.md` §Error envelope decisions | Q23 and Q32: several otherwise-natural answers (a seventh code, a 413, an `invalid_grant` member) are unavailable, and the cost of that closure is recorded rather than hidden |
+| G-12 | The public error union is **closed at six** codes, printed verbatim on PRD p.7 | `docs/architecture-appendix.md` §Error envelope decisions | Q23 and Q32: several otherwise-natural answers (a seventh code, a 413, an `invalid_grant` member) are unavailable, and the cost of that closure is recorded rather than hidden |
 
 ---
 
@@ -119,11 +119,11 @@ which is why L20 PF-603 runs a 20-sample series rather than reading a number off
 much lower — N ≈ 1.**
 
 *The three apps* are upserted by `db:migrate` on every run
-(`docs/architecture.md` §First-Party App Seeding):
+(`docs/architecture-appendix.md` §First-Party App Seeding):
 
 | App | Scopes | Why |
 |---|---|---|
-| `ship_app_firstparty_fleetgraph_agent` | `documents:read`, `issues:read`, `issues:write`, `sprints:read` | Epic 7 (see Q41 — this list is being narrowed by D5b) |
+| `ship_app_firstparty_fleetgraph_agent` | `documents:read`, `issues:read`, `sprints:read` | Epic 7. This read the four scopes including `issues:write` when this answer was written; D5b's narrowing has since landed (`platformApps.ts:117`) and the seed is read-only |
 | `ship_app_grader_readonly` | `documents:read`, `issues:read`, `sprints:read` | MVP gate item 10, p.2 — the pre-registered read-only app |
 | `ship_app_grader_demo` | `documents:read`, `documents:write` | **D12**, open — p.6's headline command is `ship docs create`, which a read-only app cannot run |
 
@@ -304,17 +304,22 @@ step (L20 PF-604, L26 PF-796 are the tickets; both open). The 85 min figure is m
 ### Q7
 > What is the SDK install footprint budget you're committing to — production deps only, gzipped — and how will you enforce it (bundle analyzer, CI size check)?
 
-**Budget < 250 KB gzipped, production deps only. Measured 225,109 bytes = 219.8 KB — 87.9% of
+**Budget < 250 KB gzipped, production deps only. Measured 233,463 bytes = 228.0 KB — 91.2% of
 budget, with 0 production dependencies. Enforced by a size check on GitHub Actions only; the
 graded GitLab pipeline does not enforce it.**
 
 | | |
 |---|---:|
 | Budget (`SIZE_BUDGET_BYTES` in `sdk/scripts/measure-install-size.mjs`) | 256,000 B (250 KB) |
-| Measured (`sdk/size-report.json`, `totalGzippedBytes`) | **225,109 B (219.8 KB)** |
-| Headroom | 30,891 B — **12.1%** |
+| Measured (`sdk/size-report.json`, `totalGzippedBytes`) | **233,463 B (228.0 KB)** |
+| Headroom | 22,537 B — **8.8%** |
 | Production dependency count | **0** |
-| Raw (ungzipped) dist | 625,114 B across 169 files |
+| Raw (ungzipped) dist | 644,949 B across 175 files |
+
+*Re-measured 2026-08-16 with `pnpm --filter @ship/sdk build && pnpm --filter @ship/sdk size`.*
+The previous reading in this section — 225,109 B / 219.8 KB / 169 files / 87.9% / 30,891 B
+headroom — was taken at `d497daf` and went stale when `AuditClient` and its types shipped
+(`40c4793`). The file count is the tell: 169 → 175.
 
 *Enforcement point, stated precisely because "CI-enforced" is the kind of claim that is either
 true of the graded pipeline or worth nothing.* `pnpm --filter @ship/sdk size:check` runs in the
@@ -326,14 +331,15 @@ buried. What the check *is*, where it runs, is a **size check, not a bundle anal
 analyzer tells you where the bytes went, which is a debugging tool; a check fails the PR, which
 is a budget.
 
-*Headroom is now thin, and that is the finding.* 87.9% of budget with 12.1% left is not the
-comfortable position the first draft of this answer recorded. The next feature that adds ~30 KB
-gzipped to `dist` fails the check.
+*Headroom is now thin, and that is the finding.* 91.2% of budget with 8.8% left is not the
+comfortable position the first draft of this answer recorded, and it has moved the wrong way
+since (87.9% → 91.2% in one day). The next feature that adds ~22 KB gzipped to `dist` fails the
+check.
 
 *The caveat I would rather state than have found.* The measurement is **gzip of the unminified
 published files**, which the script itself describes as *"an upper bound on min+gzip"* — the
 argument being that `gzip(raw) < 250 KB` implies `gzip(minified) < 250 KB`. That is sound, and it
-means 219.8 KB is pessimistic, not optimistic. It also means the thin headroom above is the
+means 228.0 KB is pessimistic, not optimistic. It also means the thin headroom above is the
 pessimistic reading of it: the real min+gzip figure is smaller, and unmeasured.
 
 *What buys what headroom there is.* Zero production dependencies. The SDK ships its own retry,
@@ -643,7 +649,7 @@ what is controlled is what a screenshot captures."*
 |---|---|---|
 | **Screenshot / screen-share** | Masked `••••` by default with an explicit Reveal; **auto-remasks on blur and after 30 s**; Copy writes to the clipboard **without ever rendering plaintext**; dismiss is gated on an "I have stored it" acknowledgement; rendered as **not an `<input>`**, so no password manager offers to save it | L22 PF-666 |
 | **Browser back-button** | The secret is never in a URL, never in `history.state`, and never behind its own route — the shown-once display is a **modal over the app list**, so Back remounts it empty. Playwright asserts this after Back *and* after a full reload, and asserts the screen names rotation as the only recovery | L22 PF-668 |
-| **Log line** | One hashing site, no logging of the raw value on any path; the SDK equivalently never puts a token in a message, a log line or a stack | `platform/apps/secrets.ts`; `docs/architecture.md` §`ITokenStore` |
+| **Log line** | One hashing site, no logging of the raw value on any path; the SDK equivalently never puts a token in a message, a log line or a stack | `platform/apps/secrets.ts`; `docs/architecture-appendix.md` §`ITokenStore` |
 | **⚠ IndexedDB — the fourth channel** | `web/src/lib/queryClient.ts` persists the TanStack Query cache to IndexedDB (`createStore('ship-query-cache','queries')`, key `tanstack-query`) and it **survives reload and logout**. A shown-once secret that passes through query state lands on disk. Mitigation: create and rotate are **mutations held in component state only — never `setQueryData`, never a query key**. The test reads the persisted client back **out of IndexedDB** and asserts absence, repeated after `queryClient.clear()` | **F25**, L22 PF-667 |
 
 *Why the fourth one is the answer worth having.* The PRD's three channels are the ones you
@@ -2817,7 +2823,7 @@ genuinely live. **There are no unanswered bullets.**
 | 4 | 1.1 | 15 | ~1 row/attempt; audit retention D10 (30 d + rollup), **delivery-log retention undecided** | Answered · open |
 | 5 | 1.2 | 15 | $75/wk vs Week 5's metered $67; expected token delta **zero**, verified by paired fixture runs | Answered |
 | 6 | 1.2 | 15 | 500 min/day ≈ 6 PRs; measured e2e 78.9/81.7/79.7 min, half of it one timeout constant | Answered |
-| 7 | 1.2 | 15 | <250 KB budget, **225,109 B measured (87.9%)**, 0 prod deps, `size:check` blocking on GitHub only | Answered |
+| 7 | 1.2 | 15 | <250 KB budget, **233,463 B measured (91.2%)**, 0 prod deps, `size:check` blocking on GitHub only | Answered |
 | 8 | 1.2 | 15 | Per-subscription circuit breaker, **not** the DLQ; 30,000 → ~1,440 req/day for a dead subscriber | Answered · open (values unchosen) |
 | 9 | 1.3 | 15 | E1–E4, E6, E7 must-ship; E5 should-ship; CLI over Slack on U6 | Answered |
 | 10 | 1.3 | 15 | 6–8 h/day of **coordination**; plan is dependency tiers, measured against 81 commits/day | Answered |
@@ -2851,7 +2857,7 @@ genuinely live. **There are no unanswered bullets.**
 | 38 | 2.5 | 17 | Click-to-reveal, defended against Q15 mitigation by mitigation | Answered |
 | 39 | 2.6 | 17 | Client Credentials §4.4 (D5a) — the grant choice **is** the audit claim | Answered |
 | 40 | 2.6 | 17 | `db:migrate`, deliberately not a numbered migration; generated secrets refused | Answered |
-| 41 | 2.6 | 17 | Read-only, three scopes, per-scope defense (D5b); ⚠ **seed currently ships `issues:write`** | Answered · divergence |
+| 41 | 2.6 | 17 | Read-only, three scopes, per-scope defense (D5b); the seed's `issues:write` divergence is **closed** — `platformApps.ts:117` requests the three read scopes | Answered |
 | 42 | 2.6 | 17 | Matrix + 2 anti-vacuity guards; **not** byte-for-byte — one assertion forked and named | Answered |
 | 43 | 3.1 | 17 | Deactivate (D2); recovery = reactivate + reassign, identity preserved | Answered |
 | 44 | 3.1 | 17 | At-least-once + key dedupe; in-flight window named; today's real mode is at-most-once | Answered · divergence |
@@ -2880,11 +2886,17 @@ unanswered.**
 
 <!-- PF-773 -->
 
-Every answer that restates an architecture decision was checked against `docs/architecture.md`
-on the load-bearing specifics. **Where the two disagree, the disagreement is resolved in one
-direction and both documents are edited** — never left to diverge.
+Every answer that restates an architecture decision was checked against the **architecture
+material** on the load-bearing specifics. That material is two files, not one:
+`docs/architecture.md` carries p.12's nine required sections under p.13's length cap, and
+`docs/architecture-appendix.md` carries the reasoning that did not fit. **Seven of the twelve
+rows below are appendix rows** — the `client_secret` hash, the TTL constants, the retry ladder,
+the consent screen's frame headers, scope upgrades, the pagination rules and the deployment
+topology all live there, and an earlier revision of this paragraph cited the main document for
+all twelve. **Where the two disagree, the disagreement is resolved in one direction and both
+documents are edited** — never left to diverge.
 
-| Specific | `docs/architecture.md` | This document | Verdict |
+| Specific | Architecture material | This document | Verdict |
 |---|---|---|---|
 | `client_secret` hash | SHA-256, unsalted, high-entropy | same | ✅ agree |
 | Access / refresh TTL | 1 h / 30 d sliding | same (and cites the shipped constants `3600` / `2592000`) | ✅ agree |
@@ -2893,7 +2905,7 @@ direction and both documents are edited** — never left to diverge.
 | `ApiError` codes | six, closed, printed on p.7 | same | ✅ agree |
 | SDK `kind` union | five: `auth \| rate_limit \| not_found \| validation \| server` | same | ✅ agree |
 | Scope names | seven, `{documents,issues,sprints}×{read,write}` + `webhooks:manage` | same | ✅ agree |
-| SDK footprint budget | < 250 KB min+gzip, production deps only, CI-enforced | same, **plus** the measured 225,109 B (87.9% of budget) and the caveat that "CI-enforced" means GitHub only | ✅ agree, refined |
+| SDK footprint budget | < 250 KB min+gzip, production deps only, CI-enforced | same, **plus** the measured 233,463 B (91.2% of budget) and the caveat that "CI-enforced" means GitHub only | ✅ agree, refined |
 | Pagination | `limit`, 25 / 100, newest-first, `(created_at, id)`, reject-not-clamp | same | ✅ agree |
 | Deployment | AWS, EB + Aurora + NAT, `terraform/render/` retained as fallback | same | ✅ agree |
 | Consent screen | server-rendered, `frame-ancestors 'none'` + `X-Frame-Options: DENY` | same | ✅ agree |
@@ -2928,7 +2940,16 @@ answers above.
 
 ### Amendments — 2026-08-12
 
-**A-1 · Q41 / D-6 — the agent's seeded scopes contradict D5b.**
+> **Read this block as a dated snapshot, not as current status.** It records what was true on
+> 2026-08-12, four days before submission, and several of its findings have since been closed by
+> the lanes they were routed to. Where an amendment is closed, the closure is noted inline on
+> that amendment. The authoritative current status of every open item is the **Open items**
+> table further down (O-1 … O-15), which is re-measured; this block is kept because *what was
+> broken and when it was found* is evidence a grader can use, and deleting it would make the
+> document look like it was always right.
+
+**A-1 · Q41 / D-6 — the agent's seeded scopes contradict D5b.** *(As of 2026-08-12. **Closed** —
+see O-10 below; the seed now requests the three read scopes only.)*
 `api/src/db/platformApps.ts:93` seeds `['documents:read', 'issues:read', 'issues:write',
 'sprints:read']` — four scopes including a **write** — under a comment reading "Least privilege,
 not `*`". D5b decided **read-only, exactly three**. The seed predates the decision. **The
@@ -2953,12 +2974,15 @@ L16 PF-482 specifies one `CircuitBreaker` per `subscription_id` reusing
 `failureThreshold` / `cooldownMs`. The `5 / 60_000` in Q8 is the in-repo precedent from
 `agent/src/actions/client.ts:126–127`, offered as a recommendation and labelled as one.
 
-**A-5 · Q52 — the +10% denominator exists; the division does not.**
+**A-5 · Q52 — the +10% denominator exists; the division does not.** *(As of 2026-08-12.
+**Closed** — see O-15 below: `compare-baseline.ts` ships behind `pnpm baseline:compare` and the
+`regression-budget` job runs it in both pipelines.)*
 `docs/baseline-part1.json` is captured and committed (L01 PF-020, done). **The comparator is
 not built** — L26 PF-802–805 are open, and no comparator script or `baseline-part1` reference
 exists under `scripts/`, `.github/` or `.gitlab-ci.yml`.
 
-**A-6 · Q47 — the TTFE drill has never run.**
+**A-6 · Q47 — the TTFE drill has never run.** *(As of 2026-08-12. **Closed 2026-08-15** — see
+O-13 below: the drill is green in CI, job 66739 at 56.375 s, and green on `main` at job 68256.)*
 Fully specified across L20's 24 tickets, all open. `test-results/` does not exist. **The measured
 TTFE figure is the most conspicuous missing number in this document.**
 
@@ -3021,8 +3045,8 @@ document carried a worst-route p95 of 6.93 ms and a derived budget of 7.62 ms.
 kept-alive socket, 25 trials). The stale pair made the *budget lower than the baseline it gates*.
 Corrected throughout: budget **8.62 ms**, flagship list **2.69 → 2.96 ms**.
 
-**B-5 · the SDK footprint moved 78% and the enforcement claim was overstated.**
-`sdk/size-report.json` reads **225,109 B** (219.8 KB, 169 files, 87.9% of the 256,000 B budget),
+**B-5 · the SDK footprint moved 94% and the enforcement claim was overstated.**
+`sdk/size-report.json` reads **233,463 B** (228.0 KB, 175 files, 91.2% of the 256,000 B budget),
 not the 120,305 B this document carried. `size:check` runs in `.github/workflows/ci.yml` and
 **nowhere in `.gitlab-ci.yml`**, so "blocking CI size check" was true of the mirror and not of
 the graded pipeline. Both corrected in Q7; the enforcement gap is now O-22.
@@ -3040,8 +3064,8 @@ appeared in this document as facts:
 |---|---|
 | NAT gateway ~$1/day | **no such figure is recorded anywhere.** `INFRASTRUCTURE_SUMMARY.md:205` has `$33` monthly (≈$1.10/day), which is what Q53 cites |
 | Terraform apply 9m19s + 5m00s, Aurora 8m23s | present, and `docs/infra/apply-timing.md` **labels it "Unverified… not observed by me"** |
-| 1568 api tests | **unverifiable** — the string appears nowhere. Static count under `api/src`: 1415 `it(`/`test(` call sites across 98 files. Not used as a claim in this document |
-| SDK 117.5 KB gzipped | **stale by 78%** — `sdk/size-report.json` now reads 225,109 B (219.8 KB, 169 files, 87.9% of budget). It is gzip of **unminified** files, an upper bound on min+gzip, and `size:check` runs on GitHub Actions **only**, not GitLab |
+| 1568 api tests | **unverifiable** — the string appears nowhere. Static count under `api/src` (`grep -rEoh "\b(it|test)\(" api/src --include='*.ts'`): **2,637** `it(`/`test(` call sites across **192** files, re-measured 2026-08-16 — it was 1,415 across 98 files when this row was first written, before `api/src/platform`. Not used as a claim in this document |
+| SDK 117.5 KB gzipped | **stale by 94%** — `sdk/size-report.json` now reads 233,463 B (228.0 KB, 175 files, 91.2% of budget). It is gzip of **unminified** files, an upper bound on min+gzip, and `size:check` runs on GitHub Actions **only**, not GitLab |
 | Six SDK error kinds | **five** |
 
 ---
@@ -3067,7 +3091,7 @@ evidence of a real Pre-Search than 58 confident answers.**
 | O-10 | Q41 | Agent seed ships `issues:write` | **Closed** — `PLATFORM_APP_SEEDS` now requests the three read scopes only | — |
 | O-11 | Q43 | Owner-deletion → app-deactivation cascade | **Designed** — D2 decided; no lane has wired the trigger | an owner lane, plus a test that a deleted owner's tokens stop validating |
 | O-12 | Q45 | The three alert conditions are queryable, **not paged** | **Verified as signals, unproven as alerts** | an alerting surface. Related: **F30**, no token-revocation endpoint exposes the *revoke* half of the playbook |
-| O-13 | Q47 | TTFE drill has never run | **Designed** — L20 is 21/32; `test-results/` does not exist | run it; commit `test-results/ttfe.json` |
+| O-13 | Q47 | TTFE drill has never run | **Closed** — green in CI at job **66739** (56.375 s, 2026-08-15) and on `main` at job **68256**; `ttfe-soak` 67859 is 20/20; `test-results/ttfe.json` and `ttfe-series.jsonl` upload as job artifacts | — |
 | O-14 | Q48 | PKCE p50/p95 live only in `docs/architecture.md` prose | **Verified once, not archived** | emit a committed artifact the way the TTFE drill does |
 | O-15 | Q52 | +10% comparator | **Closed** — `compare-baseline.ts` behind `pnpm baseline:compare`, run by the `regression-budget` job in both pipelines | — |
 | O-16 | Q53 | Grader-tenant isolation | **Designed and partly verified** — the Grader Sandbox workspace exists and F43's cross-workspace minting bug is closed | a test that a grader token cannot read the primary workspace, asserted from outside |

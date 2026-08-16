@@ -24,17 +24,32 @@ export const PUBLIC_SPEC_FILE = resolve(
 );
 
 /**
- * Serialises the generated document to `docs/openapi.json`.
+ * Serialises the generated document to `destination`, defaulting to
+ * `docs/openapi.json`.
  *
  * Two-space indent and a trailing newline. The file is committed and diffed by
  * CI (PF-369), so it has to be stable under `git diff` and readable in a review
  * — and it has to be byte-identical on a re-run, or the freshness job flaps and
  * gets turned off within a week.
+ *
+ * ## Why `destination` is a parameter
+ *
+ * So a TEST never has to write to the committed artifact. `staticCopy.test.ts`
+ * exercises this function for real, and while the default was the only option
+ * that meant running the suite REWROTE `docs/openapi.json` — which is how the
+ * audit trail disappeared from a graded deliverable as a side effect of `pnpm
+ * test`, and, worse, how the failure hid: the test asserts on the file it
+ * mutates, so the first run failed, rewrote the file to match its own smaller
+ * output, and the second run passed. Alternating red/green on identical code.
+ *
+ * A test that can be made to pass by running it twice is not measuring
+ * anything. Tests pass a temp path; only `pnpm openapi:public` takes the
+ * default.
  */
-export function writePublicSpec(): string {
+export function writePublicSpec(destination: string = PUBLIC_SPEC_FILE): string {
   const document = generatePublicOpenAPIDocumentOrDie();
   const json = `${JSON.stringify(document, null, 2)}\n`;
-  mkdirSync(dirname(PUBLIC_SPEC_FILE), { recursive: true });
-  writeFileSync(PUBLIC_SPEC_FILE, json, 'utf8');
-  return PUBLIC_SPEC_FILE;
+  mkdirSync(dirname(destination), { recursive: true });
+  writeFileSync(destination, json, 'utf8');
+  return destination;
 }

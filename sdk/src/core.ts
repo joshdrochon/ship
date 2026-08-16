@@ -183,6 +183,7 @@ export {
   BINDING_BY_OPERATION_ID,
   resolveBoundMethod,
   listPublicMethodPaths,
+  unwalkedClientProperties,
 } from './operations.js';
 export type { OperationBinding, ClientMethodPath, ReturnShape } from './operations.js';
 

@@ -41,7 +41,7 @@ export interface ListOptions {
  *
  * p.4: *"Cursors handled internally; consumer code never sees them."* There is
  * no `cursor` field, so passing one is a compile error and not a silently
- * ignored argument. `typeProofs/paginationHidesCursor.ts` pins that with a
+ * ignored argument. `typeProofs/surfaceContracts.ts` pins that with a
  * `@ts-expect-error` fixture.
  *
  * `limit` survives because it is a PAGE SIZE, not a position: it changes how

@@ -123,13 +123,24 @@ Sibling test wiring — same shape, in-memory concretes, no network and no clock
 
 ```ts
 // api/src/deps.ts — the sibling of productionDeps(), same shape, in-memory concretes
-export const testDeps = (overrides: Partial<AppDeps> = {}): AppDeps => ({
-  bus: new InProcessEventBus(),      deliverer: new InMemoryDeliverer(),   // resolves synchronously
-  limiter: new InMemoryTokenBucket({ capacity: 100, refillPerSecond: 100 / 60 }),
-  clock: new FakeClock(),  db: pool,  corsOrigin: 'http://localhost:5173',
-  ...overrides,
-});
-createApp(testDeps());   // retry-schedule tests advance FakeClock; no setTimeout anywhere in tests
+export function testDeps(overrides: Partial<AppDeps> = {}): AppDeps {
+  const clock = overrides.clock ?? new FakeClock();   // ONE clock, shared by every collaborator
+  return {
+    bus:       new RecordingEventBus(),   // extends InProcessEventBus: production dispatch + events[]
+    deliverer: new InMemoryDeliverer(),   // resolves synchronously, never opens a socket
+    // FOUR buckets, sized from TEST_RATE_LIMIT_PER_MINUTE = 2 (deps.ts:472):
+    perAppLimiter:   new InMemoryTokenBucket(tiny, clock),     // tiny ⇒ a 429 in two requests,
+    perTokenLimiter: new InMemoryTokenBucket(tiny, clock),     //   not a hundred
+    anonLimiter:     new InMemoryTokenBucket(generous, clock), // charges every request, so it
+    oauthLimiter:    new InMemoryTokenBucket(generous, clock), //   and the IP-keyed one stay generous
+    appsRepo: new InMemoryOAuthAppRepo(), tokenRepo: new InMemoryTokenRepo(),
+    authCodeRepo: new InMemoryAuthCodeRepo(), deviceCodeRepo: new InMemoryDeviceCodeRepo(),
+    subsRepo: new InMemoryWebhookSubscriptionRepo(), deliveryQueue: new RecordingDeliveryQueue(),
+    auditSink: new InMemoryAuditSink(), clock, db: pool,
+    ...overrides,   // one line swaps a Pg* repo back in for an integration suite
+  };
+}
+createApp(testDeps());   // retry and expiry tests advance FakeClock; no setTimeout in any test
 ```
 
 ## Public/Internal Boundary
@@ -219,15 +230,21 @@ that nothing re-checks, while a list whose length is a compile-time constant can
 into a pagination bug without someone editing this repository. The `as const` collections — `routeMetadata.ts` names `/api/v1/scopes` and
 `/api/v1/events` as the worked example — would declare `list: 'none'`; the document-backed
 collections declare `'cursor'`. **Neither of those two routes is mounted today**: the pair is
-the illustration the rule was written against, not shipped surface. The routes that actually
-declare `'none'` are `/api/v1/me` and `/api/v1/openapi.json` (`laneParity.test.ts` asserts
-exactly that set). The field is required with no default and `createApp()`
+the illustration the rule was written against, not shipped surface. **No shipped route declares `'none'` at all** — `grep -rn "list: 'none'" api/src` returns
+only the test fixtures and the type's own definition. `/api/v1/me` and `/api/v1/openapi.json`,
+which an earlier revision of this paragraph named as the `'none'` routes, both declare
+`list: false`, and `me/routes.ts:86-88` records that departure and its reason in the code.
+So `'none'` is a declared mode with no current member: the vocabulary is there for the
+bounded-by-code case the moment one ships. The set `laneParity.test.ts` does pin exactly is
+a different one — the routes declaring `scope: null`, which are `/api/v1/audit`,
+`/api/v1/me` and `/api/v1/openapi.json`. The field is required with no default and `createApp()`
 throws at wiring time on a route that omits it, because "nobody thought about it" and
 "it does not paginate" must not look the same to Testing Scenario 4's clause (d).
 
 **The sort key is `(created_at, id)`, and it is not `position`.** The internal list sorts
 by `ORDER BY position ASC, created_at DESC` over a column drag-reorder rewrites
-(`api/src/routes/documents.ts:120`). Paginating on a mutable column means a user
+(`DOCUMENTS_LIST_ORDER`, `api/src/services/documents.ts:112` — the route module delegates
+to the service and holds no SQL). Paginating on a mutable column means a user
 reordering a sidebar corrupts a concurrent API walk, which is exactly what "cursors are
 stable across reordering operations" (p.3) forbids. The keyset is a row comparison —
 `(created_at, id) < ($1, $2)` — because the logically equivalent `OR` form plans as a
@@ -613,7 +630,7 @@ presented, so hashing costs everything and buys nothing.
 
 ## SDK Surface
 
-`@ship/sdk` (new workspace package). **Stable for the week:** `ShipClient` with resource clients (`documents`, `issues`, `sprints`, `webhooks` — method signatures fitness-tested against the OpenAPI spec, drift fails CI); `ShipClient.authorizationCodeFlow()` and `ShipClient.deviceLogin()`; async-iterator pagination (`for await (const doc of client.documents.iterate())` — consumers never see cursors); `verifyWebhook(headers, rawBody, secret, toleranceSec = 300)` → boolean in one call; typed error union discriminated on `kind: 'auth' | 'rate_limit' | 'not_found' | 'validation' | 'server'`. **Pre-1.0 (may move):** `ITokenStore` implementations beyond in-memory/file, OAuth helper option bags, CLI internals. Install footprint budget: < 250 KB min+gzip, production deps only, enforced in CI — **0 production dependencies**, which is the mechanism, and **228.0 KB** gzipped (233,463 B over 175 published files, 629.8 KB raw — **91.2%** of budget), which is the proof it ran. The method is gzip of the *unminified* published files, an upper bound on min+gzip, and the "KB" the script prints is 1024 bytes, the same unit as its 250 KB budget line. Re-measured on `pf/integration` at `d497daf` on 2026-08-15 from a clean build; `sdk/size-report.json` carries exactly these numbers, so the committed artifact and this paragraph agree. Every earlier reading in this paragraph's history — 208.8 KB over 163 files, then 218.4 KB, then 219.8 KB over 169 files — was correct when taken and went stale as published files landed; the file count is the tell, and it is quoted here so a reader can see which tree a number came from. Because the method gzips unminified output, **doc comments count against this budget**. Headroom is now **22.0 KB**, and the trend is one direction, so a further ~20 KB of published output would breach p.9 and the answer at that point is a minifier, not a re-measurement.
+`@ship/sdk` (new workspace package). **Stable for the week:** `ShipClient` with resource clients (`documents`, `issues`, `sprints`, `webhooks` — method signatures fitness-tested against the OpenAPI spec, drift fails CI) and the list-only `audit` client beside them (F113, `client.ts:189`, stable but deliberately outside `RESOURCE_NAMES` — five members on `ShipClient`, four *resources*); `ShipClient.authorizationCodeFlow()` and `ShipClient.deviceLogin()`; async-iterator pagination (`for await (const doc of client.documents.iterate())` — consumers never see cursors); `verifyWebhook(headers, rawBody, secret, toleranceSec = 300)` → boolean in one call; typed error union discriminated on `kind: 'auth' | 'rate_limit' | 'not_found' | 'validation' | 'server'`. **Pre-1.0 (may move):** `ITokenStore` implementations beyond in-memory/file, OAuth helper option bags, CLI internals. Install footprint budget: < 250 KB min+gzip, production deps only, enforced in CI — **0 production dependencies**, which is the mechanism, and **228.0 KB** gzipped (233,463 B over 175 published files, 629.8 KB raw — **91.2%** of budget), which is the proof it ran. The method is gzip of the *unminified* published files, an upper bound on min+gzip, and the "KB" the script prints is 1024 bytes, the same unit as its 250 KB budget line. Re-measured at `40c4793` on `pf/L26-final-closables` on 2026-08-15 from a clean build, and reproduced on `main` since; `sdk/size-report.json` carries exactly these numbers, so the committed artifact and this paragraph agree. (`d497daf`, which an earlier revision of this paragraph cited, holds the *superseded* 225,109 B / 169-file reading — it was the tree before the audit client shipped.) Every earlier reading in this paragraph's history — 208.8 KB over 163 files, then 218.4 KB, then 219.8 KB (225,109 B) over 169 files — was correct when taken and went stale as published files landed; the file count is the tell, and it is quoted here so a reader can see which tree a number came from. Because the method gzips unminified output, **doc comments count against this budget**. Headroom is now **22.0 KB**, and the trend is one direction, so a further ~20 KB of published output would breach p.9 and the answer at that point is a minifier, not a re-measurement.
 
 Regenerating is `pnpm --filter @ship/sdk build && pnpm --filter @ship/sdk size`, and it should be re-run before submission — but **delete `sdk/tsconfig.tsbuildinfo` first if you have also deleted `sdk/dist`**. `sdk/tsconfig.json` sets `composite: true`, so `tsc` consults the build-info file, concludes the outputs are current, and emits nothing; the CJS half then rebuilds normally. A `rm -rf sdk/dist && pnpm --filter @ship/sdk build` therefore produces a *half-populated* `dist` and the script cheerfully reports it — 84.3 KB over 59 files, well under budget and completely wrong. It exits 0, so nothing catches it. `verifyWebhook` p95 **0.020292 ms** against p.8's 1 ms target (mean 0.015639 ms, p50 0.012583 ms — the committed `sdk/perf-report.json`; an earlier draft of this paragraph printed 0.0137 ms, which matches no field in it), measured over 5000 iterations on a real `document.created` envelope and enforced by `pnpm --filter @ship/sdk perf:check`; both figures upload as one `sdk-budget-reports` CI artifact.
 
@@ -623,7 +640,7 @@ Regenerating is `pnpm --filter @ship/sdk build && pnpm --filter @ship/sdk size`,
 
 `client.documents` · `client.issues` · `client.sprints` · `client.webhooks` — four named classes, not one object with a namespace per resource, which is the Interface-Segregation evidence p.12 asks for. Each is `readonly` in the types **and** non-writable at runtime (`Object.defineProperty`, because `readonly` is erased by `tsc` and swapping `client.documents` for a look-alike is how a token goes somewhere it should not).
 
-**Testing Scenario 5's second half runs against all 22 spec operations** (14 paths; counted from the committed `docs/openapi.json`). `sdk/src/operations.ts` publishes `OPERATION_BINDINGS`: one row per `operationId`, naming the SDK method that serves it. The method path is typed against the real classes, so a binding pointing at a method that does not exist fails `pnpm type-check`; a spec operation with no binding, or a public SDK method with no operation, fails `api/src/platform/openapi/sdkSurfaceParity.test.ts` **by name**. Parity is checked at signature level — required parameters covered, no invented parameters, request-body fields equal, return type equal to the 2xx schema field-for-field — because existence-only parity passes for a method that takes `any` and returns `any`. The spec-side walk is L13's `listSpecOperations` and nothing under `sdk/` parses an OpenAPI document; the test greps for a second parser, because Scenario 5 comparing two parsers would measure their agreement rather than the spec's agreement with the SDK.
+**Testing Scenario 5's second half runs against all 23 spec operations** (15 paths; counted from the committed `docs/openapi.json`, which is equal to the live document as parsed JSON though not byte-identical — the 22/14 figure predates `/api/v1/audit`). `sdk/src/operations.ts` publishes `OPERATION_BINDINGS`: one row per `operationId`, naming the SDK method that serves it. The method path is typed against the real classes, so a binding pointing at a method that does not exist fails `pnpm type-check`; a spec operation with no binding, or a public SDK method with no operation, fails `api/src/platform/openapi/sdkSurfaceParity.test.ts` **by name**. Parity is checked at signature level — required parameters covered, no invented parameters, request-body fields equal, return type equal to the 2xx schema field-for-field — because existence-only parity passes for a method that takes `any` and returns `any`. The spec-side walk is L13's `listSpecOperations` and nothing under `sdk/` parses an OpenAPI document; the test greps for a second parser, because Scenario 5 comparing two parsers would measure their agreement rather than the spec's agreement with the SDK.
 
 **`sprints` is the public noun and Ship's internal one appears nowhere under `sdk/`** — a grep over the whole package asserts it, since a leaked internal noun in a published package cannot be taken back. The translation lives in `platform/api/v1/resource-map.ts` alone.
 

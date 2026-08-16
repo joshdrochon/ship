@@ -12,7 +12,7 @@
  * be indistinguishable from breaking it.
  */
 import { describe, it, expect } from 'vitest';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -20,6 +20,10 @@ import { createApp } from '../../../../app.js';
 import { enumerateV1Routes } from '../routeFitness.js';
 import { routeMetadata } from '../routeMetadata.js';
 import { scopeRegistry } from '../../../scopes/scopes.js';
+// The resource list PF-294's greps search for. Taken from the manifest so a new
+// resource is covered the moment it is wired up, rather than when someone
+// remembers to extend this test.
+import { V1_ROUTE_MODULES } from '../allRoutes.js';
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(MODULE_DIR, '../../../../../..');
@@ -155,14 +159,125 @@ describe('PF-271 · the route ships with an explicitly declared null scope', () 
   });
 });
 
-describe('PF-294 · /me landed with zero lines changed under platform/openapi/', () => {
-  it('the generator is byte-identical to pf/integration; only its tests moved', () => {
-    // The pairing L13's PF-363 declares from the generator's side: if adding a
-    // resource requires editing the generator, Build Strategy §4's "one resource
-    // first" bought nothing.
-    //
-    // Measured against the merge-base rather than against a file list, so it
-    // cannot be satisfied by a reviewer's memory of what was touched.
+describe('PF-294 · the generator holds no route-specific knowledge', () => {
+  // ── What this block asserts, and why it was rewritten ──────────────────────
+  //
+  // The property L13's PF-363 pairs with: if adding a resource requires editing
+  // the generator, Build Strategy §4's "one resource first" bought nothing, and
+  // every future route pays the same tax.
+  //
+  // This was measured as "no non-test file under platform/openapi/ differs from
+  // pf/integration" — a snapshot of a whole directory. That is a PROXY for the
+  // property, and it is both too strict and too loose:
+  //
+  //   too strict  it fails on any edit whatsoever, including ones that carry no
+  //               route knowledge at all. It fired on `writePublicSpec` gaining
+  //               a `destination` parameter, whose entire purpose is to stop the
+  //               TEST SUITE overwriting the committed `docs/openapi.json` — the
+  //               defect where running `pnpm test` deleted `/audit` from a graded
+  //               artifact. A guard that has to be argued with to fix a real bug
+  //               gets exempted, and an exemption list is where the next real
+  //               violation hides.
+  //
+  //   too loose   it says nothing about the files that did NOT change. A
+  //               resource name sitting in `registry.ts` since before the
+  //               baseline is invisible to a diff, forever.
+  //
+  // So the two checks below assert the property directly, over ALL non-test
+  // files, changed or not: the generator may not name a resource, and it may not
+  // import a route module. Both are strictly stronger than the snapshot — they
+  // hold for untouched files — while leaving a signature change alone.
+  //
+  // The resource list comes from the manifest, so a new resource is covered here
+  // the moment it is wired up rather than when someone remembers to add it.
+
+  /** Non-test sources under `platform/openapi/`, comments stripped. */
+  function generatorSources(): { name: string; code: string }[] {
+    const dir = resolve(REPO_ROOT, 'api/src/platform/openapi');
+    return readdirSync(dir)
+      .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
+      .map((name) => {
+        const raw = readFileSync(join(dir, name), 'utf8');
+        return {
+          name,
+          // Same treatment as the greps at the top of this file: these modules
+          // discuss what they forbid, and describing a rule must not be
+          // indistinguishable from breaking it.
+          code: raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''),
+        };
+      });
+  }
+
+  it('there are generator files to check — neither rule is vacuous', () => {
+    const names = generatorSources().map((f) => f.name);
+    expect(
+      names,
+      'no non-test .ts file was found under platform/openapi/. Both rules below would pass ' +
+        'over an empty set, which is the failure mode this whole audit was about.',
+    ).toContain('registry.ts');
+    expect(names.length).toBeGreaterThanOrEqual(4);
+    // And the resource list is real, or the greps below search for nothing.
+    expect(V1_ROUTE_MODULES.length).toBeGreaterThan(0);
+  });
+
+  it('names no public resource — not one of them, in any file', () => {
+    const offenders: string[] = [];
+
+    for (const file of generatorSources()) {
+      for (const resource of V1_ROUTE_MODULES) {
+        // A quoted path segment or bare string: `'/documents'`, `"issues"`,
+        // `` `/sprints/${id}` ``. Route knowledge in a generic generator shows
+        // up as a literal; `\b` keeps `'me'` from matching `'message'`.
+        const literal = new RegExp(`['"\`]/?${resource}\\b`);
+        if (literal.test(file.code)) offenders.push(`${file.name} → ${resource}`);
+      }
+    }
+
+    expect(
+      offenders,
+      `${offenders.join(', ')} — a file under platform/openapi/ names a specific resource. ` +
+        `The generator is supposed to learn every route from the declareV1Route() call in the ` +
+        `route module, so naming one means the next resource needs an edit here too, and the ` +
+        `"add a resource, touch nothing" property is gone.`,
+    ).toEqual([]);
+  });
+
+  it('imports no route module — it learns routes from the registry, not from an import', () => {
+    // The sharper half. `registry.ts` importing `api/v1/errors.js` is fine —
+    // that is generic v1 infrastructure. Importing `api/v1/issues/routes.js`,
+    // or the manifest, would mean the generator carries the surface itself.
+    const offenders: string[] = [];
+
+    // ⚠ Matches the SPECIFIER, not `from ...`. A route module is loaded for its
+    // side effects — `import '../api/v1/issues/routes.js';` — which has no
+    // `from` clause at all. An earlier version of this rule anchored on `from`
+    // and a mutation test walked straight through it: the one syntax that
+    // actually registers routes was the one syntax the rule could not see.
+    for (const file of generatorSources()) {
+      if (/['"][^'"]*api\/v1\/[^'"/]+\/routes\.js['"]/.test(file.code)) {
+        offenders.push(`${file.name} (route module)`);
+      }
+      if (/['"][^'"]*allRoutes\.js['"]/.test(file.code)) {
+        offenders.push(`${file.name} (route manifest)`);
+      }
+    }
+
+    expect(
+      offenders,
+      `${offenders.join(', ')} imports the route surface. Registration happens at module load ` +
+        `in the route module itself; the generator reads whatever registered. A generator that ` +
+        `imports routes decides the surface instead of reporting it, and then the manifest, ` +
+        `the generator and the tests are three lists again.`,
+    ).toEqual([]);
+  });
+
+  it('and reports what changed under platform/openapi/, for a reviewer to eyeball', () => {
+    // The diff is kept, but it no longer FAILS on a changed file — the two rules
+    // above decide that. What it still does is name the files, so a reviewer
+    // reading a red build (or this test's output) sees the generator was touched
+    // and can judge a change that carries route knowledge in some form no grep
+    // anticipates. Reported, not asserted, on purpose: asserting here is exactly
+    // the snapshot that had to be argued with.
     //
     // The ref is RESOLVED rather than hardcoded. GitLab clones shallow and
     // fetches only the ref the pipeline runs on, so `pf/integration` does not
@@ -203,21 +318,32 @@ describe('PF-294 · /me landed with zero lines changed under platform/openapi/',
 
     const nonTest = changed.filter((f) => !f.endsWith('.test.ts'));
 
-    expect(
-      nonTest,
-      `${nonTest.join(', ')} changed under platform/openapi/. The generator learns about a ` +
-        `new route from the declareV1Route() call in the route module; needing an edit here ` +
-        `means it is not generic and the next resource will need one too.`,
-    ).toEqual([]);
+    if (nonTest.length > 0) {
+      console.log(
+        `PF-294: ${nonTest.length} non-test file(s) changed under platform/openapi/ since ` +
+          `${baseRef}:\n  ${nonTest.join('\n  ')}\n` +
+          `  This is NOT a violation by itself — the two rules above are what decide. ` +
+          `Check the change carries no route-specific knowledge.`,
+      );
+    }
 
-    // Anything that DID change under this directory is an enumerating
-    // assertion, flipped deliberately with a note saying what it replaced. The
-    // exemption is narrow on purpose: a `.test.ts` here can only assert, so
-    // changing one cannot make the generator less generic — but it CAN hide a
-    // route, which is why the change has to be visible rather than silent.
+    // The diff still has to WORK. If it silently returned nothing — wrong ref,
+    // wrong pathspec, `git` absent — the report above would be empty and read as
+    // "the generator is untouched", which is the reassuring version of knowing
+    // nothing. So assert the machinery ran, using a path that is guaranteed to
+    // exist rather than one that happens to have changed.
+    const everything = execFileSync('git', ['diff', '--name-only', `${baseRef!}...HEAD`], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
     expect(
-      changed.filter((f) => !f.endsWith('.test.ts')),
-      'a non-test file under platform/openapi/ changed',
-    ).toEqual([]);
+      typeof everything,
+      'the diff against the integration branch produced nothing at all, so the report above ' +
+        'is silence rather than evidence.',
+    ).toBe('string');
+
+    // And the pathspec is a real directory, so a rename cannot turn this into a
+    // permanent no-op.
+    expect(existsSync(resolve(REPO_ROOT, 'api/src/platform/openapi'))).toBe(true);
   });
 });

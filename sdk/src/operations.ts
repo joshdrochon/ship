@@ -44,6 +44,7 @@ import type { IssuesClient } from './resources/issues.js';
 import type { SprintsClient } from './resources/sprints.js';
 import type { WebhooksClient } from './resources/webhookSubscriptions.js';
 import type { WebhookDeliveriesClient } from './resources/webhookDeliveries.js';
+import type { AuditClient } from './resources/audit.js';
 // The field tuples come from the resource modules rather than being restated
 // here, so the binding and the type it describes cannot drift: adding a field to
 // `ShipIssue` without adding it to `ISSUE_FIELDS` is already a type error
@@ -52,6 +53,7 @@ import { WEBHOOK_DELIVERY_FIELDS } from './resources/webhookDeliveries.js';
 import { CREATE_DOCUMENT_FIELDS, DOCUMENT_FIELDS } from './resources/documents.js';
 import { CREATE_ISSUE_FIELDS, ISSUE_FIELDS, UPDATE_ISSUE_FIELDS } from './resources/issues.js';
 import { CREATE_SPRINT_FIELDS, SPRINT_FIELDS, UPDATE_SPRINT_FIELDS } from './resources/sprints.js';
+import { AUDIT_CALL_FIELDS } from './resources/audit.js';
 import {
   CREATE_WEBHOOK_FIELDS,
   UPDATE_WEBHOOK_FIELDS,
@@ -70,6 +72,9 @@ type ResourceMethodPath =
   | `issues.${MethodNames<IssuesClient> & string}`
   | `sprints.${MethodNames<SprintsClient> & string}`
   | `webhooks.${MethodNames<WebhooksClient> & string}`
+  // F113 — p.4's audit trail. Standalone client (no `get()`), because there is
+  // no `GET /audit/{id}` operation for it to bind to.
+  | `audit.${MethodNames<AuditClient> & string}`
   // Nested collection. p.4 puts the delivery log, DLQ and replay under
   // `/webhooks`, and the SDK mirrors that URL shape rather than flattening it to
   // `webhookDeliveries.*`. Derived from the real class for the same reason as
@@ -367,6 +372,29 @@ export const OPERATION_BINDINGS: readonly OperationBinding[] = [
     bodyFields: [],
     returns: { shape: 'item', fields: WEBHOOK_DELIVERY_FIELDS },
   },
+
+  // ── audit ─────────────────────────────────────────────────────────────────
+  {
+    // F113 — p.4's public audit trail. This row is the one that was missing:
+    // `GET /api/v1/audit` shipped with `AuditClient` wired onto `ShipClient` and
+    // no binding here, and the parity suite stayed green because its own import
+    // list omitted the audit route module, so the spec side never produced
+    // `getAudit` to go looking for. See `api/v1/allRoutes.ts` for the fix to the
+    // omission itself.
+    operationId: 'getAudit',
+    method: 'get',
+    path: '/audit',
+    call: 'audit.list',
+    aliasCalls: ['audit.iterate'],
+    pathParams: [],
+    // The four filters are p.4's, and `ListAuditCallsInput` admits exactly
+    // these. There is no `client_id`: the trail is scoped to the caller by
+    // construction, so a parameter for it would be a way to ask for someone
+    // else's history.
+    queryParams: [...LIST_QUERY, 'status', 'route', 'from', 'to'],
+    bodyFields: [],
+    returns: { shape: 'page', fields: AUDIT_CALL_FIELDS },
+  },
 ];
 
 /** Lookup by `operationId`. Built once. */
@@ -400,20 +428,98 @@ export function resolveBoundMethod(
 }
 
 /**
+ * The sub-clients hanging off `ShipClient` that the reverse walk descends into.
+ *
+ * This list was `['documents', 'issues', 'sprints', 'webhooks']` and it was the
+ * reverse-parity half of the audit hole: `client.audit` existed, `audit.list`
+ * and `audit.iterate` were real public methods, and PF-531 never looked at them
+ * because the resource name was not here. `webhooks.deliveries` was unwalked for
+ * the same reason. A short list here does not fail — it walks less.
+ *
+ * `unwalkedClientProperties()` below is what stops that recurring: it checks
+ * this list against the real instance, so a sub-client nobody adds here is
+ * reported rather than skipped.
+ */
+const WALKED_SUB_CLIENTS = ['documents', 'issues', 'sprints', 'webhooks', 'audit'] as const;
+
+/**
+ * Nested collections — `client.webhooks.deliveries`. p.4 puts the delivery log,
+ * DLQ and replay under `/webhooks`, and the SDK mirrors that URL shape.
+ */
+const WALKED_NESTED: readonly (readonly [(typeof WALKED_SUB_CLIENTS)[number], string])[] = [
+  ['webhooks', 'deliveries'],
+];
+
+/**
+ * Properties on a client object that are NOT public surface, with the reason.
+ *
+ * `transport` is TypeScript-`private`, which is a compile-time fiction — at
+ * runtime it is an ordinary enumerable own property holding an object full of
+ * methods. It is plumbing, not a resource, and it is named here rather than
+ * filtered by a naming heuristic because this module's whole argument is that a
+ * claim someone made can be checked and a heuristic cannot.
+ */
+const NOT_PUBLIC_SURFACE = new Set(['transport']);
+
+/**
+ * Own enumerable properties of `client` (or of a sub-client) that look like a
+ * sub-client but are neither walked nor explicitly excluded.
+ *
+ * PF-531's reverse walk asserts every public SDK method maps to a spec
+ * operation. That assertion is only as wide as `WALKED_SUB_CLIENTS`, so this
+ * function is what makes the width itself checkable: the parity test asserts it
+ * returns nothing, and adding a sixth resource to `ShipClient` without listing
+ * it above turns the suite red instead of quietly narrowing the walk.
+ */
+export function unwalkedClientProperties(client: ShipClient): string[] {
+  const walked = new Set<string>(WALKED_SUB_CLIENTS);
+  const found: string[] = [];
+
+  const inspect = (target: object, prefix: string, covered: ReadonlySet<string>): void => {
+    for (const [key, value] of Object.entries(target)) {
+      if (covered.has(key) || NOT_PUBLIC_SURFACE.has(key) || key.startsWith('_')) continue;
+      // Only objects carrying prototype methods are candidates. A string like
+      // `baseUrl` or a null `lastRateLimit` is data, not an unwalked surface.
+      if (value === null || typeof value !== 'object') continue;
+      if (prototypeMethods(value as object).length === 0) continue;
+      found.push(`${prefix}${key}`);
+    }
+  };
+
+  inspect(client, '', walked);
+
+  for (const resource of WALKED_SUB_CLIENTS) {
+    const nested = new Set(
+      WALKED_NESTED.filter(([parent]) => parent === resource).map(([, child]) => child),
+    );
+    inspect(client[resource] as object, `${resource}.`, nested);
+  }
+
+  return found.sort();
+}
+
+/**
  * Every public method the SDK offers, as `'resource.method'` / `'method'` paths
  * — PF-531's reverse walk reads this and asserts each one appears in the table.
  *
  * Read off the real prototypes rather than from a list, because a list of
  * methods maintained beside a table of bindings is two lists that agree until
- * someone adds a method to only one.
+ * someone adds a method to only one. The set of OBJECTS walked is a list, and
+ * `unwalkedClientProperties()` is what keeps that list honest.
  */
 export function listPublicMethodPaths(client: ShipClient): string[] {
   const paths: string[] = [];
 
   for (const name of prototypeMethods(client)) paths.push(name);
 
-  for (const resource of ['documents', 'issues', 'sprints', 'webhooks'] as const) {
+  for (const resource of WALKED_SUB_CLIENTS) {
     for (const name of prototypeMethods(client[resource])) paths.push(`${resource}.${name}`);
+  }
+
+  for (const [parent, child] of WALKED_NESTED) {
+    const nested = (client[parent] as unknown as Record<string, object>)[child];
+    if (nested === undefined) continue;
+    for (const name of prototypeMethods(nested)) paths.push(`${parent}.${child}.${name}`);
   }
 
   return paths.sort();

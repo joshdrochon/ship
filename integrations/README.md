@@ -77,7 +77,7 @@ database of this pass's own; `<n>` is what the run printed, not what a ticket
 claimed.
 
 ```
-pnpm --filter @ship/cli test                 # 58 · 7 files, no server needed
+pnpm --filter @ship/cli test                 # 83 · 11 files, no server needed
 pnpm --filter @ship/cli test:server          # 19 · the five-line story, against a booted Ship
 pnpm --filter @ship/browser-demo test        #  5 · bundle assertions
 pnpm --filter @ship/browser-demo test:pkce   #  7 · Playwright, PKCE in a real browser
@@ -121,22 +121,34 @@ fixed and stayed silent about the ones that were not, which is the wrong way
 round — `.gitlab-ci.yml` is what this repo's own CI header names as authoritative
 when the two pipelines drift, and GitLab is the graded remote.
 
-What is genuinely missing from `.gitlab-ci.yml` is **five** of the nine commands
-above. `grep` for each returns nothing:
+**Corrected again 2026-08-16.** This section then said that **five** of the nine
+commands were *"genuinely missing"* from `.gitlab-ci.yml` and that Slack had *"no
+automated proof at all"* on the graded remote. All five landed on 2026-08-15 with
+`pf/L20-ttfe-ci-docker`, and the paragraph did not follow. **All nine of the
+commands above now run on GitLab**, each behind `scripts/assert-tests-ran.sh` so a
+suite that reports zero tests exits 2 rather than reading as a pass:
 
-| Command | GitHub job | GitLab |
-|---|---|---|
-| `pnpm --filter @ship/slack test` | `integration-tests` (matrix) | **absent** |
-| `pnpm --filter @ship/integration-testkit test` | `integration-tests` (matrix) | **absent** |
-| `pnpm slack:live` | `slack-live` | **absent** |
-| `pnpm drill:refresh` | `drill-refresh-rotation` | **absent** |
-| `pnpm drill:idempotency` | `drill-idempotency` | **absent** |
+| Command | GitLab job | `.gitlab-ci.yml` | Floor | Last run |
+|---|---|---|---|---|
+| `pnpm --filter @ship/cli test` | `integration-units` | `:843` | 83 | 68261 ✅ |
+| `pnpm --filter @ship/cli test:server` | `cli-server-suite` | `:770` | 19 | 68259 ✅ |
+| `pnpm --filter @ship/slack test` | `integration-units` | `:844` | 19 | 68261 ✅ |
+| `pnpm slack:live` | `slack-live` | `:918` | 10 | 68264 ✅ |
+| `pnpm --filter @ship/browser-demo test` | `integration-units` | `:845` | 5 | 68261 ✅ |
+| `pnpm --filter @ship/browser-demo test:pkce` | `browser-demo-pkce` | `:818` | 7 | 68260 ✅ |
+| `pnpm drill:refresh` | `drill-refresh` | `:908` | 21 | 68262 ✅ |
+| `pnpm drill:idempotency` | `drill-idempotency` | `:913` | 14 | 68263 ✅ |
+| `pnpm --filter @ship/integration-testkit test` | `integration-units` | `:850` | 21 | 68261 ✅ |
 
-So on the graded remote, Slack — the only `should-ship` integration after the CLI
-(p.8) — has **no** automated proof at all, and neither of the two drills that
-carry p.8's options 5 and 6 runs. `.gitlab-ci.yml` is not L24's file to edit;
-porting these five is the remaining half and is owned by whoever owns that
-pipeline.
+All nine were green in pipeline **20358**. So Slack — the only `should-ship`
+integration after the CLI (p.8) — now has automated proof on the graded remote in
+both forms, the unit suite and the live one, and both of the drills carrying p.8's
+options 5 and 6 run there too. Reproduce with
+`grep -n "assert-tests-ran" .gitlab-ci.yml`.
+
+The floors are minimums (`assert-tests-ran.sh` compares with `>=`), not equalities.
+A stale floor under-guards, so re-measure when a suite grows rather than guessing
+upward.
 
 The counts for `slack:live`, `drill:refresh` and `drill:idempotency` used to be
 the CI minimums rather than a measurement, because those three need a booted Ship
