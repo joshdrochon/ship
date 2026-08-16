@@ -95,13 +95,17 @@ Every job is listed below.
 `#20224` on `pf/integration` (sha `64bc528c`, 2026-08-15 15:26Z), which this section used to
 cite as *"the newest evidence that exists."* It no longer is, and the difference matters in our
 favour: `#20358` runs the same job set against the **graded branch** rather than an integration
-branch, and it is dramatically greener. At the time of writing `#20358` is still executing —
-**27 of its 28 jobs have resolved; `e2e` (68266, `allow_failure: true`) is still running** — so
-the table below is a snapshot, and every row in it carries the job id that proves it.
+branch, and it is dramatically greener. `#20358` has now completed; every row below carries the
+job id that proves it.
 
-**Three jobs fail, not nine.** An earlier version of this section reported nine failures and
-named `type-violations` and `terraform-verify` as *"trivially green-able."* Both are now green
-on their own, along with `security-scan` and `agent-test`.
+**Three blocking jobs fail, not nine.** An earlier version of this section reported nine failures
+and named `type-violations` and `terraform-verify` as *"trivially green-able."* Both are now green
+on their own, along with `security-scan` and `agent-test`. A fourth job, `e2e`, is red but
+**non-blocking** (`allow_failure: true`) and is disclosed as such rather than omitted: it ran
+**887 passed / 1 failed of 888** in 49.2 minutes, and the one failure is a **Week-5 accessibility
+assertion**, `e2e/accessibility-remediation.spec.ts:1112` — *"dialogs have close instructions"*,
+a `[role="dialog"]` visibility timeout that failed twice on retry. It is not a PlugForge
+regression, and the pipeline's overall status is `failed` because of the three blocking jobs.
 
 | Job | id | Stage | `#20358` | Cause, where it failed |
 |---|---|---|---|---|
@@ -127,7 +131,7 @@ on their own, along with `security-scan` and `agent-test`.
 | `drill-idempotency` | 68263 | verify | ✅ pass | |
 | `slack-live` | 68264 | verify | ✅ pass | against a stubbed Slack — see the Slack disclosure in §Integrations |
 | `coverage` | 68265 | verify | ❌ **fail** | Same two test files as `test`, then `No files to upload` on a missing `cobertura-coverage.xml`. |
-| `e2e` | 68266 | verify | ⏳ running | `allow_failure: true` |
+| `e2e` | 68266 | verify | ⚠️ **fail, non-blocking** | `allow_failure: true`. **887 passed / 1 failed of 888** (49.2 m). The single failure is a Week-5 a11y assertion — `e2e/accessibility-remediation.spec.ts:1112`, *"dialogs have close instructions"*, `[role="dialog"]` not visible within 5 s, failed on both retries. Not a PlugForge regression. |
 | `terraform-verify` | 68267 | verify | ✅ pass | **was failing.** `PASS - every provider is pinned to an exact version and every root has a tracked lock file`. See the disclosure below: the pin audit gates, the `terraform plan` half is skipped for want of a credential. |
 | `dependency-audit` | 68268 | audit | ✅ pass | |
 | `security-scan` | 68269 | audit | ✅ pass | **was failing** (`leaks found: 46`); now green |
