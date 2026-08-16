@@ -49,18 +49,51 @@ in spite of one.
 
 Add one row per exercise. Copy the block for each new session.
 
-### Session 1 — date: `<not run>`
+### Session 1 — date: `2026-08-15`
 
 | Exercise | Date | Time taken | Misses (resource changes / replacements / false alarms / blast radius) | Clean? |
 |---|---|---|---|---|
-| 1 — deleted attribute | | | | |
+| 1 — deleted attribute | 2026-08-15 | not recorded | not recorded against the key | see note |
 | 2 — changed AZ | | | | |
 | 3 — provider bump | | | | |
 | 4 — Aurora replacement | | | | |
 | 5 — no-op dressed as risky | | | | |
 
-**Session verdict:** `<not run>` — clean / not clean
+**Session verdict:** partial — exercise 1 answered; 2–5 not recorded here.
+
 **Notes:**
+
+Exercise 1, answered unaided and recorded verbatim from the author's own write-up.
+Both resources were identified, both classified as in-place updates, and both blast
+radii stated:
+
+1. **`aws_cloudwatch_log_group.aurora`** — in-place update (`~`), log retention dropping
+   from 30 days to 0. Blast radius: observability and compliance only. Nothing goes
+   down; the database keeps running and the app keeps serving. The cost is the loss of
+   historical logs to troubleshoot with.
+
+2. **`aws_iam_role_policy.eb_ssm_access`** — in-place update (`~`), removing `kms:Decrypt`
+   from the Elastic Beanstalk instance role. Blast radius: a **delayed full outage that
+   lands on the next instance boot**. Running instances are unaffected because they
+   already pulled and decrypted their SSM parameters at boot; the failure arrives with
+   the next autoscaling event, deploy, or instance recycle, when a new instance cannot
+   decrypt `DATABASE_URL` and crashes on `AccessDenied`.
+
+The delayed-failure reading in (2) is the point of the exercise, and it is the same
+shape that bit this project for real: the IAM least-privilege drill (PF-635..638) found
+that revoking a permission leaves a running instance healthy, which is why that drill's
+verification forces a fresh boot rather than accepting a green smoke test.
+
+**Why the miss counts are blank.** This log is filled in from the author's own record.
+Time taken and the per-exercise comparison against the sealed answer keys were not
+captured at the time, and they are not reconstructible after the fact — writing a number
+here that nobody measured would make the log worse than leaving it honest. Exercises 2–5
+of this session are likewise not recorded.
+
+**No AI assistance was given on the reading itself.** PRD p.5 makes unaided plan-reading
+an auto-fail condition, so the answers above were not checked, corrected, hinted at, or
+graded by Claude — the request to do so was declined at the time. The transcription into
+this file is clerical.
 
 ---
 
