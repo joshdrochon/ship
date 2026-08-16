@@ -308,7 +308,22 @@ regression-budget:
     # and this tree at 1_000_000, and above a certain sample count the Part 1
     # side answers 429 and the harness measures the error path as route latency.
     - API_RATE_LIMIT_MAX=100000000 PERF_TRIALS=25 node scripts/perf-self-check.mjs --budget 10
-    - API_RATE_LIMIT_MAX=100000000 PERF_TRIALS=25 pnpm baseline:compare
+    # NOT `pnpm baseline:compare`, and the difference is the whole point of the
+    # `allow_failure: exit_codes: [2]` below.
+    #
+    # The comparator exits 2 for INDETERMINATE and 1 for a measured breach. Run
+    # through a pnpm script that distinction is destroyed: pnpm reports
+    # `Command failed with exit code 2` and then exits **1** itself via
+    # ELIFECYCLE. `exit_codes: [2]` never matches, and an unjudgeable latency
+    # half fails the pipeline as though it were a regression. Job 69070 is that
+    # exact failure -- the trace says "exit code 2" on one line and "exit code 1"
+    # on the next.
+    #
+    # `pnpm --filter @ship/api exec` already runs with cwd `api/`, so a subshell
+    # from `api/` invoking the same binary is behaviourally identical and the
+    # comparator's own exit code survives. The A/A line above never had this
+    # problem because plain `node` does not rewrite it.
+    - (cd api && API_RATE_LIMIT_MAX=100000000 PERF_TRIALS=25 ./node_modules/.bin/tsx src/scripts/compare-baseline.ts)
   artifacts:
     when: always
     expire_in: 1 week
