@@ -5,7 +5,15 @@
 #     ./scripts/agent-flag-matrix.sh
 #
 # PRD p.11: the rewire lands "behind a feature flag so Part 2's tests pass with
-# the flag on or off." p.17 asks how CI proves it. This is the proof.
+# the flag on or off." p.17 §2.6 asks how CI proves it.
+#
+# CI RUNS THIS. `.gitlab-ci.yml` job `agent-flag-matrix`, stage verify,
+# needs: ['build'], allow_failure: false. That sentence is the whole point of the
+# header and it was FALSE until 2026-08-15: this script claimed to be the proof
+# while `grep -nE "agent-flag-matrix|SHIP_AGENT_VIA_SDK" .gitlab-ci.yml` matched
+# nothing in any of the 29 jobs, and `agent-test` ran the suite once at the flag's
+# default (OFF). If you move or rename that job, this comment becomes a lie again —
+# the grep above is the check.
 #
 # ---------------------------------------------------------------------------
 # THE TWO ANTI-VACUITY GUARDS, AND WHY THEY ARE NOT OPTIONAL.
@@ -20,14 +28,33 @@
 #      failure this script exists to catch in the code it is testing.
 #
 # ---------------------------------------------------------------------------
-# WHY BUCKET 2 IS EXCLUDED RATHER THAN RUN TWICE.
+# WHY EXACTLY ONE FILE IS EXCLUDED, AND WHY THE LIST USED TO BE THREE.
 # ---------------------------------------------------------------------------
-# `act.test.ts` and `client.test.ts` construct the flag-off action path directly
-# and assert its HTTP shapes; `cron.test.ts` exercises the composition root,
-# which is the one place the flag lives. They are tests OF the flag-off
-# implementation. Running them flag-on would not be a stronger check — it would
-# be a test of something they are not about, and it would fail for a reason that
-# is the design working (see docs/l23-flag-matrix.md).
+# The exclusion list is the weakest point in a matrix like this: a matrix that
+# skips the files that would fail is the same defect class as a test that passes
+# whether or not the feature works. So the list is held to one rule — a file is
+# excluded only if it has been MEASURED to fail in the other state, and the
+# measurement is recorded in docs/l23-flag-matrix.md.
+#
+# That rule removed two of the three original entries. `act.test.ts` (11) and
+# `client.test.ts` (20) were excluded on the argument that they construct the
+# flag-off action path directly and are therefore "tests OF the flag-off
+# implementation". The argument is tidy and the measurement contradicts its
+# premise: run flag-on, both files pass, 11/11 and 20/20. They stub `FetchLike`
+# and never reach the composition root, so the flag never touches them. Excluding
+# a file that would have passed does not make the matrix safer — it narrows what
+# the matrix is allowed to prove, for free.
+#
+# `cron.test.ts` stays out, and it is the one entry the rule keeps. Its five
+# scan tests call `scanWorkspace()` without injecting `db`, so they exercise the
+# composition root — the one place the flag lives — and flag-on they fail with
+# "SHIP_AGENT_VIA_SDK is on but AGENT_CLIENT_SECRET is not set", the rewired
+# agent refusing to run without a credential. That is the design working.
+# Supplying a credential does not fix it, it relocates the failure: with
+# AGENT_CLIENT_SECRET set the same five fail at "Client credentials exchange
+# failed (invalid_client)", because flag-on the composition root needs a running
+# API server with a seeded first-party app, which a unit test that starts only a
+# Postgres container does not have. Both measurements are in the doc.
 #
 # The exclusion is DATA, right here, so it is one list a reviewer can read
 # rather than a shell expression they have to evaluate in their head.
@@ -35,21 +62,21 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-# Bucket 2 — see docs/l23-flag-matrix.md. Adding a file here is a claim that it
-# tests a transport rather than a behaviour, and it needs a row in that document.
-BUCKET_2=(
-  "src/actions/act.test.ts"
-  "src/actions/client.test.ts"
+# Excluded — see docs/l23-flag-matrix.md. Adding a file here is a claim that it
+# has been measured to fail in the other state, and it needs a row in that
+# document carrying the measurement. An argument is not enough; the two files
+# this list used to carry were removed because theirs did not survive one.
+EXCLUDED=(
   "src/entrypoints/cron.test.ts"
 )
 
-# The floor for bucket 1. Deliberately BELOW the current count (191) so adding a
+# The floor for bucket 1. Deliberately BELOW the current count (230) so adding a
 # test does not break CI, and deliberately far above zero so a filter that
 # matched nothing does.
-MIN_BUCKET_1_TESTS=150
+MIN_BUCKET_1_TESTS=200
 
 EXCLUDES=()
-for f in "${BUCKET_2[@]}"; do
+for f in "${EXCLUDED[@]}"; do
   EXCLUDES+=(--exclude "$f")
 done
 
@@ -94,8 +121,8 @@ run_leg() {
 }
 
 echo "PF-706 — the agent flag matrix"
-echo "Excluding bucket 2 (transport-specific, one state by construction):"
-printf '  %s\n' "${BUCKET_2[@]}"
+echo "Excluding (measured to fail in the other state — see docs/l23-flag-matrix.md):"
+printf "  %s\n" "${EXCLUDED[@]}"
 
 OFF_COUNT_FILE="$(run_leg off 0 | tail -1)"
 ON_COUNT_FILE="$(run_leg on 1 | tail -1)"
