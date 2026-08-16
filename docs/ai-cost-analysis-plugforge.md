@@ -385,18 +385,22 @@ assert-tests-ran: 888 tests executed (>= 874); command exit 0
 |---|---:|
 | `e2e` job duration (job 66343) | **2,275.9 s** (37.9 min) |
 | Median across *successful* `e2e` jobs in the window | 2,315.5 s (n=28) |
+| — same statistic re-measured 2026-08-16 over the jobs still in the API's retention | **2,690.3 s** (44.8 min, n=10) |
 | Tests executed | 888, across 76 spec files at **1 worker** |
 | `oauth-pkce.spec.ts` | 5 tests |
 | OAuth's share, by test count | 0.56% |
 | **OAuth's share, by wall time** | **~1.3–1.5%** |
 
 The worker count is measured, not assumed: the trace's own first line reads
-`Running 888 tests using 1 worker`, and `.gitlab-ci.yml:583` sets `PLAYWRIGHT_WORKERS: '1'`
-on the ref this job ran from. **An earlier version of this table said "75 spec files at 4
+`Running 888 tests using 1 worker`, and `PLAYWRIGHT_WORKERS: '1'` is set on the `e2e` job
+(`.gitlab-ci.yml:1013` on the current tree; `:583` on the ref this job ran from — the file has
+grown by the integration jobs since). **An earlier version of this table said "75 spec files at 4
 workers".** The 4 was stale — the value went 4 → 2 → 1 in three commits on 2026-08-01
 (`e668f3f`, `974a016`, `345b7c7`) — and the spec count was one short; 76 distinct
 `.spec.ts` paths appear in the trace. (The working tree now holds 77; one was added after
-this job ran, which is why the count is taken from the trace and not from `find`.)
+this job ran. Re-counted 2026-08-16 the working tree holds **76** — `ls e2e/*.spec.ts | wc -l`
+— so trace and tree now agree, and the count is still taken from the trace because that is what
+the job actually ran.)
 
 **That correction changes the argument, because one worker does not interleave.** The
 previous version refused to give a time share on the grounds that "four workers interleave,
