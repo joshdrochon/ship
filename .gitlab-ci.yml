@@ -41,6 +41,27 @@ workflow:
 stages:
   - setup
   - verify
+  # `perf` exists to be EMPTY except for `regression-budget`.
+  #
+  # The A/A self-check kept refusing to certify the runner, and the reason was
+  # not the instrument. `regression-budget` sat in `verify` beside e2e,
+  # coverage, the TTFE drills and seventeen other jobs, all on one machine, and
+  # a latency measurement taken while that is happening measures that. Job 68841
+  # put `/health` -- no query, no database -- at 208%, and job 68904 at 589%
+  # after the passes were interleaved A B B A. Interleaving cancels drift that
+  # is linear in time; it cannot cancel a neighbour starting and finishing
+  # mid-run, which is the shape contention actually has.
+  #
+  # A stage of its own is the only thing that makes the machine quiet, because
+  # GitLab will not start a stage until the previous one has drained. This costs
+  # wall-clock -- the whole of `verify` now precedes it -- and that is the price
+  # of a number anyone can rely on.
+  #
+  # `regression-budget` must therefore carry NO `needs:`. A job with `needs`
+  # switches to DAG scheduling and starts the moment those needs are met, which
+  # would put it straight back beside the jobs this stage exists to separate it
+  # from.
+  - perf
   - audit
   - package
 
@@ -264,8 +285,8 @@ openapi-freshness:
 # and recorded in docs/mvp-gate-item-9.md. This is a deliberate split, not a gap:
 # the report names it in the artifact every run.
 regression-budget:
-  stage: verify
-  needs: ['build']
+  # Alone in `perf`, and deliberately WITHOUT `needs:` — see the stage list.
+  stage: perf
   services:
     - name: postgres:16
       alias: postgres
