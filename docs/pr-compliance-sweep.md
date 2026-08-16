@@ -6,6 +6,16 @@ confirms the fitness test passed."*
 PF-026 enforces that the **sections exist**. This is the submission-time check that the
 **content is true**.
 
+> **Read `docs/slice-ledger.md` beside this document. They are different instruments.**
+> The ledger is the **inventory** — one generated row for every one of the 190 `pf/*` branches,
+> carrying the acceptance criterion that slice advances, the fitness test it names, its tickets
+> and its merge commit, regenerated from git and the lane files by
+> `node scripts/slice-ledger.mjs`. This sweep is the **audit** — it judges the *quality* of the
+> commit bodies over a 66-slice sample and reports how many name an artifact a reader could
+> re-run. Neither claims p.12's *"each PR description"* is satisfied; both say what is on offer
+> instead, and both are generated from or measured against artifacts contemporaneous with the
+> work rather than assembled at submission time.
+
 ## What this document measures, and what it does not — read this first
 
 **It measures commit bodies, not PR descriptions.** The method below reads the commits in

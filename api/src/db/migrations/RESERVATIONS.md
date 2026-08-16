@@ -302,3 +302,34 @@ scope registry. **077 is free for whoever the coordinator gives it to.**
 Note the gap this exposes: the line above says 076 is the first unallocated number, yet the
 allocation handed out 077. One of the two is wrong and it is not this lane's to correct —
 filed as **F183's neighbour F182** in `tickets/plugforge/lane-99-unassigned.md`.
+
+**L26 had no block and took 076 under Rule 3** (2026-08-15) — `076_seed_grader_user.sql`,
+two INSERTs and no DDL: the `grader@ship.local` user and its Grader Sandbox membership.
+
+Taken rather than asked, on the same grounds L24 records for 074: the question could not
+be asked in the time available and the alternative was shipping nothing. **MVP gate item
+10 and PRD p.13 — "a pre-registered OAuth app (read-only scopes) for graders, plus
+credentials in the README" — were unreachable without it**, and so was p.6's five-line
+story, p.12's demo and p.13's Social Post screenshot, all of which start at `ship login`.
+
+Migration 041 created the Grader Sandbox workspace and gave it exactly one member,
+`platform-apps@ship.local`, with **no `password_hash`**. The device grant's approval leg
+(`deviceVerify.ts:317`) and the auth-code consent screen (`consent.ts:322,399`) both
+require the approving human to be in the app's workspace, so with no human able to sign
+in to that workspace, **every grant against both grader apps terminated at 403 "Wrong
+workspace"**. Measured against the deployed instance, not inferred.
+
+076 rather than 077 because 077 was allocated to L22 — an unused reservation is still a
+reservation, and the entry above says so explicitly. That leaves the F182 discrepancy
+(076 "first unallocated" vs. 077 handed out) untouched and now moot for 076: it is taken,
+and recorded here, which is what Rule 3 asks.
+
+Apply order holds without coordination: the FK targets are `users`, `workspaces` and
+`workspace_memberships` (schema.sql) plus the rows migration 041 inserts, all numerically
+earlier. Nothing references the new user.
+
+`users` and `workspace_memberships` are pre-existing tables already handled by
+`api/src/test/setup.ts`, so F54's rule needed no action here.
+
+**078 is now the first unallocated number** (077 remains L22's unused reservation); ask
+before taking either.

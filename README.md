@@ -101,9 +101,11 @@ in fact the security property working. So the read-only app is the gate app, and
 demo app exists so the demo is reproducible. **Use the demo app for anything that
 writes.** (Recorded as L99 decision D12.)
 
-The `client_id` values are not secret and are published above deliberately. The
-`client_secret` values are not in git — read them from the deployed environment's
-parameter store:
+The `client_id` values are not secret and are published above deliberately. **You do not
+need a `client_secret` for anything on this page.** Both apps are registered as *public*
+clients (RFC 6749 §2.1), so `/oauth/token` accepts `client_id` alone — which is what the
+CLI sends. The secrets exist, are not in git, and are readable from the deployed
+environment's parameter store if you want them:
 
 ```bash
 aws ssm get-parameter --name /ship/dev/GRADER_CLIENT_SECRET \
@@ -111,6 +113,70 @@ aws ssm get-parameter --name /ship/dev/GRADER_CLIENT_SECRET \
 aws ssm get-parameter --name /ship/dev/DEMO_CLIENT_SECRET \
   --with-decryption --query Parameter.Value --output text
 ```
+
+#### Sign-in for the approval step
+
+`ship login` runs the **device grant**: the CLI prints a code, and a *human with a
+browser* approves it. That human has to be signed in to the same workspace the app is
+registered in — the consent screen refuses otherwise, which is the tenancy property that
+keeps a grader's token away from the primary tenant's data. Since these apps live in the
+dedicated **Grader Sandbox** workspace, use this account and not the demo login further
+down this page:
+
+| | |
+|---|---|
+| **Email** | `grader@ship.local` |
+| **Password** | `grader123` |
+| **Workspace** | Grader Sandbox (its only membership) |
+
+Published deliberately, and required by p.13. It opens one sandbox workspace on a demo
+deployment, holding three seeded example documents and no tenant data; the Grader Sandbox
+is its **only** membership and it is **not** a super-admin, so there is no path from it to
+the primary workspace. Seeded by `api/src/db/migrations/076_seed_grader_user.sql`, so it
+exists on every environment that has run `db:migrate`.
+
+> Signing in as `dev@ship.local` instead will get you **403 "Wrong workspace"** at the
+> approval step. That is the guard doing its job, not a bug — that account belongs to the
+> primary workspace, and approving a Grader Sandbox app from it would mint a
+> sandbox-scoped token on a primary-workspace session.
+
+### Get the CLI
+
+> **`pnpm install @ship/sdk` does not work, and neither does `npm i -g @ship/cli`.**
+> Both packages are `private: true` and have never been published — `npm view @ship/sdk`
+> returns E404. PRD p.10 asks for npm publishing to be *documented, not required*, and
+> [`sdk/README.md` § Publishing](sdk/README.md#publishing) is that documentation: it
+> records that `@ship/*` is not a scope this project owns on the public registry, so
+> publishing under it would fail. **The CLI is built from this repository instead.**
+
+From a clean clone — this is the whole of it:
+
+```bash
+git clone <this-repo-url> ship && cd ship
+pnpm cli:setup
+```
+
+`cli:setup` installs only what the CLI needs (`@ship/sdk` and `@ship/cli` — not the API,
+not the web app) and builds them. It needs **Node 20+ and pnpm**, and no database, no
+Docker and no running server: everything below talks to the deployed instance.
+
+There is **no `ship` binary on your PATH.** `@ship/cli` declares `bin.ship`, but pnpm
+does not link a private workspace package into the root `node_modules/.bin`, so every
+command on this page is spelled:
+
+```bash
+node integrations/cli/dist/index.js <command>
+```
+
+If you would rather type `ship`, alias it for the session:
+
+```bash
+alias ship="node $PWD/integrations/cli/dist/index.js"
+```
+
+Everywhere this README says `ship <something>`, it means one of those two forms.
+[`integrations/cli/README.md`](integrations/cli/README.md) is the CLI's own reference —
+full command list, exit codes, and the `docs ls` smoke test.
 
 ### One command
 
@@ -141,6 +207,76 @@ That returns a real `device_code`, `user_code` and `verification_uri`; open the
 `verification_uri` in a browser to approve. The EB origin
 (`http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com`) still answers and is
 kept above as a fallback, but nothing requires it any more.
+
+### The five-line story (p.6), start to finish
+
+Assumes `pnpm cli:setup` has been run — see [Get the CLI](#get-the-cli) above. Nothing
+here needs a local database.
+
+```bash
+export SHIP_BASE_URL=https://d258p92d3n1ebe.cloudfront.net
+alias ship="node $PWD/integrations/cli/dist/index.js"
+
+# 1. Authenticate. Prints a user_code and a URL, then polls.
+ship login --client-id ship_app_grader_demo
+```
+
+`login` blocks and prints something like:
+
+```
+ship: device-code-ready user_code=ABCD-1234 verification_uri=…/oauth/device/verify
+```
+
+**Now do the browser half, in the same browser session:**
+
+1. Open `<base>/login` and sign in as **`grader@ship.local` / `grader123`**
+   (the account in the table above — *not* `dev@ship.local`).
+2. Open the `verification_uri`, enter the `user_code`, and click **Allow**.
+
+The CLI's poll then completes and prints the scopes it was granted. The token goes to
+`~/.ship/credentials.json`; `~/.ship/config.json` keeps only the base URL and client id,
+so later commands need no flags. The rest of the story needs no browser:
+
+```bash
+ship docs ls                      # read — works with either app
+ship docs create --title Untitled # write — needs the demo app
+```
+
+Use `--client-id ship_app_grader_readonly` instead for the read-only gate app; `docs ls`
+is its documented smoke test, and `docs create` will correctly refuse with a missing-scope
+error.
+
+> **`ship webhooks tail` does not work against the deployed instance, by design.** It
+> registers a subscription pointing at a loopback listener it starts on your machine
+> (`http://127.0.0.1:<ephemeral>`), and the server refuses loopback delivery targets
+> unless `SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS=true` is set on the *instance*
+> (`api/src/platform/webhooks/targetUrl.ts`). It is default-off and a deployed
+> environment deliberately never sets it — a public server that will POST to
+> `127.0.0.1` on request is an SSRF primitive. The scope is not the obstacle; the demo
+> app already holds `webhooks:manage`.
+>
+> Run it against a **local** stack instead, where that opt-in is yours to set:
+>
+> ```bash
+> ./start.sh          # then set the two variables below on the api service
+> #   SHIP_ALLOW_LOOPBACK_WEBHOOK_TARGETS=true
+> #   WEBHOOK_SECRET_KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64'))")
+> ship login --base-url http://localhost:3000 --client-id ship_app_grader_demo
+> ship webhooks tail
+> ```
+>
+> `WEBHOOK_SECRET_KEY` is the second requirement and fails closed with a clear message
+> if it is absent: signing secrets are encrypted at rest, so without the key a
+> subscription can be neither stored nor read.
+
+> **Why a browser is needed at all.** This is the RFC 8628 device grant, and a human
+> approval step is the whole point of it — the CLI never sees a password. `curl` alone
+> cannot finish it, and any instruction claiming otherwise is wrong.
+
+> **`client_credentials` will not work for these two apps** and is not a shortcut around
+> the browser step. That grant is restricted to first-party apps; both grader apps are
+> registered `is_first_party = false` on purpose, so the token endpoint answers
+> `unauthorized_client`. The FleetGraph agent is the only app that uses it.
 
 ### Verifying the deployment yourself
 
@@ -270,11 +406,22 @@ docker compose up -d
 pnpm db:migrate
 pnpm db:seed
 
-# 5. Start the application
+# 5. Build the workspace packages the app resolves at runtime.
+#    `shared/dist` and `sdk/dist` are gitignored, so a fresh clone has neither,
+#    and both are resolved through node_modules symlinks rather than a Vite
+#    alias — the web dev server cannot start without `@ship/sdk` built.
+pnpm build:shared && pnpm --filter @ship/sdk build
+
+# 6. Start the application
 pnpm dev
 ```
 
-Two things to know about this path:
+Three things to know about this path:
+
+- **`scripts/dev.sh` builds `shared` but not `sdk`, and only when it creates the
+  database.** That is why step 5 is written out here rather than left to `pnpm dev`: on a
+  second run, or on any checkout whose database already exists, the build step is skipped
+  entirely.
 
 - **`pnpm db:migrate` can exit 0 while applying only some migrations.** If the app
   behaves as though a column is missing, check that `schema_migrations` has as many rows

@@ -13,19 +13,62 @@ RUN npm install -g pnpm@10 && pnpm config set strict-ssl false
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
 COPY api/package.json ./api/
 COPY shared/package.json ./shared/
+# `@ship/api` does not stand alone, and every manifest below is in its workspace
+# dependency closure. Verified from the manifests rather than assumed:
+#
+#   @ship/api  -> @ship/agent, @ship/shared   (dependencies)
+#               -> @ship/sdk                  (devDependencies — needed to COMPILE)
+#   @ship/agent -> @ship/sdk, @ship/shared
+#
+# pnpm resolves `workspace:*` against the projects the workspace globs actually
+# find on disk, so a manifest that is not COPYed simply does not exist as far as
+# the install is concerned. With these missing the build died at the install
+# layer with
+#
+#   ERR_PNPM_WORKSPACE_PKG_NOT_FOUND  In api: "@ship/sdk@workspace:*" is in the
+#   dependencies but no package named "@ship/sdk" is present in the workspace
+#
+# which reads like a broken dependency and is really a missing COPY. That is the
+# error `./start.sh` produced on a clean checkout — this file is what
+# docker-compose.local.yml builds the `api` service from.
+#
+# The production `Dockerfile` was fixed for exactly this and carries the same
+# comment; this one was missed. `integrations/cli` is NOT in the closure above
+# and is copied anyway, deliberately, to keep the two files' manifest lists
+# identical — the prod image needs it because `--frozen-lockfile` validates
+# every lockfile importer, and a dev file that drifts from it is how this class
+# of break survives a second time.
+COPY agent/package.json ./agent/
+COPY sdk/package.json ./sdk/
+COPY integrations/cli/package.json ./integrations/cli/
 
 # Create minimal web package.json - needed for workspace but won't be installed
 RUN mkdir -p web && echo '{"name":"@ship/web","version":"0.0.0","private":true}' > web/package.json
 
-# Install only api and shared dependencies (skip web entirely)
-RUN pnpm install --filter @ship/api --filter @ship/shared --ignore-scripts
+# Install `@ship/api` AND its workspace dependency closure. The `...` suffix is
+# what pulls in agent/shared/sdk; naming api and shared alone left the other two
+# unresolved. web is still excluded entirely.
+RUN pnpm install --filter @ship/api... --ignore-scripts
 
-# Copy source code (only api and shared - web is excluded by .dockerignore)
+# Copy source code (web is excluded by .dockerignore). sdk and agent are here
+# because api COMPILES against their emitted types, not merely against their
+# manifests.
 COPY shared/ ./shared/
+COPY sdk/ ./sdk/
+COPY agent/ ./agent/
 COPY api/ ./api/
 
-# Build shared types first, then API
-RUN pnpm build:shared && pnpm --filter @ship/api build
+# Build order is load-bearing and is deferred to the root script rather than
+# spelled out, for the reason the production Dockerfile records: `build:api`
+# expands to shared -> agent -> api, and every place that re-spells that order
+# is a place that falls out of step with it.
+#
+# The SDK is built FIRST and separately because both agent and api compile
+# against `@ship/sdk`. `dist/` is gitignored, so a clean clone has none and tsc
+# would fail to resolve the module; building it here also overwrites any stale
+# `sdk/dist` copied in from a developer's machine, which `.dockerignore` does
+# NOT filter out (it excludes only `web/dist`).
+RUN pnpm --filter @ship/sdk build && pnpm build:api
 
 # Expose API port
 EXPOSE 3000

@@ -39,6 +39,8 @@
     "clean": "pnpm --recursive run clean && rm -rf node_modules",
     "test": "pnpm --workspace-concurrency=1 --filter @ship/shared --filter @ship/api --filter @ship/agent --filter @ship/sdk test",
     "drill": "node scripts/ttfe/drill.mjs",
+    "slice-ledger": "node scripts/slice-ledger.mjs",
+    "check:slice-ledger": "node scripts/slice-ledger.mjs --check",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "worktree:init": "./scripts/worktree-init.sh",

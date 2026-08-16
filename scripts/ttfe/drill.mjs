@@ -68,12 +68,23 @@ if (problems.length > 0) {
   process.exit(2);
 }
 
+// PF-590. `--clean` is a DIFFERENT PROGRAM, not a flag on the fast path, and
+// that is deliberate: the fast drill is a vitest spec that imports this
+// repository's test support and drives L19's exported CLI commands, and neither
+// of those exists inside a container with no repo mounted. Sharing the entry
+// point while sharing none of the mechanism is how `--clean` would quietly
+// become the fast mode wearing a different name.
 if (clean) {
-  process.stderr.write(
-    'ttfe --clean is not wired to a container image in this tree yet; see\n' +
-      'docs/ttfe-drill.md → "Clean mode" for what it needs and what has been measured.\n',
-  );
-  process.exit(2);
+  if (controls) {
+    process.stderr.write('ttfe: --clean and --controls are separate runs; pass one.\n');
+    process.exit(2);
+  }
+  const cleanRun = spawnSync(process.execPath, [join(REPO_ROOT, 'scripts', 'ttfe', 'clean-runner.mjs')], {
+    cwd: REPO_ROOT,
+    stdio: 'inherit',
+    env: { ...process.env, TTFE_MODE: 'clean' },
+  });
+  process.exit(cleanRun.status ?? 1);
 }
 
 // The controls run as a SEPARATE invocation, never alongside the loop: they boot
