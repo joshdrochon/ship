@@ -271,7 +271,12 @@ neither list or in both — and fails again if this section and those lists disa
 **Stable for the week** — the signature will not change during the submission window, and the
 CLI, the portal and the TTFE drill are written against it. `ShipClient`, carrying the four
 resource clients `documents`, `issues`, `sprints` and `webhooks` (plus `webhooks.deliveries`
-for the delivery log, DLQ and replay). The login helpers `ShipClient.authorizationCodeFlow()`,
+for the delivery log, DLQ and replay). A **fifth** client hangs off `ShipClient` and is
+deliberately not counted among those four: `client.audit` (`client.ts:189`), F113's reader for
+p.4's public audit trail. It is list-only — the spec has no `GET /audit/{id}` — and it is
+excluded from `RESOURCE_NAMES` on purpose, because p.12 names four domain resources and an
+audit call is metadata *about* calls to those four, not a fifth resource. `AuditClient`,
+`AuditCall`, `ListAuditCallsInput` and `AUDIT_CALL_FIELDS` are all in `STABLE_SURFACE`. The login helpers `ShipClient.authorizationCodeFlow()`,
 `ShipClient.deviceLogin()` and `runClientCredentials()`. Async-iterator pagination —
 `for await (const doc of client.documents.iterate())`, whose options type admits no cursor, so
 p.4's "consumer code never sees them" is a compile error rather than a convention. The error
@@ -289,7 +294,7 @@ operation from `iterate()` — the developer portal renders one page at a time a
 cursor out. Pre-Search 2.4 (p.17) asks whether to expose raw cursors, iterators, or both; the
 answer taken here is both. The cost is bounded deliberately: `cursor` exists on `ListOptions`
 and is absent from `IterateOptions`, so the ergonomic path cannot see a cursor even by
-accident, and `typeProofs/paginationHidesCursor.ts` pins that with a `@ts-expect-error`
+accident, and `sdk/typeProofs/surfaceContracts.ts:60-101` pins that with `@ts-expect-error`
 fixture. A reader should treat p.4's sentence as satisfied for `iterate()` and knowingly
 overridden for `list()`, not as satisfied everywhere.
 

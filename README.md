@@ -44,7 +44,7 @@ checkout, a database, or a build.**
 |---|---|
 | **Start here / base URL** | `https://d258p92d3n1ebe.cloudfront.net` |
 | **OpenAPI spec** | `<base>/api/v1/openapi.json` — public, no credentials required |
-| **Health** | `<base>/health` — reports the deployed commit SHA as `revision`. **Currently returns `"unknown"`:** the SHA reaches the runtime only through `scripts/deploy.sh`, which gained the mechanism after the live environment was last deployed (PF-628). A redeploy makes this line true; until then it is `unknown`, which is the honest answer for a build that did not record a commit |
+| **Health** | `<base>/health` — reports the deployed commit SHA as `revision`. Returns `{"status":"ok","revision":"b13b292c2573116f367ec2af2562b9838b2bdb31"}`. The SHA reaches the runtime only through `scripts/deploy.sh` (PF-628), so it is `"unknown"` on any environment deployed by another path; the live one was redeployed after that mechanism landed |
 | **Dev portal** | `<base>/portal` |
 | **Regression budget (p.2 item 9)** | [`docs/regression-paired-runs.md`](docs/regression-paired-runs.md) — P95 vs Part 1, largest +4.3% against a +10% budget |
 | **API origin (no TLS, `curl` only)** | `http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com` |
@@ -333,9 +333,11 @@ starting a service.
 # 2. Configure the agent (gitignored — never commit it)
 cp agent/.env.example agent/.env
 
-# 3. Build the API first. The agent imports Ship's circuit breaker from api/dist,
-#    so this is a real ordering requirement, not a suggestion.
-pnpm build:api
+# 3. Build the workspace packages the agent depends on. It imports `@ship/shared`
+#    (the circuit breaker) and `@ship/sdk`, so this is a real ordering requirement.
+#    It no longer reaches into `api/dist` — that relative-path import was removed,
+#    and the comments at agent/src/llm/client.ts:41 and actions/client.ts:72 record it.
+pnpm build:shared && pnpm --filter @ship/sdk build
 
 # 4. Run one scan. agent/.env is NOT auto-loaded — source it yourself.
 set -a && . ./agent/.env && set +a
@@ -386,7 +388,8 @@ Ship is a monorepo with four packages:
 - **api/** — Express backend with WebSocket support
 - **shared/** — TypeScript types used by both
 - **agent/** — FleetGraph, the project-intelligence agent (a LangGraph graph plus a cron
-  entrypoint). Depends on `api/dist`; nothing depends on it.
+  entrypoint). Depends on `@ship/shared` and `@ship/sdk`; nothing depends on it. It reached
+  into `api/dist` in Part 1 and does not any more — p.11's fence is why.
 
 ### Tech Stack
 
@@ -460,7 +463,8 @@ pnpm test:e2e:ui
 pnpm test:e2e e2e/documents.spec.ts
 ```
 
-Ship uses Playwright for end-to-end testing. The suite is 72 spec files in `e2e/`; the
+Ship uses Playwright for end-to-end testing. The suite is **76** spec files in `e2e/`
+(`ls e2e/*.spec.ts | wc -l`, re-counted 2026-08-16; it was 72 when this line was written); the
 last recorded full run executed **871 tests** — see
 `docs/audit/raw/cat5-e2e-integration-final.txt`. `pnpm test` is unit tests only; it does
 not run E2E.

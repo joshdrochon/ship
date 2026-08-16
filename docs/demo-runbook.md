@@ -77,7 +77,7 @@ than a log.
 
 ### 3. The contract — `/api/v1/openapi.json` (30s)
 
-14 paths, generated from Zod next to each handler rather than hand-written, so it cannot
+15 paths, generated from Zod next to each handler rather than hand-written, so it cannot
 drift from the code. Same document as the committed `docs/openapi.json`.
 
 ```bash

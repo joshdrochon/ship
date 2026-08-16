@@ -257,7 +257,9 @@ calls against session-cookie routes.
 #### Fix
 
 `sdk/` as a workspace package `@ship/sdk`: four resource clients (`documents`, `issues`,
-`sprints`, `webhooks`), `deviceLogin()` / `authorizationCodeFlow()` / `clientCredentials()`,
+`sprints`, `webhooks`) plus the list-only `audit` client for p.4's audit trail — five members
+on `ShipClient`, four *resources*, the distinction written down at `client.ts:189` —
+`deviceLogin()` / `authorizationCodeFlow()` / `clientCredentials()`,
 pluggable `ITokenStore` (in-memory, file at `~/.ship/credentials.json` mode 0600, browser), async-
 iterator pagination that never exposes a cursor, a five-member discriminated error union, and
 `verifyWebhook(headers, rawBody, secret, toleranceSec?)`.
@@ -328,9 +330,9 @@ From the job 66739 trace:
 ```
   stage                    elapsed
   ────────────────────────────────
-  install                  1348 ms
-  login                    5083 ms
-  register subscription      27 ms
+  install                  2197 ms
+  login                    5080 ms
+  register subscription      47 ms
   create document            58 ms
   receive webhook             0 ms
   verify signature            1 ms
@@ -366,16 +368,18 @@ find it.
 
 That commit **is merged into `pf/integration`** (`git merge-base --is-ancestor ab3f3fa6
 origin/pf/integration` → true), and the `ttfe` job definition did not change on the way in:
-`git diff ab3f3fa6 origin/pf/integration -- .gitlab-ci.yml` is **142 insertions, 0 deletions**, a
-single hunk appended *after* `ttfe-controls` that adds two unrelated integration jobs. The `ttfe`
+`git diff ab3f3fa6 origin/pf/integration -- .gitlab-ci.yml` is **277 insertions, 0 deletions**, a
+single hunk appended *after* `ttfe-controls` that adds the integration jobs. The `ttfe`
 and `ttfe-controls` blocks are byte-identical on both refs.
 
-**But no `pf/integration` pipeline has completed since.** #20224 failed; every pipeline after it —
-20241, 20243, 20245, 20247, 20250, 20269, 20284, 20295, 20311, 20314 — was auto-canceled by the
-next push, and #20320 is still pending. So the drill has **never been observed green on
-`pf/integration` itself**. What is proven is: this job, this drill, this `.gitlab-ci.yml` stanza,
-green on a real runner in 56.374 s. What is not proven is a green *integration-branch* run, and
-this write-up does not assert one.
+**No `pf/integration` pipeline completed after that merge** — #20224 failed, and every pipeline
+after it (20241, 20243, 20245, 20247, 20250, 20269, 20284, 20295, 20311, 20314) was auto-canceled
+by the next push; all ten are **canceled**, none is pending, which an earlier revision of this
+paragraph said of #20314 and #20320. That limitation has since been overtaken by a better result
+rather than argued around: **the drill is green on `main`.** Pipeline **#20358** runs `main` at
+`a96cdda8` and its `ttfe` job **68256** succeeded, with `ttfe-controls` (68257) and `ttfe-soak`
+(68258, 20/20) beside it. Thirteen `ttfe` jobs have succeeded in total. So what is proven is no
+longer only *this job on a lane branch*: it is the drill, green, on the branch a grader clones.
 
 Local, this branch, 2026-08-15:
 
@@ -440,7 +444,7 @@ name, on a repo whose CI installs `--frozen-lockfile` precisely so that cannot h
 
 Ticket **PF-808 moves from ◐ to ●** — a job id now exists: **66739**.
 
-`integrations/cli` itself is green: `pnpm --filter @ship/cli test` → **7 files, 58 tests passed**,
+`integrations/cli` itself is green: `pnpm --filter @ship/cli test` → **11 files, 83 tests passed** (re-measured 2026-08-16; was 7 files / 58 tests),
 exit 0. (Re-measured 2026-08-15. The earlier "3 files, 41 tests" was true when written and had
 gone stale by four files.)
 
@@ -456,9 +460,15 @@ rewire, which is what p.13 grades.
 rotates `client_secret` once, manages subscriptions, browses the delivery log and replays failed
 deliveries. It reaches `/api/v1` through `@ship/sdk`'s `ShipClient` and adds no privileged route —
 `web/src/lib/portalClient.ts:2`, with `portalTransport.test.ts` failing the build on a direct
-`fetch('/api/v1…')`. That test is the portal's *entire* automated coverage: **1 file, 6 tests**,
-green, and no e2e spec exists for it. p.4 grades six portal capabilities; six passing transport
-assertions do not cover them, and that gap is real rather than hidden here (F204).
+`fetch('/api/v1…')`. **F204 recorded that this transport test was the portal's *entire* automated
+coverage — 1 file, 6 tests, with no e2e spec. That is closed.** Re-measured 2026-08-16:
+`pnpm --filter @ship/web test src/pages/portal src/components/portal` → **7 files, 72 tests**,
+green — `portalTransport`, `portalStates`, `portalAudit`, `portalSecret`, `portalSecretHygiene`,
+`portalSubscriptions` and `RegisterAppDialog`. Plus **two Playwright specs** for the two claims no
+unit test can make: `e2e/portal-write-surface.spec.ts` (register, reveal/rotate, masked by
+default, Back cannot re-show) and `e2e/portal-replay-ts8.spec.ts` (browse deliveries, click
+Replay). All six of p.4's portal capabilities now carry a test; the transport fence is one file of
+seven rather than the whole of it.
 
 ### The agent rewire
 
@@ -596,10 +606,10 @@ pending. Board state: **PF-808 ●**, with that caveat attached rather than drop
 **2. 63 tests are red repo-wide, and every one of them is a documentation latch.** Not a platform
 regression — the count moved when a *document* moved:
 
-| Tree | `test` job | Result |
-|---|---|---|
-| pipeline 20124, the commit before the architecture trim | 66027 | **1 failed · 2912 passed** |
-| pipeline 20133, the trim merge `c8f85c8` | 66075 | **14 failed · 2855 passed** |
+| Tree | `test` job | Result (tests) | Files |
+|---|---|---|---|
+| pipeline 20124, the commit before the architecture trim | 66027 | **1 failed · 2912 passed** (2913) | 1 of 165 |
+| pipeline 20133, the trim merge `c8f85c8` | 66075 | **58 failed · 2855 passed** (2913) | 14 of 165 |
 | this branch at `94f083e`, locally | — | **58 failed · 2855 passed** (api) + **5 failed · 282 passed** (sdk) |
 
 **All 14 failing api files and both failing sdk files read `docs/architecture.md`** and assert on

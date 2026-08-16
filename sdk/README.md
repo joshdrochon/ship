@@ -1,7 +1,8 @@
 # @ship/sdk
 
-The typed client for Ship's public API. Four resource clients, OAuth helpers, an
-async-iterator paginator, a webhook verifier, and a discriminated error union.
+The typed client for Ship's public API. Four resource clients plus a list-only `audit`
+client, OAuth helpers, an async-iterator paginator, a webhook verifier, and a discriminated
+error union.
 
 ```ts
 import { ShipClient } from '@ship/sdk';

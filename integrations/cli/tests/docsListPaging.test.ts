@@ -5,7 +5,7 @@
  * ── This file is the consumer-facing proof of a PRD claim, not just a ticket ─
  * p.4 requires that *"Cursors handled internally; consumer code never sees
  * them."* Inside the SDK that is a type-level property, pinned by
- * `typeProofs/paginationHidesCursor.ts` — `IterateOptions` has no `cursor`
+ * `sdk/typeProofs/surfaceContracts.ts` — `IterateOptions` has no `cursor`
  * field, so passing one is a compile error. A type proof is invisible to anyone
  * who is not compiling against the SDK, and the CLI is the reference CONSUMER:
  * `--all` is where a real consumer drains a multi-page collection, and asserting

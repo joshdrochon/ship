@@ -12,7 +12,7 @@ node scripts/ttfe/check-series.mjs    # the P95 gates
 scripts/ttfe/soak.sh 20               # p.9's 20 consecutive runs
 ```
 
-Nothing needs to be running first. The drill provisions a Postgres, applies 60 migrations, seeds the
+Nothing needs to be running first. The drill provisions a Postgres, applies 61 migrations, seeds the
 three first-party apps, boots `api/src/index.ts` on a free port, and destroys all of it at teardown.
 `DATABASE_URL` must **not** be set — see *Refusals*, below.
 
@@ -210,8 +210,12 @@ spanning 7358–10339 ms. `ttfe-soak.json` reads `"context": "ci"`, `"ciJobId": 
 
 1. **This is twenty consecutive drill runs inside one CI job, not twenty separate pipeline runs.**
    The reasoning is above. Anyone quoting the 0% should quote that sentence with it.
-2. **Every sample is above F80's load veto** — `load-certified 0/20`, load average 10.8–12.4 on a
-   10-core box, because three other pipelines shared the runner. This does **not** weaken the flake
+2. **Every sample is above F80's load veto** — `load-certified 0/20`. The job prints `uptime` at
+   both ends: **1-minute load 11.97 at start, 10.80 at end** (5-minute 13.01 → 11.93, 15-minute
+   12.65 → 12.36) on a 10-core box, because three other pipelines shared the runner. An earlier
+   revision of this line quoted the range as *"10.8–12.4"*, which took the low end from the 1-minute
+   average and the high end from the 15-minute one — three different windows are printed and mixing
+   them is not a range of anything. This does **not** weaken the flake
    verdict: a pass is a pass however loaded the machine, and contention makes flake *more* likely,
    not less, so 20/20 under load is the stronger version of the result. It does mean the 8500 ms P95
    is a measurement of a contended machine and is not quotable as a platform timing. The 7× margin
