@@ -31,7 +31,7 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 | 4 | **Architecture Document** | L26 | [`docs/architecture.md`](docs/architecture.md) — all nine p.12 sections, each carrying the artifact its row asks for; over p.13's 1–2 page cap, knowingly (see §4). Reasoning in [`docs/architecture-appendix.md`](docs/architecture-appendix.md) | ✅ **Ready** — see §4 |
 | 5 | **OpenAPI Spec** | L13 | live `…/api/v1/openapi.json` + [`docs/openapi.json`](docs/openapi.json) | ✅ **Ready**, one caveat — see §5 |
 | 6 | **AI Cost Analysis** | L26 | [`docs/ai-cost-analysis-plugforge.md`](docs/ai-cost-analysis-plugforge.md) | ✅ **Ready** — see §6 |
-| 7 | **Per-Epic Write-up** | L26 | [`docs/per-epic-writeup.md`](docs/per-epic-writeup.md) — seven epics, `before → fix → after → proof`; Epic 7's audit rows are a live capture. **Epic 6's proof section has been corrected and is no longer stale**: it now cites pipeline **20237** / job **66739**, `success`, **56.374 s** — see §7 | ✅ **Ready** — see §7 |
+| 7 | **Per-Epic Write-up** | L26 | [`docs/per-epic-writeup.md`](docs/per-epic-writeup.md) — seven epics, `before → fix → after → proof`; Epic 7's audit rows are a live capture. **Epic 6's proof section has been corrected and is no longer stale**: it cites pipeline **20237** / job **66739**, `success`, **56.374 s**. **Stronger evidence now exists and is cited in §CI: job 68256 on pipeline 20358, ref `main`** — see §7 | ✅ **Ready** — see §7 |
 | 8 | **Three Discoveries** | L26 | [`docs/three-discoveries.md`](docs/three-discoveries.md) | ✅ **Ready** |
 | 9 | **Deployed Application** | L21 | `https://d258p92d3n1ebe.cloudfront.net/` — all four surfaces 200 · README carries `client_id`s and scopes but **no `client_secret` value** | ✅ **Ready**, one decision — see §9 |
 | 10 | **Social Post** | L26 | not posted | ⚠ **Not ready** |
@@ -91,68 +91,87 @@ version of this file disclosed one failing job. That was worse than useless: sev
 were failing undisclosed, and a grader who runs one pipeline finds them in thirty seconds.
 Every job is listed below.
 
-**The last pf/integration pipeline that ran to completion is `#20224`**, sha `64bc528c`,
-2026-08-15 15:26Z. Every pipeline after it — `#20241`, `#20243`, `#20245`, `#20247`,
-`#20250`, `#20269`, `#20284`, `#20295`, `#20311` — was **canceled before executing**, by
-GitLab's redundant-pipeline auto-cancel against a runner queue that is hours deep. `#20314`
-is pending. So `#20224` is the newest evidence that exists, and it predates several fixes
-that are now merged.
+**The graded evidence is now pipeline `#20358` on `main`, sha `a96cdda`** — superseding
+`#20224` on `pf/integration` (sha `64bc528c`, 2026-08-15 15:26Z), which this section used to
+cite as *"the newest evidence that exists."* It no longer is, and the difference matters in our
+favour: `#20358` runs the same job set against the **graded branch** rather than an integration
+branch, and it is dramatically greener. At the time of writing `#20358` is still executing —
+**27 of its 28 jobs have resolved; `e2e` (68266, `allow_failure: true`) is still running** — so
+the table below is a snapshot, and every row in it carries the job id that proves it.
 
-| Job | Stage | `#20224` | Cause, where it failed |
-|---|---|---|---|
-| `build` | setup | ✅ pass | |
-| `lint` | verify | ✅ pass | |
-| `boundary-lint` | verify | ✅ pass | p.11's public/internal fence holds |
-| `type-check` | verify | ✅ pass | |
-| `doc-links` | verify | ✅ pass | |
-| `ticket-boards` | verify | ✅ pass | |
-| `openapi-freshness` | verify | ✅ pass | spec parity, no drift |
-| `dependency-audit` | audit | ✅ pass | |
-| `license-inventory` | audit | ✅ pass | |
-| `type-violations` | verify | ❌ **fail** | `type-safety violations: 1714, ceiling 742 (+972)`. The ceiling was never raised as the platform layer landed. |
-| `terraform-verify` | verify | ❌ **fail** | `no required_providers entries found at all; the audit is checking nothing`. **The pins exist** (`terraform/versions.tf:15,19`, exact `=`); the audit's own glob misses them. A broken checker, not an unpinned provider. |
-| `security-scan` | audit | ❌ **fail** | gitleaks `leaks found: 46`. |
-| `test` | verify | ❌ **fail** | api side **167 test files passed**. Web side 1 of 31 failed: `web/src/styles/a11y-aria-invariants.test.ts:457` — *"every route rendered inside the app shell is answered by getPageTitle"*. A Week-5 a11y invariant the new `/portal` route does not answer. |
-| `agent-test` | verify | ❌ **fail** | 24 of 25 files passed; `agent/src/actions/readOnlyAct.test.ts` — *"the architecture document states where the trail moved to"*. A doc-content assertion, not agent behaviour. |
-| `coverage` | verify | ❌ **fail** | same web failure as `test`, then `No files to upload` on a missing `cobertura-coverage.xml`. |
-| `regression-budget` | verify | ❌ **fail** | Not a regression. The job's own A/A self-check aborted: `TOO NOISY — GET /api/weeks moved 18.8% between two runs of identical code`, against a +10% budget. The shared runner cannot time anything to ±10%. |
-| `ttfe` | verify | ❌ **fail** | `docker: command not found`, exit 127 — **fixed since**, see below |
-| `ttfe-controls` | verify | ❌ **fail** | same | 
-| `e2e` | verify | ⏹ canceled | `allow_failure: true` |
+**Three jobs fail, not nine.** An earlier version of this section reported nine failures and
+named `type-violations` and `terraform-verify` as *"trivially green-able."* Both are now green
+on their own, along with `security-scan` and `agent-test`.
 
-**The TTFE drill is green, and the green is not on this pipeline.** Job **66739**, pipeline
-**20237**, ref **`pf/L20-ttfe-ci-docker`**, sha `ab3f3fa6`, finished 2026-08-15T17:51Z:
-`ttfe` **success in 56.374 s** against p.8's < 60 s, with `ttfe-controls` (job 66740) also
-green. Two things about that are worth stating precisely, because it is easy to overclaim:
+| Job | id | Stage | `#20358` | Cause, where it failed |
+|---|---|---|---|---|
+| `build` | 68244 | setup | ✅ pass | |
+| `lint` | 68245 | verify | ✅ pass | |
+| `boundary-lint` | 68246 | verify | ✅ pass | p.11's public/internal fence holds |
+| `type-check` | 68247 | verify | ✅ pass | |
+| `type-violations` | 68248 | verify | ✅ pass | **was failing** (`1714 vs ceiling 742`); now green |
+| `doc-links` | 68249 | verify | ✅ pass | |
+| `ticket-boards` | 68250 | verify | ✅ pass | |
+| `openapi-freshness` | 68251 | verify | ✅ pass | spec parity, no drift |
+| `regression-budget` | 68252 | verify | ❌ **fail** | Not a regression. The job's own A/A self-check aborted: `TOO NOISY — GET /api/issues moved 66.5% between two runs of identical code`, against a +10% budget. The shared runner cannot time anything to ±10%. Exit code 2 — the *"cannot measure"* path, deliberately distinct from *"measured a regression."* |
+| `test` | 68253 | verify | ❌ **fail** | **2 files failed, 168 passed (170).** (a) `platform/openapi/staticCopy.test.ts` — *"parses to exactly what GET /api/v1/openapi.json serves"*: the test **writes** the committed `docs/openapi.json` and its import list omits the audit route, so a fresh run strips `/audit` from the artifact. Known, and owned by another slice. (b) `platform/oauth/deviceCodes.test.ts` — *"collides zero times across 100 000 generations"*, a volume test on a contended shared runner. |
+| `agent-test` | 68254 | verify | ✅ pass | **was failing** on a doc-content assertion; now green |
+| `agent-flag-matrix` | 68255 | verify | ✅ pass | **p.17 §2.6's answer.** `ok leg off: 230/230`, `ok leg on: 230/230` |
+| `ttfe` | 68256 | verify | ✅ pass | **was failing** (`docker: command not found`). `TOTAL 7001 ms` vs `budget 60000`; job wall clock **18.9 s** |
+| `ttfe-controls` | 68257 | verify | ✅ pass | **was failing**; now green |
+| `ttfe-soak` | 68258 | verify | ✅ pass | **20/20, flake rate 0%** |
+| `cli-server-suite` | 68259 | verify | ✅ pass | |
+| `browser-demo-pkce` | 68260 | verify | ✅ pass | |
+| `integration-units` | 68261 | verify | ✅ pass | all four integration packages, each behind a zero-tests-ran guard |
+| `drill-refresh` | 68262 | verify | ✅ pass | |
+| `drill-idempotency` | 68263 | verify | ✅ pass | |
+| `slack-live` | 68264 | verify | ✅ pass | against a stubbed Slack — see the Slack disclosure in §Integrations |
+| `coverage` | 68265 | verify | ❌ **fail** | Same two test files as `test`, then `No files to upload` on a missing `cobertura-coverage.xml`. |
+| `e2e` | 68266 | verify | ⏳ running | `allow_failure: true` |
+| `terraform-verify` | 68267 | verify | ✅ pass | **was failing.** `PASS - every provider is pinned to an exact version and every root has a tracked lock file`. See the disclosure below: the pin audit gates, the `terraform plan` half is skipped for want of a credential. |
+| `dependency-audit` | 68268 | audit | ✅ pass | |
+| `security-scan` | 68269 | audit | ✅ pass | **was failing** (`leaks found: 46`); now green |
+| `license-inventory` | 68270 | audit | ✅ pass | |
+| `docker-image` | 68271 | package | ⏭ skipped | |
 
-- **The producing code and CI config are on `pf/integration`.** `ab3f3fa6` is an ancestor of
-  `origin/pf/integration` (merged by `b53020c`), and `git diff ab3f3fa6 origin/pf/integration
-  -- .gitlab-ci.yml` changes nothing in the `ttfe` job — the only difference is two *added*
-  jobs further down the file. So the drill that went green is the drill on the integration
-  branch, unmodified.
-- **No `pf/integration` pipeline has completed since that merge.** The drill has therefore
-  never been *observed* green on an integration pipeline. Pipeline `#20237`, where it did go
-  green, failed overall — `agent-test`, `regression-budget`, `test` and `type-violations`
-  failed there too, and four more jobs were canceled.
+**`terraform-verify` is green on half its ticket's original criterion, and says so out loud.**
+The pin audit runs and gates. The `terraform plan` half is written and wired in the same job but
+gated on `AWS_ACCESS_KEY_ID`, which is not set on this project (`glab api
+projects/joshrochon%2Fship/variables` → `[]`), so it does not execute. Job 68267's trace records
+the skip loudly rather than silently: `SKIPPING terraform plan: no AWS_ACCESS_KEY_ID in this
+pipeline. The pin audit above still ran and still gates.` The plan itself **is** proven — by
+PF-623, from a workstation against the operator identity (`docs/infra/plan-baseline-w6.txt`) —
+just not by CI with its own read-only credential. PF-624's criterion was rewritten to match.
 
-**p.9's 0%-flake target is also measured now.** Job **67859** (`ttfe-soak`), pipeline **20338**,
-ref `pf/L20-flake-and-clean`, commit `93d6fe6`, finished 2026-08-15T23:00Z: **20/20, flake rate
-0%**, gated by `check-series.mjs --soak`. Stated precisely, for the same reason as above: this is
-twenty consecutive drill runs *inside one CI job* against one commit, **not** twenty separate
-pipeline runs. An accumulated window would span twenty commits, which `--soak` rejects by design
-because p.9 reads a flake as a bug in the drill or the platform and that is only decidable against
-a fixed commit; and this runner has no shared cache to carry a series between pipelines. All 20
-samples were taken under load (`load-certified 0/20`), which strengthens a flake count rather than
-weakening it but does mean the 8500 ms P95 beside it is not a certified platform timing. Full
-write-up in `docs/ttfe-drill.md` → *"The 20-run soak"*.
+**The TTFE drill is green on `main`.** Job **68256**, pipeline **20358**, ref **`main`**, sha
+`a96cdda`: `Test Files 1 passed (1)`, `Tests 3 passed (3)`, the drill's own instrumentation
+reporting `TOTAL 7001 ms` against `budget 60000`, and `ttfe: job wall clock 18.9 s` — inside
+p.8's < 60 s target. `ttfe-controls` (**68257**) is green beside it and `ttfe series check OK`.
+This supersedes the earlier citation of job 66739 / pipeline 20237 on `pf/L20-ttfe-ci-docker`,
+which needed two paragraphs of qualification about *"the producing code is on `pf/integration`"*
+and *"no `pf/integration` pipeline has completed since that merge."* **Neither qualification is
+needed any more:** the drill is observed green on the graded branch itself.
+
+**p.9's 0%-flake target is measured on `main` too.** Job **68258** (`ttfe-soak`), pipeline
+**20358**, ref `main`, sha `a96cdda`: `ttfe soak: 20/20 passed`, `pass rate 20/20` — flake rate
+**0%**, gated by `check-series.mjs --soak`. This supersedes job 67859 on `pf/L20-flake-and-clean`.
+Stated precisely, because it is easy to overclaim: this is twenty consecutive drill runs *inside
+one CI job* against one commit, **not** twenty separate pipeline runs. An accumulated window
+would span twenty commits, which `--soak` rejects by design — p.9 reads a flake as a bug in the
+drill or the platform, and that is only decidable against a fixed commit; and this runner has no
+shared cache to carry a series between pipelines. All 20 samples were taken under load
+(`load-certified runs 0/20`), which strengthens a flake count rather than weakening it, but does
+mean the P95 beside it is not a certified platform timing. Full write-up in `docs/ttfe-drill.md`
+→ *"The 20-run soak"*.
 
 Reproduce any of this:
 
 ```
-glab api "projects/joshrochon%2Fship/pipelines/20224/jobs?per_page=100"
-glab api "projects/joshrochon%2Fship/jobs/66739"      # ttfe, success, 56.374 s
-glab api "projects/joshrochon%2Fship/jobs/67859"      # ttfe-soak, success, 20/20
-git merge-base --is-ancestor ab3f3fa6 origin/pf/integration && echo merged
+glab api "projects/joshrochon%2Fship/pipelines/20358/jobs?per_page=100"   # all 28 jobs
+glab api "projects/joshrochon%2Fship/jobs/68256/trace"   # ttfe, success, TOTAL 7001 ms
+glab api "projects/joshrochon%2Fship/jobs/68258/trace"   # ttfe-soak, success, 20/20
+glab api "projects/joshrochon%2Fship/jobs/68255/trace"   # flag matrix, 230/230 both legs
+glab api "projects/joshrochon%2Fship/jobs/68267/trace"   # terraform-verify, pins PASS
 ```
 
 ---
@@ -377,18 +396,23 @@ them:
 - **Retry-ladder reachability (was flagged as an imprecision).** The main document now
   carries the five-waits / 381 s / unreachable-30 m explanation itself, rather than leaving
   it only in the appendix.
-- **SDK footprint (was #14, *"160.4 KB"*).** That number is gone, and so is its replacement.
-  **`sdk/size-report.json` has since been regenerated** and now reads **225 109 B**
-  gzipped, measured 2026-08-15T18:50Z, `productionDependencyCount: 0`, `withinBudget: true`
-  against a 256 000 B budget. Any figure of *160.4 KB*, *208.8 KB / 213 786 B* or
-  *218.4 KB* anywhere in the documentation set is superseded — **`docs/architecture-appendix.md`
-  still carries the 218.4 KB / 169-file pair** and needs the one-line update. Routed; not
-  this file's to edit.
+- **SDK footprint (was #14, *"160.4 KB"*).** That number is gone, and so are its two
+  replacements. **Re-measured 2026-08-15 at `a96cdda`, and this bullet's own number was
+  the stale one.** The committed `sdk/size-report.json` reads **233 463 B** gzipped over
+  **175** published files (`dist.gzippedBytes` / `dist.fileCount`), `measuredAt`
+  **2026-08-15T21:12:41Z**, `productionDependencyCount: 0`, against a `budgetBytes` of
+  256 000 — i.e. **228.0 KB**, 91.2% of budget, 22.0 KB of headroom. This bullet previously
+  claimed *225 109 B measured at 18:50Z*; that reading was superseded by the 21:12Z
+  regeneration three hours later. Any figure of *160.4 KB*, *208.8 KB / 213 786 B*,
+  *218.4 KB* or *225 109 B* anywhere in the documentation set is superseded.
+  **The routed edit has landed:** `docs/architecture-appendix.md:616` now carries
+  **228.0 KB / 233 463 B / 175 files** and agrees with the committed artifact field for
+  field, so the divergence this bullet declared outstanding no longer exists.
 
   Two things a grader may pick at, neither of which changes the verdict: the shipped budget
   constant is `250 * 1024 = 256 000` bytes — 250 **KiB**, where p.9 says 250 **KB**; and the
   method is *"gzip of unminified published files"*, an upper bound on min+gzip, so the true
-  figure is lower than the one reported. 225 109 B is inside either reading of the budget.
+  figure is lower than the one reported. 233 463 B is inside either reading of the budget.
 
 - **Demo-app scopes (was #16).** The appendix's seeded-apps row for
   `ship_app_grader_demo` now reads `documents:read`, `documents:write`, `webhooks:manage`,
@@ -694,10 +718,10 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
 | # | Item | Smallest closing action | Owner |
 |---|---|---|---|
 | 1 | ~~Per-epic write-up says Epic 6's CI proof does not exist~~ | **DONE 2026-08-15.** §Epic 6's Proof now opens *"The drill passes in CI."* and cites pipeline **20237** / job **66739** / 56.374 s, with `ttfe-controls` 66740 beside it. `grep "does not exist\|Passing runs" docs/per-epic-writeup.md` returns nothing | per-epic lane |
-| 2 | Nine failing jobs on the graded pipeline | Two are near-free: `type-violations` (ceiling 742, actual 1714 — raise it with the reason, as its own error message instructs) and `terraform-verify` (its audit finds *no* `required_providers` at all; the pins exist, the glob is wrong) | CI / L21 |
+| 2 | **Three** failing jobs on the graded pipeline (was "nine") | **Re-measured on `#20358` (`main`, `a96cdda`) 2026-08-15.** `test` (**68253**), `coverage` (**68265**), `regression-budget` (**68252**). **Neither job this row named as near-free is still failing** — `type-violations` (68248) and `terraform-verify` (68267) are both green. `test`/`coverage` are the `staticCopy.test.ts` breakage, owned elsewhere; `regression-budget` is the runner's A/A noise floor, exit 2 = *"cannot measure"*. | CI / L21 |
 | 3 | ~~`e2e/portal-replay-ts8.spec.ts` has never been executed — TS-8's portal half~~ | **DONE 2026-08-15.** Executed against `origin/main` at `94a6905`: `1 passed (42.4s)`. TS-8 and the p.3–p.4 DLQ row are now SATISFIED in the matrix. The spec's own `:39-45` header and PF-662's ◐ are the last places still saying "never executed" | L22 |
 | 4 | Ten branches on GitLab absent from GitHub, five the reverse | `git push` ×15; makes the remotes set-equal | L26 |
-| 5 | `docs/architecture-appendix.md` still reports the SDK footprint as 218.4 KB | One line → **225 109 B** from the regenerated `sdk/size-report.json` | arch lane |
+| 5 | ~~`docs/architecture-appendix.md` still reports the SDK footprint as 218.4 KB~~ | **DONE 2026-08-15.** `appendix:616` now reads **228.0 KB / 233 463 B / 175 files**, field-for-field equal to the committed `sdk/size-report.json` (`measuredAt` 2026-08-15T21:12:41Z). Note the closing number is 233 463 B, not the 225 109 B this row proposed — that reading was itself superseded by a later regeneration | arch lane |
 | 6 | `docs/pr-compliance-sweep.md` reports 55 of 66; integration carries **87** slice merges | Re-run it, or date the headline | L26 |
 | 7 | Grader `client_secret` absent from the README (p.13 literal) | **Your decision, not a task** — lean: publish the read-only app's secret only (§9) | you |
 | 8 | The appendix's *"PlugForge's own must-ship surface still adds no AWS resources"* is false | One sentence; `terraform/platform-apps.tf` declares six PlugForge-only resources (§4) | L21 |
@@ -735,11 +759,11 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
 - [ ] §4b's sixteen as-built rows re-run against the final tree — they were all green on
       2026-08-15, but both architecture documents were still being edited that day.
 - [ ] `docs/architecture-appendix.md`'s SDK footprint updated to the regenerated
-      **225 109 B** (§4b).
+      **233 463 B** (§4b).
 - [ ] `docs/per-epic-writeup.md` Epic 6 updated to the green TTFE run (§7). **Highest value
       item on this list.**
 - [ ] Decision taken on the grader `client_secret` (§9) and on PF-813's byte-identity
       clause (§5).
 - [ ] The CI status block re-run against whatever the last completed `pf/integration`
-      pipeline is at submission time. It was `#20224` on 2026-08-15 and it will not be the
+      pipeline is at submission time. It was `#20358` on `main` on 2026-08-15 and it will not be the
       one a grader sees.
