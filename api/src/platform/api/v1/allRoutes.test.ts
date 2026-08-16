@@ -36,7 +36,10 @@ function routeModulesOnDisk(): string[] {
 function importedInManifest(): string[] {
   const source = readFileSync(MANIFEST_FILE, 'utf8');
   const found = [...source.matchAll(/^import '\.\/([^/']+)\/routes\.js';$/gm)];
-  return found.map((match) => match[1] as string).sort();
+  // The capture group is not optional in this pattern, so a match always has [1];
+  // flatMap over the possibly-undefined value states that to the compiler without
+  // asserting it.
+  return found.flatMap((match) => (match[1] === undefined ? [] : [match[1]])).sort();
 }
 
 describe('the /api/v1 route manifest is complete', () => {

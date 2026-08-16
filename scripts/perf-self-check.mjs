@@ -2,11 +2,16 @@
 /**
  * A/A self-check — can this machine resolve the regression budget at all?
  *
- * Measures the SAME tree twice, in two SEPARATE processes, and reports the
- * largest per-route p95 difference. Nothing changes between the two runs, so
- * whatever difference appears is the instrument's own noise. If that noise
- * exceeds the budget, no verdict from a single `baseline:compare` on this
- * machine means anything -- pass or fail, it is luck.
+ * Measures the SAME tree four times, each in its own SEPARATE process, in A B B A
+ * order, and reports the largest per-route p95 difference between the A mean and
+ * the B mean. Nothing changes between the runs, so whatever difference appears is
+ * the instrument's own noise. If that noise exceeds the budget, no verdict from a
+ * single `baseline:compare` on this machine means anything -- pass or fail, it is
+ * luck.
+ *
+ * The order is what makes the number honest on a shared runner: see the A B B A
+ * note further down. Sequential A-then-B attributes every bit of machine drift to
+ * B and reports it as noise the tree cannot do anything about.
  *
  * WHY THIS EXISTS
  *
@@ -89,7 +94,7 @@ function measure(label, out) {
 try {
   console.log(`\nA/A self-check — same tree, separate processes, budget +${BUDGET}%\n`);
 
-  // THREE passes, and the first is thrown away.
+  // FIVE passes, and the first is thrown away.
   //
   // Process isolation alone was not enough: pass B still came in 60% slower
   // than pass A on identical code, and slower on almost every route rather than
@@ -98,18 +103,44 @@ try {
   // later pass ever does -- `measureRoutes` creates a fixture and deletes it,
   // leaving dead tuples behind each time.
   //
-  // Discarding one pass equalises that: the two passes that get compared have
-  // both run after a fixture cycle. Comparing A to B measured the warm-up; this
-  // measures the machine.
+  // Discarding one pass equalises that: every pass that gets compared has run
+  // after a fixture cycle. That fixes the DATABASE term.
   measure('warm-up (discarded)', join(work, 'warm.json'));
-  const a = measure('A', join(work, 'a.json'));
-  const b = measure('B', join(work, 'b.json'));
 
-  const rows = Object.keys(a.routes)
-    .filter((id) => b.routes[id])
+  // ── A B B A, not A then B ──────────────────────────────────────────────────
+  //
+  // The warm-up above equalises the database. It does nothing about drift in the
+  // MACHINE, and on a shared runner that is the larger term: CI job 68841
+  // measured A at 5.97 ms and B at 36.87 ms on identical code, with every route
+  // slower on B and `/health` -- no query, no database -- among them. Six-fold,
+  // one-directional, on a route that does nothing: that is not random noise a
+  // higher sample count averages away, it is the runner getting busier between
+  // two passes taken one after the other.
+  //
+  // A B B A is the standard cancellation for exactly that. Under drift that is
+  // linear in time the two A slots and the two B slots have the same mean
+  // elapsed offset, so the drift lands identically on both sides and divides
+  // out. Sequential A-then-B puts the whole of it on B, which is what the job
+  // was reporting as instrument noise.
+  //
+  // This measures the instrument, so the passes stay untouched otherwise --
+  // same command, same process isolation, same fixture cycle as the real
+  // comparison. Only their ORDER changes.
+  const order = ['A', 'B', 'B', 'A'];
+  const samples = { A: [], B: [] };
+  order.forEach((side, i) => {
+    samples[side].push(measure(`${side} (${i + 1}/${order.length})`, join(work, `p${i}.json`)));
+  });
+
+  const mean = (xs) => xs.reduce((s, x) => s + x, 0) / xs.length;
+  const sideP95 = (side, id) =>
+    mean(samples[side].filter((s) => s.routes[id]).map((s) => s.routes[id].latencyMs.p95));
+
+  const rows = Object.keys(samples.A[0].routes)
+    .filter((id) => samples.A.every((s) => s.routes[id]) && samples.B.every((s) => s.routes[id]))
     .map((id) => {
-      const first = a.routes[id].latencyMs.p95;
-      const second = b.routes[id].latencyMs.p95;
+      const first = sideP95('A', id);
+      const second = sideP95('B', id);
       // Symmetric: a pass that comes back 30% FASTER is exactly as much
       // evidence of an untrustworthy instrument as one 30% slower, and only the
       // slower direction would ever be noticed by a human reading a report.

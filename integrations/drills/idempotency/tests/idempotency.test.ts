@@ -15,6 +15,52 @@ import { authenticatedClient, keysOf, subscribe, type Subscribed } from './suppo
 let client: ShipClient;
 let world: Subscribed | null = null;
 
+/**
+ * Poll the public delivery log until a dead-lettered delivery for `subscriptionId`
+ * exists.
+ *
+ * ── Why a poll here, when p.11 forbids sleeping for an outcome ──────────────
+ * `listener.waitFor` is event-driven and resolves once the response has been
+ * written back — so it proves the subscriber ANSWERED 410. It cannot prove the
+ * platform has yet read that 410, classified it as permanent, and committed
+ * `dead_lettered`. Those happen in the server process, after the response leaves
+ * the listener, with no event the drill can subscribe to.
+ *
+ * That gap is a real read-after-write race across two processes, and it is what
+ * made this test flaky: the assertion below read the log 106 ms after the reply
+ * and saw zero rows (CI job 68852). Everything the drill can observe had already
+ * happened; the thing it was asserting on had not.
+ *
+ * The shape follows `testkit/listener.ts`: the deadline can only ever REJECT,
+ * and a satisfied predicate returns on the current iteration. The interval never
+ * delays a success by more than one poll period, and the failure names what it
+ * was waiting for instead of surfacing as a bare `expected 0 to be >= 1`.
+ */
+async function waitForDeadLettered(
+  shipClient: ShipClient,
+  subscriptionId: string,
+  { timeoutMs = 15_000, intervalMs = 100 } = {},
+): Promise<Awaited<ReturnType<typeof shipClient.webhooks.deliveries.list>>['data']> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const page = await shipClient.webhooks.deliveries.list({
+      status: 'dead_lettered',
+      subscription_id: subscriptionId,
+    });
+    if (page.data.length >= 1) return page.data;
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `the delivery should have dead-lettered on a permanent 4xx, but after ${timeoutMs} ms ` +
+          `the public delivery log still reports ${page.data.length} dead-lettered deliveries for ` +
+          `subscription ${subscriptionId}. The subscriber answered 410 and the listener saw ` +
+          `the response, so either the outcome classifier no longer treats a permanent 4xx as ` +
+          `terminal, or the delivery never reached the classifier at all.`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+}
+
 beforeAll(async () => {
   client = await authenticatedClient();
 }, 180_000);
@@ -99,12 +145,12 @@ describe('PF-730 — a replay carries the ORIGINAL key, proven at the subscriber
     expect(originalKey).toEqual(expect.any(String));
 
     // Found through the PUBLIC delivery log, the same way the portal finds it.
-    const dlq = await client.webhooks.deliveries.list({
-      status: 'dead_lettered',
-      subscription_id: world.subscription.id,
-    });
-    expect(dlq.data.length, 'the delivery should have dead-lettered on a permanent 4xx').toBeGreaterThanOrEqual(1);
-    const dead = dlq.data[0];
+    // Polled rather than read once: the 410 has been answered, but the platform
+    // commits `dead_lettered` in its own process afterwards. See the note on
+    // `waitForDeadLettered`.
+    const dlqData = await waitForDeadLettered(client, world.subscription.id);
+    expect(dlqData.length, 'the delivery should have dead-lettered on a permanent 4xx').toBeGreaterThanOrEqual(1);
+    const dead = dlqData[0];
     if (dead === undefined) throw new Error('no dead-lettered delivery');
     expect(dead.idempotency_key).toBe(originalKey);
 

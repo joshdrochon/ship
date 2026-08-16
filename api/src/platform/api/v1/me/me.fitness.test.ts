@@ -299,18 +299,19 @@ describe('PF-294 · the generator holds no route-specific knowledge', () => {
 
     // Loud, not skipped. A silent pass here would mean the pairing this test
     // exists to hold is unwatched exactly where it matters — in CI.
-    expect(
-      baseRef,
-      'Neither `pf/integration` nor `origin/pf/integration` is present. This test diffs ' +
-        'against the integration branch, so a shallow clone that fetched only the current ' +
-        'ref cannot run it. Fetch it first:\n\n' +
-        '    git fetch --no-tags --depth=1 origin ' +
-        '+refs/heads/pf/integration:refs/remotes/origin/pf/integration\n',
-    ).toBeDefined();
+    if (baseRef === undefined) {
+      throw new Error(
+        'Neither `pf/integration` nor `origin/pf/integration` is present. This test diffs ' +
+          'against the integration branch, so a shallow clone that fetched only the current ' +
+          'ref cannot run it. Fetch it first:\n\n' +
+          '    git fetch --no-tags --depth=1 origin ' +
+          '+refs/heads/pf/integration:refs/remotes/origin/pf/integration\n',
+      );
+    }
 
     const changed = execFileSync(
       'git',
-      ['diff', '--name-only', `${baseRef!}...HEAD`, '--', 'api/src/platform/openapi/'],
+      ['diff', '--name-only', `${baseRef}...HEAD`, '--', 'api/src/platform/openapi/'],
       { cwd: REPO_ROOT, encoding: 'utf8' },
     )
       .split('\n')
@@ -332,7 +333,7 @@ describe('PF-294 · the generator holds no route-specific knowledge', () => {
     // "the generator is untouched", which is the reassuring version of knowing
     // nothing. So assert the machinery ran, using a path that is guaranteed to
     // exist rather than one that happens to have changed.
-    const everything = execFileSync('git', ['diff', '--name-only', `${baseRef!}...HEAD`], {
+    const everything = execFileSync('git', ['diff', '--name-only', `${baseRef}...HEAD`], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
     });
