@@ -143,6 +143,52 @@ resource "aws_iam_role" "vpc_flow_logs" {
   })
 }
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Why this policy does NOT grant logs:CreateLogGroup, and why Resource is scoped
+#
+# The 2026-08-14 destroy-and-redeploy drill (docs/infra/destroy-redeploy-drill.md)
+# failed its rebuild with:
+#
+#   Error: creating CloudWatch Logs Log Group (/aws/vpc/shipdrill):
+#     ResourceAlreadyExistsException: The specified log group already exists
+#
+# Both `aws_flow_log.main` and `aws_cloudwatch_log_group.vpc_flow_logs` reported
+# "Destruction complete", and the group existed again at 06:18:00 UTC — INSIDE
+# the destroy window. Three properties of this file composed to produce that:
+#
+#   1. The group name is fully deterministic (`/aws/vpc/${var.project_name}`),
+#      so any survivor is a fatal collision on the next apply. There is no
+#      `import` block and no data source, so Terraform has no way to adopt one.
+#   2. This policy granted `logs:CreateLogGroup` on `Resource = "*"`, which is
+#      the permission that lets in-flight flow-log delivery RE-CREATE a group
+#      Terraform has just deleted. Delivery only ever needs to write to a group
+#      Terraform pre-creates — `aws_flow_log.main` references the group's ARN,
+#      so the group always exists first.
+#   3. `max_aggregation_interval` was unset, i.e. the provider default of 600 s,
+#      so up to ten minutes of buffered records can land after the flow log
+#      resource is gone. The destroy took 11m18s; the window sat inside it.
+#
+# The fix removes 1's consequence by removing 2 and shrinking 3:
+#
+#   · `logs:CreateLogGroup` is gone. Delivery can write, and cannot create.
+#   · `Resource` is scoped to this group and its streams. That is least
+#     privilege, and it also buys an ORDERING EDGE for free: the policy now
+#     references `aws_cloudwatch_log_group.vpc_flow_logs.arn`, so Terraform
+#     destroys the POLICY BEFORE THE GROUP. By the time the group is deleted the
+#     role has no CloudWatch Logs permissions at all, and there is no principal
+#     left that could resurrect it.
+#   · `max_aggregation_interval = 60` on the flow log below cuts the in-flight
+#     window from ten minutes to one.
+#
+# Trade recorded rather than buried: with no `CreateLogGroup`, a group deleted
+# out of band stops receiving records instead of silently re-creating itself.
+# That is the behaviour we want — the self-healing IS what broke the drill.
+#
+# NOT YET APPLIED. This is a configuration fix reasoned from the destroy log and
+# the graph; the drill that failed was run BEFORE it, and re-running a destroy
+# against the graded deployment on the eve of submission is not a trade worth
+# making. docs/infra/destroy-redeploy-drill.md says so in the same words.
+# ─────────────────────────────────────────────────────────────────────────────
 resource "aws_iam_role_policy" "vpc_flow_logs" {
   name = "${var.project_name}-vpc-flow-logs"
   role = aws_iam_role.vpc_flow_logs.id
@@ -153,13 +199,15 @@ resource "aws_iam_role_policy" "vpc_flow_logs" {
       {
         Effect = "Allow"
         Action = [
-          "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents",
           "logs:DescribeLogGroups",
           "logs:DescribeLogStreams"
         ]
-        Resource = "*"
+        Resource = [
+          aws_cloudwatch_log_group.vpc_flow_logs.arn,
+          "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
+        ]
       }
     ]
   })
@@ -170,6 +218,11 @@ resource "aws_flow_log" "main" {
   log_destination = aws_cloudwatch_log_group.vpc_flow_logs.arn
   traffic_type    = "ALL"
   vpc_id          = aws_vpc.main.id
+
+  # 60 s rather than the provider's 600 s default — see the block above. This is
+  # the size of the window in which records buffered before the destroy can
+  # still arrive after it.
+  max_aggregation_interval = 60
 
   tags = {
     Name = "${var.project_name}-vpc-flow-log"

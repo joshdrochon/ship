@@ -143,6 +143,12 @@ resource "aws_iam_role" "vpc_flow_logs" {
   })
 }
 
+# No `logs:CreateLogGroup`, and `Resource` scoped to this group. The full
+# reasoning — a flow-log group that survived a destroy and made the rebuild
+# fatal — is in `terraform/vpc.tf`, of which this module is the reusable copy.
+# In one line: the permission to CREATE a log group is what let in-flight
+# delivery resurrect the group Terraform had just deleted, and referencing the
+# group's ARN here also makes Terraform destroy this policy BEFORE that group.
 resource "aws_iam_role_policy" "vpc_flow_logs" {
   name = "${var.project_name}-vpc-flow-logs"
   role = aws_iam_role.vpc_flow_logs.id
@@ -153,13 +159,15 @@ resource "aws_iam_role_policy" "vpc_flow_logs" {
       {
         Effect = "Allow"
         Action = [
-          "logs:CreateLogGroup",
           "logs:CreateLogStream",
           "logs:PutLogEvents",
           "logs:DescribeLogGroups",
           "logs:DescribeLogStreams"
         ]
-        Resource = "*"
+        Resource = [
+          aws_cloudwatch_log_group.vpc_flow_logs.arn,
+          "${aws_cloudwatch_log_group.vpc_flow_logs.arn}:*"
+        ]
       }
     ]
   })
@@ -170,6 +178,10 @@ resource "aws_flow_log" "main" {
   log_destination = aws_cloudwatch_log_group.vpc_flow_logs.arn
   traffic_type    = "ALL"
   vpc_id          = aws_vpc.main.id
+
+  # 60 s rather than the provider's 600 s default: the size of the window in
+  # which records buffered before a destroy can still arrive after it.
+  max_aggregation_interval = 60
 
   tags = {
     Name = "${var.project_name}-vpc-flow-log"

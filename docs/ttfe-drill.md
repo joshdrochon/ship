@@ -223,47 +223,119 @@ spanning 7358–10339 ms. `ttfe-soak.json` reads `"context": "ci"`, `"ciJobId": 
 
 ---
 
-## Clean mode (`--clean`) — not shipped
+## Clean mode (`--clean`) — shipped 2026-08-16, and it closes one conjunct of two
 
-`pnpm drill ttfe --clean` currently **exits 2 with a message**, and this section is the message's
-footnote rather than a plan disguised as documentation.
+`pnpm drill ttfe --clean` **runs**. It used to exit 2 with a message, and this section used to be
+that message's footnote.
 
-What PF-590 asks for: the identical stage script inside a `node:22-bookworm` container started with
-**no bind mount of the repo**, an empty pnpm store, and exactly two inputs — the packed tarball
-served over HTTP and the published docs — reaching the Ship instance over the network like any
-external consumer. Its budget is p.8's ≤ 30 min, not 60 s, and it runs on a schedule rather than on
-every PR because at a cold store it costs minutes and p.15 asks for a daily CI-minute ceiling.
+**Measured, twice, on this machine:**
 
-What exists today: the fast mode, which is a real install of the packed artifact but from a **local
-tarball** on a machine with a warm store. That is the honest description of what has been measured,
-and the ≤ 30 min figure is therefore **unmeasured** — see *Not done*, below.
+```
+  mode                 clean
+  install                    7066 ms
+  login                      5126 ms
+  register_subscription        75 ms
+  create_document             118 ms
+  receive_webhook               0 ms
+  verify_signature              3 ms
+  graded total              12393 ms   (0.21 min of a 30 min budget)
+  setup (not graded)        13465 ms
+  container wall clock      20199 ms
+```
 
-### The clause has two conjuncts, and only one of them is scriptable
+An earlier run of the same build: graded total **11467 ms**, install 5995 ms, login 5257 ms. Both
+runs pass. `test-results/ttfe.json` carries `"mode": "clean"` and
+`scripts/ttfe/check-series.mjs` filters the 60 s P95 window to `mode === 'fast'`, so these figures
+can never be averaged into the fast mode's.
+
+**The number is not load-certified, and that is stated for the same reason the soak's is.**
+`loadRatio` was **1.608** on a 10-core box (`loadAvg1` 16.08), well over F80's 0.8 veto — the API
+suite was running concurrently. Under the veto the timing is not quotable as a platform
+measurement. The verdict is safe anyway: 0.21 min against a 30 min budget is a **145× margin**, and
+contention only ever makes the number worse.
+
+### What `--clean` actually does, and how each claim is checked
+
+PF-590 names four properties. All four are done rather than aliased onto the fast path, and each
+lands in the artifact so a reader need not take the flag's word for it:
+
+| PF-590 asks for | How it is done | Recorded as |
+|---|---|---|
+| cold `node:22-bookworm` container, **no bind mount of the repo** | `scripts/ttfe/clean-runner.mjs` passes no `-v`, no `--mount`, no `--network`; a unit test greps the docker argument list for them | `repoBindMounted: false` |
+| **empty pnpm store** | a consequence of a fresh container, not a flag: pnpm itself is fetched by `corepack prepare pnpm@10.27.0` inside it | `pnpmStoreWarm: false` |
+| the packed tarball **served over HTTP** | a one-file static server on the host serves `/ship-sdk.tgz`; the container runs `pnpm add http://…/ship-sdk.tgz` | `tarballOverHttp: true` |
+| **no prebuilt `dist`** | `sdk/dist` **and its `.tsbuildinfo`** are removed and the SDK rebuilt from source before packing | `sdkRebuiltFromSource: true` |
+
+The Ship instance is booted by `scripts/ttfe/harness.ts` on the **host** and reached from the
+container over the network — PF-590's own words, *"It reaches the Ship instance over the network
+like any external consumer."* Booting it is setup and lands in `setupMs`, never in the graded
+total, exactly as fast mode treats it.
+
+The container runs `scripts/ttfe/clean/consumer.mjs`, fetched over the same HTTP server. It is a
+second copy of the six-stage loop written against `@ship/sdk` and node builtins alone, because the
+drill spec imports this repository's test support and L19's CLI commands and neither exists inside
+a container with no repo mounted. `integrations/cli/tests/cleanConsumerParity.test.ts` asserts the
+two copies agree on the six stage ids and their order, on the pinned pnpm version, and on the two
+stdout prefixes — a second six-stage loop with nothing checking it is a second loop that stops
+being the same one.
+
+### Three things the first runs found, recorded because they were real bugs
+
+1. **Deleting `sdk/dist` alone is not a rebuild.** `sdk/tsconfig.tsbuildinfo` survived, tsc
+   concluded the project was up to date, emitted nothing for the ESM half and exited 0. `sdk/dist`
+   then held only `cjs/`, so the packed tarball's `exports.import` and `types` entries both pointed
+   at files not in it. The runner now removes the build info too and asserts `dist/index.js`,
+   `dist/index.d.ts` and `dist/cjs/index.js` exist before packing.
+2. **The verification URL is not the URL the consumer dialled, and that is correct.** The container
+   reaches Ship at `host.docker.internal:PORT`; Ship advertises itself at its own `APP_BASE_URL`,
+   `127.0.0.1:PORT`. The fast drill's `expect(verifyUrl).toContain(baseUrl)` is host-specific and
+   false here for an honest reason — any consumer behind a NAT, proxy or container boundary sees the
+   same thing. The clean consumer checks the parts that must hold for a human to finish the flow: an
+   absolute http(s) URL, same port, carrying the user code.
+3. **A stage that threw was reported as the stage after it.** The failing id was inferred from
+   `records.length`, and the recorder's `finally` had already counted the stage that threw. Now
+   tracked explicitly, which is what PF-593 asks for.
+
+### The clause has two conjuncts. One is now closed; the other is not, and cannot be by a script
 
 p.8 reads *"≤ 30 min on a clean machine following only the published docs"*; p.6 writes the same
-target as *"clean machine, docs only"*. That is an AND, and the two halves fail in different ways:
+target as *"clean machine, docs only"*. That is an AND:
 
-| Conjunct | What would satisfy it | Can a script produce it? |
+| Conjunct | What would satisfy it | Status |
 |---|---|---|
-| *"on a clean machine"* | cold container, no repo bind mount, empty pnpm store, tarball over the network | **Yes** — this is PF-590, `--clean` |
-| *"following only the published docs"* | a newcomer reaching a verified webhook using nothing but what is published | **No** — this is PF-601 |
+| *"on a clean machine"* | cold container, no repo bind mount, empty pnpm store, tarball over the network | **CLOSED** — PF-590, `pnpm drill ttfe --clean`, 0.21 min of 30 |
+| *"following only the published docs"* | a newcomer reaching a verified webhook using nothing but what is published | **OPEN** — PF-601 |
 
-The second is the one that carries the grade, and it is not a scripting problem. The failure mode
-the 30-minute number measures is *a step that is missing from the docs*, and any script is written
-by someone who already knows the step. A harness that extracted its commands from the fenced blocks
-in the docs would come closer — an omitted command would then fail the run — but it still could not
-fail on a missing prerequisite, an ambiguous instruction, or a stated assumption a stranger does not
-share, and the author still chooses which document and which fences count. It would be a better
-artifact than nothing and it would still not be the claim on p.8.
+The second is not a scripting problem. The failure mode the 30-minute number measures is *a step
+that is missing from the docs*, and any script is written by someone who already knows the step —
+including this one. A harness that extracted its commands from the fenced blocks in the docs would
+come closer, since an omitted command would then fail the run, but it still could not fail on a
+missing prerequisite, an ambiguous instruction, or a stated assumption a stranger does not share,
+and the author still chooses which document and which fences count.
 
-So the verdict is recorded plainly rather than narrowed until something passes:
+Two further gaps in `--clean` itself, named rather than left for a reader to find:
 
-> **≤ 30 min on a clean machine, docs only — UNMET. There is no measurement of it, local or CI.**
-> The fast mode's totals (~7 s graded, ~20 s wall clock) belong to p.8's *< 60 s in CI* row and must
-> never be quoted against this one. That is why every run carries a `mode` field.
+- **The device grant is approved out of band by the host**, which holds the database the container
+  deliberately does not. PF-595's audit note asks for that to be stated; it is the one step a
+  scripted drill cannot perform the way a human does.
+- **The base image was already present locally** on both runs (`imageWasCached: true`,
+  `imagePullMs: 209`). A machine that has never pulled `node:22-bookworm` pays ~1.6 GB first. The
+  runner times and records the pull separately rather than folding it into either figure — obtaining
+  a base image is part of owning a computer, not part of the developer's loop — but a reader
+  budgeting for a genuinely bare machine should add it.
 
-Closing it needs one person, one clean machine and a stopwatch — see PF-601 below. It is roughly an
-hour of someone's time, and it is the only thing that closes it.
+So the verdict, restated at the precision the evidence supports:
+
+> **"on a clean machine" — MET, and measured: 0.21 min against a 30 min budget, twice, from a cold
+> container with no repo mounted, a cold pnpm store, the tarball over HTTP and the SDK rebuilt from
+> source. Not load-certified (ratio 1.608).**
+>
+> **"following only the published docs" — UNMET. No script can close it.** It needs one person, one
+> clean machine, a stopwatch and a log of every documentation gap hit — PF-601, roughly an hour of
+> someone's time.
+
+The fast mode's totals (~7 s graded, ~20 s wall clock) belong to p.8's *< 60 s in CI* row and must
+never be quoted against either half of this one. That is why every run carries a `mode` field.
 
 ---
 
