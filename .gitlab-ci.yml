@@ -41,6 +41,27 @@ workflow:
 stages:
   - setup
   - verify
+  # `perf` exists to be EMPTY except for `regression-budget`.
+  #
+  # The A/A self-check kept refusing to certify the runner, and the reason was
+  # not the instrument. `regression-budget` sat in `verify` beside e2e,
+  # coverage, the TTFE drills and seventeen other jobs, all on one machine, and
+  # a latency measurement taken while that is happening measures that. Job 68841
+  # put `/health` -- no query, no database -- at 208%, and job 68904 at 589%
+  # after the passes were interleaved A B B A. Interleaving cancels drift that
+  # is linear in time; it cannot cancel a neighbour starting and finishing
+  # mid-run, which is the shape contention actually has.
+  #
+  # A stage of its own is the only thing that makes the machine quiet, because
+  # GitLab will not start a stage until the previous one has drained. This costs
+  # wall-clock -- the whole of `verify` now precedes it -- and that is the price
+  # of a number anyone can rely on.
+  #
+  # `regression-budget` must therefore carry NO `needs:`. A job with `needs`
+  # switches to DAG scheduling and starts the moment those needs are met, which
+  # would put it straight back beside the jobs this stage exists to separate it
+  # from.
+  - perf
   - audit
   - package
 
@@ -264,8 +285,8 @@ openapi-freshness:
 # and recorded in docs/mvp-gate-item-9.md. This is a deliberate split, not a gap:
 # the report names it in the artifact every run.
 regression-budget:
-  stage: verify
-  needs: ['build']
+  # Alone in `perf`, and deliberately WITHOUT `needs:` — see the stage list.
+  stage: perf
   services:
     - name: postgres:16
       alias: postgres
@@ -294,7 +315,36 @@ regression-budget:
     paths:
       - docs/regression-report.md
       - docs/regression-report.json
-  allow_failure: false
+  # `docs/mvp-gate-item-9.md` -> "Pipeline note for the new exit code" specifies
+  # exactly this and it was never applied to this file, which is why the job has
+  # failed on every run it has ever had.
+  #
+  # The comparator's three outcomes are not the same thing:
+  #
+  #   0  every budget judged and met
+  #   1  something judged EXCEEDED its budget    <- a real regression, must fail
+  #   2  something could not be judged at all    <- not a verdict either way
+  #
+  # Exit 2 is what a cross-platform run produces. The baseline is darwin-arm64 /
+  # node v26 (`docs/baseline-part1.json`, captured 2026-08-14 at 5455f4e); this
+  # runner is linux-arm64 / node v22. Bundle bytes and query counts are
+  # deterministic and ARE judged here. An in-process P95 is not, and comparing
+  # one across two kernels and two Node majors measures the box in both
+  # directions -- it can hide a real regression behind a faster machine as
+  # readily as invent one on a slower one. Job 69004 is the illustration: five of
+  # six routes came in FASTER than a baseline taken on a different platform.
+  #
+  # So exit 2 is a warning and exit 1 still fails the MR. NOT `allow_failure:
+  # true`, which would swallow exit 1 as well and remove the only thing this job
+  # exists to provide.
+  #
+  # The latency half of PRD p.2 gate item 9 is enforced where it can be measured
+  # honestly -- the paired protocol on a machine matching the baseline, worst
+  # route +4.3%, recorded in `docs/regression-paired-runs.md` with raw samples in
+  # `docs/perf-paired-runs.txt`. This job does not establish that half and does
+  # not claim to; it says so in its own artifact on every run.
+  allow_failure:
+    exit_codes: [2]
 
 test:
   stage: verify
@@ -607,8 +657,15 @@ ttfe-controls:
 # failing run stays in the series, the soak fails, and the diagnosis names the drill or
 # the platform. Re-running to clear it is the one move that makes this number a lie.
 ttfe-soak:
-  stage: verify
-  needs: ['build']
+  # `audit`, which is AFTER `perf`, and with no `needs:` -- both deliberate.
+  #
+  # This job took 45 minutes and, carrying `needs: ['build']`, was DAG-scheduled: on
+  # `main` it started the moment `build` finished and ran straight through whatever
+  # else was happening, including `regression-budget`. A 45-minute soak running
+  # beside a latency measurement is precisely the contention that made that
+  # measurement unusable. Dropping `needs` puts it back under stage ordering, and
+  # `audit` places it after the measurement rather than across it.
+  stage: audit
   # A soak is deliberate; a push to the same ref must not silently kill the evidence run
   # in flight. This is the one job in this file that opts out of the default.
   interruptible: false
@@ -636,9 +693,21 @@ ttfe-soak:
   rules:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_BRANCH == "main"'
+    # On a branch this is opt-in, and `allow_failure: false` on an untriggered
+    # manual job does not mean "strict" -- it means BLOCKING. GitLab parks the
+    # whole pipeline at `manual` until a human clicks it, which is why every
+    # branch pipeline in this project's history terminates at `manual` and not
+    # at `success` (20381, 20382, 20383). Nothing failed in them; the soak was
+    # simply never run, and the pipeline waited forever for a run nobody asked
+    # for.
+    #
+    # `allow_failure: true` is GitLab's optional-manual job: still there, still
+    # one click, no longer holding the pipeline hostage. This does NOT touch the
+    # gate. On `main` the rule above matches first and the soak runs
+    # automatically with the default `allow_failure: false`, so PRD p.9's "0%
+    # flake over 20 CI runs" is enforced exactly where it was before.
     - when: manual
-      allow_failure: false
-  allow_failure: false
+      allow_failure: true
 
 # ── The nine integration commands (PF-720) ──────────────────────────────────────────
 #

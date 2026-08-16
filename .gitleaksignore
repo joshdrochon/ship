@@ -220,3 +220,21 @@ cea602a5713b0aff579da39ea1c631af9c255768:.gitleaksignore:generic-api-key:151
 cea602a5713b0aff579da39ea1c631af9c255768:.gitleaksignore:generic-api-key:177
 cea602a5713b0aff579da39ea1c631af9c255768:.gitleaksignore:generic-api-key:66
 cea602a5713b0aff579da39ea1c631af9c255768:.gitleaksignore:generic-api-key:72
+
+# Drill 2's phase-3 destroy plan (PF-642 evidence). The three hits are the
+# `lock_token` attribute of `aws_wafv2_ip_set.shipdrill-dev-bad-ips`, each shown
+# as `-> null` because the plan is destroying the resource. A WAFv2 lock token is
+# an AWS-generated optimistic-concurrency handle: it is returned by Get*, must be
+# echoed back on the next Update/Delete, and is invalidated by that call. It
+# authorises nothing on its own, it is scoped to one already-destroyed resource
+# in the throwaway `shipdrill` environment, and the environment it belonged to no
+# longer exists.
+#
+# Not redacted in place: the finding is in committed history (fb52a05), so
+# editing the file forward would leave the scanner hit exactly where it is while
+# damaging the drill log that PRD p.5 asks to be submitted as evidence. The
+# values are deliberately NOT quoted here -- see the note above about this file
+# flagging itself.
+fb52a050a7a5c5631acce92ed44cde8c3d33a447:docs/infra/destroy-redeploy-drill2/phase3-destroy-plan.log.txt:generic-api-key:3394
+fb52a050a7a5c5631acce92ed44cde8c3d33a447:docs/infra/destroy-redeploy-drill2/phase3-destroy-plan.log.txt:generic-api-key:3416
+fb52a050a7a5c5631acce92ed44cde8c3d33a447:docs/infra/destroy-redeploy-drill2/phase3-destroy-plan.log.txt:generic-api-key:3443

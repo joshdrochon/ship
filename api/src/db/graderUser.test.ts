@@ -92,20 +92,22 @@ describe('migration 076 — the grader sign-in', () => {
   it('publishes the same password in the README that the migration hashes', () => {
     // ── the hash, out of the migration ──────────────────────────────────────
     const hashMatch = MIGRATION_SQL.match(/'(\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53})'/);
-    expect(
-      hashMatch,
-      'migration 076 should contain exactly one bcrypt hash literal for the grader password',
-    ).not.toBeNull();
-    const hash = hashMatch![1]!;
+    const hash = hashMatch?.[1];
+    if (hash === undefined) {
+      throw new Error(
+        'migration 076 should contain exactly one bcrypt hash literal for the grader password',
+      );
+    }
 
     // ── the plaintext, out of the README ────────────────────────────────────
     // Matches the credentials table row: | **Password** | `grader123` |
     const pwMatch = README.match(/\|\s*\*\*Password\*\*\s*\|\s*`([^`]+)`\s*\|/);
-    expect(
-      pwMatch,
-      'README should publish the grader password in a `| **Password** | `…` |` table row (PRD p.13)',
-    ).not.toBeNull();
-    const password = pwMatch![1]!;
+    const password = pwMatch?.[1];
+    if (password === undefined) {
+      throw new Error(
+        'README should publish the grader password in a `| **Password** | `…` |` table row (PRD p.13)',
+      );
+    }
 
     // ── the link between them, checked the way the login route checks it ────
     expect(
