@@ -135,7 +135,7 @@ before the other lanes landed. Re-measured 2026-08-15 on the integration tree `d
 budget is +10% and the current figure is +2.72%, so the verdict is unchanged; the number is
 not. Re-measure this row before submission — it moves with every lane that lands.)*
 
-**Database state:** freshly migrated `ship_l26` (58 migrations, no seed). The routes are
+**Database state:** freshly migrated `ship_l26` (58 migrations at the time of the run; the tree now carries **61**, `ls api/src/db/migrations/*.sql | wc -l`). The routes are
 driven against a fixture the script creates and destroys — one workspace, one user, 25
 documents — not against seed or developer data, so a preceding `pnpm test` TRUNCATE does
 not contaminate the numbers. Recorded in every report under `databaseState`.

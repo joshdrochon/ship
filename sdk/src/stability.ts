@@ -90,7 +90,7 @@ export const STABLE_SURFACE = [
   //
   // The cost is bounded on purpose: `cursor` is on `ListOptions` and ABSENT from
   // `IterateOptions`, so the ergonomic path cannot see one even by accident, and
-  // `typeProofs/paginationHidesCursor.ts` pins that with `@ts-expect-error`.
+  // `typeProofs/surfaceContracts.ts` pins that with `@ts-expect-error`.
   // Read p.4's sentence as satisfied for `iterate()` and knowingly overridden for
   // `list()`. Stated the same way in docs/architecture.md → SDK Surface.
   'ListOptions',

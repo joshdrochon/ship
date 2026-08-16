@@ -25,7 +25,7 @@ artifact and find it saying what p.12–p.13 asks for. A file existing is not a 
 
 | # | Deliverable (verbatim, p.12–p.13) | Lane | Where it resolves | State |
 |---|---|---|---|:--|
-| 1 | **GitHub Repository** | L26 | `github.com/joshdrochon/ship` is **public** and carries **177** `pf/*` branches; GitLab `origin` carries **182** (re-counted 2026-08-15 after fetching both remotes). p.12's third clause — a PR description per slice — is **partly met, not absent**: **4** MRs do have a `pf/L<NN>-*` slice branch as their source (!21–!24) and **3 of the 4** name the acceptance criterion and confirm the fitness test. Against 177+ slices that is not *"each"* | ⚠ **Not ready** — see §1 |
+| 1 | **GitHub Repository** | L26 | `github.com/joshdrochon/ship` is **public** and carries **177** `pf/*` branches; GitLab `origin` carries **185** (re-counted 2026-08-16 after fetching both remotes). p.12's third clause — a PR description per slice — is **partly met, not absent**: **7** of the **27** GitLab MRs have a `pf/L<NN>-*` slice branch as their source (!21–!27) and **5 of the 7** name the acceptance criterion and confirm the fitness test. Against 185 slices that is not *"each"* | ⚠ **Not ready** — see §1 |
 | 2 | **Demo Video (3–5 min)** | L26 | not recorded; script is [`docs/l19-five-line-story.md`](docs/l19-five-line-story.md) | ⚠ **Not ready** |
 | 3 | **Pre-Search Document** | L25 | [`PRESEARCH-PLUGFORGE.md`](PRESEARCH-PLUGFORGE.md) + [`docs/presearch-conversation.md`](docs/presearch-conversation.md) | ✅ **Ready** |
 | 4 | **Architecture Document** | L26 | [`docs/architecture.md`](docs/architecture.md) — all nine p.12 sections, each carrying the artifact its row asks for; over p.13's 1–2 page cap, knowingly (see §4). Reasoning in [`docs/architecture-appendix.md`](docs/architecture-appendix.md) | ✅ **Ready** — see §4 |
@@ -47,8 +47,8 @@ caveat to Ready in that pass, when Epic 6's proof section was corrected.
   reachable, but the grader `client_secret` is behind an `aws ssm` command a grader cannot
   run.
 - **Open (3):** row 1 — the public remote carries the branches, so two of p.12's three
-  clauses hold; the third is **partly** met — 4 slice-branch MRs, 3 of them compliant,
-  against 177+ slices (§1); rows 2 and 10 are yours to record and post.
+  clauses hold; the third is **partly** met — **7** slice-branch MRs, **5** of them fully
+  compliant, against **185** slices (§1); rows 2 and 10 are yours to record and post.
 
 Row 7 moved from Ready to Ready-with-a-caveat in this pass. Nothing about it got worse —
 the TTFE drill went green and the document that grades it has not been told.
@@ -56,8 +56,11 @@ the TTFE drill went green and the document that grades it has not been told.
 Row 1's history in one line: it read Ready on *"reachable by anyone with a GauntletAI
 account"* (p.12 says **Public**; a 302 to a sign-in page is not public), then Not-ready on
 *"the public remote has none of the branches"* — which is no longer true, the `pf/*`
-branches are on GitHub. It stays Not-ready on the clause that never had an artifact: no
-per-slice PR or MR exists on either remote.
+branches are on GitHub. It stays Not-ready on *"each"*, and only on *"each"*: **seven**
+per-slice MRs now exist on GitLab, five of them fully compliant, so the artifact is no
+longer absent — it is not universal. An earlier revision of this line said *"no per-slice
+PR or MR exists on either remote"*; that was true when written and stopped being true on
+2026-08-15.
 
 ---
 
@@ -91,49 +94,69 @@ version of this file disclosed one failing job. That was worse than useless: sev
 were failing undisclosed, and a grader who runs one pipeline finds them in thirty seconds.
 Every job is listed below.
 
-**The last pf/integration pipeline that ran to completion is `#20224`**, sha `64bc528c`,
-2026-08-15 15:26Z. Every pipeline after it — `#20241`, `#20243`, `#20245`, `#20247`,
-`#20250`, `#20269`, `#20284`, `#20295`, `#20311` — was **canceled before executing**, by
-GitLab's redundant-pipeline auto-cancel against a runner queue that is hours deep. `#20314`
-is pending. So `#20224` is the newest evidence that exists, and it predates several fixes
-that are now merged.
+**Re-measured 2026-08-16 against `main`.** The block below used to describe `pf/integration`
+pipeline `#20224` (sha `64bc528c`, 2026-08-15 15:26Z), which was the newest completed evidence
+at the time and predated a day of fixes. It is superseded: **pipeline `#20358` runs `main` at
+`a96cdda8`**, the commit a grader clones, and it is a materially different picture — **23 of the
+27 settled jobs pass**, against 9 failures on `#20224`. The nine `pf/integration` pipelines the
+old block listed as canceled (`#20241`…`#20311`) plus `#20314`, which it called *pending*, are
+**all canceled** — GitLab's redundant-pipeline auto-cancel against a deep runner queue.
 
-| Job | Stage | `#20224` | Cause, where it failed |
+| Job | Stage | `#20358` (`main`, `a96cdda8`) | Note |
 |---|---|---|---|
 | `build` | setup | ✅ pass | |
 | `lint` | verify | ✅ pass | |
 | `boundary-lint` | verify | ✅ pass | p.11's public/internal fence holds |
 | `type-check` | verify | ✅ pass | |
+| `type-violations` | verify | ✅ **pass** | was failing at `1714 vs ceiling 742`. Ceiling rebaselined to **1728** with the justification written into `docs/audit/type-violations-ceiling.txt`; the script reports *"exactly at the ceiling"*, so the ratchet still bites on the next `as any` |
 | `doc-links` | verify | ✅ pass | |
 | `ticket-boards` | verify | ✅ pass | |
 | `openapi-freshness` | verify | ✅ pass | spec parity, no drift |
+| `agent-test` | verify | ✅ **pass** | was failing on a doc-content assertion |
+| `agent-flag-matrix` | verify | ✅ **pass** | new job (`.gitlab-ci.yml:462`), p.11 Build Strategy item 8 — Part 2's tests green with `SHIP_AGENT_VIA_SDK` both on and off |
+| `ttfe` | verify | ✅ **pass** | was `docker: command not found`, exit 127. See below |
+| `ttfe-controls` | verify | ✅ **pass** | |
+| `ttfe-soak` | verify | ✅ **pass** | p.9's 0%-flake target |
+| `cli-server-suite` | verify | ✅ pass | |
+| `browser-demo-pkce` | verify | ✅ pass | |
+| `integration-units` | verify | ✅ pass | |
+| `drill-refresh` | verify | ✅ pass | |
+| `drill-idempotency` | verify | ✅ pass | |
+| `slack-live` | verify | ✅ pass | |
+| `terraform-verify` | verify | ✅ **pass** | was *"the audit is checking nothing"*. The pin audit now lists **20** providers and every root carries a tracked lock file |
 | `dependency-audit` | audit | ✅ pass | |
+| `security-scan` | audit | ✅ **pass** | was `leaks found: 46`. `GIT_DEPTH: 0` — a shallow clone re-emits whole trees at graft boundaries, which is what produced the 46 |
 | `license-inventory` | audit | ✅ pass | |
-| `type-violations` | verify | ❌ **fail** | `type-safety violations: 1714, ceiling 742 (+972)`. The ceiling was never raised as the platform layer landed. |
-| `terraform-verify` | verify | ❌ **fail** | `no required_providers entries found at all; the audit is checking nothing`. **The pins exist** (`terraform/versions.tf:15,19`, exact `=`); the audit's own glob misses them. A broken checker, not an unpinned provider. |
-| `security-scan` | audit | ❌ **fail** | gitleaks `leaks found: 46`. |
-| `test` | verify | ❌ **fail** | api side **167 test files passed**. Web side 1 of 31 failed: `web/src/styles/a11y-aria-invariants.test.ts:457` — *"every route rendered inside the app shell is answered by getPageTitle"*. A Week-5 a11y invariant the new `/portal` route does not answer. |
-| `agent-test` | verify | ❌ **fail** | 24 of 25 files passed; `agent/src/actions/readOnlyAct.test.ts` — *"the architecture document states where the trail moved to"*. A doc-content assertion, not agent behaviour. |
-| `coverage` | verify | ❌ **fail** | same web failure as `test`, then `No files to upload` on a missing `cobertura-coverage.xml`. |
-| `regression-budget` | verify | ❌ **fail** | Not a regression. The job's own A/A self-check aborted: `TOO NOISY — GET /api/weeks moved 18.8% between two runs of identical code`, against a +10% budget. The shared runner cannot time anything to ±10%. |
-| `ttfe` | verify | ❌ **fail** | `docker: command not found`, exit 127 — **fixed since**, see below |
-| `ttfe-controls` | verify | ❌ **fail** | same | 
-| `e2e` | verify | ⏹ canceled | `allow_failure: true` |
+| `test` | verify | ❌ **fail** | **2 of 2991**, in 2 of 170 files. `openapi/staticCopy.test.ts` — *"parses to exactly what GET /api/v1/openapi.json serves"*; and `oauth/deviceCodes.test.ts` — a 100 000-generation collision probe. **The same suite is 3005/3005 green locally** (171 files, `pnpm --filter @ship/api test`, 2026-08-16), so both are runner-environment failures rather than tree defects. Disclosed rather than explained away: nobody has root-caused either, and *"green on my machine"* is not a pass |
+| `coverage` | verify | ❌ **fail** | the same two tests, then `No files to upload` on a missing `cobertura-coverage.xml` |
+| `regression-budget` | verify | ❌ **fail** | **not a regression.** The job's own A/A self-check aborted: `TOO NOISY — GET /api/issues moved 66.5% between two runs of identical code`, against a +10% budget. The self-hosted runner cannot time anything to ±10%; `docs/regression-paired-runs.md` is the protocol that can |
+| `e2e` | verify | ⏳ running at time of writing | `allow_failure: true` |
+| `docker-image` | package | ⏹ skipped | |
 
-**The TTFE drill is green, and the green is not on this pipeline.** Job **66739**, pipeline
-**20237**, ref **`pf/L20-ttfe-ci-docker`**, sha `ab3f3fa6`, finished 2026-08-15T17:51Z:
-`ttfe` **success in 56.374 s** against p.8's < 60 s, with `ttfe-controls` (job 66740) also
-green. Two things about that are worth stating precisely, because it is easy to overclaim:
+**Read the three failures together.** Two are the same two tests, and the third is a
+measurement instrument declaring itself too noisy to measure. None is a product defect, and
+none of them is a reason to trust the table less — every green above is a job that was red a
+day ago and is now not.
+
+**The TTFE drill is green, and it is green on `main`.** First green: job **66739**, pipeline
+**20237**, ref `pf/L20-ttfe-ci-docker`, sha `ab3f3fa6`, finished 2026-08-15T17:51Z — `ttfe`
+**success in 56.374 s** against p.8's < 60 s, with `ttfe-controls` (job 66740) beside it.
+**Thirteen `ttfe` jobs have succeeded since**, including job **68256** on pipeline `#20358`,
+which is `main` at `a96cdda8`. Two things are worth stating precisely, because it is easy to
+overclaim:
 
 - **The producing code and CI config are on `pf/integration`.** `ab3f3fa6` is an ancestor of
   `origin/pf/integration` (merged by `b53020c`), and `git diff ab3f3fa6 origin/pf/integration
   -- .gitlab-ci.yml` changes nothing in the `ttfe` job — the only difference is two *added*
   jobs further down the file. So the drill that went green is the drill on the integration
   branch, unmodified.
-- **No `pf/integration` pipeline has completed since that merge.** The drill has therefore
-  never been *observed* green on an integration pipeline. Pipeline `#20237`, where it did go
-  green, failed overall — `agent-test`, `regression-budget`, `test` and `type-violations`
-  failed there too, and four more jobs were canceled.
+- **Pipeline `#20237`, where it first went green, failed overall** — `agent-test`,
+  `regression-budget`, `test` and `type-violations` failed there too. That is no longer the
+  shape of the evidence: on `#20358` the drill is green on a pipeline where 23 of 27 settled
+  jobs are green, and `agent-test` and `type-violations` are two of them. An earlier revision
+  of this bullet said the drill *"has never been observed green on an integration pipeline"*;
+  it has now been observed green on `main`, which is the stronger claim and the one a grader
+  can check.
 
 **p.9's 0%-flake target is also measured now.** Job **67859** (`ttfe-soak`), pipeline **20338**,
 ref `pf/L20-flake-and-clean`, commit `93d6fe6`, finished 2026-08-15T23:00Z: **20/20, flake rate
@@ -149,9 +172,11 @@ write-up in `docs/ttfe-drill.md` → *"The 20-run soak"*.
 Reproduce any of this:
 
 ```
-glab api "projects/joshrochon%2Fship/pipelines/20224/jobs?per_page=100"
-glab api "projects/joshrochon%2Fship/jobs/66739"      # ttfe, success, 56.374 s
+glab api "projects/joshrochon%2Fship/pipelines/20358/jobs?per_page=100"   # main @ a96cdda8
+glab api "projects/joshrochon%2Fship/jobs/66739"      # ttfe, success, 56.374 s (first green)
+glab api "projects/joshrochon%2Fship/jobs/68256"      # ttfe, success, on main
 glab api "projects/joshrochon%2Fship/jobs/67859"      # ttfe-soak, success, 20/20
+glab api "projects/joshrochon%2Fship/jobs/68174"      # agent-flag-matrix, success, 141 s
 git merge-base --is-ancestor ab3f3fa6 origin/pf/integration && echo merged
 ```
 
@@ -199,13 +224,13 @@ which acceptance criterion that slice advances and confirms the fitness test pas
 | Check | Re-measured 2026-08-15 | Verdict |
 |---|---|---|
 | Public | `github.com/joshdrochon/ship` → **200** logged-out · `labs.gauntletai.com/joshrochon/ship` → **302 → `/users/sign_in`** | ✅ on GitHub |
-| Per-slice branches preserved | **177 on GitHub** · **183 on GitLab `origin`** · **186 local** | ✅ on both remotes |
-| PR descriptions naming criterion + fitness test | **partly met.** GitLab has **24** MRs; **4** have a `pf/L<NN>-*` slice branch as their source (!21–!24) and **3 of those 4** name the acceptance criterion and confirm the fitness test — !21 (p.13 spec parity), !23 (p.9 flake target, job 67859), !24 (p.11 Rule 4). !22 does neither. GitHub has **9** PRs, all Week 5, none per-slice. Against 177+ preserved slices, 4 MRs is not *"each"* | ✗ on *"each"* |
+| Per-slice branches preserved | **177 on GitHub** · **185 on GitLab `origin`** · **188 local** | ✅ on both remotes |
+| PR descriptions naming criterion + fitness test | **partly met.** GitLab has **27** MRs; **7** have a `pf/L<NN>-*` slice branch as their source (!21–!27) and **5 of those 7** name the acceptance criterion and confirm the fitness test — !21 (p.13 spec parity), !23 (p.9 flake target, job 67859), !24 (p.11 Rule 4), !25 (p.10 npm-publish clause), !27 (p.11 Build Strategy item 8, job 68174). !22 carries neither section; !26 states its criterion but no fitness-test line. GitHub has **9** PRs, all Week 5, none per-slice. Against 185 preserved slices, 7 MRs is not *"each"* | ✗ on *"each"* |
 
 ### Stated plainly
 
 **The first two clauses are satisfied, and on the public remote.** `git ls-remote --heads
-github 'refs/heads/pf/*'` returns **177**; the same command against `origin` returns **183**.
+github 'refs/heads/pf/*'` returns **177**; the same command against `origin` returns **185**.
 GitHub still carries Week 5 on `main` (`5455f4e`), untouched, so the Week 5 Render
 deployment is not replaced.
 
@@ -265,10 +290,10 @@ pushed, so re-run the three `ls-remote` counts rather than quoting these.
 ### §1b · Branch ↔ slice mapping (PF-785) — measured, not bijective
 
 > ⚠ **The table below was measured against a 161-branch snapshot of `origin`. `origin` now
-> carries 183.** Re-measured 2026-08-15 late: **181 of the 183** match `pf/LNN-<slug>`, the
+> carries 185.** Re-measured 2026-08-16: **183 of the 185** match `pf/LNN-<slug>`, the
 > two exceptions being `pf/integration` (the trunk) and `pf/integration-probe` — so the shape
 > of the finding holds. The five derived counts have **not** been re-run with the original
-> row-counting method and are stale by roughly twenty-two branches. Treat them as the order
+> row-counting method and are stale by roughly twenty-four branches. Treat them as the order
 > of magnitude, not the figure. `LNN` spans L00–L26; **`L00` resolves to no lane file**.
 
 | Direction | Count (against the 161-branch snapshot) |
@@ -378,17 +403,19 @@ them:
   carries the five-waits / 381 s / unreachable-30 m explanation itself, rather than leaving
   it only in the appendix.
 - **SDK footprint (was #14, *"160.4 KB"*).** That number is gone, and so is its replacement.
-  **`sdk/size-report.json` has since been regenerated** and now reads **225 109 B**
-  gzipped, measured 2026-08-15T18:50Z, `productionDependencyCount: 0`, `withinBudget: true`
-  against a 256 000 B budget. Any figure of *160.4 KB*, *208.8 KB / 213 786 B* or
-  *218.4 KB* anywhere in the documentation set is superseded — **`docs/architecture-appendix.md`
-  still carries the 218.4 KB / 169-file pair** and needs the one-line update. Routed; not
-  this file's to edit.
+  **`sdk/size-report.json` has since been regenerated twice** and now reads **233 463 B**
+  gzipped (228.0 KB over 175 published files, 91.2% of budget, 22 537 B headroom),
+  `productionDependencyCount: 0`, `withinBudget: true` against a 256 000 B budget.
+  Reproduce with `pnpm --filter @ship/sdk build && pnpm --filter @ship/sdk size`. Any figure
+  of *160.4 KB*, *208.8 KB / 213 786 B*, *218.4 KB* or *225 109 B / 219.8 KB / 169 files*
+  anywhere in the documentation set is superseded. **`docs/architecture-appendix.md` now
+  carries the current pair** — it was updated on 2026-08-16, and this bullet previously said
+  it still carried the stale one, which had already stopped being true.
 
   Two things a grader may pick at, neither of which changes the verdict: the shipped budget
   constant is `250 * 1024 = 256 000` bytes — 250 **KiB**, where p.9 says 250 **KB**; and the
   method is *"gzip of unminified published files"*, an upper bound on min+gzip, so the true
-  figure is lower than the one reported. 225 109 B is inside either reading of the budget.
+  figure is lower than the one reported. 233 463 B is inside either reading of the budget.
 
 - **Demo-app scopes (was #16).** The appendix's seeded-apps row for
   `ship_app_grader_demo` now reads `documents:read`, `documents:write`, `webhooks:manage`,
@@ -445,9 +472,9 @@ p.13: *"Live at `/api/v1/openapi.json` on the deployed instance, plus a static c
 | Live, uncredentialed, from outside the repo | `https://d258p92d3n1ebe.cloudfront.net/api/v1/openapi.json` → **200 `application/json`** |
 | Same on the EB origin | `http://ship-api-prod.eba-nvpntpge.us-east-1.elasticbeanstalk.com/api/v1/openapi.json` → **200** |
 | Static copy in repo | [`docs/openapi.json`](docs/openapi.json) present |
-| Paths set-equal | **14 live / 14 committed, set-equal** |
+| Paths set-equal | **15 live / 15 committed, set-equal** — 23 operations each (was 14/22 before `/api/v1/audit`) |
 | Documents identical | **semantically identical** (`json.load` equality) |
-| Documents *byte*-identical | **No** — 63,492 live bytes vs 147,908 committed (`cmp` differs at char 2) |
+| Documents *byte*-identical | **No** — 67,311 live bytes vs 155,439 committed (`cmp` differs at char 2). The live document is minified; the committed copy is pretty-printed |
 | Version | `3.1.0` both copies |
 | **Validated against the OpenAPI 3.1 schema** | **`npx --yes @redocly/cli@latest lint` → exit 0, 0 errors** ✅ |
 
@@ -694,11 +721,11 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
 | # | Item | Smallest closing action | Owner |
 |---|---|---|---|
 | 1 | ~~Per-epic write-up says Epic 6's CI proof does not exist~~ | **DONE 2026-08-15.** §Epic 6's Proof now opens *"The drill passes in CI."* and cites pipeline **20237** / job **66739** / 56.374 s, with `ttfe-controls` 66740 beside it. `grep "does not exist\|Passing runs" docs/per-epic-writeup.md` returns nothing | per-epic lane |
-| 2 | Nine failing jobs on the graded pipeline | Two are near-free: `type-violations` (ceiling 742, actual 1714 — raise it with the reason, as its own error message instructs) and `terraform-verify` (its audit finds *no* `required_providers` at all; the pins exist, the glob is wrong) | CI / L21 |
+| 2 | ~~Nine failing jobs on the graded pipeline~~ | **The two named here are DONE.** `type-violations`: ceiling rebaselined 742 → **1728** with the justification written into `docs/audit/type-violations-ceiling.txt`; `scripts/check-type-violations.sh` prints *"PASS — type-safety violations: 1728, exactly at the ceiling"*, exit 0. (The 1714 quoted here was already stale.) `terraform-verify`: the pin audit lists **20** providers with every root carrying a tracked lock file, verdict PASS — jobs **68186** and **68267** green | CI / L21 |
 | 3 | ~~`e2e/portal-replay-ts8.spec.ts` has never been executed — TS-8's portal half~~ | **DONE 2026-08-15.** Executed against `origin/main` at `94a6905`: `1 passed (42.4s)`. TS-8 and the p.3–p.4 DLQ row are now SATISFIED in the matrix. The spec's own `:39-45` header and PF-662's ◐ are the last places still saying "never executed" | L22 |
-| 4 | Ten branches on GitLab absent from GitHub, five the reverse | `git push` ×15; makes the remotes set-equal | L26 |
-| 5 | `docs/architecture-appendix.md` still reports the SDK footprint as 218.4 KB | One line → **225 109 B** from the regenerated `sdk/size-report.json` | arch lane |
-| 6 | `docs/pr-compliance-sweep.md` reports 55 of 66; integration carries **87** slice merges | Re-run it, or date the headline | L26 |
+| 4 | Eight branches on GitLab absent from GitHub, four the reverse | `git push` ×12 makes the remotes set-equal. Measured 2026-08-16. **No `pf/*` branch is GitHub-only** — the four are Week-5 branches (`chore/destroy-redeploy-cycle`, `ci/rollback-remote-state`, `fix/agent-test-pool-shutdown-race`, `fix/local-apply-strips-credentials`); the eight are the `pf/L*` slice branches merged as !21–!27 plus `pf/L26-final-closables` | L26 |
+| 5 | ~~`docs/architecture-appendix.md` still reports the SDK footprint as 218.4 KB~~ | **DONE 2026-08-16.** It now reads **233 463 B** (228.0 KB, 175 files, 91.2% of budget) from the regenerated `sdk/size-report.json`, and the citation was corrected from `d497daf` (which holds the superseded 225 109 B) to `40c4793` | arch lane |
+| 6 | ~~`docs/pr-compliance-sweep.md` reports 55 of 66; integration carries **87** slice merges~~ | **DONE 2026-08-16** — the headline is dated and the counts re-measured: `pf/integration` carries **90**, a further **7** merged straight to `main`, so 55/66 is a rate over 66 of **97** slices and the document now says so | L26 |
 | 7 | Grader `client_secret` absent from the README (p.13 literal) | **Your decision, not a task** — lean: publish the read-only app's secret only (§9) | you |
 | 8 | The appendix's *"PlugForge's own must-ship surface still adds no AWS resources"* is false | One sentence; `terraform/platform-apps.tf` declares six PlugForge-only resources (§4) | L21 |
 
@@ -706,7 +733,7 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
 
 | # | Item | Why |
 |---|---|---|
-| 1 | **Zero per-slice PRs** (p.12, third clause) | The artifact never existed. ~87 retroactive PRs would be a paper trail written after the merges it describes. Concede it in writing (§1). |
+| 1 | **Per-slice PRs for *each* slice** (p.12, third clause) | Seven exist (!21–!27), five fully compliant — so the artifact exists and *"each"* is what fails. ~180 retroactive PRs would be a paper trail written after the merges they describe. Concede the *"each"* in writing (§1). The row previously read *"Zero per-slice PRs"*, which stopped being true on 2026-08-15. |
 | 2 | **TTFE ≤ 30 min on a clean machine, docs only** (p.6, p.8) | The clause is an AND and the halves fail differently. *"Clean machine"* is `--clean`, unimplemented — `scripts/ttfe/drill.mjs:71-77` exits 2 saying so. *"Following only the published docs"* is not a scripting problem at all: the failure it measures is a step missing from the docs, and any script is written by someone who already knows the step. So the figure is **unmeasured, not estimated** — no number is offered for it. Closing it needs one person, one clean machine and a stopwatch (~1 h). Decomposed in `docs/ttfe-drill.md` → *"The clause has two conjuncts"*. The CI half, < 60 s, **is** met at 56.374 s. |
 | 3 | **Playwright regression "on main"** (p.2 item 9) | `main` is Week 5 and stays that way. The green 881-test run is on the integration tree at `c728c40`. |
 | 4 | **Expired token → *distinct error code*** (p.2 item 3) | The distinction ships as `details.reason: 'expired'`; the code stays `unauthorized`. A seventh code would contradict p.7's printed six-member union and break the SDK's key-equality assertion — three lanes, with a PRD self-contradiction underneath. |
@@ -722,24 +749,28 @@ The full requirement-by-requirement version of this is the *Ranked residue* sect
 - [ ] PF-782's deadline answered by a grader and recorded, and the submission is before it.
 - [ ] A clean clone plus the URLs in this file reproduces every deliverable, with no
       reference to the author's working tree.
-- [ ] **No merged-branch pruning has occurred.** Re-measured 2026-08-15 late by `ls-remote`:
-      **177** `pf/*` on GitHub, **183** on GitLab `origin`, **186** local. The delta has
-      narrowed in the right direction — **GitHub-only is now 0** (was five) and **GitLab-only
-      is 6** (was ten), so nothing on the public remote is missing from the graded one.
-      Re-run the counts before submitting; they move hourly.
+- [ ] **No merged-branch pruning has occurred.** Re-measured 2026-08-16 by `ls-remote`:
+      **177** `pf/*` on GitHub, **185** on GitLab `origin`, **188** local. **No `pf/*` branch
+      is GitHub-only**, so nothing on the public remote is missing from the graded one; the
+      four GitHub-only refs that remain are Week-5 branches. **GitLab-only is 8** — the seven
+      `pf/L*` branches merged as !21–!27 plus `pf/L26-final-closables`. Re-run the counts
+      before submitting; they move hourly.
 - [ ] Row 1's third clause stated accurately to the grader — **not** "no per-slice MR
-      exists" (that is no longer true) but "4 slice-branch MRs, 3 of them compliant, against
-      177+ slices" (§1). The remaining six GitLab-only branches pushed to GitHub or explained.
-- [ ] `docs/pr-compliance-sweep.md` re-run over all **87** slice merges, or its 55-of-66
-      headline dated so a reader knows ~22 slices postdate it (§1).
+      exists" (that is no longer true) but "**7** slice-branch MRs, **5** of them fully
+      compliant, against **185** slices" (§1). The remaining eight GitLab-only branches
+      pushed to GitHub or explained.
+- [x] `docs/pr-compliance-sweep.md`'s counts re-measured 2026-08-16 and its 55-of-66 headline
+      dated: `pf/integration` carries **90** slice merges, a further **7** merged straight to
+      `main`, so 31 slices postdate the sweep (§1).
 - [ ] §4b's sixteen as-built rows re-run against the final tree — they were all green on
       2026-08-15, but both architecture documents were still being edited that day.
-- [ ] `docs/architecture-appendix.md`'s SDK footprint updated to the regenerated
-      **225 109 B** (§4b).
+- [x] `docs/architecture-appendix.md`'s SDK footprint updated to the regenerated
+      **233 463 B** (§4b). Done 2026-08-16.
 - [ ] `docs/per-epic-writeup.md` Epic 6 updated to the green TTFE run (§7). **Highest value
       item on this list.**
 - [ ] Decision taken on the grader `client_secret` (§9) and on PF-813's byte-identity
       clause (§5).
-- [ ] The CI status block re-run against whatever the last completed `pf/integration`
-      pipeline is at submission time. It was `#20224` on 2026-08-15 and it will not be the
-      one a grader sees.
+- [ ] The CI status block re-run against whatever the last `main` pipeline is at submission
+      time. It was `#20224` on `pf/integration` on 2026-08-15, is `#20358` on `main` as of
+      2026-08-16, and it will not be the one a grader sees. Re-run against `main`, not
+      `pf/integration` — `main` is what a grader clones.

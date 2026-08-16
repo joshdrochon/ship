@@ -32,6 +32,7 @@ or which act implementation is behind the seam.
 | `actions/readOnlyAct.test.ts` | 15 |
 | `data/boundary.test.ts` | 11 |
 | `data/citizenReader.test.ts` | 14 |
+| `data/rewireCost.test.ts` | 8 | ← added 2026-08-16; the rows summed to 222 against a measured total of 230, and this file was the missing 8 |
 | `detectors/fingerprint.test.ts` | 10 |
 | `detectors/index.test.ts` | 6 |
 | `detectors/loadImbalance.test.ts` | 14 |
@@ -154,7 +155,8 @@ answer to p.17 §2.6.
 > **Until 2026-08-15 this section described a script no pipeline ran.** The
 > script existed and its header claimed to be the proof, but
 > `grep -nE "agent-flag-matrix|SHIP_AGENT_VIA_SDK" .gitlab-ci.yml` matched
-> nothing across all 29 jobs, and `agent-test` ran the suite exactly once at the
+> nothing across all 27 jobs the file then defined (it defines **28** now, this
+> job being the addition), and `agent-test` ran the suite exactly once at the
 > flag's default — OFF. A proof script no pipeline invokes proves whatever the
 > reader assumes it proves. Recorded rather than quietly fixed, because "the
 > script exists" and "CI runs it" are different claims and only the second

@@ -180,12 +180,15 @@ The project's first pipeline is 17378 (2026-07-30) and the first `pf/` pipeline 
 figure to report, and inventing one would be worse than saying so. The earliest run that
 exists is pipeline **19893**, and that is the Day-1 number:
 
-| | Day 1 — pipeline 19893 | Latest settled — pipeline 20223 |
-|---|---:|---:|
-| Date (UTC) | 2026-08-14 15:15 | 2026-08-15 15:26 |
-| `ttfe` | 69.9 s | 27.9 s |
-| `ttfe-controls` | 32.9 s | 22.5 s |
-| **TTFE subtotal, per pipeline** | **102.8 s** | **50.4 s** |
+| | Day 1 — pipeline 19893 | Last crashed run — pipeline 20223 | First green run — pipeline 20237 |
+|---|---:|---:|---:|
+| Date (UTC) | 2026-08-14 15:15 | 2026-08-15 15:26 | 2026-08-15 17:51 |
+| `ttfe` | 69.9 s | 27.9 s | **56.4 s** |
+| `ttfe-controls` | 32.9 s | 22.5 s | **50.1 s** |
+| **TTFE subtotal, per pipeline** | **102.8 s** | **50.4 s** | **106.5 s** |
+
+**Only the third column times the drill.** The first two are the cost of crashing; see
+below.
 
 ```
 $ glab api "projects/joshrochon%2Fship/pipelines/19893/jobs?per_page=100" \
@@ -200,7 +203,8 @@ $ glab api "projects/joshrochon%2Fship/pipelines/20223/jobs?per_page=100" \
 > from anywhere else. Verified by running the same call from a scratch directory: without
 > the flag, `404 Project Not Found`; with it, the job array.
 
-**Neither number times the drill.** Both jobs die before it runs:
+**Neither of the first two numbers times the drill.** Both jobs died before it ran, and this
+is the trace that says so:
 
 ```
 $ glab api "projects/joshrochon%2Fship/jobs/65064/trace" \
@@ -229,20 +233,33 @@ postgres:16`. The runner has no Docker binary, the drill provisions its Postgres
 testcontainers, and both jobs are `allow_failure: false`, so the pipeline has been red on
 them since the day they landed.
 
-**The TTFE drill has never executed in CI.** Every one of the 72 completed
-`ttfe`/`ttfe-controls` jobs was read, and none reached the drill: 70 exit 127 at `docker
-pull postgres:16`, 2 die earlier on a Docker Hub 429. No job in the project's history has
-ever succeeded. **p.13 says: *"For Epic 6, proof is the TTFE drill passing in CI."* That
-proof does not exist.** Nothing in the corrections above softens this; the two 429 jobs got
-*less* far than the rest, and the runner correction below makes the drill cheaper, not more
-likely to have run.
+**For most of this project the TTFE drill never executed in CI, and it executes now.** Both
+halves are true and the history is the more useful half, so it is kept.
 
-What the durations above measure is therefore checkout, `pnpm install`, `tsc -p
-tsconfig.drill.json` and `check-fitness.mjs`, then the crash. The 69.9 s → 27.9 s
-"improvement" is pnpm cache warmth, not a faster drill. Across the **36 pipelines whose
-`ttfe` pair ran to completion**, `ttfe` has a median of 28.4 s (range 2.5–69.9) and
-`ttfe-controls` 24.9 s (2.8–52.1) — the shape of install variance, with none of the drill
-in it.
+*What was measured when this section was first written.* Every one of the 72 completed
+`ttfe`/`ttfe-controls` jobs up to that point was read, and none reached the drill: 70 exit
+127 at `docker pull postgres:16`, 2 die earlier on a Docker Hub 429. Across pipelines
+19893–20223 — 35 of them, unbroken from the day the job landed — **not one run of the drill
+ever happened**, and p.13's *"For Epic 6, proof is the TTFE drill passing in CI"* had no
+artifact behind it. The two 429 jobs got *less* far than the rest, not more.
+
+*What is true now.* The pre-pull was the whole defect: the runner mounts the Docker socket
+but `node:22-bookworm` ships no `docker` CLI, and testcontainers never wanted one — it
+speaks the Engine API over the socket through dockerode. Deleting the `docker pull
+postgres:16` line (`774ab9d`) turned the job green with nothing else changed. **First green
+run: job 66739, pipeline 20237, `success` in 56.375 s, finished 2026-08-15 17:51:03 UTC.**
+Thirteen `ttfe` and thirteen `ttfe-controls` jobs have succeeded since, job 68257 the most
+recent. p.9's flake target has its own artifact too: `ttfe-soak` job 67859, 20/20 passes on
+one commit, and job 68258 after it. **Epic 6's proof exists and is on `main`.**
+
+*What the pre-fix durations in the table above measure* is therefore checkout, `pnpm
+install`, `tsc -p tsconfig.drill.json` and `check-fitness.mjs`, then the crash — the 69.9 s
+→ 27.9 s "improvement" is pnpm cache warmth, not a faster drill. Across the **36 pipelines
+whose `ttfe` pair ran to completion before the fix**, `ttfe` had a median of 28.4 s (range
+2.5–69.9) and `ttfe-controls` 24.9 s (2.8–52.1) — the shape of install variance, with none
+of the drill in it. **Over the 13 green runs the same medians are `ttfe` 62.8 s (range
+56.4–109.7) and `ttfe-controls` 60.0 s (49.9–89.4)**: roughly a doubling, and that
+difference is the drill.
 
 **The weekly bill.** 62 pipelines ran in the trailing seven days — counted from the pipeline
 list, not extrapolated from a PR rate. The window is frozen at pipelines **18500 → 20224**,
@@ -323,6 +340,15 @@ at steady state are different numbers and must not be averaged into one:
 | **TTFE actually billed this week** | **35.1 min** — the sum of the 72 completed jobs |
 | Median per-pipeline TTFE subtotal | **53.0 s** (n=36) |
 | *Forward projection*, 62 pipelines × 53.0 s | *54.8 min/week* |
+
+**Both figures are inside a frozen window that closes before the drill went green**
+(pipelines 18500 → 20224, snapshotted 2026-08-15 16:17 UTC; the first green `ttfe` is job
+66739 in pipeline 20237 at 17:51 UTC). Every job they sum is a crashed one. They are
+therefore accurate as a record of what was billed and **stale as a forward projection**:
+over the 13 green runs the per-pipeline TTFE subtotal medians **124.1 s**, so the same 62
+pipelines project to **~128 min/week** at steady state, a little over double. The frozen
+figures are left as measured rather than silently re-based, because the window and its
+snapshot time are what make them reproducible.
 
 **53.0 s is the median of the per-pipeline subtotals.** An earlier version printed a figure
 under that label that was the **sum of two separate medians** — `ttfe`'s median plus
@@ -492,9 +518,9 @@ same client id, same workspace, same event type. The fanout is deterministic, no
 
 The controls contribute nothing, and there are **four** of them, not the three an earlier
 version of this list named: the packed-exports install failure
-(`ttfe.negative.drill.ts:50`), **the same defect leaving the SDK unit suite green**
-(`:106`), the `DATABASE_URL` refusal (`:116`), and the concurrent-collision teardown
-(`:133`). All four are negative by construction — a refused install or a refused database
+(`ttfe.negative.drill.ts:51`), **the same defect leaving the SDK unit suite green**
+(`:107`), the `DATABASE_URL` refusal (`:117`), and the concurrent-collision teardown
+(`:134`). All four are negative by construction — a refused install or a refused database
 produces no delivery. The drill's listener is in-process and answers on the first attempt,
 so each delivery is one row rather than six.
 
@@ -511,12 +537,12 @@ this table multiplied the per-run figure by 82 runs/week and reported 183 kB/wee
 was not merely mis-sized — **it is structurally zero, permanently, and would remain zero on
 a runner with Docker.** The harness destroys its own database at teardown:
 
-- `scripts/ttfe/harness.ts:149` issues `DROP DATABASE IF EXISTS "<name>"`, then **:154
+- `scripts/ttfe/harness.ts:185` issues `DROP DATABASE IF EXISTS "<name>"`, then **:190
   re-queries `pg_database` for that name and throws if a row comes back** — the drill's own
   proof that nothing survived.
-- The default path never touches a shared server at all: `:165–169` starts
+- The default path never touches a shared server at all: `:200–205` starts
   `new PostgreSqlContainer('postgres:16')` and disposes it with `container.stop()`.
-- `ttfe.negative.drill.ts:133` asserts exactly this, by name — *"two concurrent runs collide
+- `ttfe.negative.drill.ts:134` asserts exactly this, by name — *"two concurrent runs collide
   on neither port nor schema, and neither survives teardown."*
 
 So a drill run's 3 rows exist for the life of one ephemeral container and are gone with it.
@@ -662,7 +688,7 @@ not a measurement. The case for it:
   `GET /api/v1/issues`, zero writes** (`agent/src/data/rewireCost.test.ts`, PF-698). It
   contributes to the denominator and can never contribute to the numerator.
 - **The write surface is the smaller half even before traffic weighting:** 12 GET operations
-  against 10 write operations across 14 paths in `docs/openapi.json`. That is *surface, not
+  against 10 write operations across 15 paths in `docs/openapi.json`. That is *surface, not
   traffic* — quoted as a floor on read-dominance, not as the split itself.
 
 **Step 2 — deliveries per write operation, and subscriptions per event type, at each tier.**
@@ -897,12 +923,15 @@ Epic 7 and the portal ask; the second has a 30-day answer.
 
 ## 4. What would move these numbers
 
-- **A CI runner with Docker.** §1's TTFE minutes — 35.1 min billed, 54.8 min projected —
-  are floors only because `ttfe` and `ttfe-controls` die before the drill starts. A Docker
-  binary turns them into real figures. **It does not start the delivery log accruing:** the
-  harness drops its own database and stops its own container at teardown
-  (`harness.ts:149`/`:154`, `:165–169`), so drill runs stay at zero persistent storage on
-  any runner. That accrual is closed by design, not waiting on infrastructure.
+- **The drill actually running.** §1's TTFE minutes — 35.1 min billed, 54.8 min projected —
+  were floors, measured over a window in which `ttfe` and `ttfe-controls` died before the
+  drill started. They are no longer floors for new pipelines: since `774ab9d` deleted the
+  `docker pull` line the drill executes, and a green `ttfe` costs about **63 s** against the
+  28 s the crashed jobs cost, so the projection roughly doubles as the old jobs age out of
+  the window. **It does not start the delivery log accruing:** the harness drops its own
+  database and stops its own container at teardown (`harness.ts:185`/`:190`, `:200–205`), so
+  drill runs stay at zero persistent storage on any runner. That accrual is closed by
+  design, not waiting on infrastructure.
 - **Moving CI off the self-hosted runner.** All 1,072 jobs in the measured week ran on
   runner 198, `is_shared: false`. Marginal cost today is ~$0. On GitLab shared runners the
   same 59.4 h would price at roughly $28.50/week at $0.008/min — which is the number that
